@@ -1,0 +1,56 @@
+/** Bit operations.
+Copyright (c) 2013 Simon Zolin
+*/
+
+#pragma once
+
+#include <FFOS/types.h>
+
+#if !defined FF_MSVC
+#include <FF/bitops-gc.h>
+#else
+#include <FF/bitops-vc.h>
+#endif
+
+#if defined FF_64
+/** bit: 0-63 */
+#define ffbit_test(/*size_t*/ i, bit)  ffbit_test64((uint64)(i), bit)
+
+static FFINL ffbool ffbit_reset(size_t *p, uint bit) {
+	return ffbit_reset64((uint64*)p, bit);
+}
+
+#define ffbit_ffs(/*size_t*/ i)  ffbit_ffs64((uint64)(i))
+
+#else //32 bit:
+/** bit: 0-31 */
+#define ffbit_test(/*size_t*/ i, bit)  ffbit_test32((uint)(i), (bit))
+
+#define ffbit_test64(/*uint64*/ i, bit)  (((i) & FF_BIT64(bit)) != 0)
+
+static FFINL ffbool ffbit_reset(size_t *p, uint bit) {
+	return ffbit_reset32((uint*)p, bit);
+}
+
+static FFINL ffbool ffbit_reset64(uint64 *p, uint bit) {
+	if ((*p & FF_BIT64(bit)) != 0) {
+		*p &= ~FF_BIT64(bit);
+		return 1;
+	}
+	return 0;
+}
+
+#define ffbit_ffs(/*size_t*/ i)  ffbit_ffs32((int)i)
+
+static FFINL uint ffbit_ffs64(uint64 i) {
+	if ((int)i != 0)
+		return ffbit_ffs((int)i);
+	if ((int)(i >> 32) != 0)
+		return ffbit_ffs((int)(i >> 32)) + 32;
+	return 0;
+}
+#endif
+
+static FFINL ffbool ffbit_testarr(const uint *ar, uint bit) {
+	return ffbit_test(ar[bit / 32], bit % 32);
+}

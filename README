@@ -1,0 +1,22 @@
+FAST-FORWARD (FF) LIBRARY
+
+FF library contains some useful functionality helping to develop applications in C and C++.
+
+FF requires FFOS.
+
+FEATURES
+	. string
+	. array
+	. operations with bits
+	. CRC
+	. filesystem path
+	. URL parser
+	. HTTP parser
+
+LICENSE
+
+The code provided here is free for use in open-source and proprietary projects.
+You may distribute, redistribute, modify the whole code or the parts of it, just keep the original copyright statement inside the files.
+
+
+Simon Zolin <stsaz@yandex.ru>
