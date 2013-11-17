@@ -63,18 +63,35 @@ Return NULL on error. */
 #define ffarr_realloc(ar, newlen) \
 	_ffarr_realloc((ffarr*)(ar), newlen, sizeof(*(ar)->ptr))
 
-static FFINL void * _ffarr_alloc(ffarr *ar, size_t len) {
+static FFINL void * _ffarr_alloc(ffarr *ar, size_t len, size_t elsz) {
 	ffarr_null(ar);
-	return ffarr_realloc(ar, len);
+	return _ffarr_realloc(ar, len, elsz);
 }
 
+/** Allocate memory for an array. */
 #define ffarr_alloc(ar, len) \
-	_ffarr_alloc((ffarr*)(ar), (len) * sizeof(*(ar)->ptr))
+	_ffarr_alloc((ffarr*)(ar), (len), sizeof(*(ar)->ptr))
+
+enum { FFARR_GROWQUARTER = -1 };
+
+/** Reserve more space for an array. */
+FF_EXTN char *_ffarr_grow(ffarr *ar, size_t by, ssize_t lowat, size_t elsz);
+
+#define ffarr_grow(ar, by, lowat) \
+	_ffarr_grow((ffarr*)(ar), (by), (lowat), sizeof(*(ar)->ptr))
 
 FF_EXTN void _ffarr_free(ffarr *ar);
 
 /** Deallocate array memory. */
 #define ffarr_free(ar)  _ffarr_free((ffarr*)ar)
+
+/** Add 1 item into array.
+Return the item pointer.
+Return NULL on error. */
+FF_EXTN void * _ffarr_push(ffarr *ar, size_t elsz);
+
+#define ffarr_push(ar, T) \
+	(T*)_ffarr_push((ffarr*)ar, sizeof(T))
 
 /** Add items into array.
 Return the tail.
@@ -114,12 +131,15 @@ static FFINL ffbool ffstr_eq(const ffstr *s1, const char *s2, size_t n) {
 		&& (n == 0 || 0 == ffs_cmp(s1->ptr, s2, n));
 }
 
+/** Return TRUE if both strings are equal. */
+#define ffstr_eq2(s1, s2)  ffstr_eq(s1, (s2)->ptr, (s2)->len)
+
 static FFINL ffbool ffstr_ieq(const ffstr *s1, const char *s2, size_t n) {
 	return s1->len == n
 		&& (n == 0 || 0 == ffs_icmp(s1->ptr, s2, n));
 }
 
-/** Return TRUE if both strings are equal. */
+/** Return TRUE if both strings are equal. Case-insensitive */
 #define ffstr_ieq2(s1, s2)  ffstr_ieq(s1, (s2)->ptr, (s2)->len)
 
 /** Return TRUE if an array is equal to a NULL-terminated string. */
@@ -149,6 +169,18 @@ static FFINL char * ffstr_alloc(ffstr *s, size_t cap) {
 static FFINL void ffstr_free(ffstr *s) {
 	FF_SAFECLOSE(s->ptr, NULL, ffmem_free);
 	s->len = 0;
+}
+
+static FFINL void ffstr_cat(ffstr *s, size_t cap, const char *d, size_t len) {
+	char *p = ffs_copy(s->ptr + s->len, s->ptr + cap, d, len);
+	s->len = p - s->ptr;
+}
+
+static FFINL char * ffstr_copy(ffstr *s, const char *d, size_t len) {
+	if (NULL == ffstr_alloc(s, len))
+		return NULL;
+	ffstr_cat(s, len, d, len);
+	return s->ptr;
 }
 
 
@@ -187,6 +219,19 @@ FF_EXTN ssize_t ffstr_findarr(const ffstr *ar, size_t n, const char *search, siz
 Spaces on the edges are trimmed.
 Return the number of processed bytes. */
 FF_EXTN size_t ffstr_nextval(const char *buf, size_t len, ffstr *dst, int spl);
+
+FF_EXTN size_t ffstr_catfmtv(ffstr3 *s, const char *fmt, va_list args);
+
+static FFINL size_t ffstr_catfmt(ffstr3 *s, const char *fmt, ...) {
+	size_t r;
+	va_list args;
+	va_start(args, fmt);
+	r = ffstr_catfmtv(s, fmt, args);
+	va_end(args);
+	return r;
+}
+
+FF_EXTN size_t fffile_fmt(fffd fd, ffstr3 *buf, const char *fmt, ...);
 
 
 typedef struct {

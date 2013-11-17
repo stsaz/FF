@@ -3,6 +3,7 @@ Copyright (c) 2013 Simon Zolin
 */
 
 #include <FFOS/test.h>
+#include <FFOS/timer.h>
 #include <FF/array.h>
 #include <FF/crc.h>
 #include <FF/path.h>
@@ -89,6 +90,7 @@ static int test_bits()
 	uint64 i8;
 	uint i4;
 	size_t i;
+	uint mask[2] = { 0 };
 
 	i8 = 1;
 	x(0 != ffbit_test64(i8, 0));
@@ -96,6 +98,19 @@ static int test_bits()
 	x(0 != ffbit_test32(i4, 0));
 	i = 1;
 	x(0 != ffbit_test(i, 0));
+
+	i8 = 0x8000000000000000ULL;
+	x(0 != ffbit_set64(&i8, 63));
+	x(i8 == 0x8000000000000000ULL);
+	i4 = 0x80000000;
+	x(0 != ffbit_set32(&i4, 31));
+	x(i4 == 0x80000000);
+	i = 0;
+	x(0 == ffbit_set(&i, 31));
+	x(i == 0x80000000);
+
+	x(0 == ffbit_setarr(mask, 47));
+	x(0 != ffbit_testarr(mask, 47));
 
 	i8 = 0x8000000000000000ULL;
 	x(0 != ffbit_reset64(&i8, 63) && i8 == 0);
@@ -117,6 +132,16 @@ static int test_bits()
 	return 0;
 }
 
+#define CALL(func)\
+	do {\
+		fftime start, stop;\
+		ffclk_get(&start);\
+		func;\
+		ffclk_get(&stop);\
+		ffclk_diff(&start, &stop);\
+		printf("  %d.%06ds\n", stop.s, stop.mcs);\
+	} while (0)
+
 int test_all()
 {
 	ffos_init();
@@ -127,6 +152,7 @@ int test_all()
 	test_path();
 	test_url();
 	test_http();
+	CALL(test_json());
 
 	return 0;
 }

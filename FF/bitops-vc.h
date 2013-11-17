@@ -9,6 +9,14 @@ static FFINL ffbool ffbit_test64(int64 i, uint bit) {
 }
 #endif
 
+static FFINL ffbool ffbit_set32(uint *i, uint bit) {
+	return BitTestAndSet((long *)i, bit) != 0;
+}
+
+#ifdef FF_64
+#define ffbit_set64  BitTestAndSet64
+#endif
+
 static FFINL ffbool ffbit_reset32(uint *i, uint bit) {
 	return BitTestAndReset((long *)i, bit) != 0;
 }

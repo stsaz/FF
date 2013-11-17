@@ -4,6 +4,8 @@ Copyright (c) 2013 Simon Zolin
 
 #include <FF/string.h>
 #include <FF/array.h>
+#include <FFOS/file.h>
+#include <FFOS/error.h>
 
 
 #ifdef FF_MSVC
@@ -186,6 +188,16 @@ ffbool ffchar_tohex(char ch, byte *dst)
 	return 1;
 }
 
+static const char sfxs[] = "kmgt";
+
+uint ffchar_sizesfx(char suffix)
+{
+	const char *d = memchr(sfxs, ffchar_lower(suffix), FFSLEN(sfxs));
+	if (d == NULL)
+		return 0;
+	return ((uint)(d - sfxs) + 1) * 10;
+}
+
 uint ffs_toint(const char *src, size_t len, void *dst, int flags)
 {
 	uint64 r = 0;
@@ -326,6 +338,219 @@ uint ffs_fromint(uint64 i, char *dst, size_t cap, int flags)
 	return (uint)(dst - dsto);
 }
 
+size_t ffs_fmtv(char *buf_o, const char *end, const char *fmt, va_list va)
+{
+	size_t swidth;
+	uint width;
+	int64 num = 0;
+	uint itoaFlags = 0;
+	ffbool itoa = 0;
+	char *buf = buf_o;
+
+	for (; *fmt && buf < end; ++fmt) {
+		if (*fmt != '%') {
+			*buf++ = *fmt;
+			continue;
+		}
+
+		fmt++; //skip %
+
+		swidth = (size_t)-1;
+		width = 0;
+
+		if (*fmt == '0') {
+			itoaFlags |= FFINT_ZEROWIDTH;
+			fmt++;
+		}
+
+		while (ffchar_isnum(*fmt)) {
+			width = width * 10 + (*fmt++ - '0');
+		}
+
+		switch (*fmt) {
+		case '*':
+			swidth = va_arg(va, size_t);
+			fmt++;
+			break;
+
+		case 'x':
+			itoaFlags |= FFINT_HEXLOW;
+			fmt++;
+			break;
+
+		case 'X':
+			itoaFlags |= FFINT_HEXUP;
+			fmt++;
+			break;
+		}
+
+		switch (*fmt) {
+
+		case 'D':
+			itoaFlags |= FFINT_SIGNED;
+			//break;
+		case 'U':
+			num = va_arg(va, int64);
+			itoa = 1;
+			break;
+
+		case 'd':
+			itoaFlags |= FFINT_SIGNED;
+			//break;
+		case 'u':
+			num = va_arg(va, int);
+			itoa = 1;
+			break;
+
+		case 'I':
+			itoaFlags |= FFINT_SIGNED;
+			//break;
+		case 'L':
+			num = va_arg(va, ssize_t);
+			itoa = 1;
+			break;
+
+		case 'p':
+			num = va_arg(va, size_t);
+			width = sizeof(void*) * 2;
+			itoaFlags |= FFINT_HEXLOW | FFINT_ZEROWIDTH;
+			*buf++ = '0';
+			if (buf + 1 >= end)
+				goto done;
+			*buf++ = 'x';
+			break;
+
+#ifdef FF_UNIX
+		case 'q':
+#endif
+		case 's': {
+			const char *s = va_arg(va, char *);
+			if (swidth == (size_t)-1)
+				buf = ffs_copyz(buf, end, s);
+			else
+				buf = ffs_copy(buf, end, s, swidth);
+			}
+			break;
+
+#ifdef FF_UNIX
+		case 'Q':
+#endif
+		case 'S': {
+			ffstr *s = va_arg(va, ffstr *);
+			buf = ffs_copy(buf, end, s->ptr, s->len);
+			}
+			break;
+
+#ifdef FF_WIN
+		case 'q': {
+			ffsyschar *s = va_arg(va, ffsyschar *);
+			if (swidth == (size_t)-1)
+				swidth = ffq_len(s);
+			buf = ffs_copyq(buf, end, s, swidth);
+			}
+			break;
+
+		case 'Q': {
+			ffqstr *s = va_arg(va, ffqstr *);
+			buf = ffs_copyq(buf, end, s->ptr, s->len);
+			}
+			break;
+#endif
+
+		case 'e': {
+			int e = va_arg(va, int);
+			buf = ffs_copyz(buf, end, fferr_opstr((enum FFERR)e));
+			}
+			break;
+
+		case 'E': {
+			int e = va_arg(va, int);
+			ffsyschar tmp[256];
+			int r = fferr_str(e, tmp, FFCNT(tmp));
+			buf += ffs_fmt(buf, end, "(%u) %*q", (int)e, (size_t)r, tmp);
+			}
+			break;
+
+		case 'c': {
+			uint ch = va_arg(va, int);
+			if (swidth == (size_t)-1)
+				swidth = 1;
+			while (swidth-- != 0) {
+				*buf++ = (char)ch;
+			}
+			}
+			break;
+
+		case '%':
+			*buf++ = '%';
+			break;
+
+		default:
+			return 0;
+		}
+
+		if (itoaFlags != 0 || itoa) {
+			if (width != 0) {
+				if (width > 255)
+					width = 255;
+				itoaFlags |= FFINT_WIDTH(width);
+			}
+			buf += ffs_fromint(num, buf, end - buf, itoaFlags);
+			itoaFlags = 0;
+			itoa = 0;
+		}
+	}
+
+done:
+	return buf - buf_o;
+}
+
+size_t ffstr_catfmtv(ffstr3 *s, const char *fmt, va_list args)
+{
+	size_t r;
+	size_t n = 512;
+	va_list va;
+
+	do {
+		if (NULL == ffarr_grow(s, n, FFARR_GROWQUARTER))
+			return 0;
+
+		va_copy(va, args);
+		r = ffs_fmtv(ffarr_end(s), s->ptr + s->cap, fmt, va);
+		va_end(va);
+
+		n += ffarr_unused(s) + 512;
+	} while (r == ffarr_unused(s));
+
+	s->len += r;
+	return r;
+}
+
+size_t fffile_fmt(fffd fd, ffstr3 *buf, const char *fmt, ...)
+{
+	size_t r;
+	va_list args;
+	ffstr3 dst = { 0 };
+
+	if (buf == NULL) {
+		if (NULL == ffarr_realloc(&dst, 1024))
+			return 0;
+		buf = &dst;
+	}
+	else
+		buf->len = 0;
+
+	va_start(args, fmt);
+	r = ffstr_catfmtv(buf, fmt, args);
+	va_end(args);
+
+	if (r != 0)
+		r = fffile_write(fd, buf->ptr, r);
+
+	ffarr_free(&dst);
+	return r;
+}
+
 
 void * _ffarr_realloc(ffarr *ar, size_t newlen, size_t elsz)
 {
@@ -342,6 +567,19 @@ void * _ffarr_realloc(ffarr *ar, size_t newlen, size_t elsz)
 	return d;
 }
 
+char *_ffarr_grow(ffarr *ar, size_t by, ssize_t lowat, size_t elsz)
+{
+	size_t newcap = ar->len + by;
+	if (ar->cap >= newcap)
+		return ar->ptr;
+
+	if (lowat == FFARR_GROWQUARTER)
+		lowat = newcap / 4; //allocate 25% more
+	if (by < (size_t)lowat)
+		newcap = ar->len + (size_t)lowat;
+	return (char*)_ffarr_realloc(ar, newcap, elsz);
+}
+
 void _ffarr_free(ffarr *ar)
 {
 	if (ar->cap != 0) {
@@ -352,6 +590,16 @@ void _ffarr_free(ffarr *ar)
 	}
 	ar->ptr = NULL;
 	ar->len = 0;
+}
+
+void * _ffarr_push(ffarr *ar, size_t elsz)
+{
+	if (ar->cap < ar->len + 1
+		&& NULL == _ffarr_realloc(ar, ar->len + 1, elsz))
+		return NULL;
+
+	ar->len += 1;
+	return ar->ptr + (ar->len - 1) * elsz;
 }
 
 void * _ffarr_append(ffarr *ar, const void *src, size_t num, size_t elsz)

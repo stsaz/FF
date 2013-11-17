@@ -98,6 +98,9 @@ static int test_arr()
 		ffstr s3 = { 0 };
 		ffstr_set(&s3, FFSTR("ASDF"));
 		x(ffstr_ieq2(&str, &s3));
+
+		ffstr_set(&s3, FFSTR("asdf"));
+		x(ffstr_eq2(&str, &s3));
 	}
 
 	x(ffstr_match(&str, FFSTR("asd")));
@@ -108,12 +111,37 @@ static int test_arr()
 	x(p == str.ptr);
 	ffstr_free(&str);
 
-	x(NULL != ffarr_alloc(&ar, 4));
-	x(NULL != ffarr_realloc(&ar, 8));
-	x(NULL != ffarr_append(&ar, "asdf", 4));
-	x(ffstr_eq((ffstr*)&ar, FFSTR("asdf")));
-	ffarr_free(&ar);
+	return 0;
+}
 
+static int test_arrmem()
+{
+	static const int ints[] = { 1, 2, 3, 4, 1000 };
+	struct { FFARR(int) } ar;
+
+	x(NULL != ffarr_alloc(&ar, 4));
+	x(ar.cap == 4 && ar.len == 0);
+	ar.len = 3;
+	x(NULL != ffarr_realloc(&ar, 8));
+	x(ar.cap == 8 && ar.len == 3);
+	x(NULL != ffarr_grow(&ar, 5, 10));
+	x(ar.cap == 8 && ar.len == 3);
+	ar.len = 8;
+	x(NULL != ffarr_grow(&ar, 1, FFARR_GROWQUARTER));
+	x(ar.cap == 8 + 8/4 && ar.len == 8);
+	ar.len = 0;
+
+	x(NULL != ffarr_append(&ar, ints, FFCNT(ints) - 1));
+	x(!memcmp(ar.ptr, ints, FFCNT(ints) - 1));
+
+	{
+		int *i = ffarr_push(&ar, int);
+		x(i != NULL);
+		*i = 1000;
+		x(!memcmp(ar.ptr, ints, FFCNT(ints)));
+	}
+
+	ffarr_free(&ar);
 	return 0;
 }
 
@@ -135,7 +163,7 @@ int test_inttostr()
 	ss.len = ffs_fromint(0xabc1, s, FFCNT(s), FFINT_HEXLOW | FFINT_ZEROWIDTH | FFINT_WIDTH(8));
 	x(ffstr_eq(&ss, FFSTR("0000abc1")));
 
-	ss.len = ffs_fromint(0xabc1, s, FFCNT(s), FFINT_HEXLOW | FFINT_SPACEWIDTH | FFINT_WIDTH(8));
+	ss.len = ffs_fromint(0xabc1, s, FFCNT(s), FFINT_HEXLOW | FFINT_WIDTH(8));
 	x(ffstr_eq(&ss, FFSTR("    abc1")));
 
 	return 0;
@@ -197,6 +225,41 @@ int test_strtoint()
 	return 0;
 }
 
+static int test_strf()
+{
+	ffstr3 s = { 0 };
+	ffstr s1;
+	ffqstr qs1;
+
+	x(0 != ffstr_catfmt(&s, "%03D %03xI %3d %p", (int64)-9, (size_t)-0x543fe, (int)-5, (void*)0xab1234));
+#if defined FF_64
+	x(ffstr_eqz((ffstr*)&s, "-009 -543fe -  5 0x0000000000ab1234"));
+#else
+	x(ffstr_eqz((ffstr*)&s, "-009 -543fe -  5 0x00ab1234"));
+#endif
+
+	s.len = 0;
+	ffstr_set(&s1, FFSTR("hello"));
+	ffqstr_set(&qs1, FFSTRQ("hello"));
+	x(0 != ffstr_catfmt(&s, "%*s %S %*q %Q", (size_t)3, "hello", &s1, (size_t)3, TEXT("hello"), &qs1));
+	x(ffstr_eqz((ffstr*)&s, "hel hello hel hello"));
+
+	s.len = 0;
+	x(0 != ffstr_catfmt(&s, "%*c %%", (size_t)5, (int)'-'));
+	x(ffstr_eqz((ffstr*)&s, "----- %"));
+
+	s.len = 0;
+	x(0 != ffstr_catfmt(&s, "%e: %E", (int)FFERR_FOPEN, (int)EINVAL));
+#ifdef FF_UNIX
+	x(ffstr_eqz((ffstr*)&s, "file open: (22) Invalid argument"));
+#else
+	x(ffstr_eqz((ffstr*)&s, "file open: (87) The parameter is incorrect. "));
+#endif
+
+	ffarr_free(&s);
+	return 0;
+}
+
 int test_str()
 {
 	const char *ptr = "asdfa";
@@ -233,7 +296,9 @@ int test_str()
 	test_strcat();
 	test_strqcat();
 	test_strtoint();
+	test_strf();
 	test_arr();
+	test_arrmem();
 
 	{
 		char buf[8];
@@ -278,6 +343,7 @@ int test_str()
 
 	x(ffchar_isname('A') && !ffchar_isname('\xff') && !ffchar_isname('-'));
 	x(ffchar_iswhite(' ') && ffchar_iswhite('\xff') && !ffchar_iswhite('-'));
+	x(10 == ffchar_sizesfx('k') && 10 * 4 == ffchar_sizesfx('t'));
 
 	return 0;
 }

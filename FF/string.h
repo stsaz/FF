@@ -7,6 +7,10 @@ Copyright (c) 2013 Simon Zolin
 #include <FFOS/string.h>
 #include <FF/bitops.h>
 
+#if defined FF_UNIX
+#include <stdarg.h> // for va_arg
+#endif
+
 
 /** a-zA-Z0-9_ */
 FF_EXTN const uint ffcharmask_name[];
@@ -43,6 +47,9 @@ static FFINL ffbool ffchar_ishex(char c) {
 
 /** Convert character to hex 4-bit number. */
 FF_EXTN ffbool ffchar_tohex(char ch, byte *dst);
+
+/** Get bits to shift by size suffix K, M, G, T. */
+FF_EXTN uint ffchar_sizesfx(char suffix);
 
 
 /** Compare two strings. */
@@ -192,7 +199,6 @@ enum FFINT_TOSTR {
 	, FFINT_HEXLOW = 2
 	, FFINT_HEXUP = 4
 	, FFINT_ZEROWIDTH = 8
-	, FFINT_SPACEWIDTH = 0
 
 	, _FFINT_WIDTH_MASK = 0xff000000
 };
@@ -202,3 +208,32 @@ enum FFINT_TOSTR {
 /** Convert integer to string.
 Return the number of chars written. */
 FF_EXTN uint ffs_fromint(uint64 i, char *dst, size_t cap, int flags);
+
+/** String format.
+%[0][width][x|X]d|u  int|uint
+%[0][width][x|X]D|U  int64|uint64
+%[0][width][x|X]I|L  ssize_t|size_t
+
+%[*]s  [size_t,] char*
+%S     ffstr*
+%[*]q  [size_t,] ffsyschar*
+%Q     ffqstr*
+
+%e     int
+%E     int
+
+%[*]c  [size_t,] int
+%p     void*
+%%
+Return the number of chars written.
+Return 0 on error. */
+FF_EXTN size_t ffs_fmtv(char *buf, const char *end, const char *fmt, va_list va);
+
+static FFINL size_t ffs_fmt(char *buf, const char *end, const char *fmt, ...) {
+	size_t r;
+	va_list args;
+	va_start(args, fmt);
+	r = ffs_fmtv(buf, end, fmt, args);
+	va_end(args);
+	return r;
+}
