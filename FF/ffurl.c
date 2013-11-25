@@ -87,7 +87,7 @@ int ffurl_parse(ffurl *url, const char *s, size_t len)
 			if (ch == ']') {
 				idx = iAfterHost;
 			}
-			else if (!(ffchar_isnum(ch) || ch == ':' || ch == '%')) {// valid ip6 addr: 0-9:%
+			else if (!(ffchar_isdigit(ch) || ch == ':' || ch == '%')) {// valid ip6 addr: 0-9:%
 				er = FFURL_EIP6;
 				break;
 			}
@@ -136,7 +136,7 @@ int ffurl_parse(ffurl *url, const char *s, size_t len)
 		case iPort:
 			{
 				uint p;
-				if (!ffchar_isnum(ch)) {
+				if (!ffchar_isdigit(ch)) {
 					idx = iPathStart;
 					again = 1;
 					break;
@@ -174,7 +174,7 @@ int ffurl_parse(ffurl *url, const char *s, size_t len)
 				if (!url->complex && s[i - 1] == '/')
 					url->complex = 1; //handle "//" and "/./", "/." and "/../", "/.."
 			}
-			else if (ffchar_iswhite(ch) || ch == '#') {
+			else if (ffchar_isansiwhite(ch) || ch == '#') {
 				er = FFURL_ESTOP;
 				break;
 			}
@@ -193,7 +193,7 @@ int ffurl_parse(ffurl *url, const char *s, size_t len)
 			break;
 
 		case iQs:
-			if (ffchar_iswhite(ch) || ch == '#') {
+			if (ffchar_isansiwhite(ch) || ch == '#') {
 				er = FFURL_ESTOP;
 				break;
 			}
@@ -304,11 +304,11 @@ size_t ffuri_decode(char *dst, size_t dstcap, const char *d, size_t len)
 	int idx = iUri;
 	size_t idst = 0;
 	uint b = 0;
-	byte bt;
+	int bt;
 	size_t i;
 
 	for (i = 0;  i != len && idst < dstcap;  ++i) {
-		char ch = d[i];
+		int ch = d[i];
 
 		switch (idx) {
 		case iUri:
@@ -316,21 +316,23 @@ size_t ffuri_decode(char *dst, size_t dstcap, const char *d, size_t len)
 				idx = iQuoted1;
 			else if (ch == '?')
 				goto done;
-			else if (ffchar_iswhite(ch) || ch == '#')
+			else if (ffchar_isansiwhite(ch) || ch == '#')
 				goto fail;
 			else
 				dst[idst++] = ch;
 			break;
 
 		case iQuoted1:
-			if (!ffchar_tohex(ch, &bt))
+			bt = ffchar_tohex(ch);
+			if (bt == -1)
 				goto fail;
 			b = bt;
 			idx = iQuoted2;
 			break;
 
 		case iQuoted2:
-			if (!ffchar_tohex(ch, &bt))
+			bt = ffchar_tohex(ch);
+			if (bt == -1)
 				goto fail;
 			b = (b << 4) | bt;
 			if (b == '\0')

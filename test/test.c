@@ -13,6 +13,9 @@ Copyright (c) 2013 Simon Zolin
 
 #define x FFTEST_BOOL
 
+uint _fftest_nrun;
+uint _fftest_nfail;
+
 static int test_crc()
 {
 	x(0x7052c01a == ffcrc32_get(FFSTR("hello, man!"), 0));
@@ -153,6 +156,8 @@ int test_all()
 	test_url();
 	test_http();
 	CALL(test_json());
+
+	printf("Tests run: %u.  Failed: %u.\n", _fftest_nrun, _fftest_nfail);
 
 	return 0;
 }

@@ -47,10 +47,12 @@ typedef struct {
 	byte state
 		, nextst
 		, type; ///< contains the entity type (front-end specific)
+	char ret;
 	uint line; ///< the current line number
 	uint ch; ///< the current char number within the line
 	union {
 		int64 intval; ///< for integer and boolean
+		double fltval; ///< floating point number
 		char esc[8]; ///< temporary buffer for unescaping
 	};
 
@@ -81,13 +83,22 @@ static FFINL void ffpars_cleardata(ffparser *p) {
 /** Default memory alloc/free function. */
 FF_EXTN void * ffpars_defmemfunc(void *d, size_t sz);
 
-FF_EXTN int _ffpars_copyText(ffparser *p, const char *text, size_t len);
+enum FFPARS_IDX {
+	FFPARS_IWSPACE
+	, FFPARS_ICMT_BEGIN, FFPARS_ICMT_LINE, FFPARS_ICMT_MLINE, FFPARS_ICMT_MLINESLASH
+};
+
+FF_EXTN const char ff_escchar[7];
+FF_EXTN const char ff_escbyte[7];
+
+FF_EXTN int _ffpars_hdlCmt(int *st, int ch);
+FF_EXTN int _ffpars_copyBuf(ffparser *p, const char *text, size_t len);
 
 
 enum FFPARS_T {
 	FFPARS_TSTR = 1 ///< string
 	, FFPARS_TINT ///< 32-bit or 64-bit integer
-	, FFPARS_TBOOL ///< byte integer, the possible values are 0 and 1
+	, FFPARS_TBOOL ///< byte integer, the possible values are 0 and 1.  Valid input: false|true
 	, FFPARS_TOBJ ///< new context: sub-object
 	, FFPARS_TARR ///< new context: sub-array
 	, FFPARS_TENUM ///< byte index in the array of possible values of type string
@@ -97,17 +108,36 @@ enum FFPARS_T {
 
 enum FFPARS_F {
 	FFPARS_FTYPEMASK = 0x0f
+	, FFPARS_FBITMASK = 0xff000000
 
 	, FFPARS_FPTR = 0x10 ///< direct pointer
 	, FFPARS_FCOPY = 0x20 ///< copy string value.  Note: call ffstr_free() to free this memory.
 	, FFPARS_FREQUIRED = 0x40 ///< the argument must be specified.  note: up to 63 arguments only
 	, FFPARS_FMULTI = 0x80 ///< allow multiple occurences.  note: up to 63 arguments only
+
 	, FFPARS_FNULL = 0x100 ///< allow null value
 	, FFPARS_FNOTEMPTY = 0x200 ///< don't allow empty string
 	, FFPARS_FNOTZERO = 0x400 ///< don't allow number zero
-	, FFPARS_F64BIT = 0x800 ///< 64-bit number (default is 32-bit)
-	, FFPARS_FSIGN = 0x1000 ///< allow negative number
+	//, FFPARS_F32BIT = 0
+	, FFPARS_F64BIT = 0x800 ///< 64-bit number
+	, FFPARS_F16BIT = 0x1000 ///< 16-bit number
+	, FFPARS_F8BIT = 0x2000 ///< 8-bit number
+	, FFPARS_FSIGN = 0x4000 ///< allow negative number
+	, FFPARS_FBIT = 0x8000
+	, FFPARS_FLIST = 0x10000
+
+	, FFPARS_FOBJ1 = 0x20000 ///< string value followed by object start. e.g. "name val {..."
 };
+
+#define FFPARS_SETBIT(bit)  (FFPARS_FBIT | ((bit) << 24))
+
+typedef struct {
+	const char *const *vals;
+	uint nvals;
+	union {
+		size_t off;
+	};
+} ffpars_enumlist;
 
 typedef struct ffpars_ctx ffpars_ctx;
 typedef struct ffparser_schem ffparser_schem;
@@ -118,14 +148,15 @@ union ffpars_val {
 	int (*f_str)(ffparser_schem *p, void *obj, const ffstr *val);
 	int (*f_int)(ffparser_schem *p, void *obj, const int64 *val);
 	int (*f_obj)(ffparser_schem *p, void *obj, ffpars_ctx *ctx);
-	char **enum_vals;
+	ffpars_enumlist *enum_list;
 
 	// set with FFPARS_FPTR:
 	ffstr *s;
 	int64 *i64;
 	int *i32;
+	short *i16;
 	byte *b;
-	ffpars_ctx *ctx; ///< inplace definition of type object and array
+	ffpars_ctx *ctx; ///< a new context for type object or array
 };
 
 #define FFPARS_DST(ptr) {(size_t)ptr}
@@ -141,7 +172,7 @@ struct ffpars_ctx {
 	void *obj;
 	const ffpars_arg *args;
 	uint nargs;
-	//const char * (*errfunc)(int ercod);
+	const char * (*errfunc)(int ercod);
 	uint used[2];
 };
 
@@ -158,6 +189,7 @@ struct ffparser_schem {
 	struct { FFARR(ffpars_ctx) } ctxs;
 	const ffpars_arg *curarg;
 	int (*valfunc)(ffparser_schem *ps, void *obj, void *dst); ///< user-defined function to handle a parsed value
+	ffstr vals[1];
 };
 
 /** Initialize parser with a scheme. */
@@ -170,3 +202,6 @@ static FFINL void ffpars_schemfree(ffparser_schem *ps) {
 /** Process the currently parsed entity according to the scheme.
 Return enum FFPARS_E. */
 FF_EXTN int ffpars_schemrun(ffparser_schem *ps, int e);
+
+/** Get error message. */
+FF_EXTN const char * ffpars_schemerrstr(ffparser_schem *ps, int code, char *buf, size_t cap);

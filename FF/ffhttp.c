@@ -209,7 +209,7 @@ int ffhttp_nexthdr(ffhttp_hdr *h, const char *d, size_t len)
 
 	len = ffmin(len, (size_t)0xffff);
 	for (; i != len; ++i) {
-		char ch = d[i];
+		int ch = d[i];
 
 		switch (idx) {
 		case iKey:
@@ -427,7 +427,7 @@ enum VER_E {
 };
 
 /** Return FFHTTP_OK if version has been parsed.  The caller must process this char again. */
-static int parseVer(char ch, uint *_Idx, ushort *ver)
+static int parseVer(int ch, uint *_Idx, ushort *ver)
 {
 	uint idx = *_Idx;
 	switch (idx) {
@@ -456,7 +456,7 @@ static int parseVer(char ch, uint *_Idx, ushort *ver)
 		break;
 
 	case iHttpMajVer:
-		if (!ffchar_isnum(ch)) {
+		if (!ffchar_isdigit(ch)) {
 			if (ch == '.') {
 				idx = iHttpMinVerFirst;
 				break;
@@ -474,7 +474,7 @@ static int parseVer(char ch, uint *_Idx, ushort *ver)
 
 	case iHttpMinVerFirst:
 	case iHttpMinVer:
-		if (!ffchar_isnum(ch)) {
+		if (!ffchar_isdigit(ch)) {
 			if (idx == iHttpMinVerFirst)
 				goto fail; // must be at least 1 digit long
 			return FFHTTP_OK;
@@ -519,7 +519,7 @@ int ffhttp_reqparse(ffhttp_request *r, const char *d, size_t len)
 		r->h.base = d;
 
 	for (; i != len; ++i) {
-		char ch = d[i];
+		int ch = d[i];
 
 		switch (idx) {
 		case iMethod:
@@ -778,7 +778,7 @@ int ffhttp_respparse(ffhttp_response *r, const char *d, size_t len, int flags)
 		r->h.base = d;
 
 	for (; i != len; ++i) {
-		char ch = d[i];
+		int ch = d[i];
 
 		switch (idx) {
 		case iRespStart:
@@ -809,7 +809,7 @@ int ffhttp_respparse(ffhttp_response *r, const char *d, size_t len, int flags)
 			//break;
 
 		case iCode:
-			if (ffchar_isnum(ch)) {
+			if (ffchar_isdigit(ch)) {
 				uint t = (uint)r->code * 10 + ch - '0';
 				if (t > 999) {
 					er = FFHTTP_ESTATUS;

@@ -6,7 +6,7 @@ Copyright (c) 2013 Simon Zolin
 
 
 static const char *const _ffjson_stypes[] = {
-	"null", "string", "integer", "boolean", "object", "array"
+	"null", "string", "integer", "boolean", "object", "array", "number"
 };
 
 const char * ffjson_stype(int type)
@@ -14,48 +14,48 @@ const char * ffjson_stype(int type)
 	return _ffjson_stypes[type];
 }
 
-static const char _ffjson_escchar[] = "\"\\bfrnt/";
-static const char _ffjson_escbyte[] = "\"\\\b\f\r\n\t/";
-
 int ffjson_unescape(char *dst, size_t cap, const char *text, size_t len)
 {
 	char *d;
 	if (cap == 0 || len == 0)
 		return 0;
 
-	d = memchr(_ffjson_escchar, text[0], FFSLEN(_ffjson_escchar));
-	if (d == NULL) {
-		if (text[0] == 'u') {
-			wchar_t wch;
-			ushort sh;
-			size_t r;
+	d = memchr(ff_escchar, text[0], FFCNT(ff_escchar));
 
-			if (len < FFSLEN("uXXXX")) // \\uXXXX (UCS-2 BE)
-				return 0;
-
-			if (FFSLEN("XXXX") != ffs_toint(text + 1, FFSLEN("XXXX"), &sh, FFS_INT16 | FFS_INTHEX))
-				return -1;
-
-			wch = sh;
-			r = ff_wtou(dst, cap, &wch, 1, 0);
-			if (r != 0)
-				return (int)r;
-		}
-
-		return -1;
+	if (d != NULL) {
+		*dst = ff_escbyte[d - ff_escchar];
+		return 1;
 	}
 
-	*dst = _ffjson_escbyte[d - _ffjson_escchar];
-	return 1;
+	if (text[0] == '/') {
+		*dst = '/';
+		return 1;
+	}
+	else if (text[0] == 'u') {
+		wchar_t wch;
+		ushort sh;
+		size_t r;
+
+		if (len < FFSLEN("uXXXX")) // \\uXXXX (UCS-2 BE)
+			return 0;
+
+		if (FFSLEN("XXXX") != ffs_toint(text + 1, FFSLEN("XXXX"), &sh, FFS_INT16 | FFS_INTHEX))
+			return -1;
+
+		wch = sh;
+		r = ff_wtou(dst, cap, &wch, 1, 0);
+		if (r != 0)
+			return (int)r;
+	}
+
+	return -1;
 }
 
 enum IDX {
-	iWSpace
-	, iValFirst, iVal, iValBare, iAfterVal, iCloseBrace, iFin
+	iValFirst = 16, iVal, iValBare, iValBareNum, iAfterVal, iCloseBrace
 	, iNewCtx, iRmCtx
 	, iQuot, iQuotFirst, iQuotEsc
 	, iKeyFirst, iKey, iAfterKey
-	, iCmtBegin, iCmtLine, iCmtMLine, iCmtMLineSlash
 };
 
 void ffjson_parseinit(ffparser *p)
@@ -70,88 +70,80 @@ void ffjson_parsereset(ffparser *p)
 	p->nextst = iVal;
 }
 
-static const char ws[] = " \t\r\n";
-
-static int hdlWspace(int ch)
-{
-	char *d = memchr(ws, ch, FFSLEN(ws));
-	return d == NULL;
-}
-
-static int hdlCmt(int *st, int ch)
-{
-	switch (*st) {
-	case iCmtBegin:
-		if (ch == '/')
-			*st = iCmtLine;
-		else if (ch == '*')
-			*st = iCmtMLine;
-		else
-			return FFPARS_EBADCMT; // "//" or "/*" only
-		break;
-
-	case iCmtLine:
-		if (ch == '\n')
-			*st = iWSpace; //end of line comment
-		break;
-
-	case iCmtMLine:
-		if (ch == '*')
-			*st = iCmtMLineSlash;
-		break;
-
-	case iCmtMLineSlash:
-		if (ch == '/')
-			*st = iWSpace; //end of multiline comment
-		else
-			*st = iCmtMLine; //skipped '*' within multiline comment
-		break;
-	}
-	return 0;
-}
-
 static const ffstr _ffjson_words[] = {
 	FFSTR_INIT("true"), FFSTR_INIT("false"), FFSTR_INIT("null")
 };
 static const byte wordType[] = { FFJSON_TBOOL, FFJSON_TBOOL, FFJSON_TNULL };
 
-// true|false|null|123|-123
+static int valBareType(int ch)
+{
+	switch (ch) {
+	case 't':
+		return 1;
+	case 'f':
+		return 2;
+	case 'n':
+		return 3;
+	}
+	return 0;
+}
+
+/* true|false|null */
 static int hdlValBare(ffparser *p, int ch)
 {
-	ffstr v;
-	int i;
+	int er = 0;
+	int i = (int)p->esc[0] - 1;
 
-	if (ffchar_islow(ch) || ffchar_isnum(ch) || ch == '-') {
-		int er = 0;
-		if (p->val.len >= FFINT_MAXCHARS)
-			return FFPARS_EBIGVAL; //value without quotes is too large
+	int len = p->val.len;
+	if (ch != _ffjson_words[i].ptr[len])
+		return FFPARS_EBADVAL;
 
+	if (len + 1 == _ffjson_words[i].len) {
+		p->type = wordType[i];
+		p->intval = (i == 0);
+		er = FFPARS_VAL;
+	}
+
+	if (p->val.ptr != p->buf.ptr)
+		p->val.len++;
+	else {
+		int e = _ffpars_copyBuf(p, (char*)&ch, sizeof(char));
+		if (e != 0)
+			er = e;
+	}
+
+	return er;
+}
+
+/* integer or float */
+static int hdlValBareNum(ffparser *p, int ch)
+{
+	int er = 0;
+
+	if (!(ffchar_isdigit(ch) || ch == '-' || ch == '+' || ch == '.' || ffchar_lower(ch) == 'e')) {
+		ffstr v = p->val;
+		er = FFPARS_VAL;
+
+		if (v.len == 0)
+			er = FFPARS_ENOVAL;
+
+		else if (v.len == ffs_toint(v.ptr, v.len, &p->intval, FFS_INT64 | FFS_INTSIGN))
+			p->type = FFJSON_TINT;
+
+		else if (v.len == ffs_tofloat(v.ptr, v.len, &p->fltval, 0))
+			p->type = FFJSON_TNUM;
+
+		else
+			er = FFPARS_EBADVAL;
+	}
+	else {
 		if (p->val.ptr != p->buf.ptr)
 			p->val.len++;
 		else
-			er = _ffpars_copyText(p, (char*)&ch, sizeof(char));
-		return er;
-	}
-	// met stop-character
-
-	if (p->val.len == 0)
-		return FFPARS_ENOVAL;
-
-	v = p->val;
-
-	for (i = 0;  i < FFCNT(_ffjson_words);  i++) {
-		if (ffstr_ieq2(&v, &_ffjson_words[i])) {
-			p->type = wordType[i];
-			p->intval = (i == 0);
-			return FFPARS_VAL;
-		}
+			er = _ffpars_copyBuf(p, (char*)&ch, sizeof(char));
 	}
 
-	if (v.len == ffs_toint(v.ptr, v.len, &p->intval, FFS_INT64 | FFS_INTSIGN))
-		p->type = FFJSON_TINT;
-	else
-		return FFPARS_EBADVAL;
-	return FFPARS_VAL;
+	return er;
 }
 
 static int hdlQuote(ffparser *p, int *st, int *nextst, int ch)
@@ -161,7 +153,7 @@ static int hdlQuote(ffparser *p, int *st, int *nextst, int ch)
 	switch (ch) {
 	case '"':
 		p->type = FFJSON_TSTR;
-		*st = iWSpace;
+		*st = FFPARS_IWSPACE;
 
 		if (*nextst == iKey) {
 			*nextst = iAfterKey;
@@ -170,8 +162,6 @@ static int hdlQuote(ffparser *p, int *st, int *nextst, int ch)
 		}
 
 		*nextst = iAfterVal;
-		if (p->ctxs.len == 0)
-			*nextst = iFin; //document finished
 		er = FFPARS_VAL;
 		break;
 
@@ -187,7 +177,7 @@ static int hdlQuote(ffparser *p, int *st, int *nextst, int ch)
 		if (p->val.ptr != p->buf.ptr)
 			p->val.len++;
 		else
-			er = _ffpars_copyText(p, (char*)&ch, sizeof(char));
+			er = _ffpars_copyBuf(p, (char*)&ch, sizeof(char));
 	}
 
 	return er;
@@ -207,7 +197,7 @@ static int hdlEsc(ffparser *p, int *st, int ch)
 		return FFPARS_EESC; //invalid escape sequence
 
 	if (r != 0) {
-		r = _ffpars_copyText(p, buf, r); //use dynamic buffer
+		r = _ffpars_copyBuf(p, buf, r); //use dynamic buffer
 		if (r != 0)
 			return r; //allocation error
 		p->esc[0] = 0;
@@ -233,24 +223,24 @@ int ffjson_parse(ffparser *p, const char *data, size_t *len)
 		p->ch++;
 
 		switch (st) {
-		case iWSpace:
-			if (0 != hdlWspace(ch)) {
+		case FFPARS_IWSPACE:
+			if (!ffchar_iswhitespace(ch)) {
 				if (ch == '/')
-					st = iCmtBegin;
+					st = FFPARS_ICMT_BEGIN;
 				else {
 					// met non-whitespace character
 					st = nextst;
-					nextst = iFin;
+					nextst = -1;
 					again = 1;
 				}
 			}
 			break;
 
-		case iCmtBegin:
-		case iCmtLine:
-		case iCmtMLine:
-		case iCmtMLineSlash:
-			er = hdlCmt(&st, ch);
+		case FFPARS_ICMT_BEGIN:
+		case FFPARS_ICMT_LINE:
+		case FFPARS_ICMT_MLINE:
+		case FFPARS_ICMT_MLINESLASH:
+			er = _ffpars_hdlCmt(&st, ch);
 			break;
 
 //VALUE
@@ -281,8 +271,12 @@ int ffjson_parse(ffparser *p, const char *data, size_t *len)
 
 			default:
 				// value without quotes
-				st = iValBare;
 				p->val.ptr = (char*)data;
+				{
+					int t = valBareType(ch);
+					st = (t != 0 ? iValBare : iValBareNum);
+					p->esc[0] = t;
+				}
 				again = 1;
 			}
 			break;
@@ -290,7 +284,15 @@ int ffjson_parse(ffparser *p, const char *data, size_t *len)
 		case iValBare:
 			er = hdlValBare(p, ch);
 			if (er == FFPARS_VAL) {
-				st = iWSpace;
+				st = FFPARS_IWSPACE;
+				nextst = iAfterVal;
+			}
+			break;
+
+		case iValBareNum:
+			er = hdlValBareNum(p, ch);
+			if (er == FFPARS_VAL) {
+				st = FFPARS_IWSPACE;
 				nextst = iAfterVal;
 				data--; // process this char again
 			}
@@ -315,8 +317,13 @@ int ffjson_parse(ffparser *p, const char *data, size_t *len)
 			ffpars_cleardata(p);
 			p->intval = 0;
 
+			if (p->ctxs.len == 0) {
+				er = FFPARS_EBADCHAR; //document finished. no more entities expected
+				break;
+			}
+
 			if (ch == ',') {
-				st = iWSpace;
+				st = FFPARS_IWSPACE;
 				FF_ASSERT(p->ctxs.len != 0);
 				nextst = (ffarr_back(&p->ctxs) == FFJSON_TARR ? iVal : iKey);
 				break;
@@ -348,13 +355,13 @@ int ffjson_parse(ffparser *p, const char *data, size_t *len)
 				break;
 			}
 			*ctx = p->type;
-			st = iWSpace;
+			st = FFPARS_IWSPACE;
 			again = 1;
 			}
 			break;
 
 		case iRmCtx:
-			st = iWSpace;
+			st = FFPARS_IWSPACE;
 			nextst = iAfterVal;
 			p->ctxs.len--; //ffarr_pop()
 			again = 1;
@@ -383,16 +390,11 @@ int ffjson_parse(ffparser *p, const char *data, size_t *len)
 		case iAfterKey:
 			ffpars_cleardata(p);
 			if (ch == ':') {
-				st = iWSpace;
+				st = FFPARS_IWSPACE;
 				nextst = iVal;
 			}
 			else
 				er = FFPARS_EKVSEP;
-			break;
-
-
-		case iFin:
-			er = FFPARS_EBADCHAR; //no more entities expected
 			break;
 		}
 
@@ -416,6 +418,7 @@ int ffjson_parse(ffparser *p, const char *data, size_t *len)
 	p->state = st;
 	p->nextst = nextst;
 	*len = data - datao;
+	p->ret = (char)er;
 	return er;
 }
 
@@ -423,6 +426,7 @@ int ffjson_validate(ffparser *json, const char *data, size_t len)
 {
 	int er = 0;
 	const char *end = data + len;
+
 	while (data != end) {
 		len = end - data;
 		er = ffjson_parse(json, data, &len);
@@ -430,6 +434,12 @@ int ffjson_validate(ffparser *json, const char *data, size_t len)
 		if (er > 0)
 			break;
 	}
+
+	if (er == FFPARS_MORE) {
+		len = 1;
+		er = ffjson_parse(json, "", &len);
+	}
+
 	return er;
 }
 
@@ -452,15 +462,18 @@ int ffjson_schemval(ffparser_schem *ps, void *obj, void *dst)
 	if (ps->p->type == FFJSON_TNULL) {
 		if (!(ps->curarg->flags & FFPARS_FNULL))
 			return FFPARS_EVALNULL;
-		if (dst == NULL)
-			return ps->curarg->dst.f_str(ps, obj, NULL);
+		if (dst == NULL) {
+			int er = ps->curarg->dst.f_str(ps, obj, NULL);
+			if (er != 0)
+				return er;
+		}
 		// else don't do anything
-		return 0;
+		return -1;
 	}
 
 	if (ps->p->type != parsTypes[t - FFPARS_TSTR]
 		&& !(t == FFPARS_TSIZE && ps->p->type == FFJSON_TSTR))
 		return FFPARS_EVALTYPE;
 
-	return -1;
+	return 0;
 }

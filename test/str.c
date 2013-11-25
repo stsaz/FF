@@ -185,7 +185,7 @@ int test_strtoint()
 
 	x(FFSLEN("3213213213213213123") == ffs_toint(FFSTR("3213213213213213123"), &u.i8, FFS_INT64)
 		&& u.ui8 == 3213213213213213123ULL);
-	x(FFSLEN("18446744073709551615") == ffs_toint(FFSTR("18446744073709551615"), &u.i8, FFS_INT64)
+	x(FFSLEN("18446744073709551615") == ffs_toint(FFSTR("18446744073709551615;"), &u.i8, FFS_INT64)
 		&& u.ui8 == 18446744073709551615ULL);
 	x(FFSLEN("-123456789") == ffs_toint(FFSTR("-123456789"), &u.i8, FFS_INT64 | FFS_INTSIGN)
 		&& u.i8 == -123456789);
@@ -219,9 +219,43 @@ int test_strtoint()
 	x(0 == ffs_toint(FFSTR("ffffffffffffffff"), &u.i8, FFS_INT32 | FFS_INTHEX));
 	x(FFSLEN("ffffffffffffffff") == ffs_toint(FFSTR("ffffffffffffffff"), &u.i8, FFS_INT64 | FFS_INTHEX)
 		&& u.ui8 == 0xffffffffffffffffLL);
-	x(0 == ffs_toint(FFSTR("ABCDEg"), &u.i8, FFS_INT32 | FFS_INTHEX));
-	x(0 == ffs_toint(FFSTR(":"), &u.i8, FFS_INT32 | FFS_INTHEX));
+	x(FFSLEN("ABCDE") == ffs_toint(FFSTR("ABCDEg"), &u.i4, FFS_INT32 | FFS_INTHEX)
+		&& u.i4 == 0xabcde);
 
+	x(0 == ffs_toint(FFSTR(":"), &u.i4, FFS_INT32 | FFS_INTHEX));
+	x(0 == ffs_toint(FFSTR("-"), &u.i4, FFS_INT32 | FFS_INTSIGN));
+	x(0 == ffs_toint(FFSTR("184467440737095516150"), &u.i8, FFS_INT64));
+
+	return 0;
+}
+
+static int test_strtoflt()
+{
+	double d;
+	x(0 != ffs_tofloat(FFSTR("1/"), &d, 0) && d == 1);
+	x(0 != ffs_tofloat(FFSTR("1."), &d, 0) && d == 1.);
+	x(0 != ffs_tofloat(FFSTR(".1"), &d, 0) && d == .1);
+	x(0 != ffs_tofloat(FFSTR("1.1"), &d, 0) && d == 1.1);
+	x(0 != ffs_tofloat(FFSTR("0.0"), &d, 0) && d == 0.0);
+
+	x(0 != ffs_tofloat(FFSTR("1e1"), &d, 0) && d == 1e1);
+	x(0 != ffs_tofloat(FFSTR("1e+1"), &d, 0) && d == 1e+1);
+	x(0 != ffs_tofloat(FFSTR("1e-1"), &d, 0) && d == 1e-1);
+	x(0 != ffs_tofloat(FFSTR("1.e-1"), &d, 0) && d == 1.e-1);
+	x(0 != ffs_tofloat(FFSTR("1.1e-1"), &d, 0) && d == 1.1e-1);
+	x(0 != ffs_tofloat(FFSTR(".1e-1"), &d, 0) && d == .1e-1);
+	x(0 != ffs_tofloat(FFSTR("-.1e-1"), &d, 0) && d == -.1e-1);
+	x(0 != ffs_tofloat(FFSTR("+.1e-1"), &d, 0) && d == +.1e-1);
+
+	x(0 != ffs_tofloat(FFSTR("123.456e-052"), &d, 0) && d == 123.456e-052);
+	x(0 != ffs_tofloat(FFSTR("1e-323"), &d, 0) && d == 1e-323);
+	x(0 != ffs_tofloat(FFSTR("1e50/"), &d, 0) && d == 1e50);
+
+	x(0 == ffs_tofloat(FFSTR("-"), &d, 0));
+	x(0 == ffs_tofloat(FFSTR("+"), &d, 0));
+	x(0 == ffs_tofloat(FFSTR("1e"), &d, 0));
+	x(0 == ffs_tofloat(FFSTR("e-1"), &d, 0));
+	x(0 == ffs_tofloat(FFSTR(".e-1"), &d, 0));
 	return 0;
 }
 
@@ -296,6 +330,7 @@ int test_str()
 	test_strcat();
 	test_strqcat();
 	test_strtoint();
+	test_strtoflt();
 	test_strf();
 	test_arr();
 	test_arrmem();
@@ -341,8 +376,9 @@ int test_str()
 		x(ffstr_eq(&v, FFSTR("")));
 	}
 
+	x(ffchar_islow('a') && !ffchar_islow('A') && !ffchar_islow('\xff') && !ffchar_islow('-'));
 	x(ffchar_isname('A') && !ffchar_isname('\xff') && !ffchar_isname('-'));
-	x(ffchar_iswhite(' ') && ffchar_iswhite('\xff') && !ffchar_iswhite('-'));
+	x(ffchar_isansiwhite(' ') && ffchar_isansiwhite('\xff') && !ffchar_isansiwhite('-'));
 	x(10 == ffchar_sizesfx('k') && 10 * 4 == ffchar_sizesfx('t'));
 
 	return 0;

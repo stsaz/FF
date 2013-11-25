@@ -174,28 +174,19 @@ const uint ffcharmask_nowhite[] = {
 	0
 };
 
-ffbool ffchar_tohex(char ch, byte *dst)
+uint ffchar_sizesfx(int suffix)
 {
-	if (ffchar_isnum(ch))
-		*dst = ch - '0';
-	else {
-		byte b = ffchar_lower(ch) - 'a' + 10;
-		if (b <= 0x0f)
-			*dst = b;
-		else
-			return 0;
+	switch (ffchar_lower(suffix)) {
+	case 'k':
+		return 10;
+	case 'm':
+		return 20;
+	case 'g':
+		return 30;
+	case 't':
+		return 40;
 	}
-	return 1;
-}
-
-static const char sfxs[] = "kmgt";
-
-uint ffchar_sizesfx(char suffix)
-{
-	const char *d = memchr(sfxs, ffchar_lower(suffix), FFSLEN(sfxs));
-	if (d == NULL)
-		return 0;
-	return ((uint)(d - sfxs) + 1) * 10;
+	return 0;
 }
 
 uint ffs_toint(const char *src, size_t len, void *dst, int flags)
@@ -203,6 +194,7 @@ uint ffs_toint(const char *src, size_t len, void *dst, int flags)
 	uint64 r = 0;
 	size_t i = 0;
 	ffbool minus = 0;
+	int digits = 0;
 	union {
 		void *ptr;
 		uint64 *pi64;
@@ -212,33 +204,39 @@ uint ffs_toint(const char *src, size_t len, void *dst, int flags)
 	} ptr;
 	ptr.ptr = dst;
 
-	if ((flags & FFS_INTSIGN) && len > 0) {
-		if (src[0] == '-') {
-			minus = 1;
-			i++;
-		}
-		else if (src[0] == '+')
-			i++;
-	}
+	if ((flags & FFS_INTSIGN) && len > 0
+		&& ((minus = (src[0] == '-')) || src[0] == '+'))
+		i++;
 
 	if (!(flags & FFS_INTHEX)) {
 		//dec
 		for (; i < len; ++i) {
 			byte b = src[i] - '0';
 			if (b >= 10)
-				goto fail; //0-9
+				break;
 			r = r * 10 + b;
+			digits++;
 		}
+
+		if (digits > FFSLEN("18446744073709551615"))
+			goto fail;
 	}
 	else {
 		//hex
 		for (; i < len; ++i) {
-			byte b;
-			if (!ffchar_tohex(src[i], &b))
-				goto fail; //0-9a-f
+			int b = ffchar_tohex(src[i]);
+			if (b == -1)
+				break;
 			r = (r << 4) | b;
+			digits++;
 		}
+
+		if (digits > FFSLEN("1234567812345678"))
+			goto fail;
 	}
+
+	if (digits == 0)
+		goto fail;
 
 	{
 		uint n = (flags & 0x0f) * 8;
@@ -338,6 +336,111 @@ uint ffs_fromint(uint64 i, char *dst, size_t cap, int flags)
 	return (uint)(dst - dsto);
 }
 
+uint ffs_tofloat(const char *s, size_t len, double *dst, int flags)
+{
+	double d = 0.0;
+	ffbool minus = 0;
+	ffbool negexp = 0;
+	int exp = 0;
+	int e = 0;
+	int digits = 0;
+	int i;
+	enum {
+		iMinus, iInt, iDot, iFrac, iExpE, iExpSign, iExp
+	};
+	int st = iMinus;
+
+	for (i = 0;  i != len;  i++) {
+		int ch = s[i];
+
+		switch (st) {
+		case iMinus:
+			st = iInt;
+			if ((minus = (ch == '-')) || ch == '+')
+				break;
+			//break;
+
+		case iInt:
+			if (ffchar_isdigit(ch)) {
+				d = d * 10 + ffchar_tonum(ch);
+				digits++;
+				break;
+			}
+			//st = iDot;
+			//break;
+
+			//case iDot:
+			if (ch == '.') {
+				st = iFrac;
+				break;
+			}
+			//st = iExpE;
+			//i--; //again
+			//break;
+
+		case iFrac:
+			if (ffchar_isdigit(ch)) {
+				d = d * 10 + ffchar_tonum(ch);
+				digits++;
+				exp--;
+				break;
+			}
+			//st = iExpE;
+			//break;
+
+			//case iExpE:
+			if (ffchar_lower(ch) != 'e')
+				break;
+			st = iExpSign;
+			break;
+
+		case iExpSign:
+			st = iExp;
+			if ((negexp = (ch == '-')) || ch == '+')
+				break;
+			//break;
+
+		case iExp:
+			if (!ffchar_isdigit(ch))
+				break;
+			e = e * 10 + ffchar_tonum(ch);
+			break;
+		}
+	}
+
+	exp += (negexp ? -e : e);
+
+	if (digits == 0 || st == iExpSign
+		|| exp > 308 || exp < -324)
+		return 0;
+
+	if (minus)
+		d = -d;
+
+	{
+		double p10 = 10.0;
+		e = exp;
+		if (e < 0)
+			e = -e;
+
+		while (e != 0) {
+
+			if (e & 1) {
+				if (exp < 0)
+					d /= p10;
+				else
+					d *= p10;
+			}
+
+			e >>= 1;
+			p10 *= p10;
+		}
+	}
+
+	*dst = d;
+	return i;
+}
+
 size_t ffs_fmtv(char *buf_o, const char *end, const char *fmt, va_list va)
 {
 	size_t swidth;
@@ -363,7 +466,7 @@ size_t ffs_fmtv(char *buf_o, const char *end, const char *fmt, va_list va)
 			fmt++;
 		}
 
-		while (ffchar_isnum(*fmt)) {
+		while (ffchar_isdigit(*fmt)) {
 			width = width * 10 + (*fmt++ - '0');
 		}
 
@@ -396,17 +499,19 @@ size_t ffs_fmtv(char *buf_o, const char *end, const char *fmt, va_list va)
 
 		case 'd':
 			itoaFlags |= FFINT_SIGNED;
-			//break;
-		case 'u':
 			num = va_arg(va, int);
+			break;
+		case 'u':
+			num = va_arg(va, uint);
 			itoa = 1;
 			break;
 
 		case 'I':
 			itoaFlags |= FFINT_SIGNED;
-			//break;
-		case 'L':
 			num = va_arg(va, ssize_t);
+			break;
+		case 'L':
+			num = va_arg(va, size_t);
 			itoa = 1;
 			break;
 

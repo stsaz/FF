@@ -11,3 +11,5 @@ FF_EXTN int test_http();
 FF_EXTN int test_json();
 
 FF_EXTN int test_all();
+
+#define TESTDIR TEXT("./test")

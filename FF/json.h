@@ -14,6 +14,7 @@ enum FFJSON_T {
 	, FFJSON_TBOOL
 	, FFJSON_TOBJ
 	, FFJSON_TARR
+	, FFJSON_TNUM
 };
 
 /** Get type name. */

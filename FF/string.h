@@ -13,43 +13,56 @@ Copyright (c) 2013 Simon Zolin
 
 
 /** a-zA-Z0-9_ */
-FF_EXTN const uint ffcharmask_name[];
+FF_EXTN const uint ffcharmask_name[8];
 
 /** non-whitespace ANSI */
-FF_EXTN const uint ffcharmask_nowhite[];
+FF_EXTN const uint ffcharmask_nowhite[8];
 
-#define ffchar_lower(c)  ((c) | 0x20)
-#define ffchar_upper(c)  ((c) & ~0x20)
-#define ffchar_tonum(c)  ((c) - '0')
+#define ffchar_lower(ch)  ((ch) | 0x20)
+#define ffchar_upper(ch)  ((ch) & ~0x20)
+#define ffchar_tonum(ch)  ((ch) - '0')
 
-static FFINL ffbool ffchar_isnum(char c) {
-	return (c >= '0' && c <= '9');
+static FFINL ffbool ffchar_isdigit(int ch) {
+	return (ch >= '0' && ch <= '9');
 }
 
-static FFINL ffbool ffchar_isup(char c) {
-	return (c >= 'A' && c <= 'Z');
+static FFINL ffbool ffchar_isup(int ch) {
+	return (ch >= 'A' && ch <= 'Z');
 }
 
-static FFINL ffbool ffchar_islow(char c) {
-	return (c >= 'a' && c <= 'z');
+static FFINL ffbool ffchar_islow(int ch) {
+	return (ch >= 'a' && ch <= 'z');
 }
 
-static FFINL ffbool ffchar_ishex(char c) {
-	byte b = ffchar_lower(c);
-	return ffchar_isnum(c) || (b >= 'a' && b <= 'f');
+static FFINL ffbool ffchar_ishex(int ch) {
+	uint b = ffchar_lower(ch);
+	return ffchar_isdigit(ch) || (b >= 'a' && b <= 'f');
 }
 
-#define ffchar_isletter(c)  ffchar_islow(ffchar_lower(c))
+#define ffchar_isletter(ch)  ffchar_islow(ffchar_lower(ch))
 
 #define ffchar_isname(ch)  (0 != ffbit_testarr(ffcharmask_name, (byte)(ch)))
 
-#define ffchar_iswhite(ch)  (0 == ffbit_testarr(ffcharmask_nowhite, (byte)(ch)))
+#define ffchar_isansiwhite(ch)  (0 == ffbit_testarr(ffcharmask_nowhite, (byte)(ch)))
 
-/** Convert character to hex 4-bit number. */
-FF_EXTN ffbool ffchar_tohex(char ch, byte *dst);
+static FFINL ffbool ffchar_iswhitespace(int ch) {
+	return (ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r');
+}
+
+/** Convert character to hex 4-bit number.
+Return -1 if invalid hex char. */
+static FFINL int ffchar_tohex(int ch) {
+	uint b;
+	if (ffchar_isdigit(ch))
+		return ch - '0';
+	b = ffchar_lower(ch) - 'a' + 10;
+	if ((uint)b <= 0x0f)
+		return b;
+	return -1;
+}
 
 /** Get bits to shift by size suffix K, M, G, T. */
-FF_EXTN uint ffchar_sizesfx(char suffix);
+FF_EXTN uint ffchar_sizesfx(int suffix);
 
 
 /** Compare two strings. */
@@ -172,9 +185,9 @@ On return '*n' contains the number of replacements made.
 Return the number of chars written. */
 FF_EXTN size_t ffs_replacechar(const char *src, size_t len, char *dst, size_t cap, int search, int replace, size_t *n);
 
-/** Lowercase hex alphabet. */
-FF_EXTN const char ffhex[];
-FF_EXTN const char ffHEX[];
+/** Lowercase/uppercase hex alphabet. */
+FF_EXTN const char ffhex[16];
+FF_EXTN const char ffHEX[16];
 
 enum FFS_INT {
 	FFS_INT8 = 1
@@ -188,11 +201,12 @@ enum FFS_INT {
 
 /** Convert string to integer.
 'dst': int64|int|short|char
+'flags': enum FFS_INT
 Return the number of chars processed.
 Return 0 on error. */
 FF_EXTN uint ffs_toint(const char *src, size_t len, void *dst, int flags);
 
-enum { FFINT_MAXCHARS = 32 };
+enum { FFINT_MAXCHARS = FFSLEN("18446744073709551615") };
 
 enum FFINT_TOSTR {
 	FFINT_SIGNED = 1
@@ -206,8 +220,14 @@ enum FFINT_TOSTR {
 #define FFINT_WIDTH(width) ((width) << 24)
 
 /** Convert integer to string.
+'flags': enum FFINT_TOSTR
 Return the number of chars written. */
 FF_EXTN uint ffs_fromint(uint64 i, char *dst, size_t cap, int flags);
+
+/** Convert floating point number to string.
+Return the number of chars processed.
+Return 0 on error. */
+FF_EXTN uint ffs_tofloat(const char *s, size_t len, double *dst, int flags);
 
 /** String format.
 %[0][width][x|X]d|u  int|uint

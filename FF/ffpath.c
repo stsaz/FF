@@ -19,7 +19,7 @@ size_t ffpath_norm(char *dst, size_t dstcap, const char *path, size_t len, int f
 		return 0;
 
 	for (i = 0; i < len; ++i) {
-		char ch = path[i];
+		int ch = path[i];
 
 		switch (idx) {
 		case iNorm:

@@ -11,6 +11,7 @@
 	, "emptyarr":[]
  },
  "int" : 7777,
+ "flt" : 123.456e-50,
  "arr" :[ 0 ,"my arr string", -123],
  "arr2": [
 	1, "my arr2 string", 2000, [1,2,3], 66,
