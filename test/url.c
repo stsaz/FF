@@ -3,6 +3,7 @@ Copyright (c) 2013 Simon Zolin
 */
 
 #include <FFOS/test.h>
+#include <FFOS/socket.h>
 #include <FF/url.h>
 
 #define x FFTEST_BOOL
@@ -13,23 +14,42 @@ static int test_urldecode()
 	size_t n;
 
 	n = ffuri_decode(decoded, FFCNT(decoded), FFSTR("/path/my%20file"));
-	x(n == FFSLEN("/path/my file") && 0 == ffs_cmp(decoded, "/path/my file", n));
+	x(n == FFSLEN("/path/my file") && 0 == ffmemcmp(decoded, "/path/my file", n));
 
 	x(0 == ffuri_decode(decoded, FFCNT(decoded), FFSTR("/path/my%2zfile")));
 	x(0 == ffuri_decode(decoded, FFCNT(decoded), FFSTR("/path/my%20space%2")));
 
 	n = ffuri_decode(decoded, FFCNT(decoded), FFSTR("/1/2/3/..%2f../%2e%2e/4"));
-	x(n == FFSLEN("/4") && 0 == ffs_cmp(decoded, "/4", n));
+	x(n == FFSLEN("/4") && 0 == ffmemcmp(decoded, "/4", n));
 
 	n = ffuri_decode(decoded, FFCNT(decoded), FFSTR("/1/2/3/..%2f../%2e%2e/4/."));
-	x(n == FFSLEN("/4/") && 0 == ffs_cmp(decoded, "/4/", n));
+	x(n == FFSLEN("/4/") && 0 == ffmemcmp(decoded, "/4/", n));
 
 	n = ffuri_decode(decoded, FFCNT(decoded), FFSTR("/1/2/3/..%2f../%2e%2e/4/./"));
-	x(n == FFSLEN("/4/") && 0 == ffs_cmp(decoded, "/4/", n));
+	x(n == FFSLEN("/4/") && 0 == ffmemcmp(decoded, "/4/", n));
 
 	x(0 == ffuri_decode(decoded, FFCNT(decoded), FFSTR("/1/2/3/../../../..")));
 	x(0 == ffuri_decode(decoded, FFCNT(decoded), FFSTR("/%001")));
 	x(0 == ffuri_decode(decoded, FFCNT(decoded), FFSTR("/\x01")));
+
+	return 0;
+}
+
+int test_ip()
+{
+	struct in_addr a4;
+
+	FFTEST_FUNC;
+
+	x(4 == ffip_parse4(&a4, FFSTR("1.65.192.255")));
+	x(!memcmp(&a4, FFSTR("\x01\x41\xc0\xff")));
+
+	x(0 == ffip_parse4(&a4, FFSTR(".1.65.192.255")));
+	x(0 == ffip_parse4(&a4, FFSTR("1.65.192.255.")));
+	x(0 == ffip_parse4(&a4, FFSTR("1.65..192.255")));
+	x(0 == ffip_parse4(&a4, FFSTR("1.65.192.256")));
+	x(0 == ffip_parse4(&a4, FFSTR("1.65.192.255.1")));
+	x(0 == ffip_parse4(&a4, FFSTR("1.65,192.255")));
 
 	return 0;
 }
@@ -212,6 +232,22 @@ int test_url()
 	x(FFURL_EOK == ffurl_parse(&u, FFSTR("[::1]:8080")));
 	x(u.ipv6 == 1);
 
+	ffurl_init(&u);
+	x(FFURL_EOK == ffurl_parse(&u, FFSTR("[::1]")));
+	x(u.ipv6 == 1);
+
+	ffurl_init(&u);
+	x(FFURL_EOK == ffurl_parse(&u, FFSTR("127.0.0.1:8080")));
+	x(u.ipv4 == 1);
+
+	ffurl_init(&u);
+	x(FFURL_EOK == ffurl_parse(&u, FFSTR("127.0.0.1")));
+	x(u.ipv4 == 1);
+
+	ffurl_init(&u);
+	x(FFURL_EOK == ffurl_parse(&u, FFSTR("127.0.0.1.com:8080")));
+	x(u.ipv4 == 0);
+
 #define URL "/path/file"
 	ffurl_init(&u);
 	x(FFURL_EOK == ffurl_parse(&u, FFSTR(URL)));
@@ -232,6 +268,7 @@ int test_url()
 	(void)ffurl_errstr(FFURL_EPATH);
 
 	test_urldecode();
+	test_ip();
 
 	return 0;
 }

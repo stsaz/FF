@@ -19,9 +19,9 @@ valid input:
 int ffurl_parse(ffurl *url, const char *s, size_t len)
 {
 	enum {
-		iProto = 0, iProtoSlash, iProtoSlash2
-		, iHostStart, iHost, iIp6, iAfterHost, iPort
+		iHostStart = 0, iHost, iIp6, iAfterHost, iPort
 		, iPathStart, iPath, iQuoted1, iQuoted2, iQs
+		, iPortOrScheme, iSchemeSlash2
 	};
 	int er = 0;
 	int idx = url->idx;
@@ -33,42 +33,7 @@ int ffurl_parse(ffurl *url, const char *s, size_t len)
 		int ch = s[i];
 
 		switch (idx) {
-		case iProto:
-			if (ffchar_isname(ch)) { //valid schema: a-zA-Z0-9_
-				if (i > 0xff) {
-					er = FFURL_ETOOLARGE;
-					break;
-				}
-				url->hostlen++;
-			}
-			else if (ch == ':') {
-				// http: or host:
-				idx = iProtoSlash;
-			}
-			else if (ch == '/') {
-				idx = iPathStart;
-				again = 1;
-			}
-			else {
-				//e.g. www. or host/ or [::1 etc.
-				idx = iHostStart;
-				again = 1;
-			}
-			break;
-
-		case iProtoSlash:
-			if (ch == '/') {
-				// http:/
-				idx = iProtoSlash2;
-			}
-			else {
-				// host:8
-				idx = iPort;
-				again = 1;
-			}
-			break;
-
-		case iProtoSlash2:
+		case iSchemeSlash2:
 			if (ch != '/') {
 				er = FFURL_ESCHEME;
 				break;
@@ -87,7 +52,7 @@ int ffurl_parse(ffurl *url, const char *s, size_t len)
 			if (ch == ']') {
 				idx = iAfterHost;
 			}
-			else if (!(ffchar_isdigit(ch) || ch == ':' || ch == '%')) {// valid ip6 addr: 0-9:%
+			else if (!(ffchar_ishex(ch) || ch == ':' || ch == '%')) {// valid ip6 addr: 0-9a-f:%
 				er = FFURL_EIP6;
 				break;
 			}
@@ -102,6 +67,13 @@ int ffurl_parse(ffurl *url, const char *s, size_t len)
 				url->ipv6 = 1;
 				break;
 			}
+			else if (ffchar_isdigit(ch))
+				url->ipv4 = 1;
+			else if (ch == '/') {
+				idx = iPathStart;
+				again = 1;
+				break;
+			}
 			// host or 127.
 			idx = iHost;
 			//break;
@@ -112,6 +84,8 @@ int ffurl_parse(ffurl *url, const char *s, size_t len)
 					er = FFURL_ETOOLARGE;
 					break;
 				}
+				if (url->ipv4 && !ffchar_isdigit(ch) && ch != '.')
+					url->ipv4 = 0;
 				url->hostlen++;
 				break;
 			}
@@ -124,14 +98,22 @@ int ffurl_parse(ffurl *url, const char *s, size_t len)
 
 		case iAfterHost:
 			if (ch == ':') {
-				// host:
-				idx = iPort;
+				// host: or http:
+				idx = (url->offhost == 0 ? iPortOrScheme : iPort);
 			}
 			else {
 				idx = iPathStart;
 				again = 1;
 			}
 			break;
+
+		case iPortOrScheme:
+			if (ch == '/') {
+				idx = iSchemeSlash2;
+				break;
+			}
+			idx = iPort;
+			//break;
 
 		case iPort:
 			{
@@ -212,7 +194,7 @@ int ffurl_parse(ffurl *url, const char *s, size_t len)
 		}
 	}
 
-	consistent = (((idx == iProto || idx == iHost) && url->hostlen != 0) || idx == iAfterHost
+	consistent = ((idx == iHost && url->hostlen != 0) || idx == iAfterHost
 		|| (idx == iPort && url->portlen != 0)
 		|| idx == iPathStart || idx == iPath || idx == iQs);
 	if (consistent)
@@ -353,5 +335,40 @@ done:
 	return idst;
 
 fail:
+	return 0;
+}
+
+
+int ffip_parse4(struct in_addr *a, const char *s, size_t len)
+{
+	byte *adr = (byte*)a;
+	uint nadr = 0;
+	uint ndig = 0;
+	uint b = 0;
+	uint i;
+
+	for (i = 0;  i < len;  i++) {
+		uint ch = (byte)s[i];
+
+		if (ffchar_isdigit(ch) && ndig != 3) {
+			b = b * 10 + ffchar_tonum(ch);
+			if (b > 0xff)
+				return 0;
+			ndig++;
+		}
+		else if (ch == '.' && nadr != 4 && ndig != 0) {
+			adr[nadr++] = b;
+			b = 0;
+			ndig = 0;
+		}
+		else
+			return 0;
+	}
+
+	if (nadr == 4-1 && ndig != 0) {
+		adr[nadr] = b;
+		return 4;
+	}
+
 	return 0;
 }

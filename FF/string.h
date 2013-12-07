@@ -65,12 +65,17 @@ static FFINL int ffchar_tohex(int ch) {
 FF_EXTN uint ffchar_sizesfx(int suffix);
 
 
-/** Compare two strings. */
-#define ffs_cmp  strncmp
+/** Compare two ANSI strings.  Case-insensitive.
+Return -1 if s1 < s2. */
+FF_EXTN int ffs_icmp(const char *s1, const char *s2, size_t len);
 
-/** Compare two ANSI strings.  Case-insensitive. */
-#define ffs_icmp  strncasecmp
+/** Search for a byte in buffer. */
+FF_EXTN void * ffmemchr(const void *d, int b, size_t len);
 
+#define ffmemzero(d, len)  memset(d, 0, len)
+
+/** Compare two buffers. */
+#define ffmemcmp  memcmp
 
 /** Search byte in a buffer.
 Return END if not found. */
@@ -89,6 +94,10 @@ static FFINL char * ffs_rfind(const char *buf, size_t len, int ch) {
 #else
 FF_EXTN char * ffs_rfind(const char *buf, size_t len, int ch);
 #endif
+
+/** Find substring.
+Return END if not found. */
+FF_EXTN char * ffs_finds(const char *buf, size_t len, const char *search, size_t search_len);
 
 FF_EXTN char * ffs_findof(const char *buf, size_t len, const char *anyof, size_t cnt);
 
@@ -127,6 +136,9 @@ static FFINL char * ffs_copy(char *dst, const char *bufend, const char *s, size_
 	memcpy(dst, s, len);
 	return dst + len;
 }
+
+/** Lowercase copy. */
+FF_EXTN char * ffs_lower(char *dst, const char *bufend, const char *src, size_t len);
 
 #if defined FF_UNIX
 #define ffq_copyc ffs_copyc

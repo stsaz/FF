@@ -20,6 +20,7 @@ typedef struct {
 	ushort decoded_pathlen; //length of decoded filename
 
 	unsigned idx : 4
+		, ipv4 : 1
 		, ipv6 : 1
 		, querystr : 1 //has query string
 		, complex : 1; //path contains %xx or "/." or "//"
@@ -76,3 +77,11 @@ Normalize path: /./ and /../
 Return the number of bytes written into dst.
 Return 0 on error. */
 FF_EXTN size_t ffuri_decode(char *dst, size_t dstcap, const char *d, size_t len);
+
+
+struct in_addr;
+
+/** Parse IPv4 address.
+Return 4 on success.
+Return 0 on error. */
+FF_EXTN int ffip_parse4(struct in_addr *a, const char *s, size_t len);

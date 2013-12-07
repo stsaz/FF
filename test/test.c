@@ -12,6 +12,7 @@ Copyright (c) 2013 Simon Zolin
 #include <test/all.h>
 
 #define x FFTEST_BOOL
+#define CALL FFTEST_TIMECALL
 
 uint _fftest_nrun;
 uint _fftest_nfail;
@@ -134,16 +135,6 @@ static int test_bits()
 	x(0 == ffbit_ffs(i));
 	return 0;
 }
-
-#define CALL(func)\
-	do {\
-		fftime start, stop;\
-		ffclk_get(&start);\
-		func;\
-		ffclk_get(&stop);\
-		ffclk_diff(&start, &stop);\
-		printf("  %d.%06ds\n", stop.s, stop.mcs);\
-	} while (0)
 
 int test_all()
 {

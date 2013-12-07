@@ -1,9 +1,10 @@
-/** Test JSON parser and deserialization with a scheme.
+/** Test JSON parser and deserialization with a scheme.  JSON generator.
 Copyright (c) 2013 Simon Zolin
 */
 
 #include <FFOS/test.h>
 #include <FFOS/file.h>
+#include <FFOS/process.h>
 #include <FF/json.h>
 #include "schem.h"
 #include "all.h"
@@ -23,12 +24,16 @@ int test_json_parse(const ffsyschar *testJsonFile)
 	size_t n;
 	ffbool again = 0;
 	ffstr3 buf = { 0 };
+	ffjson_cook ck;
+	int ckf = FFJSON_PRETTY4SPC;
+	void *dst;
 
 	f = fffile_open(testJsonFile, FFO_OPEN | O_RDONLY);
 	if (!x(f != FF_BADFD))
 		return 0;
 
 	ffjson_parseinit(&json);
+	ffjson_cookinit(&ck, NULL, 0);
 
 	for (;;) {
 		if (!again) {
@@ -47,27 +52,25 @@ int test_json_parse(const ffsyschar *testJsonFile)
 
 		switch (rc) {
 		case FFPARS_KEY:
-			fffile_fmt(ffstdout, &buf, "%*c'%*s'  "
-				, (size_t)4 * json.ctxs.len, (int)' '
-				, (size_t)json.val.len, json.val.ptr);
+			ffjson_cookaddbuf(&ck, FFJSON_TSTR | ckf, &json.val);
 			break;
 
 		case FFPARS_VAL:
-			fffile_fmt(ffstdout, &buf, "%*c(%s):  '%*s'\n"
-				, ffarr_back(&json.ctxs) == FFPARS_TOBJ ? (size_t)0 : (size_t)4 * json.ctxs.len, (int)' '
-				, ffjson_stype(json.type), (size_t)json.val.len, json.val.ptr);
+			if (json.type == FFJSON_TINT)
+				dst = &json.intval;
+			else if (json.type == FFJSON_TBOOL)
+				dst = json.intval != 0 ? (void*)1 : NULL;
+			else
+				dst = &json.val;
+			ffjson_cookaddbuf(&ck, json.type | ckf, dst);
 			break;
 
 		case FFPARS_OPEN:
-			fffile_fmt(ffstdout, &buf, "\n%*c%c\n"
-				, (size_t)4 * json.ctxs.len, (int)' '
-				, json.type == FFJSON_TARR ? (int)'[' : (int)'{');
+			ffjson_cookaddbuf(&ck, json.type | ckf, 0);
 			break;
 
 		case FFPARS_CLOSE:
-			fffile_fmt(ffstdout, &buf, "%*c%c\n\n"
-				, (size_t)4 * (json.ctxs.len - 1), (int)' '
-				, json.type == FFJSON_TARR ? (int)']' : (int)'}');
+			ffjson_cookaddbuf(&ck, json.type | ckf, (void*)1);
 			break;
 
 		case FFPARS_MORE:
@@ -82,6 +85,9 @@ int test_json_parse(const ffsyschar *testJsonFile)
 		}
 	}
 
+	fffile_write(ffstdout, ck.buf.ptr, ck.buf.len);
+
+	ffarr_free(&ck.buf);
 	ffpars_free(&json);
 	(void)fffile_close(f);
 	return 0;
@@ -157,6 +163,8 @@ int test_json_schem(const ffsyschar *testJsonFile)
 	ffjson_scheminit(&ps, &json, &top);
 
 	ibuf = getFileContents(testJsonFile, buf, sizeof(buf));
+	if (ibuf == (size_t)-1)
+		return 1;
 
 	js = buf;
 	jsend = buf + ibuf;
@@ -183,13 +191,85 @@ int test_json_schem(const ffsyschar *testJsonFile)
 	return 0;
 }
 
+/** Generate ~82MB JSON file. */
+int test_json_generat(const ffsyschar *fn)
+{
+	ffsyschar fne[FF_MAXPATH];
+	char buf[16 * 1024];
+	fffd f;
+	int i;
+	int jf = FFJSON_PRETTY /*| FFJSON_NOESC*/;
+	ffjson_cook j;
+	int r;
+	int64 i64 = 123456;
+	int e;
+
+	enum {
+		eStart
+		, eKeyStr, eValStr
+		, eKeyInt, eValInt
+		, eKeyArr, eArrStart, eArrElStr, eArrElInt, eArrClose
+		, eEnd
+	};
+	const void *srcs[] = {
+		NULL
+		, "str", "my string"
+		, "int", &i64
+		, "arr", NULL, "my string", &i64, (void*)1
+		, (void*)1
+	};
+	static const int dstflags[] = {
+		FFJSON_TOBJ
+		, FFJSON_TSTR | FFJSON_SZ, FFJSON_TSTR | FFJSON_SZ
+		, FFJSON_TSTR | FFJSON_SZ, FFJSON_TINT
+		, FFJSON_TSTR | FFJSON_SZ, FFJSON_TARR, FFJSON_TSTR | FFJSON_SZ, FFJSON_TINT, FFJSON_TARR
+		, FFJSON_TOBJ
+	};
+
+	ffjson_cookinit(&j, buf, sizeof(buf));
+
+	if (0 != ffenv_expand(fn, fne, FFCNT(fne)))
+		fn = fne;
+	f = fffile_open(fn, FFO_CREATE | O_WRONLY);
+	if (!x(f != FF_BADFD))
+		return 0;
+
+	ffjson_cookadd(&j, FFJSON_TARR | jf, 0);
+
+	for (i = 0; i < 1000000; i++) {
+		for (e = 0; e <= eEnd; e++) {
+			int jflags = dstflags[e];
+			const void *src = srcs[e];
+
+			r = ffjson_cookadd(&j, jflags | jf, src);
+			if (r != FFJSON_OK) {
+				x(r == FFJSON_BUFFULL);
+				x(j.buf.len == fffile_write(f, j.buf.ptr, j.buf.len));
+				j.buf.len = 0;
+				r = ffjson_cookadd(&j, jflags | jf, src);
+			}
+		}
+	}
+
+	ffjson_cookadd(&j, FFJSON_TARR | jf, (void*)1);
+
+	x(j.buf.len == fffile_write(f, j.buf.ptr, j.buf.len));
+	(void)fffile_close(f);
+	return 0;
+}
+
 int test_json()
 {
+	char buf[16];
 	FFTEST_FUNC;
+
+	x(7*2 + 1 == ffjson_escape(buf, sizeof(buf), FFSTR("\"\\\b\f\r\n\t/")));
+	x(!memcmp(buf, FFSTR("\\\"\\\\\\b\\f\\r\\n\\t/")));
 
 	test_json_parse(TESTDIR TEXT("/test.json"));
 	test_json_err();
 	test_json_schem(TESTDIR TEXT("/schem.json"));
 
+	test_json_generat(TMPDIR TEXT("/gen.json"));
 	return 0;
 }

@@ -442,7 +442,7 @@ static int scCloseBrace(ffparser_schem *ps)
 		er = 0; //ignore error
 
 	ps->ctxs.len--;
-	return 0;
+	return er;
 }
 
 int ffpars_schemrun(ffparser_schem *ps, int e)

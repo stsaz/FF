@@ -20,7 +20,7 @@ int ffjson_unescape(char *dst, size_t cap, const char *text, size_t len)
 	if (cap == 0 || len == 0)
 		return 0;
 
-	d = memchr(ff_escchar, text[0], FFCNT(ff_escchar));
+	d = ffmemchr(ff_escchar, text[0], FFCNT(ff_escchar));
 
 	if (d != NULL) {
 		*dst = ff_escbyte[d - ff_escchar];
@@ -50,6 +50,45 @@ int ffjson_unescape(char *dst, size_t cap, const char *text, size_t len)
 
 	return -1;
 }
+
+size_t ffjson_escape(char *dst, size_t cap, const char *s, size_t len)
+{
+	size_t i;
+	const char *dstend = dst + cap;
+	const char *dsto = dst;
+	uint nEsc = FFSLEN("\\n");
+
+	if (dst == NULL) {
+		size_t n = 0;
+		for (i = 0; i < len; ++i) {
+			if (NULL == ffmemchr(ff_escbyte, (byte)s[i], FFCNT(ff_escbyte)))
+				n++;
+			else
+				n += nEsc;
+		}
+		return n;
+	}
+
+	for (i = 0; i < len; ++i) {
+		char *d;
+
+		if (dst == dstend)
+			return 0;
+
+		d = ffmemchr(ff_escbyte, (byte)s[i], FFCNT(ff_escbyte));
+		if (d == NULL)
+			*dst++ = s[i];
+		else {
+			if (dst + nEsc > dstend)
+				return 0;
+			*dst++ = '\\';
+			*dst++ = ff_escchar[d - ff_escbyte];
+		}
+	}
+
+	return dst - dsto;
+}
+
 
 enum IDX {
 	iValFirst = 16, iVal, iValBare, iValBareNum, iAfterVal, iCloseBrace
@@ -94,7 +133,7 @@ static int hdlValBare(ffparser *p, int ch)
 	int er = 0;
 	int i = (int)p->esc[0] - 1;
 
-	int len = p->val.len;
+	size_t len = p->val.len;
 	if (ch != _ffjson_words[i].ptr[len])
 		return FFPARS_EBADVAL;
 
@@ -208,6 +247,8 @@ static int hdlEsc(ffparser *p, int *st, int ch)
 }
 
 static const byte ctxType[] = { FFJSON_TOBJ, FFJSON_TARR };
+static const char ctxCharOpen[] = { '{', '[' };
+static const char ctxCharClose[] = { '}', ']' };
 
 int ffjson_parse(ffparser *p, const char *data, size_t *len)
 {
@@ -476,4 +517,204 @@ int ffjson_schemval(ffparser_schem *ps, void *obj, void *dst)
 		return FFPARS_EVALTYPE;
 
 	return 0;
+}
+
+
+void ffjson_cookinit(ffjson_cook *c, char *buf, size_t cap)
+{
+	ffarr_null(&c->buf);
+	if (buf != NULL) {
+		c->buf.ptr = buf;
+		c->buf.cap = cap;
+	}
+
+	ffarr_null(&c->ctxs);
+	c->st = 0;
+}
+
+enum State {
+	stComma = 1
+	, stKey = 2
+	, stVal = 4
+};
+
+int ffjson_cookadd(ffjson_cook *c, int f, const void *src)
+{
+	char *d = ffarr_end(&c->buf);
+	const char *end = c->buf.ptr + c->buf.cap;
+	int type = f & 0x0f;
+	ffbool closingCtx = 0;
+	union {
+		const void *p;
+		const char *sz;
+		const ffstr *s;
+		const int64 *i64;
+		const int *i32;
+	} un;
+
+	un.p = src;
+	closingCtx = src != NULL && (type == FFJSON_TOBJ || type == FFJSON_TARR);
+
+	if ((c->st & stComma) && !closingCtx)
+		d = ffs_copyc(d, end, ',');
+
+	if ((f & _FFJSON_PRETTYMASK) && !(c->st & stVal)) {
+		size_t n = c->ctxs.len;
+		int ch = '\t';
+
+		if (closingCtx)
+			n--;
+
+		if (!(f & FFJSON_PRETTY)) {
+			ch = ' ';
+			n *= (f & FFJSON_PRETTY4SPC) ? 4 : 2;
+		}
+
+		d += ffs_fmt(d, end, "\n%*c", (size_t)n, (int)ch);
+	}
+
+	switch (type) {
+	case FFJSON_TSTR:
+		d = ffs_copyc(d, end, '"');
+		if (f & FFJSON_NOESC) {
+			if (f & FFJSON_SZ)
+				d = ffs_copyz(d, end, un.sz);
+			else
+				d = ffs_copy(d, end, un.s->ptr, un.s->len);
+		}
+		else {
+			ffstr s;
+			if (f & FFJSON_SZ)
+				ffstr_set(&s, un.sz, strlen(un.sz));
+			else
+				s = *un.s;
+			d += ffjson_escape(d, end - d, s.ptr, s.len);
+		}
+		d = ffs_copyc(d, end, '"');
+		break;
+
+	case FFJSON_TINT:
+		{
+			int64 i;
+			if (f & FFJSON_32BIT)
+				i = *un.i32;
+			else
+				i = *un.i64;
+			d += ffs_fromint(i, d, end - d, FFINT_SIGNED);
+		}
+		break;
+
+	case FFJSON_TNUM:
+		d = ffs_copy(d, end, un.s->ptr, un.s->len);
+		break;
+
+	case FFJSON_TBOOL:
+		d = ffs_copyz(d, end, (un.p != NULL ? "true" : "false"));
+		break;
+
+	case FFJSON_TNULL:
+		d = ffs_copy(d, end, FFSTR("null"));
+		break;
+
+	case FFJSON_TOBJ:
+	case FFJSON_TARR:
+		if (!closingCtx) {
+			char *ctx = ffarr_push(&c->ctxs, char);
+			if (ctx == NULL)
+				return FFJSON_ERR;
+			*ctx = type;
+			c->st = 0;
+			if (type == FFJSON_TOBJ)
+				c->st |= stKey;
+
+			d = ffs_copyc(d, end, ctxCharOpen[type == FFJSON_TARR]);
+		}
+		else {
+			if (c->ctxs.len == 0)
+				return FFJSON_ERR; //there is no context to close
+
+			if (ffarr_back(&c->ctxs) != type)
+				return FFJSON_ERR; //context types mismatch
+
+			c->ctxs.len--;
+			c->st = stComma;
+			if (c->ctxs.len != 0 && ffarr_back(&c->ctxs) == FFJSON_TOBJ)
+				c->st |= stKey;
+
+			d = ffs_copyc(d, end, ctxCharClose[type == FFJSON_TARR]);
+		}
+		break;
+
+	default:
+		return FFJSON_ERR; //invalid type specified
+	}
+
+	if (!(type == FFJSON_TOBJ || type == FFJSON_TARR)) {
+		if (c->st & stKey) {
+			d = ffs_copyc(d, end, ':');
+			if (f & _FFJSON_PRETTYMASK)
+				d = ffs_copyc(d, end, ' ');
+			c->st = stVal;
+		}
+		else if (c->ctxs.len != 0) {
+			c->st = stComma;
+			if (ffarr_back(&c->ctxs) == FFJSON_TOBJ)
+				c->st |= stKey;
+		}
+	}
+
+	if (d == end)
+		return FFJSON_BUFFULL;
+
+	c->buf.len = d - c->buf.ptr;
+	return FFJSON_OK;
+}
+
+int ffjson_cookaddbuf(ffjson_cook *c, int f, const void *src)
+{
+	int r;
+	size_t len = 32;
+	size_t szlen = 0;
+
+	if (f & _FFJSON_PRETTYMASK) {
+		size_t n = c->ctxs.len;
+		if (!(f & FFJSON_PRETTY))
+			n *= (f & FFJSON_PRETTY4SPC) ? 4 : 2;
+		len += n;
+	}
+
+	if ((f & 0x0f) == FFJSON_TSTR) {
+		if (f & FFJSON_SZ) {
+			szlen = strlen((char*)src);
+			len += szlen;
+		}
+		else
+			len += ((ffstr*)src)->len;
+	}
+
+	if (NULL == ffarr_grow(&c->buf, len, FFARR_GROWQUARTER))
+		return FFJSON_ERR;
+
+	r = ffjson_cookadd(c, f, src);
+
+	if (r == FFJSON_BUFFULL) {
+		// too many escape sequences
+		if ((f & 0x0f) == FFJSON_TSTR && !(f & FFJSON_NOESC)) {
+			ffstr s;
+			if (f & FFJSON_SZ)
+				ffstr_set(&s, (char*)src, szlen);
+			else
+				s = *(ffstr*)src;
+			len += ffjson_escape(NULL, 0, s.ptr, s.len) - s.len;
+		}
+		else
+			return FFJSON_ERR;
+
+		if (NULL == ffarr_grow(&c->buf, len, FFARR_GROWQUARTER))
+			return FFJSON_ERR;
+
+		r = ffjson_cookadd(c, f, src);
+	}
+
+	return r;
 }

@@ -914,7 +914,7 @@ int ffhttp_respparsehdr(ffhttp_response *r, const char *data, size_t len)
 {
 	int rc = ffhttp_parsehdr(&r->h, data, len);
 	if (rc == FFHTTP_DONE) {
-		if (r->h.has_body && (r->code == 204 || r->code == 304 || r->code/100 == 1))
+		if (r->code == 204 || r->code == 304 || r->code/100 == 1)
 			r->h.has_body = 0;
 		else if (!r->h.has_body && r->h.cont_len == -1) {
 			//no chunked, no content length.  So read body until connection is closed

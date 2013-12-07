@@ -8,6 +8,40 @@ Copyright (c) 2013 Simon Zolin
 #include <FFOS/error.h>
 
 
+int ffs_icmp(const char *s1, const char *s2, size_t len)
+{
+	size_t i;
+	uint ch1
+		, ch2;
+
+	for (i = 0;  i < len;  i++) {
+		ch1 = (byte)s1[i];
+		ch2 = (byte)s2[i];
+
+		if (ch1 != ch2) {
+			if (ffchar_isup(ch1))
+				ch1 = ffchar_lower(ch1);
+			if (ffchar_isup(ch2))
+				ch2 = ffchar_lower(ch2);
+			if (ch1 != ch2)
+				return (ch1 < ch2 ? -1 : 1);
+		}
+	}
+
+	return 0;
+}
+
+void * ffmemchr(const void *_d, int b, size_t len)
+{
+	const byte *d = _d;
+	const byte *end;
+	for (end = d + len; d != end; d++) {
+		if ((uint)b == *d)
+			return (byte*)d;
+	}
+	return NULL;
+}
+
 #ifdef FF_MSVC
 char * ffs_rfind(const char *buf, size_t len, int ch)
 {
@@ -20,6 +54,30 @@ char * ffs_rfind(const char *buf, size_t len, int ch)
 	return (char*)buf + len;
 }
 #endif
+
+char * ffs_finds(const char *s, size_t len, const char *search, size_t search_len)
+{
+	char *end = (char*)s + len;
+	const char *to;
+	uint sch0;
+
+	if (search_len == 0)
+		return (char*)s;
+
+	if (len < search_len)
+		return end;
+
+	sch0 = (byte)*search++;
+	search_len--;
+
+	for (to = s + len - search_len;  s != to;  s++) {
+		if (sch0 == (byte)*s
+			&& 0 == memcmp(s + 1, search, search_len))
+			return (char*)s;
+	}
+
+	return end;
+}
 
 char * ffs_findof(const char *buf, size_t len, const char *anyof, size_t cnt)
 {
@@ -117,6 +175,20 @@ size_t ffs_findarr(const void *s, size_t len, const void *ar, ssize_t elsz, size
 	return count;
 }
 
+char * ffs_lower(char *dst, const char *bufend, const char *src, size_t len)
+{
+	size_t i;
+	len = ffmin(len, bufend - dst);
+
+	for (i = 0;  i < len;  i++) {
+		uint ch = (byte)src[i];
+		if (ffchar_isup(ch))
+			ch = ffchar_lower(ch);
+		dst[i] = ch;
+	}
+
+	return dst + i;
+}
 
 size_t ffs_replacechar(const char *src, size_t len, char *dst, size_t cap, int search, int replace, size_t *n)
 {
@@ -722,11 +794,9 @@ void * _ffarr_append(ffarr *ar, const void *src, size_t num, size_t elsz)
 ssize_t ffstr_findarr(const ffstr *ar, size_t n, const char *search, size_t search_len)
 {
 	size_t i;
-	ffstr s;
-
-	ffstr_set(&s, search, search_len);
 	for (i = 0; i < n; ++i) {
-		if (ffstr_eq(&s, FFSTR2(ar[i])))
+		if (search_len == ar[i].len
+			&& 0 == ffmemcmp(search, ar[i].ptr, search_len))
 			return i;
 	}
 

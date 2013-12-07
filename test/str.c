@@ -19,10 +19,10 @@ int test_strqcat()
 	p = ffq_copyz(p, end, TEXT("sd"));
 	p = ffq_copy(p, end, TEXT("faz"), 2);
 	p = ffq_copyc(p, end, '\0');
-	x(0 == ffq_cmp2(buf, TEXT("asdfa")));
+	x(0 == ffq_cmpz(buf, TEXT("asdfa")));
 
 	p = ffq_copys(buf, end, FFSTR("ASDFA"));
-	x(0 == ffq_cmp2(buf, TEXT("ASDFA")));
+	x(0 == ffq_cmpz(buf, TEXT("ASDFA")));
 
 	return 0;
 }
@@ -93,6 +93,9 @@ static int test_arr()
 
 	x(ffstr_eqz(&str, "asdf"));
 	x(!ffstr_eqz(&str, "asdfz"));
+	x(ffstr_icmp(&str, FFSTR("ASDFZ")) < 0);
+	x(ffstr_icmp(&str, FFSTR("ASD")) > 0);
+	x(ffstr_icmp(&str, FFSTR("ASDF")) == 0);
 
 	{
 		ffstr s3 = { 0 };
@@ -140,6 +143,9 @@ static int test_arrmem()
 		*i = 1000;
 		x(!memcmp(ar.ptr, ints, FFCNT(ints)));
 	}
+
+	ffarr_rmswap(&ar, ar.ptr);
+	x(ar.len == 4 && ar.ptr[0] == 1000 && !memcmp(ar.ptr + 1, ints + 1, 3 * sizeof(int)));
 
 	ffarr_free(&ar);
 	return 0;
@@ -302,11 +308,13 @@ int test_str()
 
 	FFTEST_FUNC;
 
-	x(0 == ffs_cmp(ptr, "asdff", 0));
-	x(0 == ffs_cmp(ptr, "asdfaz", n));
-	x(ffs_cmp(ptr, "asdff", 5) < 0);
+	x(0 == ffmemcmp(ptr, "asdff", 0));
+	x(0 == ffmemcmp(ptr, "asdfaz", n));
+	x(ffmemcmp(ptr, "asdff", 5) < 0);
 
 	x(0 == ffs_icmp(ptr, "ASDFF", 4));
+	x(ffs_icmp(ptr, FFSTR("ASDF1")) > 0);
+	x(ffs_icmp(ptr, FFSTR("ASDFF")) < 0);
 
 	x(ptr == ffs_find(ptr, n, 'a'));
 	x(ptr + 3 == ffs_find(ptr, n, 'f'));
@@ -315,6 +323,16 @@ int test_str()
 	x(ptr + 4 == ffs_rfind(ptr, n, 'a'));
 	x(ptr + 3 == ffs_rfind(ptr, n, 'f'));
 	x(end == ffs_rfind(ptr, n, 'z'));
+
+	x(ptr == ffs_finds(ptr, 0, FFSTR("")));
+	x(ptr == ffs_finds(ptr, n, FFSTR("")));
+	x(end == ffs_finds(ptr, n, FFSTR("dfb")));
+	x(ptr + 3 == ffs_finds(ptr, n, FFSTR("f")));
+	x(ptr + 2 == ffs_finds(ptr, n, FFSTR("df")));
+	{
+		const char *p = "abac";
+		x(p + 2 == ffs_finds(p, 4, FFSTR("ac")));
+	}
 
 	x(ptr + 3 == ffs_findof(ptr, n, "zxcvf", FFSLEN("zxcvf")));
 	x(end == ffs_findof(ptr, n, "zxcv", FFSLEN("zxcv")));
@@ -340,7 +358,7 @@ int test_str()
 		size_t n;
 		x(FFSLEN("asdfasdf") == ffs_replacechar(FFSTR("asdfasdf"), buf, FFCNT(buf), 'a', 'z', &n));
 		x(n == 2);
-		x(0 == ffs_cmp(buf, "zsdfzsdf", n));
+		x(0 == ffmemcmp(buf, "zsdfzsdf", n));
 	}
 
 	{

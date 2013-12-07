@@ -13,3 +13,9 @@ FF_EXTN int test_json();
 FF_EXTN int test_all();
 
 #define TESTDIR TEXT("./test")
+
+#ifdef FF_UNIX
+#define TMPDIR TEXT("/tmp")
+#else
+#define TMPDIR TEXT("%TMP%")
+#endif

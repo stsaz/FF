@@ -1,0 +1,24 @@
+# FF v1.3 compile rules for GNU make
+
+# FF = .
+# FF_OBJ_DIR = .
+
+FF_SRC = $(wildcard $(FF)/FF/*.c)
+FF_HDR = $(wildcard $(FF)/FF/*.h)
+
+# FF_OBJ=$(FF_SRC:.c=.o)
+FF_OBJ = $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_SRC)))))
+
+FF_TEST_HDR = $(wildcard $(FF)/test/*.h)
+FF_TEST_SRC = $(wildcard $(FF)/test/*.c)
+FF_TEST_OBJ = $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_TEST_SRC)))))
+
+
+$(FF_TEST_BIN): $(FFOS_HDR) $(FFOS_OBJ) $(FF_HDR) $(FF_OBJ) $(FF_TEST_HDR) $(FF_TEST_OBJ)
+	$(LD) $(FFOS_OBJ) $(FF_OBJ) $(FF_TEST_OBJ) $(LDFLAGS) $(LIBS) $(O_LD)$@
+
+$(FF_OBJ_DIR)/%.o: $(FF)/FF/%.c $(FF_HDR)
+	$(C) $(CFLAGS) $(C1FLAGS) $< $(O)$@
+
+$(FF_OBJ_DIR)/%.o: $(FF)/test/%.c $(FF_HDR) $(FF_TEST_HDR)
+	$(C) $(CFLAGS) $(C1FLAGS) $< $(O)$@

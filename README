@@ -12,7 +12,7 @@ FEATURES
 	. filesystem path
 	. URL parser
 	. HTTP parser
-	. dynamic JSON parser
+	. dynamic JSON parser, JSON serialize
 	. deserialization of structured data using a predefined scheme
 
 LICENSE

@@ -101,6 +101,19 @@ FF_EXTN void * _ffarr_append(ffarr *ar, const void *src, size_t num, size_t elsz
 #define ffarr_append(ar, src, num) \
 	_ffarr_append((ffarr*)ar, src, num, sizeof(*(ar)->ptr))
 
+/** Remove element from array.  Move the last element into the hole. */
+static FFINL void _ffarr_rmswap(ffarr *ar, void *el, size_t elsz) {
+	const void *last;
+	FF_ASSERT(ar->len != 0);
+	ar->len--;
+	last = ar->ptr + ar->len * elsz;
+	if (el != last)
+		memcpy(el, last, elsz);
+}
+
+#define ffarr_rmswap(ar, el) \
+	_ffarr_rmswap((ffarr*)ar, (void*)el, sizeof(*(ar)->ptr))
+
 
 typedef struct {
 	size_t len;
@@ -125,10 +138,21 @@ do { \
 
 #define ffstr_shift  ffarr_shift
 
+/** Compare ANSI strings.  Case-insensitive. */
+static FFINL int ffstr_icmp(const ffstr *s1, const char *s2, size_t len) {
+	int r = ffs_icmp(s1->ptr, s2, ffmin(s1->len, len));
+	if (r == 0) {
+		if (s1->len < len)
+			return -1;
+		if (s1->len > len)
+			return 1;
+	}
+	return r;
+}
 
 static FFINL ffbool ffstr_eq(const ffstr *s1, const char *s2, size_t n) {
 	return s1->len == n
-		&& (n == 0 || 0 == ffs_cmp(s1->ptr, s2, n));
+		&& 0 == ffmemcmp(s1->ptr, s2, n);
 }
 
 /** Return TRUE if both strings are equal. */
@@ -136,7 +160,7 @@ static FFINL ffbool ffstr_eq(const ffstr *s1, const char *s2, size_t n) {
 
 static FFINL ffbool ffstr_ieq(const ffstr *s1, const char *s2, size_t n) {
 	return s1->len == n
-		&& (n == 0 || 0 == ffs_icmp(s1->ptr, s2, n));
+		&& 0 == ffs_icmp(s1->ptr, s2, n);
 }
 
 /** Return TRUE if both strings are equal. Case-insensitive */
@@ -144,19 +168,23 @@ static FFINL ffbool ffstr_ieq(const ffstr *s1, const char *s2, size_t n) {
 
 /** Return TRUE if an array is equal to a NULL-terminated string. */
 static FFINL ffbool ffstr_eqz(const ffstr *s1, const char *sz2) {
-	return (0 == ffs_cmp(s1->ptr, sz2, s1->len)
-		&& sz2[s1->len] == '\0');
+	size_t i;
+	for (i = 0;  i < s1->len;  i++) {
+		if (s1->ptr[i] != *sz2++)
+			return 0;
+	}
+	return *sz2 == '\0';
 }
 
 /** Return TRUE if n characters are equal in both strings. */
 static FFINL ffbool ffstr_match(const ffstr *s1, const char *s2, size_t n) {
 	return s1->len >= n
-		&& ((s1->len | n) == 0 || 0 == ffs_cmp(s1->ptr, s2, n));
+		&& 0 == ffmemcmp(s1->ptr, s2, n);
 }
 
 static FFINL ffbool ffstr_imatch(const ffstr *s1, const char *s2, size_t n) {
 	return s1->len >= n
-		&& ((s1->len | n) == 0 || 0 == ffs_icmp(s1->ptr, s2, n));
+		&& 0 == ffs_icmp(s1->ptr, s2, n);
 }
 
 
