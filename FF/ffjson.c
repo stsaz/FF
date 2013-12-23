@@ -499,24 +499,29 @@ static const byte parsTypes[] = {
 int ffjson_schemval(ffparser_schem *ps, void *obj, void *dst)
 {
 	int t = ps->curarg->flags & FFPARS_FTYPEMASK;
+	uint pt = ps->p->type;
 
-	if (ps->p->type == FFJSON_TNULL) {
+	if (ps->p->ret == FFPARS_KEY)
+		return FFPARS_OK;
+
+	if (pt == FFJSON_TNULL) {
 		if (!(ps->curarg->flags & FFPARS_FNULL))
 			return FFPARS_EVALNULL;
+
 		if (dst == NULL) {
 			int er = ps->curarg->dst.f_str(ps, obj, NULL);
 			if (er != 0)
 				return er;
 		}
-		// else don't do anything
-		return -1;
+
+		return FFPARS_DONE;
 	}
 
-	if (ps->p->type != parsTypes[t - FFPARS_TSTR]
-		&& !(t == FFPARS_TSIZE && ps->p->type == FFJSON_TSTR))
+	if (pt != parsTypes[t - FFPARS_TSTR]
+		&& !(t == FFPARS_TSIZE && pt == FFJSON_TSTR))
 		return FFPARS_EVALTYPE;
 
-	return 0;
+	return FFPARS_OK;
 }
 
 

@@ -21,7 +21,7 @@ struct obj_s {
 	obj_s *o[2];
 	int iobj;
 
-	ffstr ar[5];
+	ffstr ar[3];
 	int iar;
 
 	unsigned arrCloseOk : 1
@@ -99,13 +99,13 @@ static const ffpars_arg obj_schem[] = {
 	, { "bool", FFPARS_TBOOL | FFPARS_F8BIT, FFPARS_DSTOFF(obj_s, b) }
 	, { "bit1", FFPARS_TBOOL | FFPARS_F8BIT | FFPARS_SETBIT(0), FFPARS_DSTOFF(obj_s, bits) }
 	, { "bit2", FFPARS_TBOOL | FFPARS_F8BIT | FFPARS_SETBIT(1), FFPARS_DSTOFF(obj_s, bits) }
-	, { "enum", FFPARS_TENUM, FFPARS_DST(&enumConf) }
-	, { "obj", FFPARS_TOBJ | FFPARS_FNULL, FFPARS_DST(&newObj) }
+	, { "enum", FFPARS_TENUM | FFPARS_F8BIT, FFPARS_DST(&enumConf) }
+	, { "obj", FFPARS_TOBJ | FFPARS_FNULL | FFPARS_FMULTI, FFPARS_DST(&newObj) }
 	, { "arr", FFPARS_TARR, FFPARS_DST(&newArr) }
-	, { "list", FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&arrItem) }
 	, { "*", FFPARS_TSTR, FFPARS_DST(&any) }
 	, { NULL, FFPARS_TCLOSE, FFPARS_DST(&objClose) }
 
+	, { "list", FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&arrItem) }
 	, { "obj1", FFPARS_TOBJ | FFPARS_FOBJ1, FFPARS_DST(&newObj1) }
 };
 
@@ -150,18 +150,23 @@ static int objChk(const obj_s *o)
 	x(o->b == 1);
 	x(o->bits == (0x01|0x02));
 	x(o->en == enB);
+
 	x(o->o[0]->i == 1234);
 	//x(o->o[0]->o[0] == (void*)-1);
+	x(o->o[0]->objCloseOk == 1);
 
 	x(ffstr_eqz(&o->ar[0], "11"));
 	x(ffstr_eqz(&o->ar[1], "22"));
 	x(ffstr_eqz(&o->ar[2], "33"));
-	x(o->o[1]->i == -2345);
-	x(o->arrCloseOk == 1);
 
-	x(o->o[0]->objCloseOk == 1);
+	x(o->o[1]->i == -2345);
+	x(ffstr_eqz(&o->o[1]->k[0], "k1"));
+	x(ffstr_eqz(&o->o[1]->k[1], "1"));
+	x(ffstr_eqz(&o->o[1]->k[2], "k2"));
+	x(ffstr_eqz(&o->o[1]->k[3], "2"));
 	x(o->o[1]->objCloseOk == 1);
-	//x(o->objCloseOk == 1);
+
+	x(o->objCloseOk == 1);
 
 	return 0;
 }

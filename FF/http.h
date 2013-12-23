@@ -79,9 +79,7 @@ FF_EXTN const ffstr ffhttp_shdr[];
 
 /** Status. */
 enum FFHTTP_STATUS {
-	FFHTTP_0
-
-	, FFHTTP_200_OK
+	FFHTTP_200_OK
 	, FFHTTP_206_PARTIAL
 
 	, FFHTTP_301_MOVED_PERMANENTLY
@@ -102,8 +100,10 @@ enum FFHTTP_STATUS {
 	, FFHTTP_504_GATEWAY_TIMEOUT
 
 	, FFHTTP_SLAST
-	, FFHTTP_SCUSTOM = 0xff
 };
+
+/** Status code numbers. */
+FF_EXTN const ushort ffhttp_codes[];
 
 /** Status as a string. */
 FF_EXTN const ffstr ffhttp_sresp[];
@@ -216,6 +216,7 @@ typedef struct {
 		;
 } ffhttp_request;
 
+/** Initialize request parser. */
 static FFINL void ffhttp_reqinit(ffhttp_request *r) {
 	memset(r, 0, sizeof(ffhttp_request));
 	ffhttp_init(&r->h);
@@ -272,6 +273,7 @@ typedef struct {
 	ffrange status;
 } ffhttp_response;
 
+/** Initialize response parser. */
 static FFINL void ffhttp_respinit(ffhttp_response *r) {
 	memset(r, 0, sizeof(ffhttp_response));
 	ffhttp_init(&r->h);
@@ -296,4 +298,119 @@ static FFINL int ffhttp_respparsehdrs(ffhttp_response *r, const char *data, size
 	return e;
 }
 
+/** Get response status code and message. */
 #define ffhttp_respstatus(r)  ffrang_get(&(r)->status, (r)->h.base)
+
+/** Return TRUE if response has no body. */
+static FFINL ffbool ffhttp_respnobody(int code) {
+	return (code == 204 || code == 304 || code < 200);
+}
+
+
+enum FFHTTP_CACHE {
+	FFHTTP_CACH_NOCACHE = 1
+	, FFHTTP_CACH_NOSTORE = 1 << 1
+	, FFHTTP_CACH_PRIVATE = 1 << 2
+	, FFHTTP_CACH_REVALIDATE = 1 << 3 //resp
+	, FFHTTP_CACH_PUBLIC = 1 << 4 //resp
+	, FFHTTP_CACH_MAXAGE = 1 << 5
+	, FFHTTP_CACH_MAXSTALE = 1 << 6 //req
+	, FFHTTP_CACH_MINFRESH = 1 << 7 //req
+	, FFHTTP_CACH_SMAXAGE = 1 << 8 //resp
+};
+
+typedef struct {
+	uint maxage
+		, maxstale
+		, minfresh
+		, smaxage;
+} ffhttp_cachectl;
+
+/** Parse Cache-Control header value.
+'cctl' is filled with numeric values.
+Return mask of enum FFHTTP_CACHE. */
+FF_EXTN int ffhttp_parsecachctl(ffhttp_cachectl *cctl, const char *val, size_t vallen);
+
+
+typedef struct {
+	ffstr3 buf;
+	ushort code;
+	unsigned conn_close : 1
+		, http10_keepalive : 1;
+	ffstr proto
+		, status;
+
+	int64 cont_len; ///< -1=unset
+	ffstr cont_type
+		, last_mod
+		, location
+		, cont_enc
+		, trans_enc;
+} ffhttp_cook;
+
+/** Initialize ffhttp_cook object. */
+static FFINL void ffhttp_cookinit(ffhttp_cook *c, char *buf, size_t cap) {
+	ffmemzero(c, sizeof(ffhttp_cook));
+	c->cont_len = -1;
+	c->buf.ptr = buf;
+	c->buf.cap = cap;
+	ffstr_set(&c->proto, FFSTR("HTTP/1.1"));
+}
+
+static FFINL void ffhttp_cookreset(ffhttp_cook *c) {
+	ffhttp_cookinit(c, c->buf.ptr, c->buf.cap);
+}
+
+/** Add request line. */
+static FFINL void ffhttp_addrequest(ffhttp_cook *c, const char *method, size_t methlen, const char *uri, size_t urilen) {
+	ffstr3 *s = &c->buf;
+	s->len += ffs_fmt(ffarr_end(s), s->ptr + s->cap, "%*s %*s %S" FFCRLF
+		, (size_t)methlen, method, (size_t)urilen, uri, &c->proto);
+}
+
+/** Set response code and default status message. */
+static FFINL void ffhttp_setstatus(ffhttp_cook *c, enum FFHTTP_STATUS code) {
+	FF_ASSERT(code < FFHTTP_SLAST);
+	c->code = ffhttp_codes[code];
+	c->status = ffhttp_sresp[code];
+}
+
+/** Example:
+ffhttp_setstatus4(&htpck, 200, FFSTR("200 OK")); */
+static FFINL void ffhttp_setstatus4(ffhttp_cook *c, uint code, const char *status, size_t statuslen) {
+	c->code = code;
+	ffstr_set(&c->status, status, statuslen);
+}
+
+/** Write status line. */
+static FFINL void ffhttp_addstatus(ffhttp_cook *c) {
+	ffstr3 *s = &c->buf;
+	s->len += ffs_fmt(ffarr_end(s), s->ptr + s->cap, "%S %S" FFCRLF
+		, &c->proto, &c->status);
+}
+
+/** Write header line. */
+static FFINL void ffhttp_addhdr(ffhttp_cook *c, const char *name, size_t namelen, const char *val, size_t vallen) {
+	ffstr3 *s = &c->buf;
+	s->len += ffs_fmt(ffarr_end(s), s->ptr + s->cap, "%*s: %*s" FFCRLF
+		, (size_t)namelen, name, (size_t)vallen, val);
+}
+
+/** Write header line.
+'ihdr': enum FFHTTP_HDR. */
+static FFINL void ffhttp_addihdr(ffhttp_cook *c, uint ihdr, const char *val, size_t vallen) {
+	ffhttp_addhdr(c, FFSTR2(ffhttp_shdr[ihdr]), val, vallen);
+}
+
+/** Write special headers in ffhttp_cook.
+Return 0 on success.
+Return 1 if buffer is full. */
+FF_EXTN int ffhttp_cookflush(ffhttp_cook *c);
+
+/** Write the last CRLF.
+Return 0 on success.
+Return 1 if buffer is full. */
+static FFINL int ffhttp_cookfin(ffhttp_cook *c) {
+	ffstr3_cat(&c->buf, FFSTR(FFCRLF));
+	return (c->buf.len == c->buf.cap);
+}

@@ -132,10 +132,18 @@ static const uint hdrHashes[] = {
 	, 2063623452U /*Status*/
 };
 
+const ushort ffhttp_codes[] = {
+	200, 206
+	, 301, 302, 304
+	, 400
+	, 403, 404, 405
+	, 413, 415, 416
+	, 500, 502, 504
+};
+
 #define add(st) FFSTR_INIT(st)
 const ffstr ffhttp_sresp[] = {
-	{ 0, NULL }
-	, add("200 OK")
+	add("200 OK")
 	, add("206 Partial Content")
 
 	, add("301 Moved Permanently")
@@ -914,7 +922,7 @@ int ffhttp_respparsehdr(ffhttp_response *r, const char *data, size_t len)
 {
 	int rc = ffhttp_parsehdr(&r->h, data, len);
 	if (rc == FFHTTP_DONE) {
-		if (r->code == 204 || r->code == 304 || r->code/100 == 1)
+		if (ffhttp_respnobody(r->code))
 			r->h.has_body = 0;
 		else if (!r->h.has_body && r->h.cont_len == -1) {
 			//no chunked, no content length.  So read body until connection is closed
@@ -923,4 +931,99 @@ int ffhttp_respparsehdr(ffhttp_response *r, const char *data, size_t len)
 		}
 	}
 	return rc;
+}
+
+
+static const ffstr scachctl[] = {
+	FFSTR_INIT("no-cache")
+	, FFSTR_INIT("no-store")
+	, FFSTR_INIT("private")
+	, FFSTR_INIT("must-revalidate")
+	, FFSTR_INIT("public")
+	, FFSTR_INIT("max-age")
+	, FFSTR_INIT("max-stale")
+	, FFSTR_INIT("min-fresh")
+	, FFSTR_INIT("s-max-age")
+};
+
+enum { _MAXAGE_IDX = 5 };
+
+int ffhttp_parsecachctl(ffhttp_cachectl *cctl, const char *val, size_t vallen)
+{
+	ffstr hdr;
+	ffstr vv;
+	int rc = 0;
+	size_t i;
+
+	ffstr_set(&hdr, val, vallen);
+
+	while (hdr.len != 0) {
+		size_t by = ffstr_nextval(hdr.ptr, hdr.len, &vv, ',');
+		ffstr_shift(&hdr, by);
+
+		for (i = 0;  i < _MAXAGE_IDX;  ++i) {
+			if (ffstr_ieq(&vv, FFSTR2(scachctl[i]))) {
+				rc |= (1 << i);
+				break;
+			}
+		}
+
+		if (i < _MAXAGE_IDX)
+			continue;
+
+		for (i = _MAXAGE_IDX;  i < FFCNT(scachctl);  ++i) {
+			const ffstr *cc = &scachctl[i];
+
+			if (vv.len > cc->len + FFSLEN("=") && vv.ptr[cc->len] == '='
+				&& 0 == ffs_icmp(vv.ptr, cc->ptr, cc->len))
+			{
+				uint n;
+				ffstr_shift(&vv, cc->len + FFSLEN("="));
+				if (vv.len == ffs_toint(vv.ptr, vv.len, &n, FFS_INT32)) {
+					uint *dst = &cctl->maxage + (i - _MAXAGE_IDX);
+					*dst = n;
+					rc |= (1 << i);
+				}
+				break;
+			}
+		}
+	}
+
+	return rc;
+}
+
+
+static const byte idxs[] = {
+	FFHTTP_LOCATION, FFHTTP_LAST_MODIFIED, FFHTTP_CONTENT_TYPE
+	, FFHTTP_CONTENT_ENCODING, FFHTTP_TRANSFER_ENCODING
+};
+
+#define _OFF(member) FFOFF(ffhttp_cook, member)
+static const byte offs[] = {
+	_OFF(location), _OFF(last_mod), _OFF(cont_type)
+	, _OFF(cont_enc), _OFF(trans_enc)
+};
+#undef _OFF
+
+int ffhttp_cookflush(ffhttp_cook *c)
+{
+	uint i;
+	for (i = 0;  i < FFCNT(offs);  i++) {
+		const ffstr *s = (ffstr*)((char*)c + offs[i]);
+		if (s->len != 0)
+			ffhttp_addihdr(c, idxs[i], FFSTR2(*s));
+	}
+
+	if (c->cont_len != -1) {
+		char s[FFINT_MAXCHARS];
+		uint r = ffs_fromint(c->cont_len, s, FFCNT(s), 0);
+		ffhttp_addihdr(c, FFHTTP_CONTENT_LENGTH, s, r);
+	}
+
+	if (c->conn_close)
+		ffhttp_addihdr(c, FFHTTP_CONNECTION, FFSTR("close"));
+	else if (c->http10_keepalive)
+		ffhttp_addihdr(c, FFHTTP_CONNECTION, FFSTR("keep-alive"));
+
+	return (c->buf.len == c->buf.cap);
 }

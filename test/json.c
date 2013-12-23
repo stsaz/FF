@@ -181,7 +181,7 @@ int test_json_schem(const ffsyschar *testJsonFile)
 
 	objChk(&o);
 	x(o.o[0]->o[0] == (void*)-1);
-	x(o.objCloseOk == 1);
+	x(o.arrCloseOk == 1);
 
 	ffstr_free(&o.s);
 	ffmem_free(o.o[0]);

@@ -261,9 +261,11 @@ static int test_hdrs()
 	ffhttp_inithdr(&h);
 	h.mask = FF_BIT64(FFHTTP_SERVER) | FF_BIT64(FFHTTP_AGE);
 	i = 0;
+
 	while (FFHTTP_OK == ffhttp_nexthdr(&h, FFSTR(HDRS))) {
 		ffstr key = ffrang_get(&h.key, HDRS);
 		ffstr val = ffrang_get(&h.val, HDRS);
+
 		switch (h.ihdr) {
 		case FFHTTP_AGE:
 			i |= 1;
@@ -292,6 +294,59 @@ static int test_hdrs()
 	x(FFHTTP_ENOVAL == ffhttp_nexthdr(&h, FFSTR(HDRS)));
 #undef HDRS
 
+	{
+		ffhttp_cachectl cctl = { 0 };
+		x((FFHTTP_CACH_NOCACHE | FFHTTP_CACH_PUBLIC | FFHTTP_CACH_PRIVATE
+			| FFHTTP_CACH_MAXAGE | FFHTTP_CACH_SMAXAGE)
+			== ffhttp_parsecachctl(&cctl, FFSTR(
+			"asdf, NO-CACHE, no-store\0, public, private"
+			", max-age=123456, s-max-age=876543, s-max-age=123sdf")));
+		x(cctl.maxage == 123456);
+		x(cctl.smaxage == 876543);
+	}
+
+	return 0;
+}
+
+static int test_cook()
+{
+	char buf[1024];
+	ffhttp_cook c;
+
+	ffhttp_cookinit(&c, buf, FFCNT(buf));
+	ffhttp_addrequest(&c, FFSTR("GET"), FFSTR("/someurl"));
+	ffhttp_addhdr(&c, FFSTR("my-hdr"), FFSTR("my value"));
+	ffhttp_addihdr(&c, FFHTTP_LOCATION, FFSTR("my location"));
+	c.cont_len = 123456;
+	c.conn_close = 1;
+	ffstr_set(&c.trans_enc, FFSTR("chunked"));
+	ffstr_set(&c.cont_type, FFSTR("text/plain"));
+	ffhttp_cookflush(&c);
+	x(0 == ffhttp_cookfin(&c));
+	x(ffstr_eqz((ffstr*)&c.buf,
+		"GET /someurl HTTP/1.1" FFCRLF
+		"my-hdr: my value" FFCRLF
+		"Location: my location" FFCRLF
+		"Content-Type: text/plain" FFCRLF
+		"Transfer-Encoding: chunked" FFCRLF
+		"Content-Length: 123456" FFCRLF
+		"Connection: close" FFCRLF
+		FFCRLF));
+
+	ffhttp_cookreset(&c);
+	ffhttp_setstatus(&c, FFHTTP_502_BAD_GATEWAY);
+	ffhttp_addstatus(&c);
+	x(ffstr_eqz((ffstr*)&c.buf, "HTTP/1.1 502 Bad Gateway" FFCRLF));
+
+	ffhttp_cookreset(&c);
+	ffhttp_setstatus4(&c, 999, FFSTR("999 some status"));
+	ffhttp_addstatus(&c);
+	ffhttp_cookflush(&c);
+	x(0 == ffhttp_cookfin(&c));
+	x(ffstr_eqz((ffstr*)&c.buf,
+		"HTTP/1.1 999 some status" FFCRLF
+		FFCRLF));
+
 	return 0;
 }
 
@@ -302,5 +357,6 @@ int test_http()
 	test_req();
 	test_resp();
 	test_hdrs();
+	test_cook();
 	return 0;
 }

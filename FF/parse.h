@@ -36,8 +36,13 @@ enum FFPARS_E {
 	, FFPARS_EVALEMPTY
 	, FFPARS_EVALZERO
 	, FFPARS_EVALNEG
+	, FFPARS_EVALUNEXP
 	, FFPARS_ECONF
+
+	, FFPARS_ELAST
 };
+
+#define ffpars_iserr(code)  ((code) > 0)
 
 /** Get error message. */
 FF_EXTN const char * ffpars_errstr(int code);
@@ -118,29 +123,25 @@ enum FFPARS_F {
 	, FFPARS_FNULL = 0x100 ///< allow null value
 	, FFPARS_FNOTEMPTY = 0x200 ///< don't allow empty string
 	, FFPARS_FNOTZERO = 0x400 ///< don't allow number zero
+
 	//, FFPARS_F32BIT = 0
 	, FFPARS_F64BIT = 0x800 ///< 64-bit number
 	, FFPARS_F16BIT = 0x1000 ///< 16-bit number
 	, FFPARS_F8BIT = 0x2000 ///< 8-bit number
+
 	, FFPARS_FSIGN = 0x4000 ///< allow negative number
 	, FFPARS_FBIT = 0x8000
 	, FFPARS_FLIST = 0x10000
-
 	, FFPARS_FOBJ1 = 0x20000 ///< string value followed by object start. e.g. "name val {..."
+	, FFPARS_FALONE = 0x40000
 };
 
-#define FFPARS_SETBIT(bit)  (FFPARS_FBIT | ((bit) << 24))
-
-typedef struct {
-	const char *const *vals;
-	uint nvals;
-	union {
-		size_t off;
-	};
-} ffpars_enumlist;
+#define FFPARS_SETVAL(i)  ((i) << 24)
+#define FFPARS_SETBIT(bit)  (FFPARS_FBIT | FFPARS_SETVAL(bit))
 
 typedef struct ffpars_ctx ffpars_ctx;
 typedef struct ffparser_schem ffparser_schem;
+typedef struct ffpars_enumlist ffpars_enumlist;
 
 union ffpars_val {
 	size_t off; ///< offset of the member inside a structure (default)
@@ -161,6 +162,12 @@ union ffpars_val {
 
 #define FFPARS_DST(ptr) {(size_t)ptr}
 #define FFPARS_DSTOFF(structType, member) {FFOFF(structType, member)}
+
+struct ffpars_enumlist {
+	const char *const *vals;
+	uint nvals;
+	union ffpars_val dst;
+};
 
 typedef struct {
 	const char *name;
@@ -183,12 +190,18 @@ static FFINL void ffpars_setargs(ffpars_ctx *ctx, void *o, const ffpars_arg *arg
 	ctx->nargs = nargs;
 }
 
+enum FFPARS_RETHDL {
+	FFPARS_OK = 0
+	, FFPARS_DONE = -1
+};
+
 struct ffparser_schem {
 	ffparser *p; ///< parser front-end
+	size_t flags;
 	void *udata; ///< user-defined data
 	struct { FFARR(ffpars_ctx) } ctxs;
 	const ffpars_arg *curarg;
-	int (*valfunc)(ffparser_schem *ps, void *obj, void *dst); ///< user-defined function to handle a parsed value
+	int (*onval)(ffparser_schem *ps, void *obj, void *dst); ///< custom key/value handler.  Return enum FFPARS_RETHDL.
 	ffstr vals[1];
 };
 
@@ -197,6 +210,7 @@ FF_EXTN void ffpars_scheminit(ffparser_schem *ps, ffparser *p, const ffpars_arg 
 
 static FFINL void ffpars_schemfree(ffparser_schem *ps) {
 	ffarr_free(&ps->ctxs);
+	ffstr_free(&ps->vals[0]);
 }
 
 /** Process the currently parsed entity according to the scheme.

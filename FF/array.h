@@ -120,7 +120,7 @@ typedef struct {
 	char *ptr;
 } ffstr;
 
-typedef struct { FFARR(char) } ffstr3;
+typedef ffarr ffstr3;
 
 #define FFSTR_INIT(s)  { FFSLEN(s), (char*)(s) }
 
@@ -247,6 +247,10 @@ FF_EXTN ssize_t ffstr_findarr(const ffstr *ar, size_t n, const char *search, siz
 Spaces on the edges are trimmed.
 Return the number of processed bytes. */
 FF_EXTN size_t ffstr_nextval(const char *buf, size_t len, ffstr *dst, int spl);
+
+static FFINL void ffstr3_cat(ffstr3 *s, const char *d, size_t len) {
+	ffstr_cat((ffstr*)s, s->cap, d, len);
+}
 
 FF_EXTN size_t ffstr_catfmtv(ffstr3 *s, const char *fmt, va_list args);
 

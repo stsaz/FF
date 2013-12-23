@@ -39,7 +39,7 @@ FF_EXTN size_t ffjson_escape(char *dst, size_t cap, const char *s, size_t len);
 
 /** Parse JSON.
 Return FFPARS_E.  p->type is set to one of FFJSON_T. */
-int ffjson_parse(ffparser *p, const char *data, size_t *len);
+FF_EXTN int ffjson_parse(ffparser *p, const char *data, size_t *len);
 
 /** Parse the whole data.
 Return enum FFPARS_E. */
@@ -55,7 +55,7 @@ FF_EXTN int ffjson_schemval(ffparser_schem *ps, void *obj, void *dst);
 static FFINL void ffjson_scheminit(ffparser_schem *ps, ffparser *p, const ffpars_arg *top) {
 	ffjson_parseinit(p);
 	ffpars_scheminit(ps, p, top);
-	ps->valfunc = &ffjson_schemval;
+	ps->onval = &ffjson_schemval;
 }
 
 
