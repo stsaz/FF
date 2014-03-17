@@ -2,7 +2,7 @@
 Copyright (c) 2013 Simon Zolin
 */
 
-#include <FF/http.h>
+#include <FF/net/http.h>
 
 
 #pragma pack(push, 8)
@@ -138,7 +138,8 @@ const ushort ffhttp_codes[] = {
 	, 400
 	, 403, 404, 405
 	, 413, 415, 416
-	, 500, 502, 504
+	, 500, 501, 502
+	, 504
 };
 
 #define add(st) FFSTR_INIT(st)
@@ -386,12 +387,12 @@ int ffhttp_parsehdr(ffhttp_headers *h, const char *data, size_t len)
 			size_t by = ffstr_nextval(val.ptr, val.len, &v, ',');
 			ffstr_shift(&val, by);
 			if (h->http11) {
-				if (ffstr_ieq(&v, FFSTR("close"))) {
+				if (ffstr_ieqcz(&v, "close")) {
 					h->conn_close = 1;
 					break;
 				}
 			}
-			else if (ffstr_ieq(&v, FFSTR("keep-alive"))) {
+			else if (ffstr_ieqcz(&v, "keep-alive")) {
 				h->conn_close = 0;
 				break;
 			}
@@ -411,9 +412,9 @@ int ffhttp_parsehdr(ffhttp_headers *h, const char *data, size_t len)
 
 	case FFHTTP_CONTENT_ENCODING:
 		h->ce_gzip = h->ce_identity = 0;
-		if (ffstr_ieq(&val, FFSTR("gzip")))
+		if (ffstr_ieqcz(&val, "gzip"))
 			h->ce_gzip = 1;
-		else if (ffstr_ieq(&val, FFSTR("identity")))
+		else if (ffstr_ieqcz(&val, "identity"))
 			h->ce_identity = 1;
 		break;
 
@@ -749,7 +750,7 @@ int ffhttp_reqparsehdr(ffhttp_request *r, const char *data, size_t len)
 		while (val.len != 0) {
 			size_t by = ffstr_nextval(val.ptr, val.len, &v, ',');
 			ffstr_shift(&val, by);
-			if (ffstr_ieq(&v, FFSTR("chunked"))) {
+			if (ffstr_ieqcz(&v, "chunked")) {
 				r->accept_chunked = 1;
 				break;
 			}
@@ -762,7 +763,7 @@ int ffhttp_reqparsehdr(ffhttp_request *r, const char *data, size_t len)
 			size_t by = ffstr_nextval(val.ptr, val.len, &v, ',');
 			ffstr_shift(&val, by);
 			ffstr_nextval(v.ptr, v.len, &encoding, ';');
-			if (ffstr_eq(&encoding, FFSTR("gzip"))) {
+			if (ffstr_eqcz(&encoding, "gzip")) {
 				r->accept_gzip = 1;
 				break;
 			}
@@ -993,15 +994,81 @@ int ffhttp_parsecachctl(ffhttp_cachectl *cctl, const char *val, size_t vallen)
 }
 
 
+ffbool ffhttp_ifnonematch(const char *etag, size_t len, const ffstr *ifNonMatch)
+{
+	ffstr nmatch = *ifNonMatch;
+	while (nmatch.len != 0) {
+		ffstr v;
+		ffstr_shift(&nmatch, ffstr_nextval(nmatch.ptr, nmatch.len, &v, ','));
+		if (ffstr_eq(&v, etag, len))
+			return 0;
+	}
+	return 1;
+}
+
+/* Parse:
+. "begin-"
+. "begin-end"
+. "-size" */
+int64 ffhttp_range(const char *d, size_t len, uint64 *size)
+{
+	size_t sz;
+	uint64 off = 0;
+	const char *dash;
+
+	if (len == 1)
+		return -1; //too small input
+
+	dash = ffs_find(d, len, '-');
+	if (dash == d + len)
+		return -1; //no "-"
+
+	if (dash != d) { //"begin-..."
+		sz = dash - d;
+		if (sz != ffs_toint(d, sz, &off, FFS_INT64))
+			return -1; //invalid offset
+		if (off >= *size)
+			return -1; //offset too large
+	}
+
+	if (dash == d + len - 1)
+		*size -= off; //"begin-"
+	else {
+		uint64 n;
+		sz = d + len - (dash + 1);
+		if (sz != ffs_toint(dash + 1, sz, &n, FFS_INT64))
+			return -1; //invalid end/size
+
+		if (dash == d) { //"-size"
+			if (n == 0)
+				return -1; //"-0"
+
+			if (n > *size)
+				n = *size;
+			off = *size - n;
+			*size = n;
+
+		} else { //"begin-end"
+			if (n + off >= *size)
+				*size -= off;
+			else
+				*size = n - off + 1;
+		}
+	}
+
+	return off;
+}
+
+
 static const byte idxs[] = {
 	FFHTTP_LOCATION, FFHTTP_LAST_MODIFIED, FFHTTP_CONTENT_TYPE
-	, FFHTTP_CONTENT_ENCODING, FFHTTP_TRANSFER_ENCODING
+	, FFHTTP_CONTENT_ENCODING, FFHTTP_TRANSFER_ENCODING, FFHTTP_DATE
 };
 
 #define _OFF(member) FFOFF(ffhttp_cook, member)
 static const byte offs[] = {
 	_OFF(location), _OFF(last_mod), _OFF(cont_type)
-	, _OFF(cont_enc), _OFF(trans_enc)
+	, _OFF(cont_enc), _OFF(trans_enc), _OFF(date)
 };
 #undef _OFF
 
@@ -1026,4 +1093,204 @@ int ffhttp_cookflush(ffhttp_cook *c)
 		ffhttp_addihdr(c, FFHTTP_CONNECTION, FFSTR("keep-alive"));
 
 	return (c->buf.len == c->buf.cap);
+}
+
+
+static FFINL int chnk_size(ffhttp_chunked *c, int ch)
+{
+	int bb = ffchar_tohex(ch);
+	if (bb != -1) {
+		if (c->cursiz & FF_BIT64(63))
+			return FFHTTP_ETOOLARGE; // the chunk size is too long
+
+		c->cursiz = c->cursiz * 16 + bb;
+		return FFHTTP_MORE;
+	}
+
+	if (c->cursiz == 0)
+		c->last = 1;
+
+	return FFHTTP_OK;
+}
+
+/*
+2  CRLF
+hi CRLF
+0  CRLF
+   CRLF */
+int ffhttp_chunkparse(ffhttp_chunked *c, const char *body, size_t *len, ffstr *dst)
+{
+	size_t i;
+	int r = FFHTTP_EEOL;
+	int t;
+	int st = c->state;
+	enum {
+		iStart = 0, iSize
+		, iExt
+		, iBeforeDataLF
+		, iData, iAfterData, iAfterDataLF
+		, iTrlStart, iTrlLF
+		, iTrlHdr, iTrlHdrLF
+	};
+
+	for (i = 0;  i < *len;  i++) {
+		int ch = body[i];
+		switch(st) {
+		case iStart:
+			t = ffchar_tohex(ch);
+			if (t == -1) {
+				r = FFHTTP_EHDRVAL;
+				*len = i;
+				goto end; //invalid hex number
+			}
+			c->cursiz = t;
+			c->last = 0;
+			st = iSize;
+			break;
+
+		case iSize:
+			t = chnk_size(c, ch);
+
+			if (t == FFHTTP_MORE)
+				break;
+			else if (t > 0) {
+				r = t;
+				*len = i;
+				goto end;
+			}
+
+			switch (ch) {
+			case CR:
+				st = iBeforeDataLF;
+				break;
+
+			case LF:
+				st = iData;
+				break;
+
+			case ';':
+			case ' ':
+			case '\t':
+				st = iExt;
+				break;
+
+			default:
+				r = FFHTTP_EHDRVAL;
+				*len = i;
+				goto end;
+			}
+			break;
+
+		case iExt:
+			if (ch == CR)
+				st = iBeforeDataLF;
+			else if (ch == LF)
+				st = iData;
+			break;
+
+		case iBeforeDataLF:
+			if (ch == LF)
+				st = iData;
+			else
+				goto end;
+			break;
+
+		case iData:
+			if (c->last) {
+				st = iTrlStart;
+				i--;
+				break;
+			}
+
+			if (c->cursiz != 0) {
+				size_t sz = (size_t)ffmin64(c->cursiz, (uint64)(*len - i));
+				c->cursiz -= sz;
+				ffstr_set(dst, body + i, sz);
+				*len = i + sz; //bytes processed
+				r = FFHTTP_OK;
+				goto end;
+			}
+			//state = iAfterData;
+			//break;
+
+		case iAfterData:
+			if (ch == CR)
+				st = iAfterDataLF;
+			else if (ch == LF)
+				st = iStart;
+			else
+				goto end;
+			break;
+
+		case iAfterDataLF:
+			if (ch == LF)
+				st = iStart;
+			else
+				goto end;
+			break;
+
+		case iTrlStart:
+			if (ch == CR)
+				st = iTrlLF;
+			else if (ch == LF) {
+				*len = i + 1;
+				r = FFHTTP_DONE;
+				goto end;
+			}
+			else
+				st = iTrlHdr;
+			break;
+
+		case iTrlLF:
+			if (ch == LF) {
+				*len = i + 1;
+				r = FFHTTP_DONE;
+			}
+			//else
+			//	r = FFHTTP_EEOL;
+			goto end;
+			//break;
+
+		case iTrlHdr:
+			if (ch == CR)
+				st = iTrlHdrLF;
+			else if (ch == LF)
+				st = iTrlStart;
+			break;
+
+		case iTrlHdrLF:
+			if (ch == LF)
+				st = iTrlStart;
+			else
+				goto end;
+			break;
+		}
+	}
+
+	c->state = st;
+	return FFHTTP_MORE;
+
+end:
+	if (r == FFHTTP_EEOL)
+		*len = i;
+	c->state = st;
+	return r;
+}
+
+static const char chnkLast[] = FFCRLF "0" FFCRLF FFCRLF;
+static const char *const sChnkEnd[] = {
+	FFCRLF
+	, chnkLast + FFSLEN(FFCRLF) //FFHTTP_CHUNKZERO
+	, chnkLast //FFHTTP_CHUNKLAST
+};
+static const byte nChnkEnd[] = {
+	FFSLEN(FFCRLF)
+	, FFSLEN(chnkLast) - FFSLEN(FFCRLF)
+	, FFSLEN(chnkLast)
+};
+
+int ffhttp_chunkfin(const char **pbuf, int flags)
+{
+	*pbuf = sChnkEnd[flags];
+	return nChnkEnd[flags];
 }

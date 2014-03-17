@@ -3,7 +3,7 @@ Copyright (c) 2013 Simon Zolin
 */
 
 #include <FFOS/test.h>
-#include <FF/http.h>
+#include <FF/net/http.h>
 
 #define x FFTEST_BOOL
 
@@ -30,7 +30,7 @@ static int test_req()
 	x(FFHTTP_OK == ffhttp_reqparse(&r, FFSTR("CONNECT www.host:443 HTTP/1.0" FFCRLF)));
 	x(r.method == FFHTTP_CONNECT);
 	s = ffhttp_reqpath(&r);
-	x(ffstr_eq(&s, FFSTR("www.host:443")));
+	x(ffstr_eqcz(&s, "www.host:443"));
 
 	ffhttp_reqinit(&r);
 	x(FFHTTP_OK == ffhttp_reqparse(&r, FFSTR("GET /%0f1/2/3 HTTP/1.0" FFCRLF)));
@@ -60,28 +60,28 @@ static int test_req()
 	ffhttp_reqinit(&r);
 	x(FFHTTP_OK == ffhttp_reqparse(&r, FFSTR(DATA)));
 	s = ffhttp_firstline(&r.h);
-	x(ffstr_eq(&s, FFSTR("GET  /file%20name?qu%20e?&ry%01#sharp  HTTP/1.1 ")));
+	x(ffstr_eqcz(&s, "GET  /file%20name?qu%20e?&ry%01#sharp  HTTP/1.1 "));
 	x(r.method == FFHTTP_GET);
 	s = ffhttp_reqmethod(&r);
-	x(ffstr_eq(&s, FFSTR("GET")));
+	x(ffstr_eqcz(&s, "GET"));
 	s = ffhttp_requrl(&r, FFURL_PATHQS);
-	x(ffstr_eq(&s, FFSTR("/file%20name?qu%20e?&ry%01")));
+	x(ffstr_eqcz(&s, "/file%20name?qu%20e?&ry%01"));
 	s = ffhttp_requrl(&r, FFURL_PATH);
-	x(ffstr_eq(&s, FFSTR("/file%20name")));
+	x(ffstr_eqcz(&s, "/file%20name"));
 	s = ffhttp_requrl(&r, FFURL_QS);
-	x(ffstr_eq(&s, FFSTR("qu%20e?&ry%01")));
+	x(ffstr_eqcz(&s, "qu%20e?&ry%01"));
 
 	s = ffhttp_reqpath(&r);
-	x(ffstr_eq(&s, FFSTR("/file name")));
+	x(ffstr_eqcz(&s, "/file name"));
 	x(r.h.http11 && r.h.ver == 0x0101);
 
 	x(FFHTTP_DONE == ffhttp_reqparsehdrs(&r, FFSTR(DATA)));
 	s = ffhttp_hdrs(&r.h);
-	x(ffstr_eq(&s, FFSTR(HDRS)));
+	x(ffstr_eqcz(&s, HDRS));
 	s = ffhttp_requrl(&r, FFURL_FULLHOST);
-	x(ffstr_eq(&s, FFSTR("myhost:8080")));
-	s = ffhttp_requrl(&r, FFURL_HOST);
-	x(ffstr_eq(&s, FFSTR("myhost")));
+	x(ffstr_eqcz(&s, "myhost:8080"));
+	s = ffhttp_reqhost(&r);
+	x(ffstr_eqcz(&s, "myhost"));
 	x(!r.h.conn_close && r.h.has_body && !r.h.chunked && r.h.cont_len == 123456);
 	x(r.h.ce_gzip && !r.h.ce_identity);
 	x(r.accept_gzip && r.accept_chunked);
@@ -99,11 +99,11 @@ static int test_req()
 	x(FFHTTP_OK == ffhttp_reqparse(&r, FFSTR(DATA)));
 	x(FFHTTP_DONE == ffhttp_reqparsehdrs(&r, FFSTR(DATA)));
 	s = ffhttp_requrl(&r, FFURL_FULLHOST);
-	x(ffstr_eq(&s, FFSTR("urlhost:80")));
-	s = ffhttp_requrl(&r, FFURL_HOST);
-	x(ffstr_eq(&s, FFSTR("urlhost")));
+	x(ffstr_eqcz(&s, "urlhost:80"));
+	s = ffhttp_reqhost(&r);
+	x(ffstr_eqcz(&s, "urlhost"));
 	s = ffhttp_requrl(&r, FFURL_PATHQS);
-	x(ffstr_eq(&s, FFSTR("/file?qs")));
+	x(ffstr_eqcz(&s, "/file?qs"));
 	x(r.h.chunked && r.h.cont_len == -1 && r.h.has_body && r.h.ce_identity);
 #undef DATA
 
@@ -153,7 +153,7 @@ static int test_req()
 	ffhttp_reqinit(&r);
 	x((FFHTTP_EURLPARSE | FFURL_EHOST) == ffhttp_reqparse(&r, FFSTR(DATA FFCRLF FFCRLF)));
 	s = ffhttp_firstline(&r.h);
-	x(ffstr_eq(&s, FFSTR(DATA)));
+	x(ffstr_eqcz(&s, DATA));
 #undef DATA
 
 	x(NULL != ffhttp_errstr(FFHTTP_ETOOLARGE));
@@ -178,7 +178,7 @@ static int test_ver()
 	ffhttp_respinit(&r);
 	x(FFHTTP_EVERSION == ffhttp_respparse(&r, FFSTR(DATA FFCRLF), 0));
 	s = ffhttp_firstline(&r.h);
-	x(ffstr_eq(&s, FFSTR(DATA)));
+	x(ffstr_eqcz(&s, DATA));
 #undef DATA
 
 	ffhttp_respinit(&r);
@@ -207,11 +207,11 @@ static int test_resp()
 	x(FFHTTP_OK == ffhttp_respparse(&r, FFSTR(DATA), 0));
 	x(FFHTTP_DONE == ffhttp_respparsehdrs(&r, FFSTR(DATA)));
 	s = ffhttp_firstline(&r.h);
-	x(ffstr_eq(&s, FFSTR("HTTP/1.1 200 OK")));
+	x(ffstr_eqcz(&s, "HTTP/1.1 200 OK"));
 	s = ffhttp_hdrs(&r.h);
-	x(ffstr_eq(&s, FFSTR("Connection: close" FFCRLF FFCRLF)));
+	x(ffstr_eqcz(&s, "Connection: close" FFCRLF FFCRLF));
 	s = ffhttp_respstatus(&r);
-	x(ffstr_eq(&s, FFSTR("200 OK")));
+	x(ffstr_eqcz(&s, "200 OK"));
 	x(r.h.ver == 0x0101);
 	x(r.h.has_body && r.h.body_conn_close);
 #undef DATA
@@ -235,7 +235,7 @@ static int test_resp()
 	ffhttp_respinit(&r);
 	x(FFHTTP_ESTATUS == ffhttp_respparse(&r, FFSTR(DATA FFCRLF), 0));
 	s = ffhttp_firstline(&r.h);
-	x(ffstr_eq(&s, FFSTR(DATA)));
+	x(ffstr_eqcz(&s, DATA));
 #undef DATA
 
 	ffhttp_respinit(&r);
@@ -269,13 +269,13 @@ static int test_hdrs()
 		switch (h.ihdr) {
 		case FFHTTP_AGE:
 			i |= 1;
-			x(ffstr_eq(&key, FFSTR("age")));
-			x(ffstr_eq(&val, FFSTR("ageval")));
+			x(ffstr_eqcz(&key, "age"));
+			x(ffstr_eqcz(&val, "ageval"));
 			break;
 		case FFHTTP_SERVER:
 			i |= 2;
-			x(ffstr_eq(&key, FFSTR("server")));
-			x(ffstr_eq(&val, FFSTR("serverval")));
+			x(ffstr_eqcz(&key, "server"));
+			x(ffstr_eqcz(&val, "serverval"));
 			break;
 		}
 	}
@@ -319,11 +319,11 @@ static int test_cook()
 	ffhttp_addihdr(&c, FFHTTP_LOCATION, FFSTR("my location"));
 	c.cont_len = 123456;
 	c.conn_close = 1;
-	ffstr_set(&c.trans_enc, FFSTR("chunked"));
-	ffstr_set(&c.cont_type, FFSTR("text/plain"));
+	ffstr_setcz(&c.trans_enc, "chunked");
+	ffstr_setcz(&c.cont_type, "text/plain");
 	ffhttp_cookflush(&c);
 	x(0 == ffhttp_cookfin(&c));
-	x(ffstr_eqz((ffstr*)&c.buf,
+	x(ffstr_eqcz(&c.buf,
 		"GET /someurl HTTP/1.1" FFCRLF
 		"my-hdr: my value" FFCRLF
 		"Location: my location" FFCRLF
@@ -336,17 +336,89 @@ static int test_cook()
 	ffhttp_cookreset(&c);
 	ffhttp_setstatus(&c, FFHTTP_502_BAD_GATEWAY);
 	ffhttp_addstatus(&c);
-	x(ffstr_eqz((ffstr*)&c.buf, "HTTP/1.1 502 Bad Gateway" FFCRLF));
+	x(ffstr_eqcz(&c.buf, "HTTP/1.1 502 Bad Gateway" FFCRLF));
 
 	ffhttp_cookreset(&c);
 	ffhttp_setstatus4(&c, 999, FFSTR("999 some status"));
 	ffhttp_addstatus(&c);
 	ffhttp_cookflush(&c);
 	x(0 == ffhttp_cookfin(&c));
-	x(ffstr_eqz((ffstr*)&c.buf,
+	x(ffstr_eqcz(&c.buf,
 		"HTTP/1.1 999 some status" FFCRLF
 		FFCRLF));
 
+	return 0;
+}
+
+static int test_chunked()
+{
+	ffhttp_chunked c;
+	ffstr dst;
+	size_t n;
+	ffhttp_chunkinit(&c);
+
+	n = 1;
+	x(ffhttp_chunkparse(&c, "1", &n, &dst) == FFHTTP_MORE);
+	n = 2;
+	x(ffhttp_chunkparse(&c, "2\r", &n, &dst) == FFHTTP_MORE);
+	n = 11;
+	x(ffhttp_chunkparse(&c, "\n1234567890", &n, &dst) == FFHTTP_OK && n == 11 && ffstr_eqcz(&dst, "1234567890"));
+	n = 9;
+	x(ffhttp_chunkparse(&c, "98765432\r", &n, &dst) == FFHTTP_OK && n == 8 && ffstr_eqcz(&dst, "98765432"));
+	n = 1;
+	x(ffhttp_chunkparse(&c, "\r", &n, &dst) == FFHTTP_MORE);
+	n = 3 + 3 + 3;
+	x(ffhttp_chunkparse(&c, "\n3\nhey\n0\n", &n, &dst) == FFHTTP_OK && n == 3+3 && ffstr_eqcz(&dst, "hey"));
+	n = 3;
+	x(ffhttp_chunkparse(&c, "\n0\n", &n, &dst) == FFHTTP_MORE);
+	n = 1 + 5;
+	x(ffhttp_chunkparse(&c, "\n12345", &n, &dst) == FFHTTP_DONE && n == 1);
+
+	ffhttp_chunkinit(&c);
+	n = 1;
+	x(ffhttp_chunkparse(&c, "x", &n, &dst) == FFHTTP_EHDRVAL && n == 0);
+
+	ffhttp_chunkinit(&c);
+	n = 4;
+	x(ffhttp_chunkparse(&c, "123x", &n, &dst) == FFHTTP_EHDRVAL && n == 3);
+
+	ffhttp_chunkinit(&c);
+	n = 5;
+	x(ffhttp_chunkparse(&c, "123\rx", &n, &dst) == FFHTTP_EEOL && n == 4);
+	return 0;
+}
+
+static int test_condnl()
+{
+	ffstr ifnonmatch;
+
+	ffstr_setcz(&ifnonmatch, "\"1234\", \"12345\"");
+	x(0 == ffhttp_ifnonematch(FFSTR("\"12345\""), &ifnonmatch));
+	x(1 == ffhttp_ifnonematch(FFSTR("\"123456\""), &ifnonmatch));
+	return 0;
+}
+
+static int test_range()
+{
+	uint64 sz;
+
+	sz = 789;
+	x(123 == ffhttp_range(FFSTR("123-456"), &sz) && sz == 456 - 123 + 1);
+
+	sz = 789;
+	x(0 == ffhttp_range(FFSTR("0-0"), &sz) && sz == 1);
+
+	sz = 789;
+	x(789 - 456 == ffhttp_range(FFSTR("-456"), &sz) && sz == 456);
+
+	sz = 789;
+	x(0 == ffhttp_range(FFSTR("-900"), &sz) && sz == 789);
+
+	sz = 789;
+	x(123 == ffhttp_range(FFSTR("123-"), &sz) && sz == 789 - 123);
+
+	sz = 789;
+	x(-1 == ffhttp_range(FFSTR("123-x"), &sz) && sz == 789);
 	return 0;
 }
 
@@ -358,5 +430,8 @@ int test_http()
 	test_resp();
 	test_hdrs();
 	test_cook();
+	test_chunked();
+	test_range();
+	test_condnl();
 	return 0;
 }

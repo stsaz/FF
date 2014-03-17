@@ -14,7 +14,7 @@ Copyright (c) 2013 Simon Zolin
 	size_t cap;
 
 /** Default char-array. */
-typedef struct { FFARR(char) } ffarr;
+typedef struct ffarr { FFARR(char) } ffarr;
 
 /** Set a buffer. */
 #define ffarr_set(ar, data, n) \
@@ -36,6 +36,13 @@ do { \
 do { \
 	(ar)->ptr = NULL; \
 	(ar)->len = (ar)->cap = 0; \
+} while (0)
+
+/** Acquire array data. */
+#define ffarr_acq(dst, src) \
+do { \
+	*(dst) = *(src); \
+	(src)->cap = 0; \
 } while (0)
 
 /** The last element in array. */
@@ -115,7 +122,7 @@ static FFINL void _ffarr_rmswap(ffarr *ar, void *el, size_t elsz) {
 	_ffarr_rmswap((ffarr*)ar, (void*)el, sizeof(*(ar)->ptr))
 
 
-typedef struct {
+typedef struct ffstr {
 	size_t len;
 	char *ptr;
 } ffstr;
@@ -130,11 +137,19 @@ static FFINL void ffstr_set(ffstr *s, const char *d, size_t len) {
 	ffarr_set(s, (char*)d, len);
 }
 
+/** Set constant NULL-terminated string. */
+#define ffstr_setcz(s, csz)  ffarr_set(s, (char*)csz, FFSLEN(csz))
+
 #define ffstr_null(ar) \
 do { \
 	(ar)->ptr = NULL; \
 	(ar)->len = 0; \
 } while (0)
+
+static FFINL void ffstr_acq(ffstr *dst, ffstr *src) {
+	*dst = *src;
+	ffstr_null(src);
+}
 
 #define ffstr_shift  ffarr_shift
 
@@ -150,10 +165,8 @@ static FFINL int ffstr_icmp(const ffstr *s1, const char *s2, size_t len) {
 	return r;
 }
 
-static FFINL ffbool ffstr_eq(const ffstr *s1, const char *s2, size_t n) {
-	return s1->len == n
-		&& 0 == ffmemcmp(s1->ptr, s2, n);
-}
+#define ffstr_eq(s, d, n) \
+	((s)->len == (n) && 0 == ffmemcmp((s)->ptr, d, n))
 
 /** Return TRUE if both strings are equal. */
 #define ffstr_eq2(s1, s2)  ffstr_eq(s1, (s2)->ptr, (s2)->len)
@@ -175,6 +188,12 @@ static FFINL ffbool ffstr_eqz(const ffstr *s1, const char *sz2) {
 	}
 	return *sz2 == '\0';
 }
+
+/** Compare ffstr object and constant NULL-terminated string. */
+#define ffstr_eqcz(s, constsz)  ffstr_eq(s, constsz, FFSLEN(constsz))
+
+/** Compare ffstr object and constant NULL-terminated string.  Case-insensitive. */
+#define ffstr_ieqcz(s, constsz)  ffstr_ieq(s, constsz, FFSLEN(constsz))
 
 /** Return TRUE if n characters are equal in both strings. */
 static FFINL ffbool ffstr_match(const ffstr *s1, const char *s2, size_t n) {
@@ -238,10 +257,28 @@ static FFINL void ffqstr_set(ffqstr *s, const ffsyschar *d, size_t len) {
 
 #endif
 
+/** Find substring.
+Return -1 if not found. */
+static FFINL ssize_t ffstr_find(const ffstr *s, const char *search, size_t search_len) {
+	const char *r = ffs_finds(s->ptr, s->len, search, search_len);
+	if (r == s->ptr + s->len)
+		return -1;
+	return r - s->ptr;
+}
+
+static FFINL ssize_t ffstr_ifind(const ffstr *s, const char *search, size_t search_len) {
+	const char *r = ffs_ifinds(s->ptr, s->len, search, search_len);
+	if (r == s->ptr + s->len)
+		return -1;
+	return r - s->ptr;
+}
+
 /** Find string in an array of strings.
 Return array index.
 Return -1 if not found. */
 FF_EXTN ssize_t ffstr_findarr(const ffstr *ar, size_t n, const char *search, size_t search_len);
+
+FF_EXTN ssize_t ffstr_ifindarr(const ffstr *ar, size_t n, const char *search, size_t search_len);
 
 /** Get the next value from input string like "val1, val2, ...".
 Spaces on the edges are trimmed.
@@ -263,10 +300,12 @@ static FFINL size_t ffstr_catfmt(ffstr3 *s, const char *fmt, ...) {
 	return r;
 }
 
+/** Formatted output into a file.
+'buf': optional buffer. */
 FF_EXTN size_t fffile_fmt(fffd fd, ffstr3 *buf, const char *fmt, ...);
 
 
-typedef struct {
+typedef struct ffrange {
 	ushort len
 		, off;
 } ffrange;

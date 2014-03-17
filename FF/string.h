@@ -72,8 +72,6 @@ FF_EXTN int ffs_icmp(const char *s1, const char *s2, size_t len);
 /** Search for a byte in buffer. */
 FF_EXTN void * ffmemchr(const void *d, int b, size_t len);
 
-#define ffmemzero(d, len)  memset(d, 0, len)
-
 /** Compare two buffers. */
 #define ffmemcmp  memcmp
 
@@ -99,6 +97,8 @@ FF_EXTN char * ffs_rfind(const char *buf, size_t len, int ch);
 Return END if not found. */
 FF_EXTN char * ffs_finds(const char *buf, size_t len, const char *search, size_t search_len);
 
+FF_EXTN char * ffs_ifinds(const char *buf, size_t len, const char *search, size_t search_len);
+
 FF_EXTN char * ffs_findof(const char *buf, size_t len, const char *anyof, size_t cnt);
 
 FF_EXTN char * ffs_rfindof(const char *buf, size_t len, const char *anyof, size_t cnt);
@@ -111,8 +111,17 @@ FF_EXTN char * ffs_rskip(const char *buf, size_t len, int ch);
 
 FF_EXTN const byte ff_intmasks[9][8];
 
-/** Search a string in array using operations with type int64. */
+/** Search a string in array using operations with type int64.
+Return 'count' if not found. */
 FF_EXTN size_t ffs_findarr(const void *s, size_t len, const void *ar, ssize_t elsz, size_t count);
+
+/** Search a string in array of pointers to NULL-terminated strings.
+Return -1 if not found. */
+FF_EXTN ssize_t ffs_findarrz(const char *const *ar, size_t n, const char *search, size_t search_len);
+
+/** Return the number of characters in UTF-8 string. */
+FF_EXTN size_t ffutf8_len(const char *p, size_t len);
+
 
 /** Copy 1 character.
 Return the tail. */
@@ -137,6 +146,17 @@ static FFINL char * ffs_copy(char *dst, const char *bufend, const char *s, size_
 	return dst + len;
 }
 
+/** Copy buffer and append zero byte.
+Return the pointer to the trailing zero. */
+static FFINL char * ffsz_copy(char *dst, size_t cap, const char *src, size_t len) {
+	char *end = dst + cap;
+	if (cap != 0) {
+		dst = ffs_copy(dst, end - 1, src, len);
+		ffs_copyc(dst, end, '\0');
+	}
+	return dst;
+}
+
 /** Lowercase copy. */
 FF_EXTN char * ffs_lower(char *dst, const char *bufend, const char *src, size_t len);
 
@@ -146,6 +166,8 @@ FF_EXTN char * ffs_lower(char *dst, const char *bufend, const char *src, size_t 
 #define ffq_copy  ffs_copy
 #define ffq_copys  ffs_copy
 #define ffs_copyq  ffs_copy
+#define ffq_lens(ptr, len)  (len)
+#define ffq_lenq(ptr, len)  (len)
 
 #define ffq_rfind  ffs_rfind
 #define ffq_rfindof  ffs_rfindof
@@ -171,7 +193,12 @@ static FFINL ffsyschar * ffq_copy(ffsyschar *dst, const ffsyschar *bufend, const
 /** Copy UTF-8 text into UCS-2 buffer. */
 static FFINL ffsyschar * ffq_copys(ffsyschar *dst, const ffsyschar *bufend, const char *src, size_t len) {
 	size_t dst_cap = bufend - dst;
-	size_t i = ff_utow(dst, dst_cap, src, len, 0);
+	size_t i;
+
+	if (len == 0)
+		return dst;
+
+	i = ff_utow(dst, dst_cap, src, len, 0);
 	if (i == 0)
 		return dst + dst_cap;
 	return dst + i;
@@ -180,17 +207,48 @@ static FFINL ffsyschar * ffq_copys(ffsyschar *dst, const ffsyschar *bufend, cons
 /** Copy UCS-2 text into UTF-8 buffer. */
 static FFINL char * ffs_copyq(char *dst, const char *bufend, const ffsyschar *src, size_t len) {
 	size_t dst_cap = bufend - dst;
-	size_t i = ff_wtou(dst, dst_cap, src, len, 0);
+	size_t i;
+
+	if (len == 0)
+		return dst;
+
+	i = ff_wtou(dst, dst_cap, src, len, 0);
 	if (i == 0)
 		return dst + dst_cap;
 	return dst + i;
 }
+
+/** Return the number of characters to allocate for system string. */
+#define ffq_lens(p, len)  ffutf8_len(p, len)
+
+/** Return the number of characters to allocate for char-string. */
+#define ffq_lenq(wstr, len)  ff_wtou(NULL, 0, wstr, len, 0)
 
 FF_EXTN ffsyschar * ffq_rfind(const ffsyschar *buf, size_t len, int val);
 
 FF_EXTN ffsyschar * ffq_rfindof(const ffsyschar *begin, size_t len, const ffsyschar *matchAr, size_t matchSz);
 
 #endif
+
+/** Return the pointer to the trailing zero. */
+static FFINL ffsyschar * ffqz_copys(ffsyschar *dst, size_t cap, const char *src, size_t len) {
+	ffsyschar *end = dst + cap;
+	if (cap != 0) {
+		dst = ffq_copys(dst, end - 1, src, len);
+		ffq_copyc(dst, end, '\0');
+	}
+	return dst;
+}
+
+static FFINL ffsyschar * ffqz_copyz(ffsyschar *dst, size_t cap, const ffsyschar *src) {
+	ffsyschar *end = dst + cap;
+	if (cap != 0) {
+		dst = ffq_copyz(dst, end - 1, src);
+		ffq_copyc(dst, end, '\0');
+	}
+	return dst;
+}
+
 
 /** Find and replace a character.
 On return '*n' contains the number of replacements made.

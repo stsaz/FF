@@ -143,7 +143,7 @@ int newObj1(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 
 static int objChk(const obj_s *o)
 {
-	x(ffstr_eqz(&o->s, "my string"));
+	x(ffstr_eqcz(&o->s, "my string"));
 	x(o->size == 64 * 1024);
 	x(o->i == 1000);
 	x(o->i4 == 9999);
@@ -155,15 +155,15 @@ static int objChk(const obj_s *o)
 	//x(o->o[0]->o[0] == (void*)-1);
 	x(o->o[0]->objCloseOk == 1);
 
-	x(ffstr_eqz(&o->ar[0], "11"));
-	x(ffstr_eqz(&o->ar[1], "22"));
-	x(ffstr_eqz(&o->ar[2], "33"));
+	x(ffstr_eqcz(&o->ar[0], "11"));
+	x(ffstr_eqcz(&o->ar[1], "22"));
+	x(ffstr_eqcz(&o->ar[2], "33"));
 
 	x(o->o[1]->i == -2345);
-	x(ffstr_eqz(&o->o[1]->k[0], "k1"));
-	x(ffstr_eqz(&o->o[1]->k[1], "1"));
-	x(ffstr_eqz(&o->o[1]->k[2], "k2"));
-	x(ffstr_eqz(&o->o[1]->k[3], "2"));
+	x(ffstr_eqcz(&o->o[1]->k[0], "k1"));
+	x(ffstr_eqcz(&o->o[1]->k[1], "1"));
+	x(ffstr_eqcz(&o->o[1]->k[2], "k2"));
+	x(ffstr_eqcz(&o->o[1]->k[3], "2"));
 	x(o->o[1]->objCloseOk == 1);
 
 	x(o->objCloseOk == 1);

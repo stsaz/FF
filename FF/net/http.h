@@ -5,7 +5,7 @@ Copyright (c) 2013 Simon Zolin
 #pragma once
 
 #include <FF/array.h>
-#include <FF/url.h>
+#include <FF/net/url.h>
 #include <FF/crc.h>
 
 
@@ -135,7 +135,7 @@ enum FFHTTP_E {
 FF_EXTN const char *ffhttp_errstr(int code);
 
 /** Header information. */
-typedef struct {
+typedef struct ffhttp_hdr {
 	ushort len;
 	byte idx;
 	byte ihdr; //enum FFHTTP_HDR
@@ -161,19 +161,19 @@ static FFINL int ffhttp_findmethod(const char *data, size_t len) {
 }
 
 /** Parsed headers information. */
-typedef struct {
+typedef struct ffhttp_headers {
 	const char *base;
 	ushort len;
 	ushort ver; ///< HTTP version, e.g. 0x0100 = http/1.0
 	ushort firstline_len;
-	unsigned http11 : 1
+	byte http11 : 1
 		, firstcrlf : 2
 		, conn_close : 1
 		, has_body : 1
 		, chunked : 1 ///< Transfer-Encoding: chunked
 		, body_conn_close : 1 // for response
-
-		, ce_gzip : 1 ///< Content-Encoding: gzip
+		;
+	byte ce_gzip : 1 ///< Content-Encoding: gzip
 		, ce_identity : 1 ///< no Content-Encoding or Content-Encoding: identity
 		;
 	int64 cont_len; ///< Content-Length value or -1
@@ -203,7 +203,7 @@ static FFINL ffstr ffhttp_firstline(const ffhttp_headers *h) {
 
 
 /** Parsed request. */
-typedef struct {
+typedef struct ffhttp_request {
 	ffhttp_headers h;
 
 	ffurl url;
@@ -257,6 +257,11 @@ static FFINL ffstr ffhttp_requrl(const ffhttp_request *r, int component) {
 	return ffurl_get(&r->url, r->h.base, component);
 }
 
+/** Get hostname from request. */
+static FFINL ffstr ffhttp_reqhost(const ffhttp_request *r) {
+	return ffurl_get(&r->url, r->h.base, FFURL_HOST);
+}
+
 /** Get decoded path. */
 static FFINL ffstr ffhttp_reqpath(const ffhttp_request *r) {
 	if (!r->url.complex)
@@ -266,7 +271,7 @@ static FFINL ffstr ffhttp_reqpath(const ffhttp_request *r) {
 
 
 /** Parsed response. */
-typedef struct {
+typedef struct ffhttp_response {
 	ffhttp_headers h;
 
 	ushort code;
@@ -319,7 +324,7 @@ enum FFHTTP_CACHE {
 	, FFHTTP_CACH_SMAXAGE = 1 << 8 //resp
 };
 
-typedef struct {
+typedef struct ffhttp_cachectl {
 	uint maxage
 		, maxstale
 		, minfresh
@@ -332,7 +337,18 @@ Return mask of enum FFHTTP_CACHE. */
 FF_EXTN int ffhttp_parsecachctl(ffhttp_cachectl *cctl, const char *val, size_t vallen);
 
 
-typedef struct {
+/** Check ETag value against If-None-Match.
+Note: ',' within the value is not supported. */
+FF_EXTN ffbool ffhttp_ifnonematch(const char *etag, size_t len, const ffstr *ifNonMatch);
+
+/** Parse 1 element of Range header value.  Perform range validation checks.
+'size': the maximum size of the content.
+Return offset.  'size' is set to the size of content requested.
+Return -1 on error. */
+FF_EXTN int64 ffhttp_range(const char *d, size_t len, uint64 *size);
+
+
+typedef struct ffhttp_cook {
 	ffstr3 buf;
 	ushort code;
 	unsigned conn_close : 1
@@ -345,16 +361,17 @@ typedef struct {
 		, last_mod
 		, location
 		, cont_enc
-		, trans_enc;
+		, trans_enc
+		, date;
 } ffhttp_cook;
 
 /** Initialize ffhttp_cook object. */
 static FFINL void ffhttp_cookinit(ffhttp_cook *c, char *buf, size_t cap) {
-	ffmemzero(c, sizeof(ffhttp_cook));
+	ffmem_tzero(c);
 	c->cont_len = -1;
 	c->buf.ptr = buf;
 	c->buf.cap = cap;
-	ffstr_set(&c->proto, FFSTR("HTTP/1.1"));
+	ffstr_setcz(&c->proto, "HTTP/1.1");
 }
 
 static FFINL void ffhttp_cookreset(ffhttp_cook *c) {
@@ -414,3 +431,40 @@ static FFINL int ffhttp_cookfin(ffhttp_cook *c) {
 	ffstr3_cat(&c->buf, FFSTR(FFCRLF));
 	return (c->buf.len == c->buf.cap);
 }
+
+
+typedef struct ffhttp_chunked {
+	uint64 cursiz;
+	uint state;
+	unsigned last :1;
+} ffhttp_chunked;
+
+static FFINL void ffhttp_chunkinit(ffhttp_chunked *c) {
+	c->state = 0;
+}
+
+/** Parse chunked-encoded data and get content.
+Return enum FFHTTP_E.
+If there is data, return FFHTTP_OK and set 'dst'.  'len' is set to the number of processed bytes. */
+FF_EXTN int ffhttp_chunkparse(ffhttp_chunked *c, const char *body, size_t *len, ffstr *dst);
+
+/** Begin chunk. */
+static FFINL int ffhttp_chunkbegin(char *buf, size_t cap, uint64 chunk_len) {
+	uint r = ffs_fromint(chunk_len, buf, cap, FFINT_HEXLOW);
+	if (cap - r < 2)
+		return 0;
+	buf[r++] = '\r';
+	buf[r++] = '\n';
+	return r;
+}
+
+enum FFHTTP_CHUNKED {
+	FFHTTP_CHUNKFIN
+	, FFHTTP_CHUNKZERO
+	, FFHTTP_CHUNKLAST
+};
+
+/** Finish chunk.  Add zero-length chunk if needed.
+'flags': enum FFHTTP_CHUNKED.
+'pbuf' is set to point to the static string, and the number of valid bytes is returned. */
+FF_EXTN int ffhttp_chunkfin(const char **pbuf, int flags);

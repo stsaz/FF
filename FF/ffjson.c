@@ -356,7 +356,6 @@ int ffjson_parse(ffparser *p, const char *data, size_t *len)
 //AFTER VALUE
 		case iAfterVal:
 			ffpars_cleardata(p);
-			p->intval = 0;
 
 			if (p->ctxs.len == 0) {
 				er = FFPARS_EBADCHAR; //document finished. no more entities expected
@@ -543,12 +542,14 @@ enum State {
 	, stVal = 4
 };
 
-int ffjson_cookadd(ffjson_cook *c, int f, const void *src)
+int ffjson_add(ffjson_cook *c, int f, const void *src)
 {
 	char *d = ffarr_end(&c->buf);
 	const char *end = c->buf.ptr + c->buf.cap;
 	int type = f & 0x0f;
 	ffbool closingCtx = 0;
+	size_t len = 0;
+	unsigned nobuf = (c->buf.ptr == NULL);
 	union {
 		const void *p;
 		const char *sz;
@@ -560,9 +561,13 @@ int ffjson_cookadd(ffjson_cook *c, int f, const void *src)
 	un.p = src;
 	closingCtx = src != NULL && (type == FFJSON_TOBJ || type == FFJSON_TARR);
 
-	if ((c->st & stComma) && !closingCtx)
+	// insert comma if needed
+	if ((c->st & stComma) && !closingCtx) {
 		d = ffs_copyc(d, end, ',');
+		len++;
+	}
 
+	// insert whitespace
 	if ((f & _FFJSON_PRETTYMASK) && !(c->st & stVal)) {
 		size_t n = c->ctxs.len;
 		int ch = '\t';
@@ -576,54 +581,69 @@ int ffjson_cookadd(ffjson_cook *c, int f, const void *src)
 		}
 
 		d += ffs_fmt(d, end, "\n%*c", (size_t)n, (int)ch);
+		len += FFSLEN("\n") + n;
 	}
 
 	switch (type) {
 	case FFJSON_TSTR:
 		d = ffs_copyc(d, end, '"');
-		if (f & FFJSON_NOESC) {
-			if (f & FFJSON_SZ)
+		len++;
+
+		if (f & FFJSON_FNOESC) {
+			if ((f & FFJSON_FSTRZ) == FFJSON_FSTRZ) {
 				d = ffs_copyz(d, end, un.sz);
-			else
+				if (nobuf)
+					len += strlen(un.sz);
+
+			} else {
 				d = ffs_copy(d, end, un.s->ptr, un.s->len);
+				len += un.s->len;
+			}
 		}
 		else {
 			ffstr s;
-			if (f & FFJSON_SZ)
+			size_t tmp;
+			if ((f & FFJSON_FSTRZ) == FFJSON_FSTRZ)
 				ffstr_set(&s, un.sz, strlen(un.sz));
 			else
 				s = *un.s;
-			d += ffjson_escape(d, end - d, s.ptr, s.len);
+			tmp = ffjson_escape(d, end - d, s.ptr, s.len);
+			if (!nobuf)
+				d += tmp;
+			len += tmp;
 		}
+
 		d = ffs_copyc(d, end, '"');
+		len++;
 		break;
 
 	case FFJSON_TINT:
 		{
-			int64 i;
-			if (f & FFJSON_32BIT)
-				i = *un.i32;
-			else
-				i = *un.i64;
+			int64 i = (f & FFJSON_F32BIT) ? *un.i32 : *un.i64;
 			d += ffs_fromint(i, d, end - d, FFINT_SIGNED);
+			len += FFINT_MAXCHARS;
 		}
 		break;
 
 	case FFJSON_TNUM:
 		d = ffs_copy(d, end, un.s->ptr, un.s->len);
+		len += un.s->len;
 		break;
 
 	case FFJSON_TBOOL:
 		d = ffs_copyz(d, end, (un.p != NULL ? "true" : "false"));
+		len += (un.p != NULL ? FFSLEN("true") : FFSLEN("false"));
 		break;
 
 	case FFJSON_TNULL:
 		d = ffs_copy(d, end, FFSTR("null"));
+		len += FFSLEN("null");
 		break;
 
 	case FFJSON_TOBJ:
 	case FFJSON_TARR:
 		if (!closingCtx) {
+			// open new context
 			char *ctx = ffarr_push(&c->ctxs, char);
 			if (ctx == NULL)
 				return FFJSON_ERR;
@@ -633,8 +653,10 @@ int ffjson_cookadd(ffjson_cook *c, int f, const void *src)
 				c->st |= stKey;
 
 			d = ffs_copyc(d, end, ctxCharOpen[type == FFJSON_TARR]);
+			len++;
 		}
 		else {
+			// close context
 			if (c->ctxs.len == 0)
 				return FFJSON_ERR; //there is no context to close
 
@@ -647,6 +669,7 @@ int ffjson_cookadd(ffjson_cook *c, int f, const void *src)
 				c->st |= stKey;
 
 			d = ffs_copyc(d, end, ctxCharClose[type == FFJSON_TARR]);
+			len++;
 		}
 		break;
 
@@ -656,17 +679,27 @@ int ffjson_cookadd(ffjson_cook *c, int f, const void *src)
 
 	if (!(type == FFJSON_TOBJ || type == FFJSON_TARR)) {
 		if (c->st & stKey) {
+			// insert separator between key and value
 			d = ffs_copyc(d, end, ':');
-			if (f & _FFJSON_PRETTYMASK)
+			len++;
+
+			if (f & _FFJSON_PRETTYMASK) {
 				d = ffs_copyc(d, end, ' ');
+				len++;
+			}
+
 			c->st = stVal;
 		}
 		else if (c->ctxs.len != 0) {
+			// ',' is needed if the next item of the same level follows
 			c->st = stComma;
 			if (ffarr_back(&c->ctxs) == FFJSON_TOBJ)
 				c->st |= stKey;
 		}
 	}
+
+	if (nobuf)
+		return -(int)len;
 
 	if (d == end)
 		return FFJSON_BUFFULL;
@@ -675,51 +708,99 @@ int ffjson_cookadd(ffjson_cook *c, int f, const void *src)
 	return FFJSON_OK;
 }
 
-int ffjson_cookaddbuf(ffjson_cook *c, int f, const void *src)
+int ffjson_addvv(ffjson_cook *js, const int *types, size_t ntypes, va_list va)
+{
+	size_t i;
+	int r = FFJSON_OK;
+	int64 v;
+	void *ptr;
+
+	for (i = 0;  i < ntypes;  i++) {
+
+		if ((types[i] & FFJSON_FINTVAL) == FFJSON_FINTVAL) {
+			v = (types[i] & FFJSON_F32BIT) ? va_arg(va, int) : va_arg(va, int64);
+			ptr = &v;
+		} else
+			ptr = va_arg(va, void*);
+
+		ffjson_add(js, types[i], ptr);
+	}
+
+	FF_ASSERT(NULL == va_arg(va, void*));
+
+	return r;
+}
+
+int ffjson_bufadd(ffjson_cook *js, int f, const void *src)
 {
 	int r;
-	size_t len = 32;
-	size_t szlen = 0;
+	size_t len;
+	ffjson_cook tmp;
 
-	if (f & _FFJSON_PRETTYMASK) {
-		size_t n = c->ctxs.len;
-		if (!(f & FFJSON_PRETTY))
-			n *= (f & FFJSON_PRETTY4SPC) ? 4 : 2;
-		len += n;
-	}
+	tmp = *js;
+	ffarr_null(&js->buf);
+	r = ffjson_add(js, f, src);
+	js->buf = tmp.buf;
+	js->st = tmp.st;
+	js->ctxs.len = tmp.ctxs.len;
+	if (r >= 0)
+		return r;
 
-	if ((f & 0x0f) == FFJSON_TSTR) {
-		if (f & FFJSON_SZ) {
-			szlen = strlen((char*)src);
-			len += szlen;
-		}
-		else
-			len += ((ffstr*)src)->len;
-	}
+	len = -r;
 
-	if (NULL == ffarr_grow(&c->buf, len, FFARR_GROWQUARTER))
+	if (NULL == ffarr_grow(&js->buf, len + 1, FFARR_GROWQUARTER))
 		return FFJSON_ERR;
 
-	r = ffjson_cookadd(c, f, src);
+	return ffjson_add(js, f, src);
+}
 
-	if (r == FFJSON_BUFFULL) {
-		// too many escape sequences
-		if ((f & 0x0f) == FFJSON_TSTR && !(f & FFJSON_NOESC)) {
-			ffstr s;
-			if (f & FFJSON_SZ)
-				ffstr_set(&s, (char*)src, szlen);
-			else
-				s = *(ffstr*)src;
-			len += ffjson_escape(NULL, 0, s.ptr, s.len) - s.len;
+int ffjson_bufaddv(ffjson_cook *js, const int *types, size_t ntypes, ...)
+{
+	va_list va;
+	size_t len = 0;
+	size_t i;
+	int r = FFJSON_OK;
+	int64 v;
+	void *ptr;
+	ffjson_cook tmp;
+
+	// get overall length of data being inserted
+	tmp = *js;
+	ffarr_null(&js->buf);
+	va_start(va, ntypes);
+
+	for (i = 0;  i < ntypes;  i++) {
+
+		if ((types[i] & FFJSON_FINTVAL) == FFJSON_FINTVAL) {
+			v = (types[i] & FFJSON_F32BIT) ? va_arg(va, int) : va_arg(va, int64);
+			ptr = &v;
+		} else
+			ptr = va_arg(va, void*);
+
+		r = ffjson_add(js, types[i], ptr);
+
+		if (r >= 0) {
+			va_end(va);
+			js->buf = tmp.buf;
+			js->st = tmp.st;
+			js->ctxs.len = tmp.ctxs.len;
+			return r;
 		}
-		else
-			return FFJSON_ERR;
 
-		if (NULL == ffarr_grow(&c->buf, len, FFARR_GROWQUARTER))
-			return FFJSON_ERR;
-
-		r = ffjson_cookadd(c, f, src);
+		len += -r;
 	}
+
+	va_end(va);
+	js->buf = tmp.buf;
+	js->st = tmp.st;
+	js->ctxs.len = tmp.ctxs.len;
+
+	if (NULL == ffarr_grow(&js->buf, len + 1, 0))
+		return FFJSON_ERR;
+
+	va_start(va, ntypes);
+	r = ffjson_addvv(js, types, ntypes, va);
+	va_end(va);
 
 	return r;
 }

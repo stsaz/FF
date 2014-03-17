@@ -59,7 +59,7 @@ static FFINL void ffjson_scheminit(ffparser_schem *ps, ffparser *p, const ffpars
 }
 
 
-typedef struct {
+typedef struct ffjson_cook {
 	ffstr3 buf;
 	int st;
 	ffarr ctxs;
@@ -69,13 +69,16 @@ typedef struct {
 FF_EXTN void ffjson_cookinit(ffjson_cook *c, char *buf, size_t cap);
 
 enum FFJSON_F {
-	FFJSON_NOESC = 1 << 31 ///< don't escape string
+	FFJSON_FNOESC = 1 << 31 ///< don't escape string
 	, FFJSON_PRETTY = 1 << 30 ///< pretty print using tabs
 	, FFJSON_PRETTY2SPC = 1 << 29
 	, FFJSON_PRETTY4SPC = 1 << 28
 	, _FFJSON_PRETTYMASK = FFJSON_PRETTY | FFJSON_PRETTY2SPC | FFJSON_PRETTY4SPC
-	, FFJSON_SZ = 1 << 27 ///< null terminated string
-	, FFJSON_32BIT = 1 << 26 ///< 32-bit integer
+
+	, FFJSON_FSTRZ = FFJSON_TSTR | (1 << 27) //null terminated string
+	, FFJSON_FKEYNAME = FFJSON_FSTRZ | FFJSON_FNOESC
+	, FFJSON_FINTVAL = FFJSON_TINT | (1 << 27) //integer value (int or int64)
+	, FFJSON_F32BIT = 1 << 26 //32-bit integer
 };
 
 enum FFJSON_E {
@@ -84,11 +87,32 @@ enum FFJSON_E {
 	, FFJSON_ERR
 };
 
+/* For use with FFJSON_TOBJ and FFJSON_TARR. */
+#define FFJSON_CTXOPEN  NULL
+#define FFJSON_CTXCLOSE  ((void*)1)
+
 /** Serialize one entity.
 f: enum FFJSON_T [| enum FFJSON_F]
 src: char*, ffstr*, int64*, int*, NULL
+If js->buf is empty, return the number of output bytes (negative value).
 Return enum FFJSON_E. */
-FF_EXTN int ffjson_cookadd(ffjson_cook *c, int f, const void *src);
+FF_EXTN int ffjson_add(ffjson_cook *js, int f, const void *src);
+
+FF_EXTN int ffjson_addvv(ffjson_cook *js, const int *types, size_t ntypes, va_list va);
+
+/** Add multiple items at once.
+Put NULL at the end of the list. */
+static FFINL int ffjson_addv(ffjson_cook *js, const int *types, size_t ntypes, ...) {
+	int r;
+	va_list va;
+	va_start(va, ntypes);
+	r = ffjson_addvv(js, types, ntypes, va);
+	va_end(va);
+	return r;
+}
 
 /** Serialize one entity into a growing buffer. */
-FF_EXTN int ffjson_cookaddbuf(ffjson_cook *c, int f, const void *src);
+FF_EXTN int ffjson_bufadd(ffjson_cook *js, int f, const void *src);
+
+/** Add multiple items into a growing buffer. */
+FF_EXTN int ffjson_bufaddv(ffjson_cook *js, const int *types, size_t ntypes, ...);

@@ -47,7 +47,7 @@ enum FFPARS_E {
 /** Get error message. */
 FF_EXTN const char * ffpars_errstr(int code);
 
-typedef struct {
+typedef struct ffparser {
 	ffstr val; ///< the current value
 	byte state
 		, nextst
@@ -83,6 +83,7 @@ FF_EXTN int ffpars_savedata(ffparser *p);
 static FFINL void ffpars_cleardata(ffparser *p) {
 	ffstr_null(&p->val);
 	p->buf.len = 0;
+	p->intval = 0;
 }
 
 /** Default memory alloc/free function. */
@@ -169,7 +170,7 @@ struct ffpars_enumlist {
 	union ffpars_val dst;
 };
 
-typedef struct {
+typedef struct ffpars_arg {
 	const char *name;
 	size_t flags;
 	union ffpars_val dst;

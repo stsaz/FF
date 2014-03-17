@@ -118,7 +118,7 @@ int test_conf_schem(const ffsyschar *testConfFile)
 	objChk(&o);
 
 	x(o.o1->i == 1111);
-	x(ffstr_eqz(&o.o1val, "my value"));
+	x(ffstr_eqcz(&o.o1val, "my value"));
 
 	ffstr_free(&ps.vals[0]);
 	ffstr_free(&o.s);
@@ -197,7 +197,7 @@ static int test_args_schem()
 	int i;
 	static const char *cmds[] = { "--cc=valcc", "-s", "valss1", "-dv" };
 
-	ffmemzero(&o, sizeof(Opts));
+	ffmem_tzero(&o);
 	x(0 == ffpsarg_scheminit(&ps, &p, &ctx));
 
 	for (i = 0;  i < FFCNT(cmds);  ) {
@@ -210,7 +210,7 @@ static int test_args_schem()
 
 	x(0 == ffpsarg_schemfin(&ps));
 
-	x(ffstr_eqz(&o.C, "valcc"));
+	x(ffstr_eqcz(&o.C, "valcc"));
 	x(o.S == 1); //valss1
 	x(o.D == 1);
 	x(o.V == 1);
@@ -230,7 +230,7 @@ static int test_args_err()
 	int r = 0;
 	int n = 0;
 
-	ffmemzero(&o, sizeof(Opts));
+	ffmem_tzero(&o);
 	{
 		static const char *const cmds[] = { "--vv", "--somearg" };
 		ffpsarg_scheminit(&ps, &p, &ctx);
@@ -240,7 +240,7 @@ static int test_args_err()
 
 		r = ffpsarg_parse(&p, cmds[1], &n);
 		x(FFPARS_EUKNKEY == ffpars_schemrun(&ps, r)
-			&& ffstr_eqz(&p.val, "somearg")
+			&& ffstr_eqcz(&p.val, "somearg")
 			&& p.line == 2);
 
 		ffpars_free(&p);

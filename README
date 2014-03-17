@@ -2,19 +2,31 @@ FAST-FORWARD (FF) LIBRARY
 
 FF library contains some useful functionality helping to develop applications in C and C++.
 
-FF requires FFOS.
+FF is built on top of FFOS which provides cross-platform abilities.  Performance is one of the key aspects of the library: it is designed to run 24/7 in server environment.
 
 FEATURES
-	. string, array, linked-list
-	. operations with bits
-	. CRC
-	. filesystem path
-	. URL parser
-	. HTTP parser
-	. JSON: parse and serialize
-	. configuration parser
-	. command-line arguments parser
-	. deserialization of structured data using a predefined scheme
+	. Base:
+		. string
+		. array
+		. linked-list
+		. red-black tree
+		. operations with bits
+		. atomic integer functions
+
+	. Network:
+		. URL parser
+		. IPv4/IPv6 address convertion functions
+		. HTTP
+		. DNS
+
+	. Data:
+		. JSON: parse and serialize
+		. configuration parser
+		. command-line arguments parser
+		. deserialization of structured data using a predefined scheme
+
+	. CRC32
+	. filesystem path functions
 
 LICENSE
 

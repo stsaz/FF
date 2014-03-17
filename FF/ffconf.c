@@ -170,6 +170,7 @@ int ffconf_parse(ffparser *p, const char *data, size_t *len)
 				st = iRmCtx;
 				p->type = FFPARS_TOBJ;
 				r = FFPARS_CLOSE;
+				ffstr_setcz(&p->val, "}");
 
 			} else {
 				st = iKeyBare;
@@ -200,6 +201,7 @@ int ffconf_parse(ffparser *p, const char *data, size_t *len)
 				p->type = FFPARS_TOBJ;
 				nextst = iValSplit;
 				r = FFPARS_OPEN;
+				ffstr_setcz(&p->val, "{");
 
 			} else {
 				st = iValBare;
@@ -282,14 +284,17 @@ int ffconf_parse(ffparser *p, const char *data, size_t *len)
 
 int ffconf_scheminit(ffparser_schem *ps, ffparser *p, const ffpars_ctx *ctx)
 {
+	int r;
 	const ffpars_arg top = { NULL, FFPARS_TOBJ | FFPARS_FPTR, FFPARS_DST(ctx) };
 	ffpars_scheminit(ps, p, &top);
 	ps->onval = &ffconf_schemval;
 
 	if (0 != ffconf_parseinit(p))
-		return 1;
-	if (FFPARS_OPEN != ffpars_schemrun(ps, FFPARS_OPEN))
-		return 1;
+		return FFPARS_ESYS;
+
+	r = ffpars_schemrun(ps, FFPARS_OPEN);
+	if (r != FFPARS_OPEN)
+		return r;
 
 	return 0;
 }
@@ -334,11 +339,11 @@ int ffconf_schemval(ffparser_schem *ps, void *obj, void *dst)
 		break;
 
 	case FFPARS_TBOOL:
-		if (ffstr_ieq(&v, FFSTR("true"))) {
+		if (ffstr_ieqcz(&v, "true")) {
 			p->type = FFPARS_TBOOL;
 			p->intval = 1;
 
-		} else if (ffstr_ieq(&v, FFSTR("false"))) {
+		} else if (ffstr_ieqcz(&v, "false")) {
 			p->type = FFPARS_TBOOL;
 			p->intval = 0;
 
@@ -361,6 +366,7 @@ int ffconf_schemval(ffparser_schem *ps, void *obj, void *dst)
 			s->len = v.len;
 			r = FFPARS_DONE;
 		}
+		ps->flags |= 4; //FFPARS_SCCTX
 		break;
 
 	default:

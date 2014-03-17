@@ -24,6 +24,24 @@ int test_strqcat()
 	p = ffq_copys(buf, end, FFSTR("ASDFA"));
 	x(0 == ffq_cmpz(buf, TEXT("ASDFA")));
 
+	x(FFSLEN(TEXT("asdf")) == ffq_lens("asdf", FFSLEN("asdf")));
+	x(FFSLEN("asdf") == ffq_lenq(TEXT("asdf"), FFSLEN(TEXT("asdf"))));
+
+	x(4 == ffutf8_len("фыва", FFSLEN("фыва")));
+
+	{
+		char sbuf[255];
+		char *sp;
+		size_t n;
+		n = ffq_lens("фыва", FFSLEN("фыва"));
+		p = ffq_copys(buf, end, "фыва", FFSLEN("фыва"));
+		x(n == p - buf);
+
+		x(FFSLEN("фыва") == ffq_lenq(buf, p - buf));
+		sp = ffs_copyq(sbuf, sbuf + FFCNT(sbuf), buf, p - buf);
+		x(sp - sbuf == FFSLEN("фыва") && !ffmemcmp(sbuf, "фыва", FFSLEN("фыва")));
+	}
+
 	return 0;
 }
 
@@ -85,24 +103,24 @@ static int test_arr()
 	x(i == n);
 
 	ffstr_set(&str, ptr, n);
-	x(ffstr_eq(&str, FFSTR("asdf")));
-	x(!ffstr_eq(&str, FFSTR("asd")));
-	x(!ffstr_eq(&str, FFSTR("zxcv")));
-	x(!ffstr_eq(&str, FFSTR("asdfz")));
-	x(ffstr_ieq(&str, FFSTR("ASDF")));
+	x(ffstr_eqcz(&str, "asdf"));
+	x(!ffstr_eqcz(&str, "asd"));
+	x(!ffstr_eqcz(&str, "zxcv"));
+	x(!ffstr_eqcz(&str, "asdfz"));
+	x(ffstr_ieqcz(&str, "ASDF"));
 
-	x(ffstr_eqz(&str, "asdf"));
-	x(!ffstr_eqz(&str, "asdfz"));
+	x(ffstr_eqcz(&str, "asdf"));
+	x(!ffstr_eqcz(&str, "asdfz"));
 	x(ffstr_icmp(&str, FFSTR("ASDFZ")) < 0);
 	x(ffstr_icmp(&str, FFSTR("ASD")) > 0);
 	x(ffstr_icmp(&str, FFSTR("ASDF")) == 0);
 
 	{
 		ffstr s3 = { 0 };
-		ffstr_set(&s3, FFSTR("ASDF"));
+		ffstr_setcz(&s3, "ASDF");
 		x(ffstr_ieq2(&str, &s3));
 
-		ffstr_set(&s3, FFSTR("asdf"));
+		ffstr_setcz(&s3, "asdf");
 		x(ffstr_eq2(&str, &s3));
 	}
 
@@ -158,19 +176,19 @@ int test_inttostr()
 	ss.ptr = s;
 
 	ss.len = ffs_fromint((uint64)-1, s, FFCNT(s), FFINT_SIGNED);
-	x(ffstr_eq(&ss, FFSTR("-1")));
+	x(ffstr_eqcz(&ss, "-1"));
 
 	ss.len = ffs_fromint((uint64)-1, s, FFCNT(s), 0);
-	x(ffstr_eq(&ss, FFSTR("18446744073709551615")));
+	x(ffstr_eqcz(&ss, "18446744073709551615"));
 
 	ss.len = ffs_fromint(-1, s, FFCNT(s), FFINT_HEXUP);
-	x(ffstr_eq(&ss, FFSTR("FFFFFFFFFFFFFFFF")));
+	x(ffstr_eqcz(&ss, "FFFFFFFFFFFFFFFF"));
 
 	ss.len = ffs_fromint(0xabc1, s, FFCNT(s), FFINT_HEXLOW | FFINT_ZEROWIDTH | FFINT_WIDTH(8));
-	x(ffstr_eq(&ss, FFSTR("0000abc1")));
+	x(ffstr_eqcz(&ss, "0000abc1"));
 
 	ss.len = ffs_fromint(0xabc1, s, FFCNT(s), FFINT_HEXLOW | FFINT_WIDTH(8));
-	x(ffstr_eq(&ss, FFSTR("    abc1")));
+	x(ffstr_eqcz(&ss, "    abc1"));
 
 	return 0;
 }
@@ -273,27 +291,27 @@ static int test_strf()
 
 	x(0 != ffstr_catfmt(&s, "%03D %03xI %3d %p", (int64)-9, (size_t)-0x543fe, (int)-5, (void*)0xab1234));
 #if defined FF_64
-	x(ffstr_eqz((ffstr*)&s, "-009 -543fe -  5 0x0000000000ab1234"));
+	x(ffstr_eqcz(&s, "-009 -543fe -  5 0x0000000000ab1234"));
 #else
-	x(ffstr_eqz((ffstr*)&s, "-009 -543fe -  5 0x00ab1234"));
+	x(ffstr_eqcz(&s, "-009 -543fe -  5 0x00ab1234"));
 #endif
 
 	s.len = 0;
-	ffstr_set(&s1, FFSTR("hello"));
+	ffstr_setcz(&s1, "hello");
 	ffqstr_set(&qs1, FFSTRQ("hello"));
 	x(0 != ffstr_catfmt(&s, "%*s %S %*q %Q", (size_t)3, "hello", &s1, (size_t)3, TEXT("hello"), &qs1));
-	x(ffstr_eqz((ffstr*)&s, "hel hello hel hello"));
+	x(ffstr_eqcz(&s, "hel hello hel hello"));
 
 	s.len = 0;
 	x(0 != ffstr_catfmt(&s, "%*c %%", (size_t)5, (int)'-'));
-	x(ffstr_eqz((ffstr*)&s, "----- %"));
+	x(ffstr_eqcz(&s, "----- %"));
 
 	s.len = 0;
 	x(0 != ffstr_catfmt(&s, "%e: %E", (int)FFERR_FOPEN, (int)EINVAL));
 #ifdef FF_UNIX
-	x(ffstr_eqz((ffstr*)&s, "file open: (22) Invalid argument"));
+	x(ffstr_eqcz(&s, "file open: (22) Invalid argument"));
 #else
-	x(ffstr_eqz((ffstr*)&s, "file open: (87) The parameter is incorrect. "));
+	x(ffstr_eqcz(&s, "file open: (87) The parameter is incorrect. "));
 #endif
 
 	ffarr_free(&s);
@@ -372,26 +390,26 @@ int test_str()
 		ffstr s;
 		ffstr v;
 		size_t by;
-		ffstr_set(&s, FFSTR(" , qwer , asdf , "));
+		ffstr_setcz(&s, " , qwer , asdf , ");
 		by = ffstr_nextval(s.ptr, s.len, &v, ',');
 		x(by == FFSLEN(" ,"));
 		ffstr_shift(&s, by);
-		x(ffstr_eq(&v, FFSTR("")));
+		x(ffstr_eqcz(&v, ""));
 
 		by = ffstr_nextval(s.ptr, s.len, &v, ',');
 		x(by == FFSLEN(" qwer ,"));
 		ffstr_shift(&s, by);
-		x(ffstr_eq(&v, FFSTR("qwer")));
+		x(ffstr_eqcz(&v, "qwer"));
 
 		by = ffstr_nextval(s.ptr, s.len, &v, ',');
 		x(by == FFSLEN(" asdf ,"));
 		ffstr_shift(&s, by);
-		x(ffstr_eq(&v, FFSTR("asdf")));
+		x(ffstr_eqcz(&v, "asdf"));
 
 		by = ffstr_nextval(s.ptr, s.len, &v, ',');
 		x(by == FFSLEN(" "));
 		ffstr_shift(&s, by);
-		x(ffstr_eq(&v, FFSTR("")));
+		x(ffstr_eqcz(&v, ""));
 	}
 
 	x(ffchar_islow('a') && !ffchar_islow('A') && !ffchar_islow('\xff') && !ffchar_islow('-'));

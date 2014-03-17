@@ -153,11 +153,12 @@ static int scCloseBrace(ffparser_schem *ps);
 enum FFPARS_SCHEMFLAG {
 	FFPARS_SCHAVKEY = 1
 	, FFPARS_SCHAVVAL = 2
+	, FFPARS_SCCTX = 4
 };
 
 void ffpars_scheminit(ffparser_schem *ps, ffparser *p, const ffpars_arg *top)
 {
-	ffmemzero(ps, sizeof(ffparser_schem));
+	ffmem_tzero(ps);
 	ps->p = p;
 	ps->curarg = top;
 }
@@ -342,9 +343,19 @@ static int scHdlVal(ffparser_schem *ps, ffpars_ctx *ctx)
 		if (p->val.len == 0 && (f & FFPARS_FNOTEMPTY))
 			return FFPARS_EVALEMPTY;
 
-		if (func)
-			er = edst.f_str(ps, ctx->obj, &p->val);
-		else if (f & FFPARS_FCOPY) {
+		if (func) {
+			ffstr tmp = p->val;
+
+			if (f & FFPARS_FCOPY) {
+				if (p->val.len == 0)
+					ffstr_null(&tmp);
+				else if (NULL == ffstr_copy(&tmp, p->val.ptr, p->val.len))
+					return FFPARS_ESYS;
+			}
+
+			er = edst.f_str(ps, ctx->obj, &tmp);
+
+		} else if (f & FFPARS_FCOPY) {
 			if (NULL == ffstr_copy(dst.s, p->val.ptr, p->val.len))
 				return FFPARS_ESYS;
 		}
@@ -463,11 +474,14 @@ static int scCloseBrace(ffparser_schem *ps)
 		}
 	}
 
-	ps->curarg = scGetArg(ctx, FFPARS_TCLOSE);
-	if (ps->curarg != NULL)
-		er = ps->curarg->dst.f_0(ps, ctx->obj);
+	{
+		const ffpars_arg *a = scGetArg(ctx, FFPARS_TCLOSE);
+		if (a != NULL)
+			er = a->dst.f_0(ps, ctx->obj);
+	}
 
 	ps->ctxs.len--;
+	ps->curarg = ffarr_back(&ps->ctxs).args;
 	return er;
 }
 
@@ -486,6 +500,12 @@ int ffpars_schemrun(ffparser_schem *ps, int e)
 			return FFPARS_EVALUNEXP; //value has been specified already
 
 		ps->flags &= ~FFPARS_SCHAVVAL;
+
+	} else if (ps->flags & FFPARS_SCCTX) {
+		if (e != FFPARS_OPEN)
+			return FFPARS_EVALEMPTY; //context open expected
+
+		ps->flags &= ~FFPARS_SCCTX;
 	}
 
 	switch (e) {

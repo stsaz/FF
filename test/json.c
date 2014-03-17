@@ -52,7 +52,7 @@ int test_json_parse(const ffsyschar *testJsonFile)
 
 		switch (rc) {
 		case FFPARS_KEY:
-			ffjson_cookaddbuf(&ck, FFJSON_TSTR | ckf, &json.val);
+			ffjson_bufadd(&ck, FFJSON_TSTR | ckf, &json.val);
 			break;
 
 		case FFPARS_VAL:
@@ -62,15 +62,15 @@ int test_json_parse(const ffsyschar *testJsonFile)
 				dst = json.intval != 0 ? (void*)1 : NULL;
 			else
 				dst = &json.val;
-			ffjson_cookaddbuf(&ck, json.type | ckf, dst);
+			ffjson_bufadd(&ck, json.type | ckf, dst);
 			break;
 
 		case FFPARS_OPEN:
-			ffjson_cookaddbuf(&ck, json.type | ckf, 0);
+			ffjson_bufadd(&ck, json.type | ckf, FFJSON_CTXOPEN);
 			break;
 
 		case FFPARS_CLOSE:
-			ffjson_cookaddbuf(&ck, json.type | ckf, (void*)1);
+			ffjson_bufadd(&ck, json.type | ckf, FFJSON_CTXCLOSE);
 			break;
 
 		case FFPARS_MORE:
@@ -191,7 +191,7 @@ int test_json_schem(const ffsyschar *testJsonFile)
 	return 0;
 }
 
-/** Generate ~82MB JSON file. */
+/** Generate JSON file. */
 int test_json_generat(const ffsyschar *fn)
 {
 	ffsyschar fne[FF_MAXPATH];
@@ -212,17 +212,17 @@ int test_json_generat(const ffsyschar *fn)
 		, eEnd
 	};
 	const void *srcs[] = {
-		NULL
+		FFJSON_CTXOPEN
 		, "str", "my string"
 		, "int", &i64
-		, "arr", NULL, "my string", &i64, (void*)1
-		, (void*)1
+		, "arr", FFJSON_CTXOPEN, "my string", &i64, FFJSON_CTXCLOSE
+		, FFJSON_CTXCLOSE
 	};
 	static const int dstflags[] = {
 		FFJSON_TOBJ
-		, FFJSON_TSTR | FFJSON_SZ, FFJSON_TSTR | FFJSON_SZ
-		, FFJSON_TSTR | FFJSON_SZ, FFJSON_TINT
-		, FFJSON_TSTR | FFJSON_SZ, FFJSON_TARR, FFJSON_TSTR | FFJSON_SZ, FFJSON_TINT, FFJSON_TARR
+		, FFJSON_FKEYNAME, FFJSON_FKEYNAME
+		, FFJSON_FKEYNAME, FFJSON_TINT
+		, FFJSON_FKEYNAME, FFJSON_TARR, FFJSON_FKEYNAME, FFJSON_TINT, FFJSON_TARR
 		, FFJSON_TOBJ
 	};
 
@@ -234,27 +234,73 @@ int test_json_generat(const ffsyschar *fn)
 	if (!x(f != FF_BADFD))
 		return 0;
 
-	ffjson_cookadd(&j, FFJSON_TARR | jf, 0);
+	ffjson_add(&j, FFJSON_TARR | jf, FFJSON_CTXOPEN);
 
-	for (i = 0; i < 1000000; i++) {
+	for (i = 0; i < 10000; i++) {
 		for (e = 0; e <= eEnd; e++) {
 			int jflags = dstflags[e];
 			const void *src = srcs[e];
 
-			r = ffjson_cookadd(&j, jflags | jf, src);
+			r = ffjson_add(&j, jflags | jf, src);
 			if (r != FFJSON_OK) {
 				x(r == FFJSON_BUFFULL);
 				x(j.buf.len == fffile_write(f, j.buf.ptr, j.buf.len));
 				j.buf.len = 0;
-				r = ffjson_cookadd(&j, jflags | jf, src);
+				r = ffjson_add(&j, jflags | jf, src);
 			}
 		}
 	}
 
-	ffjson_cookadd(&j, FFJSON_TARR | jf, (void*)1);
+	ffjson_add(&j, FFJSON_TARR | jf, FFJSON_CTXCLOSE);
 
 	x(j.buf.len == fffile_write(f, j.buf.ptr, j.buf.len));
-	(void)fffile_close(f);
+	x(0 == fffile_close(f));
+	x(0 == fffile_rm(fn));
+	return 0;
+}
+
+static const int meta[] = {
+	FFJSON_TOBJ
+	, FFJSON_FKEYNAME, FFJSON_FINTVAL
+	, FFJSON_FKEYNAME, FFJSON_TSTR
+	, FFJSON_TOBJ
+};
+
+static int test_json_cook()
+{
+	ffstr s;
+	ffjson_cook js;
+	char buf[1024];
+
+	FFTEST_FUNC;
+
+	ffstr_setcz(&s, "my string");
+	ffjson_cookinit(&js, buf, FFCNT(buf));
+
+	x(FFJSON_OK == ffjson_addv(&js, meta, FFCNT(meta)
+		, FFJSON_CTXOPEN
+		, "key1", (int64)123456789123456789ULL
+		, "key2", &s
+		, FFJSON_CTXCLOSE
+		, NULL));
+
+	x(js.buf.ptr == buf);
+	x(ffstr_eqcz(&js.buf, "{\"key1\":123456789123456789,\"key2\":\"my string\"}"));
+
+
+	ffjson_cookinit(&js, NULL, 0);
+
+	x(FFJSON_OK == ffjson_bufaddv(&js, meta, FFCNT(meta)
+		, FFJSON_CTXOPEN
+		, "key1", (int64)123456789123456789ULL
+		, "key2", &s
+		, FFJSON_CTXCLOSE
+		, NULL));
+
+	x(js.buf.cap == FFSLEN("{\"key1\":,\"key2\":\"my string\"}") + FFINT_MAXCHARS + 1);
+	x(ffstr_eqcz(&js.buf, "{\"key1\":123456789123456789,\"key2\":\"my string\"}"));
+	ffarr_free(&js.buf);
+
 	return 0;
 }
 
@@ -271,5 +317,6 @@ int test_json()
 	test_json_schem(TESTDIR TEXT("/schem.json"));
 
 	test_json_generat(TMPDIR TEXT("/gen.json"));
+	test_json_cook();
 	return 0;
 }

@@ -4,6 +4,7 @@ Copyright (c) 2013 Simon Zolin
 */
 
 #include <FFOS/test.h>
+#include <FFOS/file.h>
 #include <FFOS/timer.h>
 #include <FF/array.h>
 #include <FF/crc.h>
@@ -11,6 +12,8 @@ Copyright (c) 2013 Simon Zolin
 #include <FF/bitops.h>
 #include <FF/rbtree.h>
 #include <FF/list.h>
+#include <FF/atomic.h>
+#include <FF/net/dns.h>
 
 #include <test/all.h>
 
@@ -84,10 +87,10 @@ static int test_path()
 #undef FN
 
 	s = ffpath_fileext(FFSTR("file.txt"));
-	x(ffstr_eq(&s, FFSTR("txt")));
+	x(ffstr_eqcz(&s, "txt"));
 
 	s = ffpath_fileext(FFSTR("qwer"));
-	x(ffstr_eq(&s, FFSTR("")));
+	x(ffstr_eqcz(&s, ""));
 
 	return 0;
 }
@@ -139,52 +142,102 @@ static int test_bits()
 	return 0;
 }
 
-#if 0
-static int rbtRm(void *udata, ffrbt_listnode *nod)
+static int test_atomic()
+{
+	ffatomic a;
+
+	FFTEST_FUNC;
+
+	ffatom_set(&a, 0x12345678);
+	x(0x12345678 == ffatom_xchg(&a, 0x87654321));
+	x(!ffatom_cmpxchg(&a, 0x11223344, 0xabcdef));
+	x(ffatom_cmpxchg(&a, 0x87654321, 0xabcdef));
+	x(0xabcdef == ffatom_get(&a));
+	x(0xffabcdef == ffatom_addret(&a, 0xff000000));
+	x(0xffabcdee == ffatom_decret(&a));
+	x(0xffabcdef == ffatom_incret(&a));
+
+#ifdef FF_64
+	ffatom_set(&a, 0x12345678);
+	x(0xffffffff12345678ULL == ffatom_addret(&a, 0xffffffff00000000ULL));
+
+	ffatom_set(&a, 0x12345678);
+	ffatom_add(&a, 0xffffffff00000000ULL);
+	x(0xffffffff12345678ULL == ffatom_get(&a));
+
+	ffatom_set(&a, 0xffffffffffffffffULL);
+	ffatom_inc(&a);
+	x(0 == ffatom_get(&a));
+
+	ffatom_dec(&a);
+	x(0xffffffffffffffffULL == ffatom_get(&a));
+
+#else
+	ffatom_set(&a, 0x12345678);
+	ffatom_add(&a, 0x98000000);
+	x(0xaa345678 == ffatom_get(&a));
+
+	ffatom_inc(&a);
+	x(0xaa345679 == ffatom_get(&a));
+
+	ffatom_dec(&a);
+	x(0xaa345678 == ffatom_get(&a));
+#endif
+
+	return 0;
+}
+
+static int rbtRm(ffrbtl_node *nod, void *udata)
 {
 	ffrbtree *tr = udata;
-	ffrbt_listrm(tr, nod);
+	ffrbtl_rm(tr, nod);
 	return 0;
 }
 
 static int test_rbtlist()
 {
 	ffrbtree tr;
-	enum { NUM = 100000, LNUM = 10 };
+	enum { NUM = 10000, OFF = 1000, LNUM = 10 };
 	int i;
 	int n;
-	ffrbt_listnode *ar;
-	ffrbt_iter it;
-	ffrbt_node *nod;
+	ffrbtl_node *ar;
+	fftree_node *nod;
 
 	FFTEST_FUNC;
 
 	ffos_init();
 	ffrbt_init(&tr);
-	ar = (ffrbt_listnode*)ffmem_calloc(NUM * LNUM, sizeof(ffrbt_listnode));
+	ar = (ffrbtl_node*)ffmem_calloc(NUM * LNUM, sizeof(ffrbtl_node));
 	x(ar != NULL);
 
 	n = 0;
-	for (i = 0; i < NUM; i++) {
+	for (i = OFF; i < NUM; i++) {
 		int k;
 		for (k = 0; k < LNUM; k++) {
-			ffrbt_listins(i, &tr, &ar[n++]);
+			ar[n].key = i;
+			ffrbtl_insert(&tr, &ar[n++]);
+		}
+	}
+	for (i = 0; i < OFF; i++) {
+		int k;
+		for (k = 0; k < LNUM; k++) {
+			ar[n].key = i;
+			ffrbtl_insert(&tr, &ar[n++]);
 		}
 	}
 
 	x(tr.len == NUM * LNUM);
 
 	i = 0;
-	ffrbt_iterinit(&it, &tr);
-	FFRBT_WALK(it, nod) {
-		ffrbt_listnode *nl = (ffrbt_listnode*)nod;
+	FFTREE_WALK(&tr, nod) {
+		ffrbtl_node *nl = (ffrbtl_node*)nod;
 		fflist_item *li;
 
 		n = 1;
 		x(nl->key == i);
 
-		FFLIST_WALKNEXT(nl->sib.next, FFLIST_END, li) {
-			nl = ffrbt_nodebylist(li);
+		FFLIST_WALKNEXT(nl->sib.next, li) {
+			nl = ffrbtl_nodebylist(li);
 			x(nl->key == i);
 			n++;
 		}
@@ -196,8 +249,7 @@ static int test_rbtlist()
 	x(i == NUM);
 
 	i = 0;
-	ffrbt_iterinit(&it, &tr);
-	FFRBT_WALK(it, nod) {
+	FFTREE_WALK(&tr, nod) {
 		x(i++ == nod->key);
 	}
 	x(i == NUM);
@@ -206,25 +258,22 @@ static int test_rbtlist()
 		ffrbt_node *rt;
 		ffrbt_node *found;
 
-		found = ffrbt_find(NUM / 3, tr.root, &tr.sentl);
+		found = ffrbt_find(&tr, NUM / 3, NULL);
 		x(found->key == NUM / 3);
 
-		rt = tr.root;
-		found = ffrbt_findnode(NUM, &rt, &tr.sentl);
+		found = ffrbt_find(&tr, NUM, &rt);
 		x(found == NULL && rt->key == NUM - 1);
 	}
 
-	ffrbt_listwalk(&tr, &rbtRm, &tr);
+	for (i = (NUM / 2) * LNUM;  i != (NUM / 2 + OFF) * LNUM;  i++) {
+		ffrbtl_rm(&tr, &ar[i]);
+	}
+	ffrbtl_enumsafe(&tr, (fftree_on_item_t)&rbtRm, &tr, 0);
 	x(tr.len == 0);
 
 	ffmem_free(ar);
 	return 0;
 }
-
-#else
-void ffrbt_ins(ffrbtkey key, ffrbtree *tr, ffrbt_node *nod, ffrbt_node *ancestor){}
-void ffrbt_rm(ffrbtree *tr, ffrbt_node *nod){}
-#endif
 
 static int test_list()
 {
@@ -239,9 +288,9 @@ static int test_list()
 	x(ls.first == &i1 && ls.last == &i2);
 	x(ls.len == 2);
 
-	fflist_makefirst(&ls, &i2);
+	fflist_movetofront(&ls, &i2);
 	x(ls.first == &i2 && ls.last == &i1);
-	fflist_makelast(&ls, &i2);
+	fflist_moveback(&ls, &i2);
 	x(ls.first == &i1 && ls.last == &i2);
 
 	fflist_link(&i3, &i1);
@@ -249,7 +298,7 @@ static int test_list()
 	x(i1.next == &i3 && i3.prev == &i1 && i3.next == &i2);
 
 	n = 0;
-	FFLIST_WALKNEXT(&i1, FFLIST_END, li) {
+	FFLIST_WALKNEXT(&i1, li) {
 		switch (n++) {
 		case 0:
 			x(li == &i1);
@@ -269,18 +318,82 @@ static int test_list()
 	return 0;
 }
 
+static int test_dns()
+{
+	char buf[FFDNS_MAXNAME];
+	const char *pos;
+	ffstr d;
+	ffstr s;
+	s.ptr = buf;
+
+	FFTEST_FUNC;
+
+	s.len = ffdns_encodename(buf, FFCNT(buf), FFSTR("www.my.dot.com"));
+	x(ffstr_eqz(&s, "\3www\2my\3dot\3com"));
+
+	s.len = ffdns_encodename(buf, FFCNT(buf), FFSTR("."));
+	x(ffstr_eqcz(&s, "\0"));
+
+	s.len = ffdns_encodename(buf, FFCNT(buf), FFSTR("www.my.dot.com."));
+	x(ffstr_eqcz(&s, "\3www\2my\3dot\3com\0"));
+
+	x(0 == ffdns_encodename(buf, FFCNT(buf), FFSTR("www.my.dot.com..")));
+	x(0 == ffdns_encodename(buf, FFCNT(buf), FFSTR(".www.my.dot.com.")));
+	x(0 == ffdns_encodename(buf, FFCNT(buf), FFSTR("www..my.dot.com.")));
+	x(0 == ffdns_encodename(buf, FFCNT(buf), FFSTR("www..my.dot.com.")));
+
+
+	ffstr_setcz(&d, "\3www\2my\3dot\3com\0");
+	pos = d.ptr;
+	s.len = ffdns_name(buf, FFCNT(buf), d.ptr, d.len, &pos);
+	x(ffstr_eqcz(&s, "www.my.dot.com."));
+
+	ffstr_setcz(&d, "\3www\xc0\6" "\2my\3dot\3com\0");
+	pos = d.ptr;
+	s.len = ffdns_name(buf, FFCNT(buf), d.ptr, d.len, &pos);
+	x(ffstr_eqcz(&s, "www.my.dot.com."));
+
+	ffstr_setcz(&d, "\2my\3dot\3com\0" "\3www\xc0\0");
+	pos = d.ptr + FFSLEN("\2my\3dot\3com\0");
+	s.len = ffdns_name(buf, FFCNT(buf), d.ptr, d.len, &pos);
+	x(ffstr_eqcz(&s, "www.my.dot.com."));
+
+	ffstr_setcz(&d, "\2my\3dot\3com\0" "\3www\xff\xff");
+	pos = d.ptr + FFSLEN("\2my\3dot\3com\0");
+	x(0 == ffdns_name(buf, FFCNT(buf), d.ptr, d.len, &pos));
+
+	ffstr_setcz(&d, "\3www\xc0\0\0");
+	pos = d.ptr;
+	x(0 == ffdns_name(buf, FFCNT(buf), d.ptr, d.len, &pos));
+
+	ffstr_setcz(&d, "\0");
+	pos = d.ptr;
+	x(0 == ffdns_name(buf, FFCNT(buf), d.ptr, d.len, &pos));
+
+
+	s.len = ffdns_addquery(buf, FFCNT(buf), FFSTR("my.dot.com"), FFDNS_AAAA);
+	x(ffstr_eqcz(&s, "\2my\3dot\3com\0" "\0\x1c" "\0\1"));
+
+	s.len = ffdns_addquery(buf, FFCNT(buf), FFSTR("my.dot.com."), FFDNS_AAAA);
+	x(ffstr_eqcz(&s, "\2my\3dot\3com\0" "\0\x1c" "\0\1"));
+
+	return 0;
+}
+
 int test_all()
 {
 	ffos_init();
 
 	test_bits();
+	test_atomic();
 	test_str();
 	test_list();
-	// test_rbtlist();
+	test_rbtlist();
 	test_crc();
 	test_path();
 	test_url();
 	test_http();
+	test_dns();
 
 	FFTEST_TIMECALL(test_json());
 	test_conf();

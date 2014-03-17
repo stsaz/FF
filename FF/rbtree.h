@@ -1,4 +1,4 @@
-/** Red-black tree.
+/** Binary tree.  Red-black tree.
 Copyright (c) 2013 Simon Zolin
 */
 
@@ -8,25 +8,58 @@ Copyright (c) 2013 Simon Zolin
 
 
 typedef uint ffrbtkey;
-typedef struct ffrbt_node ffrbt_node;
-typedef struct ffrbt_listnode ffrbt_listnode;
+typedef struct fftree_node fftree_node;
 
-struct ffrbt_node {
-	ffrbtkey key;
-	uint color;
-	ffrbt_node *left
+/** Binary tree node. */
+struct fftree_node {
+	fftree_node *left
 		, *right
 		, *parent;
+	ffrbtkey key;
 };
 
-/** Node which holds pointers to its sibling nodes having the same key. */
-struct ffrbt_listnode {
-	ffrbtkey key;
-	uint color;
+/** Insert into binary tree. */
+FF_EXTN void fftree_insert(fftree_node *nod, fftree_node **root, void *sentl);
+
+/** Search node.
+Return NULL if not found.  'root' is set to the leaf node. */
+FF_EXTN fftree_node * fftree_findnode(ffrbtkey key, fftree_node **root, void *sentl);
+
+/** Find bottom left node. */
+static FFINL fftree_node * fftree_min(fftree_node *nod, void *sentl) {
+	FF_ASSERT(nod != sentl);
+	while (nod->left != sentl)
+		nod = nod->left;
+	return nod;
+}
+
+/** Find successor of a node. */
+FF_EXTN fftree_node * fftree_successor(fftree_node *it, void *sentl);
+
+/** Traverse a tree. */
+#define FFTREE_WALK(tr, nod) \
+	if ((tr)->root != &(tr)->sentl) \
+		for ((nod) = fftree_min((fftree_node*)(tr)->root, &(tr)->sentl) \
+			; (nod) != (void*)&(tr)->sentl \
+			; (nod) = fftree_successor((nod), &(tr)->sentl))
+
+/** Traverse a tree safely. */
+#define FFTREE_WALKSAFE(tr, nod, next) \
+	if ((tr)->root != &(tr)->sentl) \
+		for (nod = fftree_min((fftree_node*)(tr)->root, &(tr)->sentl) \
+			; nod != (void*)&(tr)->sentl && ((next = fftree_successor(nod, &(tr)->sentl)) || 1) \
+			; nod = next)
+
+
+typedef struct ffrbt_node ffrbt_node;
+
+/** Red-black tree node. */
+struct ffrbt_node {
 	ffrbt_node *left
 		, *right
 		, *parent;
-	fflist_item sib;
+	ffrbtkey key;
+	uint color;
 };
 
 typedef struct ffrbtree {
@@ -34,13 +67,6 @@ typedef struct ffrbtree {
 	ffrbt_node *root;
 	ffrbt_node sentl;
 } ffrbtree;
-
-FF_STRUCTPTR(ffrbt_listnode, ffrbt_nodebylist, fflist_item, sib)
-
-enum FFRBT_COLOR {
-	FFRBT_BLACK
-	, FFRBT_RED
-};
 
 static FFINL void ffrbt_init(ffrbtree *tr) {
 	tr->len = 0;
@@ -50,80 +76,48 @@ static FFINL void ffrbt_init(ffrbtree *tr) {
 
 /** Insert node.
 'ancestor': search starting at this node (optional parameter). */
-FF_EXTN void ffrbt_ins(ffrbtkey key, ffrbtree *tr, ffrbt_node *nod, ffrbt_node *ancestor);
+FF_EXTN void ffrbt_insert(ffrbtree *tr, ffrbt_node *nod, ffrbt_node *ancestor);
 
 /** Remove node. */
 FF_EXTN void ffrbt_rm(ffrbtree *tr, ffrbt_node *nod);
 
+/** Find node in red-black tree. */
+static FFINL ffrbt_node * ffrbt_find(ffrbtree *tr, ffrbtkey key, ffrbt_node **parent) {
+	ffrbt_node *root = tr->root;
+	ffrbt_node *nod = (ffrbt_node*)fftree_findnode(key, (fftree_node**)&root, &tr->sentl);
+	if (parent != NULL)
+		*parent = root;
+	return nod;
+}
+
+
+/** Node which holds pointers to its sibling nodes having the same key. */
+typedef struct ffrbtl_node {
+	ffrbt_node *left
+		, *right
+		, *parent;
+	ffrbtkey key;
+	uint color;
+	fflist_item sib;
+} ffrbtl_node;
+
+/** Get RBT node by the pointer to its list item. */
+#define ffrbtl_nodebylist(item)  FF_GETPTR(ffrbtl_node, sib, item)
+
 /** Insert a new node or list-item. */
-FF_EXTN void ffrbt_listins(ffrbtkey key, ffrbtree *tr, ffrbt_listnode *k);
+FF_EXTN void ffrbtl_insert(ffrbtree *tr, ffrbtl_node *k);
 
 /** Remove node or its sibling. */
-FF_EXTN void ffrbt_listrm(ffrbtree *tr, ffrbt_listnode *k);
+FF_EXTN void ffrbtl_rm(ffrbtree *tr, ffrbtl_node *k);
 
-/** Search node.
-Return NULL if not found. 'root' is set to the leaf node. */
-FF_EXTN ffrbt_node * ffrbt_findnode(ffrbtkey key, ffrbt_node **root, ffrbt_node *sentl);
-
-static FFINL ffrbt_node * ffrbt_find(ffrbtkey key, ffrbt_node *root, ffrbt_node *sentl) {
-	return ffrbt_findnode(key, &root, sentl);
+/** Reinsert a node with a new key. */
+static FFINL void ffrbtl_move(ffrbtree *tr, ffrbtl_node *k) {
+	ffrbtl_rm(tr, k);
+	ffrbtl_insert(tr, k);
 }
 
-/** Iterator. */
-typedef struct {
-	ffrbt_node *nod;
-	ffrbt_node *sentl;
-	int st;
-	int ord;
-} ffrbt_iter;
+typedef int (*fftree_on_item_t)(void *obj, void *udata);
 
-enum FFRBT_ORDER {
-	FFRBT_INORD
-	, FFRBT_POSTORD
-};
-
-enum FFRBT_N {
-	FFRBT_LEFT = 0
-	, FFRBT_RIGHT
-	, FFRBT_UP
-};
-
-/** Initialize iterator. */
-static FFINL void ffrbt_iterinit(ffrbt_iter *it, ffrbtree *tr) {
-	it->nod = tr->root;
-	it->sentl = &tr->sentl;
-	it->st = FFRBT_LEFT;
-	it->ord = FFRBT_INORD;
-}
-
-/** Get next minimum node (in-order)
-	or next minimum node starting from leafs (post-order). */
-FF_EXTN ffrbt_node * ffrbt_nextmin(ffrbt_iter *it);
-
-/** Traverse a tree. */
-#define FFRBT_WALK(iter, node) \
-	for (ffrbt_nextmin(&(iter)), (node) = (iter).nod, ffrbt_nextmin(&(iter)) \
-		; (node) != (iter).sentl \
-		; (node) = (iter).nod, ffrbt_nextmin(&(iter)))
-
-#define FFRBT_DESTROY(tree, on_destroy, get_struct_ptr) \
-do { \
-	ffrbt_iter it; \
-	ffrbt_node *nod; \
-	ffrbt_iterinit(&it, tree); \
-	FFRBT_WALK(it, nod) { \
-		on_destroy(get_struct_ptr(nod)); \
-	} \
-	(tree)->len = 0; \
-} while (0)
-
-typedef int (*ffrbt_on_item_t)(void *udata, ffrbt_listnode *nod);
-
-/** Traverse a tree with nodes and list items. */
-FF_EXTN int ffrbt_iterlwalk(ffrbt_iter *it, ffrbt_on_item_t on_item, void *udata);
-
-static FFINL int ffrbt_listwalk(ffrbtree *tr, ffrbt_on_item_t on_item, void *udata) {
-	ffrbt_iter it;
-	ffrbt_iterinit(&it, tr);
-	return ffrbt_iterlwalk(&it, on_item, udata);
-}
+/** Call on_item() safely for every node in tree and all of its list items in chain.
+If on_item() returns non-zero, break the loop and return. */
+FF_EXTN int ffrbtl_enumsafe(ffrbtree *tr, fftree_on_item_t on_item, void *udata, uint off);
