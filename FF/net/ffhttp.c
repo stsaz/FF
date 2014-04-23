@@ -5,6 +5,18 @@ Copyright (c) 2013 Simon Zolin
 #include <FF/net/http.h>
 
 
+struct _ffhttp_headr {
+	uint hash;
+	ffrange key;
+	ffrange val;
+};
+
+static int ht_headr_fill(ffhttp_headers *h);
+static int ht_headr_cmpkey(void *val, const char *key, size_t keylen, void *param);
+
+static int ht_knhdr_cmpkey(void *val, const char *key, size_t keylen, void *param);
+
+
 #pragma pack(push, 8)
 const char ffhttp_smeth[7][8] = {
 	"GET"
@@ -132,6 +144,39 @@ static const uint hdrHashes[] = {
 	, 2063623452U /*Status*/
 };
 
+static ffhstab ht_known_hdrs;
+
+static int ht_knhdr_cmpkey(void *val, const char *key, size_t keylen, void *param)
+{
+	size_t i = (size_t)val;
+	return ffstr_ieq(&ffhttp_shdr[i], key, keylen) ? 0 : -1;
+}
+
+int ffhttp_initheaders()
+{
+	size_t i;
+
+	if (ht_known_hdrs.nslots != 0)
+		return 0;
+
+	if (0 != ffhst_init(&ht_known_hdrs, FFHTTP_HLAST))
+		return -1;
+
+	for (i = 1;  i < FFHTTP_HLAST;  i++) {
+		if (ffhst_ins(&ht_known_hdrs, hdrHashes[i], (void*)i) < 0) {
+			ffhst_free(&ht_known_hdrs);
+			return -1;
+		}
+	}
+
+	ht_known_hdrs.cmpkey = &ht_knhdr_cmpkey;
+	return 0;
+}
+
+void ffhttp_freeheaders() {
+	ffhst_free(&ht_known_hdrs);
+}
+
 const ushort ffhttp_codes[] = {
 	200, 206
 	, 301, 302, 304
@@ -190,26 +235,11 @@ const char *ffhttp_errstr(int code)
 	return serr[code];
 }
 
-static FFINL uint getHdr(uint64 m, uint crc, const ffstr *name)
-{
-	while (m != 0) {
-		uint i = ffbit_ffs64(m) - 1;
-		if (crc == hdrHashes[i]
-			&& ffstr_ieq2(name, &ffhttp_shdr[i]))
-			return i;
-
-		ffbit_reset64(&m, i);
-	}
-
-	return FFHTTP_HUKN;
-}
-
 enum { CR = '\r', LF = '\n' };
 
 int ffhttp_nexthdr(ffhttp_hdr *h, const char *d, size_t len)
 {
 	enum { iKey = 0, iKeyData, iSpaceBeforeVal, iVal, iSpaceAfterVal, iLastLf };
-	uint ihdr = FFHTTP_HUKN;
 	uint i = h->len;
 	uint idx = h->idx;
 	ffrange *name = &h->key;
@@ -346,12 +376,11 @@ done:
 	if (name->len == 0)
 		return FFHTTP_DONE;
 
-	if (h->mask != 0) {
+	{
 		ffstr sname = ffrang_get(name, d);
-		ihdr = getHdr(h->mask, h->crc, &sname);
+		h->ihdr = (int)(size_t)ffhst_find(&ht_known_hdrs, h->crc, sname.ptr, sname.len, NULL);
 	}
 
-	h->ihdr = ihdr;
 	return FFHTTP_OK;
 }
 
@@ -361,8 +390,8 @@ void ffhttp_init(ffhttp_headers *h)
 	ffhttp_inithdr(&h->hdr);
 	h->cont_len = -1;
 	h->ce_identity = 1;
-	h->hdr.mask = FF_BIT64(FFHTTP_CONTENT_LENGTH) | FF_BIT64(FFHTTP_CONNECTION)
-		| FF_BIT64(FFHTTP_TRANSFER_ENCODING) | FF_BIT64(FFHTTP_CONTENT_ENCODING);
+	h->index_headers = 1;
+	h->htheaders.cmpkey = &ht_headr_cmpkey;
 }
 
 int ffhttp_parsehdr(ffhttp_headers *h, const char *data, size_t len)
@@ -374,8 +403,34 @@ int ffhttp_parsehdr(ffhttp_headers *h, const char *data, size_t len)
 		h->base = data;
 	e = ffhttp_nexthdr(&h->hdr, data, len);
 	h->len = h->hdr.len;
+
+	if (e == FFHTTP_DONE) {
+
+		if (h->hidx.len != 0 && 0 != ht_headr_fill(h))
+			return FFHTTP_ESYS;
+
+		return FFHTTP_DONE;
+	}
+
 	if (e != FFHTTP_OK)
 		return e;
+
+	if (h->index_headers) {
+		// add this header to index
+		_ffhttp_headr *ar;
+		_ffhttp_headr *hh;
+		ar = ffmem_realloc(h->hidx.ptr, (h->hidx.len + 1) * sizeof(_ffhttp_headr));
+		if (ar == NULL)
+			return FFHTTP_ESYS;
+
+		hh = &ar[h->hidx.len];
+		hh->hash = h->hdr.crc;
+		hh->key = h->hdr.key;
+		hh->val = h->hdr.val;
+
+		h->hidx.ptr = ar;
+		h->hidx.len++;
+	}
 
 	val = ffrang_get(&h->hdr.val, data);
 
@@ -429,6 +484,61 @@ int ffhttp_parsehdr(ffhttp_headers *h, const char *data, size_t len)
 
 	return FFHTTP_OK;
 }
+
+// build hash table for headers
+static int ht_headr_fill(ffhttp_headers *h)
+{
+	_ffhttp_headr *hh
+		, *end = h->hidx.ptr + h->hidx.len;
+
+	if (0 != ffhst_init(&h->htheaders, h->hidx.len))
+		return -1;
+
+	for (hh = h->hidx.ptr;  hh != end;  hh++) {
+		if (ffhst_ins(&h->htheaders, hh->hash, hh) < 0)
+			return -1;
+	}
+
+	return 0;
+}
+
+static int ht_headr_cmpkey(void *val, const char *key, size_t keylen, void *param)
+{
+	const ffhttp_headers *h = param;
+	const _ffhttp_headr *hh = val;
+	ffstr name = ffrang_get(&hh->key, h->base);
+	return ffstr_ieq(&name, key, keylen) ? 0 : -1;
+}
+
+int ffhttp_findhdr(const ffhttp_headers *h, const char *name, size_t namelen, ffstr *dst)
+{
+	uint hash = ffcrc32_get(name, namelen, 1);
+	const _ffhttp_headr *hh = ffhst_find(&h->htheaders, hash, name, namelen, (void*)h);
+	if (hh == NULL)
+		return 0;
+	if (dst != NULL)
+		*dst = ffrang_get(&hh->val, h->base);
+	return 1;
+}
+
+int ffhttp_gethdr(const ffhttp_headers *h, uint idx, ffstr *key, ffstr *val)
+{
+	_ffhttp_headr *hh;
+	int i;
+
+	if (idx >= h->hidx.len)
+		return FFHTTP_DONE;
+
+	hh = &h->hidx.ptr[idx];
+	if (key != NULL)
+		*key = ffrang_get(&hh->key, h->base);
+	if (val != NULL)
+		*val = ffrang_get(&hh->val, h->base);
+
+	i = (int)(size_t)ffhst_find(&ht_known_hdrs, hh->hash, key->ptr, key->len, NULL);
+	return i;
+}
+
 
 enum VER_E {
 	iH = 32, iHT, iHTT, iHTTP, iHttpMajVer, iHttpMinVerFirst, iHttpMinVer

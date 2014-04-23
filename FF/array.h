@@ -137,6 +137,8 @@ static FFINL void ffstr_set(ffstr *s, const char *d, size_t len) {
 	ffarr_set(s, (char*)d, len);
 }
 
+#define ffstr_set2(s, src)  ffarr_set(s, (src)->ptr, (src)->len)
+
 /** Set constant NULL-terminated string. */
 #define ffstr_setcz(s, csz)  ffarr_set(s, (char*)csz, FFSLEN(csz))
 
@@ -180,14 +182,7 @@ static FFINL ffbool ffstr_ieq(const ffstr *s1, const char *s2, size_t n) {
 #define ffstr_ieq2(s1, s2)  ffstr_ieq(s1, (s2)->ptr, (s2)->len)
 
 /** Return TRUE if an array is equal to a NULL-terminated string. */
-static FFINL ffbool ffstr_eqz(const ffstr *s1, const char *sz2) {
-	size_t i;
-	for (i = 0;  i < s1->len;  i++) {
-		if (s1->ptr[i] != *sz2++)
-			return 0;
-	}
-	return *sz2 == '\0';
-}
+#define ffstr_eqz(str1, sz2)  (0 == ffs_cmpz((str1)->ptr, (str1)->len, sz2))
 
 /** Compare ffstr object and constant NULL-terminated string. */
 #define ffstr_eqcz(s, constsz)  ffstr_eq(s, constsz, FFSLEN(constsz))

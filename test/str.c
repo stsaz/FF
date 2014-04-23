@@ -289,7 +289,7 @@ static int test_strf()
 	ffstr s1;
 	ffqstr qs1;
 
-	x(0 != ffstr_catfmt(&s, "%03D %03xI %3d %p", (int64)-9, (size_t)-0x543fe, (int)-5, (void*)0xab1234));
+	x(0 != ffstr_catfmt(&s, "%03D %03xI %3d 0x%p", (int64)-9, (size_t)-0x543fe, (int)-5, (void*)0xab1234));
 #if defined FF_64
 	x(ffstr_eqcz(&s, "-009 -543fe -  5 0x0000000000ab1234"));
 #else
@@ -318,21 +318,43 @@ static int test_strf()
 	return 0;
 }
 
-int test_str()
+static int test_str_cmp()
 {
 	const char *ptr = "asdfa";
 	int n = FFSLEN("asdfa");
-	const char *end = ptr + n;
 
-	FFTEST_FUNC;
-
-	x(0 == ffmemcmp(ptr, "asdff", 0));
-	x(0 == ffmemcmp(ptr, "asdfaz", n));
-	x(ffmemcmp(ptr, "asdff", 5) < 0);
+	x(0 == ffs_cmp(ptr, "asdff", 0));
+	x(0 == ffs_cmp(ptr, "asdfaz", n));
+	x(ffs_cmp(ptr, "asdff", n) < 0);
 
 	x(0 == ffs_icmp(ptr, "ASDFF", 4));
 	x(ffs_icmp(ptr, FFSTR("ASDF1")) > 0);
 	x(ffs_icmp(ptr, FFSTR("ASDFF")) < 0);
+
+	x(ffs_cmpz(ptr, 0, "asdff") < 0);
+	x(ffs_cmpz(ptr, n, "") > 0);
+	x(ffs_cmpz(ptr, 0, "") == 0);
+	x(ffs_cmpz(ptr, n, "asdfa") == 0);
+	x(ffs_cmpz(ptr, n, "asdf") > 0);
+	x(ffs_cmpz(ptr, n, "asdff") < 0);
+	x(ffs_cmpz(ptr, n, "asdfaz") < 0);
+
+	x(ffs_icmpz(ptr, n, "ASdFA") == 0);
+	x(ffs_icmpz(ptr, n, "ASDF1") > 0);
+	x(ffs_icmpz(ptr, n, "ASDFF") < 0);
+
+	x(ffs_eqcz(ptr, n, "asdfa"));
+	x(!ffs_eqcz(ptr, n, "asdfaq"));
+	x(!ffs_eqcz(ptr, n, "asdfA"));
+
+	return 0;
+}
+
+static int test_str_find()
+{
+	const char *ptr = "asdfa";
+	int n = FFSLEN("asdfa");
+	const char *end = ptr + n;
 
 	x(ptr == ffs_find(ptr, n, 'a'));
 	x(ptr + 3 == ffs_find(ptr, n, 'f'));
@@ -358,27 +380,6 @@ int test_str()
 	x(ptr + 4 == ffs_rfindof(ptr, n, "zxcva", FFSLEN("zxcva")));
 	x(end == ffs_rfindof(ptr, n, "zxcv", FFSLEN("zxcv")));
 
-#define STR "  asdf  "
-	x(STR + 2 == ffs_skip(FFSTR(STR), ' '));
-	x(STR + FFSLEN(STR) - 2 == ffs_rskip(FFSTR(STR), ' '));
-#undef STR
-
-	test_strcat();
-	test_strqcat();
-	test_strtoint();
-	test_strtoflt();
-	test_strf();
-	test_arr();
-	test_arrmem();
-
-	{
-		char buf[8];
-		size_t n;
-		x(FFSLEN("asdfasdf") == ffs_replacechar(FFSTR("asdfasdf"), buf, FFCNT(buf), 'a', 'z', &n));
-		x(n == 2);
-		x(0 == ffmemcmp(buf, "zsdfzsdf", n));
-	}
-
 	{
 		static const ffstr ss[] = { FFSTR_INIT("qwer"), FFSTR_INIT("asdf") };
 		x(0 == ffstr_findarr(ss, FFCNT(ss), FFSTR("qwer")));
@@ -387,29 +388,69 @@ int test_str()
 	}
 
 	{
-		ffstr s;
-		ffstr v;
-		size_t by;
-		ffstr_setcz(&s, " , qwer , asdf , ");
-		by = ffstr_nextval(s.ptr, s.len, &v, ',');
-		x(by == FFSLEN(" ,"));
-		ffstr_shift(&s, by);
-		x(ffstr_eqcz(&v, ""));
+		static const char *const ss[] = { "qwer", "asdf" };
+		x(1 == ffs_findarrz(ss, FFCNT(ss), FFSTR("asdf")));
+		x(-1 == ffs_findarrz(ss, FFCNT(ss), FFSTR("asdfa")));
+	}
 
-		by = ffstr_nextval(s.ptr, s.len, &v, ',');
-		x(by == FFSLEN(" qwer ,"));
-		ffstr_shift(&s, by);
-		x(ffstr_eqcz(&v, "qwer"));
+	return 0;
+}
 
-		by = ffstr_nextval(s.ptr, s.len, &v, ',');
-		x(by == FFSLEN(" asdf ,"));
-		ffstr_shift(&s, by);
-		x(ffstr_eqcz(&v, "asdf"));
+static int test_str_nextval()
+{
+	ffstr s;
+	ffstr v;
+	size_t by;
+	ffstr_setcz(&s, " , qwer , asdf , ");
+	by = ffstr_nextval(s.ptr, s.len, &v, ',');
+	x(by == FFSLEN(" ,"));
+	ffstr_shift(&s, by);
+	x(ffstr_eqcz(&v, ""));
 
-		by = ffstr_nextval(s.ptr, s.len, &v, ',');
-		x(by == FFSLEN(" "));
-		ffstr_shift(&s, by);
-		x(ffstr_eqcz(&v, ""));
+	by = ffstr_nextval(s.ptr, s.len, &v, ',');
+	x(by == FFSLEN(" qwer ,"));
+	ffstr_shift(&s, by);
+	x(ffstr_eqcz(&v, "qwer"));
+
+	by = ffstr_nextval(s.ptr, s.len, &v, ',');
+	x(by == FFSLEN(" asdf ,"));
+	ffstr_shift(&s, by);
+	x(ffstr_eqcz(&v, "asdf"));
+
+	by = ffstr_nextval(s.ptr, s.len, &v, ',');
+	x(by == FFSLEN(" "));
+	ffstr_shift(&s, by);
+	x(ffstr_eqcz(&v, ""));
+
+	return 0;
+}
+
+int test_str()
+{
+	FFTEST_FUNC;
+
+#define STR "  asdf  "
+	x(STR + 2 == ffs_skip(FFSTR(STR), ' '));
+	x(STR + FFSLEN(STR) - 2 == ffs_rskip(FFSTR(STR), ' '));
+#undef STR
+
+	test_str_cmp();
+	test_str_find();
+	test_strcat();
+	test_strqcat();
+	test_strtoint();
+	test_strtoflt();
+	test_strf();
+	test_arr();
+	test_arrmem();
+	test_str_nextval();
+
+	{
+		char buf[8];
+		size_t n;
+		x(FFSLEN("asdfasdf") == ffs_replacechar(FFSTR("asdfasdf"), buf, FFCNT(buf), 'a', 'z', &n));
+		x(n == 2);
+		x(0 == ffmemcmp(buf, "zsdfzsdf", n));
 	}
 
 	x(ffchar_islow('a') && !ffchar_islow('A') && !ffchar_islow('\xff') && !ffchar_islow('-'));

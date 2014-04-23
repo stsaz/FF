@@ -7,6 +7,7 @@ Copyright (c) 2013 Simon Zolin
 #include <FF/array.h>
 #include <FF/net/url.h>
 #include <FF/crc.h>
+#include <FF/hashtab.h>
 
 
 /** Method. */
@@ -74,6 +75,13 @@ enum FFHTTP_HDR {
 	// Pragma
 };
 
+/** Initialize static hash table of known headers.
+Return 0 on succes. */
+FF_EXTN int ffhttp_initheaders();
+
+/** Destroy hash table of headers. */
+FF_EXTN void ffhttp_freeheaders();
+
 /** Header as a string. */
 FF_EXTN const ffstr ffhttp_shdr[];
 
@@ -140,7 +148,6 @@ typedef struct ffhttp_hdr {
 	byte idx;
 	byte ihdr; //enum FFHTTP_HDR
 	uint crc;
-	uint64 mask; ///< bitmask of the headers the caller is interested in
 	ffrange key
 		, val;
 } ffhttp_hdr;
@@ -160,6 +167,8 @@ static FFINL int ffhttp_findmethod(const char *data, size_t len) {
 	return (int)ffs_findarr(data, len, ffhttp_smeth, sizeof(*ffhttp_smeth), FFCNT(ffhttp_smeth));
 }
 
+typedef struct _ffhttp_headr _ffhttp_headr;
+
 /** Parsed headers information. */
 typedef struct ffhttp_headers {
 	const char *base;
@@ -172,20 +181,44 @@ typedef struct ffhttp_headers {
 		, has_body : 1
 		, chunked : 1 ///< Transfer-Encoding: chunked
 		, body_conn_close : 1 // for response
+		, index_headers :1 //if set, collect headers in hidx and then build htheaders
 		;
 	byte ce_gzip : 1 ///< Content-Encoding: gzip
 		, ce_identity : 1 ///< no Content-Encoding or Content-Encoding: identity
 		;
 	int64 cont_len; ///< Content-Length value or -1
 
+	ffhstab htheaders;
+	struct {
+		uint len;
+		_ffhttp_headr *ptr;
+	} hidx;
+
 	ffhttp_hdr hdr; ///< The header being parsed currently
 } ffhttp_headers;
 
 FF_EXTN void ffhttp_init(ffhttp_headers *h);
 
+static FFINL void ffhttp_fin(ffhttp_headers *h) {
+	ffhst_free(&h->htheaders);
+	FF_SAFECLOSE(h->hidx.ptr, NULL, ffmem_free);
+}
+
 /** Parse and process the next header.
 Return enum FFHTTP_E. */
 FF_EXTN int ffhttp_parsehdr(ffhttp_headers *h, const char *data, size_t len);
+
+/** Get header value.
+Return 0 if header is not found. */
+FF_EXTN int ffhttp_findhdr(const ffhttp_headers *h, const char *name, size_t namelen, ffstr *dst);
+
+#define ffhttp_findihdr(h, ihdr, dst) \
+	ffhttp_findhdr(h, ffhttp_shdr[ihdr].ptr, ffhttp_shdr[ihdr].len, dst)
+
+/** Get header by index.
+Return enum FFHTTP_HDR.
+Return FFHTTP_DONE if the header with the specified index does not exist. */
+FF_EXTN int ffhttp_gethdr(const ffhttp_headers *h, uint idx, ffstr *key, ffstr *val);
 
 /** Get HTTP headers including the last CRLF. */
 static FFINL ffstr ffhttp_hdrs(const ffhttp_headers *h) {
@@ -220,11 +253,11 @@ typedef struct ffhttp_request {
 static FFINL void ffhttp_reqinit(ffhttp_request *r) {
 	memset(r, 0, sizeof(ffhttp_request));
 	ffhttp_init(&r->h);
-	r->h.hdr.mask |= FF_BIT64(FFHTTP_HOST) | FF_BIT64(FFHTTP_TE) | FF_BIT64(FFHTTP_ACCEPT_ENCODING);
 }
 
 /** Deallocate memory associated with ffhttp_request. */
 static FFINL void ffhttp_reqfree(ffhttp_request *r) {
+	ffhttp_fin(&r->h);
 	ffstr_free(&r->decoded_url);
 }
 
@@ -282,6 +315,10 @@ typedef struct ffhttp_response {
 static FFINL void ffhttp_respinit(ffhttp_response *r) {
 	memset(r, 0, sizeof(ffhttp_response));
 	ffhttp_init(&r->h);
+}
+
+static FFINL void ffhttp_respfree(ffhttp_response *r) {
+	ffhttp_fin(&r->h);
 }
 
 enum FFHTTP_RESPF {

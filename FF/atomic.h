@@ -105,9 +105,9 @@ static FFINL ssize_t ffatom_addret(ffatomic *a, ssize_t add) {
 
 #ifdef FF_WIN
 
-typedef volatile ssize_t ffatomic;
-
 #ifdef FF_64
+typedef volatile LONGLONG ffatomic;
+
 static FFINL int ffatom_cmpxchg(ffatomic *a, ssize_t old, ssize_t newval) {
 	return old == InterlockedCompareExchange64(a, newval, old);
 }
@@ -121,6 +121,8 @@ static FFINL int ffatom_cmpxchg(ffatomic *a, ssize_t old, ssize_t newval) {
 #define ffatom_decret  InterlockedDecrement64
 
 #else //32-bit:
+typedef volatile LONG ffatomic;
+
 static FFINL int ffatom_cmpxchg(ffatomic *a, ssize_t old, ssize_t newval) {
 	return old == InterlockedCompareExchange(a, newval, old);
 }

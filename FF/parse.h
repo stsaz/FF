@@ -17,6 +17,7 @@ enum FFPARS_E {
 
 	// all error codes are >0
 	, FFPARS_ESYS = 1
+	, FFPARS_EINTL
 	, FFPARS_EBADCHAR
 	, FFPARS_EKVSEP
 	, FFPARS_ENOVAL

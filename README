@@ -10,6 +10,7 @@ FEATURES
 		. array
 		. linked-list
 		. red-black tree
+		. hash table
 		. operations with bits
 		. atomic integer functions
 

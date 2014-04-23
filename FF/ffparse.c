@@ -7,6 +7,7 @@ Copyright (c) 2013 Simon Zolin
 static const char *const _ffpars_serr[] = {
 	""
 	, "system"
+	, "internal"
 	, "invalid character"
 	, "key-value separator"
 	, "no value"
@@ -453,7 +454,6 @@ Call "on-close" callback function, if it exists. */
 static int scCloseBrace(ffparser_schem *ps)
 {
 	uint i;
-	int er = 0;
 	ffpars_ctx *ctx;
 	uint maxargs;
 
@@ -476,13 +476,16 @@ static int scCloseBrace(ffparser_schem *ps)
 
 	{
 		const ffpars_arg *a = scGetArg(ctx, FFPARS_TCLOSE);
-		if (a != NULL)
-			er = a->dst.f_0(ps, ctx->obj);
+		if (a != NULL) {
+			int er = a->dst.f_0(ps, ctx->obj);
+			if (er != 0)
+				return er;
+		}
 	}
 
 	ps->ctxs.len--;
 	ps->curarg = ffarr_back(&ps->ctxs).args;
-	return er;
+	return 0;
 }
 
 int ffpars_schemrun(ffparser_schem *ps, int e)

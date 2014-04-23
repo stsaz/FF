@@ -69,6 +69,16 @@ FF_EXTN uint ffchar_sizesfx(int suffix);
 Return -1 if s1 < s2. */
 FF_EXTN int ffs_icmp(const char *s1, const char *s2, size_t len);
 
+#define ffs_cmp  memcmp
+
+/** Return TRUE if a buffer and a constant NULL-terminated string are equal. */
+#define ffs_eqcz(s1, len, csz2) \
+	((len) == FFSLEN(csz2) && 0 == ffs_cmp(s1, csz2, len))
+
+/** Compare buffer and NULL-terminated string. */
+int ffs_cmpz(const char *s1, size_t len, const char *sz2);
+int ffs_icmpz(const char *s1, size_t len, const char *sz2);
+
 /** Search for a byte in buffer. */
 FF_EXTN void * ffmemchr(const void *d, int b, size_t len);
 
@@ -81,6 +91,10 @@ static FFINL char * ffs_find(const char *buf, size_t len, int ch) {
 	char *pos = (char*)memchr(buf, ch, len);
 	return (pos != NULL ? pos : (char*)buf + len);
 }
+
+/** Search byte in a buffer.
+Return NULL if not found. */
+#define ffs_findc(buf, len, ch)  memchr(buf, ch, len)
 
 /** Perform reverse search of byte in a buffer. */
 #if !defined FF_MSVC
@@ -142,7 +156,8 @@ static FFINL char * ffs_copyz(char *dst, const char *bufend, const char *sz) {
 /** Copy buffer. */
 static FFINL char * ffs_copy(char *dst, const char *bufend, const char *s, size_t len) {
 	len = ffmin(bufend - dst, len);
-	memcpy(dst, s, len);
+	if (len != 0)
+		memcpy(dst, s, len);
 	return dst + len;
 }
 
@@ -316,7 +331,8 @@ FF_EXTN uint ffs_tofloat(const char *s, size_t len, double *dst, int flags);
 %p     void*
 %%
 Return the number of chars written.
-Return 0 on error. */
+Return 0 on error.
+If 'buf' and 'end' are NULL, return the minumum buffer size required. */
 FF_EXTN size_t ffs_fmtv(char *buf, const char *end, const char *fmt, va_list va);
 
 static FFINL size_t ffs_fmt(char *buf, const char *end, const char *fmt, ...) {

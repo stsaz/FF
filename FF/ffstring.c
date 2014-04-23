@@ -31,6 +31,58 @@ int ffs_icmp(const char *s1, const char *s2, size_t len)
 	return 0;
 }
 
+int ffs_cmpz(const char *s1, size_t len, const char *sz2)
+{
+	size_t i;
+	uint ch1, ch2;
+
+	for (i = 0;  i != len;  i++) {
+		ch1 = (byte)s1[i];
+		ch2 = (byte)sz2[i];
+
+		if (ch2 == '\0')
+			return 1; //s1 > sz2
+
+		if (ch1 != ch2)
+			return (ch1 < ch2) ? -1 : 1;
+	}
+
+	if (sz2[i] != '\0')
+		return -1; //s1 < sz2
+
+	return 0; //s1 == sz2
+}
+
+int ffs_icmpz(const char *s1, size_t len, const char *sz2)
+{
+	size_t i;
+	uint ch1, ch2;
+
+	for (i = 0;  i != len;  i++) {
+		ch1 = (byte)s1[i];
+		ch2 = (byte)sz2[i];
+
+		if (ch2 == '\0')
+			return 1; //s1 > sz2
+
+		if (ch1 != ch2) {
+			if (ffchar_isup(ch1))
+				ch1 = ffchar_lower(ch1);
+
+			if (ffchar_isup(ch2))
+				ch2 = ffchar_lower(ch2);
+
+			if (ch1 != ch2)
+				return (ch1 < ch2) ? -1 : 1;
+		}
+	}
+
+	if (sz2[i] != '\0')
+		return -1; //s1 < sz2
+
+	return 0; //s1 == sz2
+}
+
 void * ffmemchr(const void *_d, int b, size_t len)
 {
 	const byte *d = _d;
@@ -109,7 +161,7 @@ char * ffs_findof(const char *buf, size_t len, const char *anyof, size_t cnt)
 {
 	size_t i;
 	for (i = 0; i < len; ++i) {
-		if (anyof + cnt != ffs_find(anyof, cnt, buf[i]))
+		if (NULL != ffs_findc(anyof, cnt, buf[i]))
 			return (char*)buf + i;
 	}
 	return (char*)buf + len;
@@ -416,8 +468,9 @@ uint ffs_fromint(uint64 i, char *dst, size_t cap, int flags)
 	char s[FFINT_MAXCHARS];
 	char *ps = s + FFCNT(s);
 
-	if ((flags & FFINT_SIGNED) && (int64)i < 0 && dst != end) {
-		*dst++ = '-';
+	if ((flags & FFINT_SIGNED) && (int64)i < 0) {
+		if (dst != end)
+			*dst++ = '-';
 		i = -(int64)i;
 	}
 
@@ -574,16 +627,20 @@ uint ffs_tofloat(const char *s, size_t len, double *dst, int flags)
 
 size_t ffs_fmtv(char *buf_o, const char *end, const char *fmt, va_list va)
 {
-	size_t swidth;
+	size_t swidth, len = 0;
 	uint width;
 	int64 num = 0;
 	uint itoaFlags = 0;
 	ffbool itoa = 0;
 	char *buf = buf_o;
+	const void *rend = (buf != NULL) ? end : (void*)-1;
 
-	for (; *fmt && buf < end; ++fmt) {
+	for (;  *fmt && buf != rend;  ++fmt) {
 		if (*fmt != '%') {
-			*buf++ = *fmt;
+			if (buf != NULL)
+				*buf++ = *fmt;
+			else
+				len++;
 			continue;
 		}
 
@@ -650,10 +707,6 @@ size_t ffs_fmtv(char *buf_o, const char *end, const char *fmt, va_list va)
 			num = va_arg(va, size_t);
 			width = sizeof(void*) * 2;
 			itoaFlags |= FFINT_HEXLOW | FFINT_ZEROWIDTH;
-			*buf++ = '0';
-			if (buf + 1 >= end)
-				goto done;
-			*buf++ = 'x';
 			break;
 
 #ifdef FF_UNIX
@@ -661,10 +714,15 @@ size_t ffs_fmtv(char *buf_o, const char *end, const char *fmt, va_list va)
 #endif
 		case 's': {
 			const char *s = va_arg(va, char *);
-			if (swidth == (size_t)-1)
+			if (swidth == (size_t)-1) {
 				buf = ffs_copyz(buf, end, s);
-			else
+				if (buf == NULL)
+					len += strlen(s);
+
+			} else {
 				buf = ffs_copy(buf, end, s, swidth);
+				len += swidth;
+			}
 			}
 			break;
 
@@ -674,6 +732,7 @@ size_t ffs_fmtv(char *buf_o, const char *end, const char *fmt, va_list va)
 		case 'S': {
 			ffstr *s = va_arg(va, ffstr *);
 			buf = ffs_copy(buf, end, s->ptr, s->len);
+			len += s->len;
 			}
 			break;
 
@@ -683,27 +742,38 @@ size_t ffs_fmtv(char *buf_o, const char *end, const char *fmt, va_list va)
 			if (swidth == (size_t)-1)
 				swidth = ffq_len(s);
 			buf = ffs_copyq(buf, end, s, swidth);
+			if (buf == NULL)
+				len += ffq_lenq(s, swidth);
 			}
 			break;
 
 		case 'Q': {
 			ffqstr *s = va_arg(va, ffqstr *);
 			buf = ffs_copyq(buf, end, s->ptr, s->len);
+			if (buf == NULL)
+				len += ffq_lenq(s->ptr, s->len);
 			}
 			break;
 #endif
 
 		case 'e': {
 			int e = va_arg(va, int);
-			buf = ffs_copyz(buf, end, fferr_opstr((enum FFERR)e));
+			const char *se = fferr_opstr((enum FFERR)e);
+			buf = ffs_copyz(buf, end, se);
+			if (buf == NULL)
+				len += strlen(se);
 			}
 			break;
 
 		case 'E': {
 			int e = va_arg(va, int);
 			ffsyschar tmp[256];
-			int r = fferr_str(e, tmp, FFCNT(tmp));
-			buf += ffs_fmt(buf, end, "(%u) %*q", (int)e, (size_t)r, tmp);
+			int tmplen = fferr_str(e, tmp, FFCNT(tmp));
+			size_t r = ffs_fmt(buf, end, "(%u) %*q", (int)e, (size_t)tmplen, tmp);
+			if (buf != NULL)
+				buf += r;
+			else
+				len += r;
 			}
 			break;
 
@@ -711,14 +781,21 @@ size_t ffs_fmtv(char *buf_o, const char *end, const char *fmt, va_list va)
 			uint ch = va_arg(va, int);
 			if (swidth == (size_t)-1)
 				swidth = 1;
-			while (swidth-- != 0) {
-				*buf++ = (char)ch;
-			}
+
+			if (buf != NULL) {
+				while (swidth-- != 0) {
+					*buf++ = (char)ch;
+				}
+			} else
+				len += swidth;
 			}
 			break;
 
 		case '%':
-			*buf++ = '%';
+			if (buf != NULL)
+				*buf++ = '%';
+			else
+				len++;
 			break;
 
 		default:
@@ -732,31 +809,33 @@ size_t ffs_fmtv(char *buf_o, const char *end, const char *fmt, va_list va)
 				itoaFlags |= FFINT_WIDTH(width);
 			}
 			buf += ffs_fromint(num, buf, end - buf, itoaFlags);
+			len += width + FFINT_MAXCHARS;
 			itoaFlags = 0;
 			itoa = 0;
 		}
 	}
 
-done:
+	if (buf == NULL)
+		return len;
+
 	return buf - buf_o;
 }
 
 size_t ffstr_catfmtv(ffstr3 *s, const char *fmt, va_list args)
 {
 	size_t r;
-	size_t n = 512;
 	va_list va;
 
-	do {
-		if (NULL == ffarr_grow(s, n, FFARR_GROWQUARTER))
-			return 0;
+	va_copy(va, args);
+	r = ffs_fmtv(NULL, NULL, fmt, va);
+	va_end(va);
 
-		va_copy(va, args);
-		r = ffs_fmtv(ffarr_end(s), s->ptr + s->cap, fmt, va);
-		va_end(va);
+	if (r == 0 || NULL == ffarr_grow(s, r, 0))
+		return 0;
 
-		n += ffarr_unused(s) + 512;
-	} while (r == ffarr_unused(s));
+	va_copy(va, args);
+	r = ffs_fmtv(ffarr_end(s), s->ptr + s->cap, fmt, va);
+	va_end(va);
 
 	s->len += r;
 	return r;
