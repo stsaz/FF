@@ -338,6 +338,82 @@ fail:
 	return 0;
 }
 
+// escape ' ', '#', '%', '?' and non-ANSI
+static const uint uriesc[] = {
+	0,
+	            // ?>=< ;:98 7654 3210  /.-, +*)( '&%$ #"!
+	0x7fffffd6, // 0111 1111 1111 1111  1111 1111 1101 0110
+	            // _^]\ [ZYX WVUT SRQP  ONML KJIH GFED CBA@
+	0xffffffff, // 1111 1111 1111 1111  1111 1111 1111 1111
+	            //  ~}| {zyx wvut srqp  onml kjih gfed cba`
+	0x7fffffff, // 0111 1111 1111 1111  1111 1111 1111 1111
+	0,
+	0,
+	0,
+	0
+};
+
+// escape '\\', '/', ' ', '#', '%', '?' and non-ANSI
+static const uint uriesc_pathseg[] = {
+	0,
+	            // ?>=< ;:98 7654 3210  /.-, +*)( '&%$ #"!
+	0x7fff7fd6, // 0111 1111 1111 1111  0111 1111 1101 0110
+	            // _^]\ [ZYX WVUT SRQP  ONML KJIH GFED CBA@
+	0xefffffff, // 1110 1111 1111 1111  1111 1111 1111 1111
+	            //  ~}| {zyx wvut srqp  onml kjih gfed cba`
+	0x7fffffff, // 0111 1111 1111 1111  1111 1111 1111 1111
+	0,
+	0,
+	0,
+	0
+};
+
+static const uint *const uri_encode_types[] = { uriesc, uriesc_pathseg };
+
+ssize_t ffuri_escape(char *dst, size_t cap, const char *s, size_t len, int type)
+{
+	ssize_t i;
+	const uint *mask;
+	const char *end = dst + cap;
+	const char *dsto = dst;
+
+	if (type >= FFCNT(uri_encode_types))
+		return 0; //unknown type
+	mask = uri_encode_types[type];
+
+	if (dst == NULL) {
+		size_t n = 0;
+
+		for (i = 0;  i != len;  i++) {
+			if (!ffbit_testarr(mask, (byte)s[i]))
+				n += FFSLEN("%XX") - 1;
+		}
+
+		return len + n;
+	}
+
+	for (i = 0;  i != len;  i++) {
+		byte c = s[i];
+
+		if (ffbit_testarr(mask, c)) {
+			if (dst == end)
+				return -i;
+			*dst++ = c;
+
+		} else {
+			if (dst + FFSLEN("%XX") > end) {
+				ffs_fill(dst, end, '\0', FFSLEN("%XX"));
+				return -i;
+			}
+
+			*dst++ = '%';
+			dst += ffs_hexbyte(dst, c, ffHEX);
+		}
+	}
+
+	return dst - dsto;
+}
+
 
 int ffip4_parse(struct in_addr *a, const char *s, size_t len)
 {

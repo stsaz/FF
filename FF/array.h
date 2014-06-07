@@ -23,6 +23,13 @@ do { \
 	(ar)->len = n; \
 } while(0)
 
+#define ffarr_set3(ar, d, _len, _cap) \
+do { \
+	(ar)->ptr = d; \
+	(ar)->len = _len; \
+	(ar)->cap = _cap; \
+} while(0)
+
 /** Shift buffer pointers. */
 #define ffarr_shift(ar, by) \
 do { \
@@ -155,6 +162,9 @@ static FFINL void ffstr_acq(ffstr *dst, ffstr *src) {
 
 #define ffstr_shift  ffarr_shift
 
+/** Copy the contents of ffstr* into char* buffer. */
+#define ffs_copystr(dst, bufend, pstr)  ffs_copy(dst, bufend, (pstr)->ptr, (pstr)->len)
+
 /** Compare ANSI strings.  Case-insensitive. */
 static FFINL int ffstr_icmp(const ffstr *s1, const char *s2, size_t len) {
 	int r = ffs_icmp(s1->ptr, s2, ffmin(s1->len, len));
@@ -183,6 +193,7 @@ static FFINL ffbool ffstr_ieq(const ffstr *s1, const char *s2, size_t n) {
 
 /** Return TRUE if an array is equal to a NULL-terminated string. */
 #define ffstr_eqz(str1, sz2)  (0 == ffs_cmpz((str1)->ptr, (str1)->len, sz2))
+#define ffstr_ieqz(str1, sz2)  (0 == ffs_icmpz((str1)->ptr, (str1)->len, sz2))
 
 /** Compare ffstr object and constant NULL-terminated string. */
 #define ffstr_eqcz(s, constsz)  ffstr_eq(s, constsz, FFSLEN(constsz))
@@ -298,6 +309,11 @@ static FFINL size_t ffstr_catfmt(ffstr3 *s, const char *fmt, ...) {
 /** Formatted output into a file.
 'buf': optional buffer. */
 FF_EXTN size_t fffile_fmt(fffd fd, ffstr3 *buf, const char *fmt, ...);
+
+/** Buffered data output.
+@dst is set if an output data block is ready.
+Return the number of processed bytes. */
+size_t ffbuf_add(ffstr3 *buf, const char *src, size_t len, ffstr *dst);
 
 
 typedef struct ffrange {

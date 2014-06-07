@@ -74,6 +74,8 @@ FF_EXTN int ffs_icmp(const char *s1, const char *s2, size_t len);
 /** Return TRUE if a buffer and a constant NULL-terminated string are equal. */
 #define ffs_eqcz(s1, len, csz2) \
 	((len) == FFSLEN(csz2) && 0 == ffs_cmp(s1, csz2, len))
+#define ffs_ieqcz(s1, len, csz2) \
+	((len) == FFSLEN(csz2) && 0 == ffs_icmp(s1, csz2, len))
 
 /** Compare buffer and NULL-terminated string. */
 int ffs_cmpz(const char *s1, size_t len, const char *sz2);
@@ -123,8 +125,6 @@ FF_EXTN char * ffs_skip(const char *buf, size_t len, int ch);
 /** Skip characters at the end of the string. */
 FF_EXTN char * ffs_rskip(const char *buf, size_t len, int ch);
 
-FF_EXTN const byte ff_intmasks[9][8];
-
 /** Search a string in array using operations with type int64.
 Return 'count' if not found. */
 FF_EXTN size_t ffs_findarr(const void *s, size_t len, const void *ar, ssize_t elsz, size_t count);
@@ -161,6 +161,16 @@ static FFINL char * ffs_copy(char *dst, const char *bufend, const char *s, size_
 	return dst + len;
 }
 
+#define ffs_copycz(dst, bufend, csz)  ffs_copy(dst, bufend, csz, FFSLEN(csz))
+
+#define ffsz_cmp  strcmp
+
+#ifdef FF_UNIX
+#define ffsz_icmp  strcasecmp
+#else
+#define ffsz_icmp  _stricmp
+#endif
+
 /** Copy buffer and append zero byte.
 Return the pointer to the trailing zero. */
 static FFINL char * ffsz_copy(char *dst, size_t cap, const char *src, size_t len) {
@@ -172,8 +182,12 @@ static FFINL char * ffsz_copy(char *dst, size_t cap, const char *src, size_t len
 	return dst;
 }
 
-/** Lowercase copy. */
-FF_EXTN char * ffs_lower(char *dst, const char *bufend, const char *src, size_t len);
+/** Convert case (ANSI).
+Return the number of bytes written. */
+FF_EXTN size_t ffs_lower(char *dst, const char *end, const char *src, size_t len);
+FF_EXTN size_t ffs_upper(char *dst, const char *end, const char *src, size_t len);
+FF_EXTN size_t ffs_titlecase(char *dst, const char *end, const char *src, size_t len);
+
 
 #if defined FF_UNIX
 #define ffq_copyc ffs_copyc
@@ -210,7 +224,7 @@ static FFINL ffsyschar * ffq_copys(ffsyschar *dst, const ffsyschar *bufend, cons
 	size_t dst_cap = bufend - dst;
 	size_t i;
 
-	if (len == 0)
+	if (len == 0 || dst == NULL)
 		return dst;
 
 	i = ff_utow(dst, dst_cap, src, len, 0);
@@ -224,7 +238,7 @@ static FFINL char * ffs_copyq(char *dst, const char *bufend, const ffsyschar *sr
 	size_t dst_cap = bufend - dst;
 	size_t i;
 
-	if (len == 0)
+	if (len == 0 || dst == NULL)
 		return dst;
 
 	i = ff_wtou(dst, dst_cap, src, len, 0);
@@ -264,6 +278,13 @@ static FFINL ffsyschar * ffqz_copyz(ffsyschar *dst, size_t cap, const ffsyschar 
 	return dst;
 }
 
+/** Fill buffer with copies of 1 byte. */
+static FFINL size_t ffs_fill(char *s, const char *end, uint ch, size_t len) {
+	len = ffmin(len, end - s);
+	memset(s, ch, len);
+	return len;
+}
+
 
 /** Find and replace a character.
 On return '*n' contains the number of replacements made.
@@ -273,6 +294,14 @@ FF_EXTN size_t ffs_replacechar(const char *src, size_t len, char *dst, size_t ca
 /** Lowercase/uppercase hex alphabet. */
 FF_EXTN const char ffhex[16];
 FF_EXTN const char ffHEX[16];
+
+/** Convert a byte into 2-byte hex string.
+@hex: alphabet to use. */
+static FFINL int ffs_hexbyte(char *dst, uint b, const char *hex) {
+	dst[0] = hex[b >> 4];
+	dst[1] = hex[b & 0x0f];
+	return 2;
+}
 
 enum FFS_INT {
 	FFS_INT8 = 1
@@ -329,10 +358,12 @@ FF_EXTN uint ffs_tofloat(const char *s, size_t len, double *dst, int flags);
 
 %[*]c  [size_t,] int
 %p     void*
-%%
+
+%Z     '\0'
+%%     '%'
 Return the number of chars written.
 Return 0 on error.
-If 'buf' and 'end' are NULL, return the minumum buffer size required. */
+If 'buf' and 'end' are NULL, return the minimum buffer size required. */
 FF_EXTN size_t ffs_fmtv(char *buf, const char *end, const char *fmt, va_list va);
 
 static FFINL size_t ffs_fmt(char *buf, const char *end, const char *fmt, ...) {
@@ -343,3 +374,14 @@ static FFINL size_t ffs_fmt(char *buf, const char *end, const char *fmt, ...) {
 	va_end(args);
 	return r;
 }
+
+
+enum FFS_ESCAPE {
+	FFS_ESC_NONPRINT // escape '\\' and non-printable.  '\t', '\r', '\n' are not escaped.
+};
+
+/** Replace special characters with \xXX.
+@type: enum FFS_ESCAPE.
+Return the number of bytes written.
+Return <0 if there is no enough space (the number of input bytes processed, negative value). */
+FF_EXTN ssize_t ffs_escape(char *dst, size_t cap, const char *s, size_t len, int type);

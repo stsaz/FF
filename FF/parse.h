@@ -101,6 +101,14 @@ FF_EXTN const char ff_escbyte[7];
 FF_EXTN int _ffpars_hdlCmt(int *st, int ch);
 FF_EXTN int _ffpars_copyBuf(ffparser *p, const char *text, size_t len);
 
+static FFINL int _ffpars_addchar(ffparser *p, int ch) {
+	char c = (char)ch;
+	if (p->val.ptr != p->buf.ptr) {
+		p->val.len++;
+		return 0;
+	}
+	return _ffpars_copyBuf(p, &c, sizeof(char));
+}
 
 enum FFPARS_T {
 	FFPARS_TSTR = 1 ///< string
@@ -195,6 +203,15 @@ static FFINL void ffpars_setargs(ffpars_ctx *ctx, void *o, const ffpars_arg *arg
 enum FFPARS_RETHDL {
 	FFPARS_OK = 0
 	, FFPARS_DONE = -1
+};
+
+enum FFPARS_SCHEMFLAG {
+	// internal:
+	FFPARS_SCHAVKEY = 1
+	, FFPARS_SCHAVVAL = 2
+	, FFPARS_SCCTX = 4
+
+	, FFPARS_KEYICASE = 0x100 // case-insensitive key names
 };
 
 struct ffparser_schem {

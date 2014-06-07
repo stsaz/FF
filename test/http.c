@@ -166,6 +166,11 @@ static int test_req()
 	ffhttp_reqfree(&r);
 #undef DATA
 
+	ffhttp_reqinit(&r);
+	x(FFHTTP_EDUPHDR == ffhttp_reqparsehdrs(&r, FFSTR("if-none-match: \"123\"" FFCRLF
+		"if-none-match: \"456\"" FFCRLF)));
+	ffhttp_reqfree(&r);
+
 	x(NULL != ffhttp_errstr(FFHTTP_ETOOLARGE));
 
 	return 0;
@@ -350,7 +355,7 @@ static int test_findhdr()
 		x(i == n);
 	}
 
-	for (i = 1;  ihdr = ffhttp_gethdr(&h, i - 1, &key, &val), ihdr != FFHTTP_DONE;  i++) {
+	for (i = 1;  ihdr = ffhttp_gethdr(&h, (int)i - 1, &key, &val), ihdr != FFHTTP_DONE;  i++) {
 		int n;
 
 		x(ihdr == i);

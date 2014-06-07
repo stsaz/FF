@@ -68,6 +68,21 @@ typedef struct ffjson_cook {
 /** Prepare ffjson_cook structure. */
 FF_EXTN void ffjson_cookinit(ffjson_cook *c, char *buf, size_t cap);
 
+static FFINL void ffjson_cookreset(ffjson_cook *c) {
+	c->buf.len = 0;
+	c->st = 0;
+	c->ctxs.len = 0;
+}
+
+static FFINL void ffjson_cookfin(ffjson_cook *c) {
+	ffarr_free(&c->ctxs);
+}
+
+static FFINL void ffjson_cookfinbuf(ffjson_cook *c) {
+	ffarr_free(&c->buf);
+	ffarr_free(&c->ctxs);
+}
+
 enum FFJSON_F {
 	FFJSON_FNOESC = 1 << 31 ///< don't escape string
 	, FFJSON_PRETTY = 1 << 30 ///< pretty print using tabs

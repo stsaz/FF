@@ -6,12 +6,14 @@ Copyright (c) 2013 Simon Zolin
 #include <FFOS/test.h>
 #include <FFOS/file.h>
 #include <FFOS/timer.h>
+#include <FFOS/process.h>
 #include <FF/array.h>
 #include <FF/crc.h>
 #include <FF/path.h>
 #include <FF/bitops.h>
 #include <FF/atomic.h>
 #include <FF/net/dns.h>
+#include <FF/filemap.h>
 
 #include <test/all.h>
 
@@ -64,11 +66,16 @@ static int test_path()
 	buf[n] = '\0';
 	x(0 == strcmp(buf, "/path/"));
 
+	n = ffpath_norm(buf, FFCNT(buf), FFSTR("/../a/../..//...///path/a/../path2/a/b//../.."), FFPATH_STRICT_BOUNDS);
+	x(0 == ffs_eqcz(buf, n, "/.../path/path2/"));
+
 	x(0 == ffpath_norm(buf, FFCNT(buf), FFSTR("/path/../../file/./"), FFPATH_STRICT_BOUNDS));
 	x(0 == ffpath_norm(buf, FFCNT(buf), FFSTR("./path/../../file/./"), FFPATH_STRICT_BOUNDS));
 	x(0 == ffpath_norm(buf, FFCNT(buf), FFSTR("/.."), FFPATH_STRICT_BOUNDS));
 	x(0 == ffpath_norm(buf, FFCNT(buf), FFSTR("../"), FFPATH_STRICT_BOUNDS));
 	x(0 == ffpath_norm(buf, FFCNT(buf), FFSTR("/../"), FFPATH_STRICT_BOUNDS));
+
+	x(0 == ffpath_norm(buf, 0, FFSTR("/"), 0));
 
 	x(FFSLEN("filename") == ffpath_makefn(buf, FFCNT(buf), FFSTR("filename"), '_'));
 	n = ffpath_makefn(buf, FFCNT(buf), FFSTR("\x00\x1f *?/\\:\""), '_');
@@ -77,7 +84,6 @@ static int test_path()
 
 #define FN "/path/file"
 	x(FN + FFSLEN(FN) - FFSLEN("/file") == ffpath_rfindslash(FN, FFSLEN(FN)));
-	x(TEXT(FN) + FFSLEN(FN) - FFSLEN("/file") == ffpathq_rfindslash(TEXT(FN), FFSLEN(FN)));
 #undef FN
 
 #define FN "file"
@@ -89,6 +95,18 @@ static int test_path()
 
 	s = ffpath_fileext(FFSTR("qwer"));
 	x(ffstr_eqcz(&s, ""));
+
+	{
+		ffstr dir, fn;
+		x(FFSLEN("/path/to") == ffpath_split2(FFSTR("/path/to/file"), &dir, &fn));
+		x(ffstr_eqcz(&dir, "/path/to"));
+		x(ffstr_eqcz(&fn, "file"));
+
+		fn.len = 0;
+		x(-1 == ffpath_split2(FFSTR("file"), &dir, &fn));
+		x(ffstr_eqcz(&dir, ""));
+		x(ffstr_eqcz(&fn, "file"));
+	}
 
 	return 0;
 }
@@ -247,6 +265,53 @@ static int test_dns()
 	return 0;
 }
 
+static int test_fmap()
+{
+	fffd fd;
+	fffilemap fm;
+	char buf[64 * 1024];
+	uint64 sz;
+	ffstr d;
+	ffsyschar fne[FF_MAXPATH];
+	const ffsyschar *fn = TEXT(TMPDIR) TEXT("/ff_fmap.tmp");
+
+	FFTEST_FUNC;
+
+	if (0 != ffenv_expand(fn, fne, FFCNT(fne)))
+		fn = fne;
+	fd = fffile_openq(fn, FFO_CREATE | O_RDWR);
+	x(fd != FF_BADFD);
+
+	ffs_fill(buf, buf + FFCNT(buf), ' ', FFCNT(buf));
+	buf[0] = '1';
+	buf[FFCNT(buf) / 2] = '2';
+	x(FFCNT(buf) == fffile_write(fd, buf, FFCNT(buf)));
+
+	buf[0] = '3';
+	x(FFCNT(buf) == fffile_write(fd, buf, FFCNT(buf)));
+
+	sz = fffile_size(fd);
+
+	fffile_mapinit(&fm);
+	fffile_mapset(&fm, FFCNT(buf), fd, 0, sz);
+
+	x(0 == fffile_mapbuf(&fm, &d));
+	x(d.ptr[0] == '1');
+	x(0 != fffile_mapshift(&fm, FFCNT(buf) / 2));
+	x(0 == fffile_mapbuf(&fm, &d));
+	x(d.ptr[0] == '2');
+	x(0 != fffile_mapshift(&fm, FFCNT(buf) / 2));
+
+	x(0 == fffile_mapbuf(&fm, &d));
+	x(d.ptr[0] == '3');
+	x(0 == fffile_mapshift(&fm, FFCNT(buf)));
+
+	fffile_mapclose(&fm);
+	fffile_close(fd);
+	fffile_rmq(fn);
+	return 0;
+}
+
 int test_all()
 {
 	ffos_init();
@@ -262,6 +327,9 @@ int test_all()
 	test_url();
 	test_http();
 	test_dns();
+	test_fmap();
+	test_time();
+	test_timer();
 
 	FFTEST_TIMECALL(test_json());
 	test_conf();
@@ -269,18 +337,6 @@ int test_all()
 
 	printf("Tests run: %u.  Failed: %u.\n", _fftest_nrun, _fftest_nfail);
 
-	return 0;
-}
-
-int ffdbg_print(int t, const char *fmt, ...)
-{
-	char buf[4096];
-	size_t n;
-	va_list va;
-	va_start(va, fmt);
-	n = ffs_fmtv(buf, buf + FFCNT(buf), fmt, va);
-	fffile_write(ffstdout, buf, n);
-	va_end(va);
 	return 0;
 }
 

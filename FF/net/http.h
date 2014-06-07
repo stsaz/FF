@@ -10,6 +10,11 @@ Copyright (c) 2013 Simon Zolin
 #include <FF/hashtab.h>
 
 
+enum FFHTTP_CONST {
+	FFHTTP_PORT = 80
+	, FFHTTPS_PORT = 443
+};
+
 /** Method. */
 enum FFHTTP_METH {
 	FFHTTP_GET
@@ -244,7 +249,8 @@ typedef struct ffhttp_request {
 	ushort offurl;
 	byte methodlen;
 	byte method; //FFHTTP_METH
-	unsigned accept_gzip : 1 // Accept-Encoding: gzip
+	byte uniq_hdrs_mask;
+	byte accept_gzip : 1 // Accept-Encoding: gzip
 		, accept_chunked : 1 // the client understands Transfer-Encoding: chunked
 		;
 } ffhttp_request;

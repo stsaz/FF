@@ -11,7 +11,10 @@ Copyright (c) 2013 Simon Zolin
 static int test_urldecode()
 {
 	char decoded[255];
+	char buf[255];
 	size_t n;
+	ffstr s;
+	s.ptr = buf;
 
 	n = ffuri_decode(decoded, FFCNT(decoded), FFSTR("/path/my%20file"));
 	x(n == FFSLEN("/path/my file") && 0 == ffmemcmp(decoded, "/path/my file", n));
@@ -31,6 +34,18 @@ static int test_urldecode()
 	x(0 == ffuri_decode(decoded, FFCNT(decoded), FFSTR("/1/2/3/../../../..")));
 	x(0 == ffuri_decode(decoded, FFCNT(decoded), FFSTR("/%001")));
 	x(0 == ffuri_decode(decoded, FFCNT(decoded), FFSTR("/\x01")));
+
+
+	x(-(ssize_t)(FFSLEN("host/path?%# \x00\xff")-1) == ffuri_escape(buf
+		, FFSLEN("host/path%3F%25%23%20%00%FF") - 1, FFSTR("host/path?%# \x00\xff"), FFURI_ESC_WHOLE));
+
+	x(FFSLEN("http://host/path%3F%25%23%20%00%FF") == ffuri_escape(NULL, 0, FFSTR("http://host/path?%# \x00\xff"), FFURI_ESC_WHOLE));
+	s.len = ffuri_escape(buf, FFCNT(buf), FFSTR("http://host/path?%# \x00\xff"), FFURI_ESC_WHOLE);
+	x(ffstr_eqcz(&s, "http://host/path%3F%25%23%20%00%FF"));
+
+	x(FFSLEN("%3F%25%23%20%00%FF%2F%5C") == ffuri_escape(NULL, 0, FFSTR("?%# \x00\xff/\\"), FFURI_ESC_PATHSEG));
+	s.len = ffuri_escape(buf, FFCNT(buf), FFSTR("?%# \x00\xff/\\"), FFURI_ESC_PATHSEG);
+	x(ffstr_eqcz(&s, "%3F%25%23%20%00%FF%2F%5C"));
 
 	return 0;
 }

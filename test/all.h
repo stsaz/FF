@@ -17,12 +17,15 @@ FF_EXTN int test_json();
 FF_EXTN int test_conf();
 FF_EXTN int test_args();
 
+FF_EXTN int test_time();
+FF_EXTN int test_timer();
+
 FF_EXTN int test_all();
 
-#define TESTDIR TEXT("./test")
+#define TESTDIR "./test"
 
 #ifdef FF_UNIX
-#define TMPDIR TEXT("/tmp")
+#define TMPDIR "/tmp"
 #else
-#define TMPDIR TEXT("%TMP%")
+#define TMPDIR "%TMP%"
 #endif

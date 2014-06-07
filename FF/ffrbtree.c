@@ -70,7 +70,6 @@ fftree_node * fftree_successor(fftree_node *it, void *sentl)
 	return nod;
 }
 
-/** Insert into binary search tree. */
 void fftree_insert(fftree_node *nod, fftree_node **root, void *sentl)
 {
 	if (*root == sentl) {
@@ -139,6 +138,7 @@ static fftree_node * tree_rm(fftree_node *nod, fftree_node **root, void *sentl, 
 	relink_parent(nod, nnew, root, sentl);
 
 	nod->left = nod->right = nod->parent = NULL;
+	nod->key = 0;
 
 	return x;
 }
@@ -194,7 +194,7 @@ void ffrbt_insert(ffrbtree *tr, ffrbt_node *nod, ffrbt_node *parent)
 	if (parent != NULL && parent != sentl)
 		root = &parent;
 
-	fftree_insert((fftree_node*)nod, (fftree_node**)root, sentl);
+	tr->insnode((fftree_node*)nod, (fftree_node**)root, sentl);
 	nod->color = RED;
 	tr->len++;
 

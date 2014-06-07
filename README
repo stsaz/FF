@@ -28,6 +28,9 @@ FEATURES
 
 	. CRC32
 	. filesystem path functions
+	. user task queue
+	. timer queue
+	. file mapping
 
 LICENSE
 

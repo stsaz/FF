@@ -15,7 +15,7 @@ Copyright (c) 2013 Simon Zolin
 The window is just 1 byte to make the parser work harder.
 Use heap memory buffer to collect data for incomplete entities.
 Print the formatted data into stdout. */
-int test_json_parse(const ffsyschar *testJsonFile)
+int test_json_parse(const char *testJsonFile)
 {
 	fffd f;
 	char ch;
@@ -87,7 +87,7 @@ int test_json_parse(const ffsyschar *testJsonFile)
 
 	fffile_write(ffstdout, ck.buf.ptr, ck.buf.len);
 
-	ffarr_free(&ck.buf);
+	ffjson_cookfinbuf(&ck);
 	ffpars_free(&json);
 	(void)fffile_close(f);
 	return 0;
@@ -145,7 +145,7 @@ static int test_json_err()
 }
 
 /** Parse JSON with a predefined scheme. */
-int test_json_schem(const ffsyschar *testJsonFile)
+int test_json_schem(const char *testJsonFile)
 {
 	obj_s o;
 	ffparser json;
@@ -226,11 +226,13 @@ int test_json_generat(const ffsyschar *fn)
 		, FFJSON_TOBJ
 	};
 
+	FFTEST_FUNC;
+
 	ffjson_cookinit(&j, buf, sizeof(buf));
 
 	if (0 != ffenv_expand(fn, fne, FFCNT(fne)))
 		fn = fne;
-	f = fffile_open(fn, FFO_CREATE | O_WRONLY);
+	f = fffile_openq(fn, FFO_CREATE | O_WRONLY);
 	if (!x(f != FF_BADFD))
 		return 0;
 
@@ -255,7 +257,8 @@ int test_json_generat(const ffsyschar *fn)
 
 	x(j.buf.len == fffile_write(f, j.buf.ptr, j.buf.len));
 	x(0 == fffile_close(f));
-	x(0 == fffile_rm(fn));
+	x(0 == fffile_rmq(fn));
+	ffjson_cookfin(&j);
 	return 0;
 }
 
@@ -286,6 +289,7 @@ static int test_json_cook()
 
 	x(js.buf.ptr == buf);
 	x(ffstr_eqcz(&js.buf, "{\"key1\":123456789123456789,\"key2\":\"my string\"}"));
+	ffjson_cookfin(&js);
 
 
 	ffjson_cookinit(&js, NULL, 0);
@@ -299,7 +303,7 @@ static int test_json_cook()
 
 	x(js.buf.cap == FFSLEN("{\"key1\":,\"key2\":\"my string\"}") + FFINT_MAXCHARS + 1);
 	x(ffstr_eqcz(&js.buf, "{\"key1\":123456789123456789,\"key2\":\"my string\"}"));
-	ffarr_free(&js.buf);
+	ffjson_cookfinbuf(&js);
 
 	return 0;
 }
@@ -312,11 +316,11 @@ int test_json()
 	x(7*2 + 1 == ffjson_escape(buf, sizeof(buf), FFSTR("\"\\\b\f\r\n\t/")));
 	x(!memcmp(buf, FFSTR("\\\"\\\\\\b\\f\\r\\n\\t/")));
 
-	test_json_parse(TESTDIR TEXT("/test.json"));
+	test_json_parse(TESTDIR "/test.json");
 	test_json_err();
-	test_json_schem(TESTDIR TEXT("/schem.json"));
+	test_json_schem(TESTDIR "/schem.json");
 
-	test_json_generat(TMPDIR TEXT("/gen.json"));
+	test_json_generat(TEXT(TMPDIR) TEXT("/gen.json"));
 	test_json_cook();
 	return 0;
 }

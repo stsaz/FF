@@ -130,7 +130,7 @@ static int valBareType(int ch)
 /* true|false|null */
 static int hdlValBare(ffparser *p, int ch)
 {
-	int er = 0;
+	int er = 0, e;
 	int i = (int)p->esc[0] - 1;
 
 	size_t len = p->val.len;
@@ -143,13 +143,9 @@ static int hdlValBare(ffparser *p, int ch)
 		er = FFPARS_VAL;
 	}
 
-	if (p->val.ptr != p->buf.ptr)
-		p->val.len++;
-	else {
-		int e = _ffpars_copyBuf(p, (char*)&ch, sizeof(char));
-		if (e != 0)
-			er = e;
-	}
+	e = _ffpars_addchar(p, ch);
+	if (e != 0)
+		er = e;
 
 	return er;
 }
@@ -176,10 +172,7 @@ static int hdlValBareNum(ffparser *p, int ch)
 			er = FFPARS_EBADVAL;
 	}
 	else {
-		if (p->val.ptr != p->buf.ptr)
-			p->val.len++;
-		else
-			er = _ffpars_copyBuf(p, (char*)&ch, sizeof(char));
+		er = _ffpars_addchar(p, ch);
 	}
 
 	return er;
@@ -213,10 +206,7 @@ static int hdlQuote(ffparser *p, int *st, int *nextst, int ch)
 		break;
 
 	default:
-		if (p->val.ptr != p->buf.ptr)
-			p->val.len++;
-		else
-			er = _ffpars_copyBuf(p, (char*)&ch, sizeof(char));
+		er = _ffpars_addchar(p, ch);
 	}
 
 	return er;
@@ -526,12 +516,7 @@ int ffjson_schemval(ffparser_schem *ps, void *obj, void *dst)
 
 void ffjson_cookinit(ffjson_cook *c, char *buf, size_t cap)
 {
-	ffarr_null(&c->buf);
-	if (buf != NULL) {
-		c->buf.ptr = buf;
-		c->buf.cap = cap;
-	}
-
+	ffarr_set3(&c->buf, buf, 0, cap);
 	ffarr_null(&c->ctxs);
 	c->st = 0;
 }
@@ -549,6 +534,7 @@ int ffjson_add(ffjson_cook *c, int f, const void *src)
 	int type = f & 0x0f;
 	ffbool closingCtx = 0;
 	size_t len = 0;
+	size_t tmp;
 	unsigned nobuf = (c->buf.ptr == NULL);
 	union {
 		const void *p;
@@ -580,8 +566,10 @@ int ffjson_add(ffjson_cook *c, int f, const void *src)
 			n *= (f & FFJSON_PRETTY4SPC) ? 4 : 2;
 		}
 
-		d += ffs_fmt(d, end, "\n%*c", (size_t)n, (int)ch);
-		len += FFSLEN("\n") + n;
+		tmp = ffs_fmt(d, end, "\n%*c", (size_t)n, (int)ch);
+		if (!nobuf)
+			d += tmp;
+		len += tmp;
 	}
 
 	switch (type) {
@@ -602,7 +590,6 @@ int ffjson_add(ffjson_cook *c, int f, const void *src)
 		}
 		else {
 			ffstr s;
-			size_t tmp;
 			if ((f & FFJSON_FSTRZ) == FFJSON_FSTRZ)
 				ffstr_set(&s, un.sz, strlen(un.sz));
 			else
@@ -636,7 +623,7 @@ int ffjson_add(ffjson_cook *c, int f, const void *src)
 		break;
 
 	case FFJSON_TNULL:
-		d = ffs_copy(d, end, FFSTR("null"));
+		d = ffs_copycz(d, end, "null");
 		len += FFSLEN("null");
 		break;
 

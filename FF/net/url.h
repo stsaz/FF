@@ -79,6 +79,17 @@ Return the number of bytes written into dst.
 Return 0 on error. */
 FF_EXTN size_t ffuri_decode(char *dst, size_t dstcap, const char *d, size_t len);
 
+enum FFURI_ESCAPE {
+	FFURI_ESC_WHOLE // http://host/path
+	, FFURI_ESC_PATHSEG // http://host/path/SEGMENT/path
+};
+
+/** Replace special characters in URI with %XX.
+@type: enum FFURI_ESCAPE.
+Return the number of bytes written.
+Return <0 if there is no enough space. */
+FF_EXTN ssize_t ffuri_escape(char *dst, size_t cap, const char *s, size_t len, int type);
+
 
 /** Parse IPv4 address.
 Return 0 on success. */

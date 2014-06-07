@@ -37,12 +37,7 @@ static int hdlQuote(ffparser *p, int *st, int *nextst, int ch)
 		break;
 
 	default:
-		if (p->val.ptr != p->buf.ptr)
-			p->val.len++;
-		else {
-			char c = (char)ch;
-			r = _ffpars_copyBuf(p, &c, sizeof(char));
-		}
+		r = _ffpars_addchar(p, ch);
 	}
 
 	return r;
@@ -182,7 +177,7 @@ int ffconf_parse(ffparser *p, const char *data, size_t *len)
 		case iKeyBare:
 		case iValBare:
 			if (!ffchar_iswhitespace(ch) && ch != '/' && ch != '#')
-				p->val.len++;
+				r = _ffpars_addchar(p, ch);
 			else {
 				p->type = FFPARS_TSTR;
 				r = (st == iKeyBare ? FFPARS_KEY : FFPARS_VAL);

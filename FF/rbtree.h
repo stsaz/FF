@@ -15,8 +15,18 @@ struct fftree_node {
 	fftree_node *left
 		, *right
 		, *parent;
+	uint reserved;
 	ffrbtkey key;
 };
+
+/** fftree_node with 8-byte key. */
+typedef struct fftree_node8 {
+	fftree_node *left
+		, *right
+		, *parent;
+	uint reserved;
+	uint64 key;
+} fftree_node8;
 
 /** Insert into binary tree. */
 FF_EXTN void fftree_insert(fftree_node *nod, fftree_node **root, void *sentl);
@@ -51,27 +61,28 @@ FF_EXTN fftree_node * fftree_successor(fftree_node *it, void *sentl);
 			; nod = next)
 
 
-typedef struct ffrbt_node ffrbt_node;
-
 /** Red-black tree node. */
+typedef struct ffrbt_node ffrbt_node;
 struct ffrbt_node {
 	ffrbt_node *left
 		, *right
 		, *parent;
-	ffrbtkey key;
 	uint color;
+	ffrbtkey key;
 };
 
 typedef struct ffrbtree {
 	size_t len;
 	ffrbt_node *root;
 	ffrbt_node sentl;
+	void (*insnode)(fftree_node *nod, fftree_node **root, void *sentl);
 } ffrbtree;
 
 static FFINL void ffrbt_init(ffrbtree *tr) {
 	tr->len = 0;
 	tr->sentl.color = 0; //FFRBT_BLACK
 	tr->root = &tr->sentl;
+	tr->insnode = &fftree_insert;
 }
 
 /** Insert node.
@@ -96,8 +107,9 @@ typedef struct ffrbtl_node {
 	ffrbt_node *left
 		, *right
 		, *parent;
-	ffrbtkey key;
 	uint color;
+	ffrbtkey key;
+
 	fflist_item sib;
 } ffrbtl_node;
 

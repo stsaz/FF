@@ -303,15 +303,15 @@ static int test_strf()
 	x(ffstr_eqcz(&s, "hel hello hel hello"));
 
 	s.len = 0;
-	x(0 != ffstr_catfmt(&s, "%*c %%", (size_t)5, (int)'-'));
-	x(ffstr_eqcz(&s, "----- %"));
+	x(0 != ffstr_catfmt(&s, "%*c %Z%%", (size_t)5, (int)'-'));
+	x(ffstr_eqcz(&s, "----- \0%"));
 
 	s.len = 0;
 	x(0 != ffstr_catfmt(&s, "%e: %E", (int)FFERR_FOPEN, (int)EINVAL));
 #ifdef FF_UNIX
 	x(ffstr_eqcz(&s, "file open: (22) Invalid argument"));
 #else
-	x(ffstr_eqcz(&s, "file open: (87) The parameter is incorrect. "));
+	x(ffstr_eqcz(&s, "file open: (87) The parameter is incorrect"));
 #endif
 
 	ffarr_free(&s);
@@ -343,9 +343,13 @@ static int test_str_cmp()
 	x(ffs_icmpz(ptr, n, "ASDF1") > 0);
 	x(ffs_icmpz(ptr, n, "ASDFF") < 0);
 
+	x(ffsz_cmp(ptr, "asdfa") == 0);
+	x(ffsz_icmp(ptr, "ASdFA") == 0);
+
 	x(ffs_eqcz(ptr, n, "asdfa"));
 	x(!ffs_eqcz(ptr, n, "asdfaq"));
 	x(!ffs_eqcz(ptr, n, "asdfA"));
+	x(ffs_ieqcz(ptr, n, "asdfA"));
 
 	return 0;
 }
@@ -425,6 +429,67 @@ static int test_str_nextval()
 	return 0;
 }
 
+static int test_escape()
+{
+	char buf[64];
+	ffstr s;
+	s.ptr = buf;
+
+	FFTEST_FUNC;
+
+	x(FFSLEN("hello\\x00\\x01\xff\\x07\\x00\t\r\n\\x5chi") == ffs_escape(NULL, 0, FFSTR("hello\x00\x01\xff\f\b\t\r\n\\hi"), FFS_ESC_NONPRINT));
+	s.len = ffs_escape(buf, FFCNT(buf), FFSTR("hello\x00\x01\xff\f\b\t\r\n\\hi"), FFS_ESC_NONPRINT);
+	x(ffstr_eqcz(&s, "hello\\x00\\x01\xff\\x0C\\x08\t\r\n\\x5Chi"));
+
+	return 0;
+}
+
+static int test_chcase()
+{
+	char buf[255];
+	ffstr s;
+	s.ptr = buf;
+
+	FFTEST_FUNC;
+
+	s.len = ffs_lower(buf, buf + FFCNT(buf), FFSTR("ASDFqwer"));
+	x(ffstr_eqcz(&s, "asdfqwer"));
+
+	s.len = ffs_upper(buf, buf + FFCNT(buf), FFSTR("ASDFqwer"));
+	x(ffstr_eqcz(&s, "ASDFQWER"));
+
+	s.len = ffs_titlecase(buf, buf + FFCNT(buf), FFSTR("#it's ASDF qwer-ty"));
+	x(ffstr_eqcz(&s, "#it's Asdf Qwer-ty"));
+
+	return 0;
+}
+
+static int test_bufadd()
+{
+	char sbuf[11];
+	ffstr3 buf;
+	ffstr dst;
+
+	FFTEST_FUNC;
+
+	ffarr_set3(&buf, sbuf, 0, FFCNT(sbuf));
+
+	x(5 == ffbuf_add(&buf, FFSTR("12345"), &dst));
+	x(5 == ffbuf_add(&buf, FFSTR("67890"), &dst));
+	x(1 == ffbuf_add(&buf, FFSTR("12345"), &dst));
+	x(ffstr_eqcz(&dst, "12345678901"));
+	x(4 == ffbuf_add(&buf, FFSTR("2345"), &dst));
+	x(ffstr_eqcz(&buf, "2345"));
+
+	x(7 == ffbuf_add(&buf, FFSTR(" 12345678901234567890"), &dst));
+	x(ffstr_eqcz(&dst, "2345 123456"));
+	x(11 == ffbuf_add(&buf, FFSTR("78901234567890"), &dst));
+	x(ffstr_eqcz(&dst, "78901234567"));
+	x(3 == ffbuf_add(&buf, FFSTR("890"), &dst));
+	x(ffstr_eqcz(&buf, "890"));
+	return 0;
+}
+
 int test_str()
 {
 	FFTEST_FUNC;
@@ -444,6 +509,9 @@ int test_str()
 	test_arr();
 	test_arrmem();
 	test_str_nextval();
+	test_escape();
+	test_chcase();
+	test_bufadd();
 
 	{
 		char buf[8];

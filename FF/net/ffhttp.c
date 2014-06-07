@@ -822,11 +822,16 @@ fail:
 	return er;
 }
 
+static const char uniq_hdrs[] = {
+	FFHTTP_IFNONE_MATCH, FFHTTP_IFMATCH
+	, FFHTTP_IFMODIFIED_SINCE, FFHTTP_IFUNMODIFIED_SINCE
+	, FFHTTP_IFRANGE, FFHTTP_AUTHORIZATION
+};
+
 int ffhttp_reqparsehdr(ffhttp_request *r, const char *data, size_t len)
 {
 	ffstr val;
 	ffstr v;
-
 	int ihdr;
 	int e = ffhttp_parsehdr(&r->h, data, len);
 	if (e != FFHTTP_OK) {
@@ -877,6 +882,25 @@ int ffhttp_reqparsehdr(ffhttp_request *r, const char *data, size_t len)
 				r->accept_gzip = 1;
 				break;
 			}
+		}
+		break;
+
+	case FFHTTP_IFNONE_MATCH:
+	case FFHTTP_IFMATCH:
+	case FFHTTP_IFMODIFIED_SINCE:
+	case FFHTTP_IFUNMODIFIED_SINCE:
+	case FFHTTP_IFRANGE:
+	case FFHTTP_AUTHORIZATION:
+		{
+		const char *f = ffs_findc(uniq_hdrs, FFCNT(uniq_hdrs), ihdr);
+		int idx = (int)(size_t)(f - uniq_hdrs);
+		uint u = r->uniq_hdrs_mask;
+
+		if (ffbit_test32(u, idx))
+			return FFHTTP_EDUPHDR;
+
+		ffbit_set32(&u, idx);
+		r->uniq_hdrs_mask = (byte)u;
 		}
 		break;
 	}

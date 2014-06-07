@@ -222,19 +222,11 @@ char * ffs_rskip(const char *buf, size_t len, int ch)
 	return (char*)end;
 }
 
-#pragma pack(push, 8)
-const byte ff_intmasks[9][8] = {
-	{ 0, 0, 0, 0, 0, 0, 0, 0 }
-	, { 0xff, 0, 0, 0, 0, 0, 0, 0 }
-	, { 0xff, 0xff, 0, 0, 0, 0, 0, 0 }
-	, { 0xff, 0xff, 0xff, 0, 0, 0, 0, 0 }
-	, { 0xff, 0xff, 0xff, 0xff, 0, 0, 0, 0 }
-	, { 0xff, 0xff, 0xff, 0xff, 0xff, 0, 0, 0 }
-	, { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0, 0 }
-	, { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0 }
-	, { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff }
+static const int64 ff_intmasks[9] = {
+	0
+	, 0xff, 0xffff, 0xffffff, 0xffffffff
+	, 0xffffffffffULL, 0xffffffffffffULL, 0xffffffffffffffULL, 0xffffffffffffffffULL
 };
-#pragma pack(pop)
 
 size_t ffs_findarr(const void *s, size_t len, const void *ar, ssize_t elsz, size_t count)
 {
@@ -242,7 +234,7 @@ size_t ffs_findarr(const void *s, size_t len, const void *ar, ssize_t elsz, size
 		int64 left;
 		size_t i;
 		int64 imask;
-		imask = *(int64*)ff_intmasks[len];
+		imask = ff_intmasks[len];
 		left = *(int64*)s & imask;
 		for (i = 0; i < count; i++) {
 			if (left == (*(int64*)ar & imask) && ((byte*)ar)[len] == 0x00)
@@ -286,20 +278,86 @@ size_t ffutf8_len(const char *p, size_t len)
 	return nchars;
 }
 
-char * ffs_lower(char *dst, const char *bufend, const char *src, size_t len)
+size_t ffs_lower(char *dst, const char *end, const char *src, size_t len)
 {
 	size_t i;
-	len = ffmin(len, bufend - dst);
+	unsigned inplace = (dst == src);
+	len = ffmin(len, end - dst);
 
 	for (i = 0;  i < len;  i++) {
 		uint ch = (byte)src[i];
+
 		if (ffchar_isup(ch))
-			ch = ffchar_lower(ch);
-		dst[i] = ch;
+			dst[i] = ffchar_lower(ch);
+		else if (!inplace)
+			dst[i] = ch;
 	}
 
-	return dst + i;
+	return i;
 }
+
+size_t ffs_upper(char *dst, const char *end, const char *src, size_t len)
+{
+	size_t i;
+	unsigned inplace = (dst == src);
+	len = ffmin(len, end - dst);
+
+	for (i = 0;  i < len;  i++) {
+		uint ch = (byte)src[i];
+
+		if (ffchar_islow(ch))
+			dst[i] = ffchar_upper(ch);
+		else if (!inplace)
+			dst[i] = ch;
+	}
+
+	return i;
+}
+
+size_t ffs_titlecase(char *dst, const char *end, const char *src, size_t len)
+{
+	size_t i;
+	unsigned inplace = (dst == src);
+	enum {
+		i_cap
+		, i_norm
+	};
+	int st = i_cap;
+	len = ffmin(len, end - dst);
+
+	for (i = 0;  i < len;  i++) {
+		uint ch = (byte)src[i];
+
+		switch (st) {
+		case i_cap:
+			if (ch != ' ') {
+				st = i_norm;
+
+				if (ffchar_islow(ch)) {
+					dst[i] = ffchar_upper(ch);
+					continue;
+				}
+			}
+			break;
+
+		case i_norm:
+			if (ch == ' ')
+				st = i_cap;
+
+			else if (ffchar_isup(ch)) {
+				dst[i] = ffchar_lower(ch);
+				continue;
+			}
+			break;
+		}
+
+		if (!inplace)
+			dst[i] = ch;
+	}
+
+	return i;
+}
+
 
 size_t ffs_replacechar(const char *src, size_t len, char *dst, size_t cap, int search, int replace, size_t *n)
 {
@@ -357,6 +415,65 @@ const uint ffcharmask_nowhite[] = {
 	0
 };
 
+// allow all except '\\' and non-printable
+static const uint esc_nprint[] = {
+	            // .... .... .... ....  ..r. .nt. .... ....
+	0x00002600, // 0000 0000 0000 0000  0010 0110 0000 0000
+	            // ?>=< ;:98 7654 3210  /.-, +*)( '&%$ #"!
+	0xffffffff, // 1111 1111 1111 1111  1111 1111 1111 1111
+	            // _^]\ [ZYX WVUT SRQP  ONML KJIH GFED CBA@
+	0xefffffff, // 1110 1111 1111 1111  1111 1111 1111 1111
+	            //  ~}| {zyx wvut srqp  onml kjih gfed cba`
+	0x7fffffff, // 0111 1111 1111 1111  1111 1111 1111 1111
+	0xffffffff,
+	0xffffffff,
+	0xffffffff,
+	0xffffffff
+};
+
+ssize_t ffs_escape(char *dst, size_t cap, const char *s, size_t len, int type)
+{
+	ssize_t i;
+	const uint *mask;
+	const char *end = dst + cap;
+	const char *dsto = dst;
+
+	if (type != FFS_ESC_NONPRINT)
+		return 0; //unknown type
+	mask = esc_nprint;
+
+	if (dst == NULL) {
+		size_t n = 0;
+		for (i = 0;  i != len;  i++) {
+			if (!ffbit_testarr(mask, (byte)s[i]))
+				n += FFSLEN("\\xXX") - 1;
+		}
+		return len + n;
+	}
+
+	for (i = 0;  i != len;  i++) {
+		byte c = s[i];
+
+		if (ffbit_testarr(mask, c)) {
+			if (dst == end)
+				return -i;
+			*dst++ = c;
+
+		} else {
+			if (dst + FFSLEN("\\xXX") > end) {
+				ffs_fill(dst, end, '\0', FFSLEN("\\xXX"));
+				return -i;
+			}
+
+			*dst++ = '\\';
+			*dst++ = 'x';
+			dst += ffs_hexbyte(dst, c, ffHEX);
+		}
+	}
+
+	return dst - dsto;
+}
+
 uint ffchar_sizesfx(int suffix)
 {
 	switch (ffchar_lower(suffix)) {
@@ -368,7 +485,7 @@ uint ffchar_sizesfx(int suffix)
 		return 30;
 	case 't':
 		return 40;
-	}
+		}
 	return 0;
 }
 
@@ -791,6 +908,13 @@ size_t ffs_fmtv(char *buf_o, const char *end, const char *fmt, va_list va)
 			}
 			break;
 
+		case 'Z':
+			if (buf != NULL)
+				*buf++ = '\0';
+			else
+				len++;
+			break;
+
 		case '%':
 			if (buf != NULL)
 				*buf++ = '%';
@@ -870,8 +994,11 @@ size_t fffile_fmt(fffd fd, ffstr3 *buf, const char *fmt, ...)
 void * _ffarr_realloc(ffarr *ar, size_t newlen, size_t elsz)
 {
 	void *d = NULL;
-	if (ar->cap != 0)
+	if (ar->cap != 0) {
+		if (ar->cap == newlen)
+			return ar->ptr; //nothing to do
 		d = ar->ptr;
+	}
 	d = ffmem_realloc(d, newlen * elsz);
 	if (d == NULL)
 		return NULL;
@@ -967,3 +1094,56 @@ size_t ffstr_nextval(const char *buf, size_t len, ffstr *dst, int spl)
 	ffstr_set(dst, buf, pos - buf);
 	return len;
 }
+
+size_t ffbuf_add(ffstr3 *buf, const char *src, size_t len, ffstr *dst)
+{
+	size_t sz;
+
+	if (len == 0)
+		return 0; //no input
+
+	if (buf->len == 0 && len > buf->cap) {
+		// input is larger than buffer
+		sz = len - (len % buf->cap);
+		ffstr_set(dst, src, sz);
+		return sz;
+	}
+
+	sz = ffmin(len, ffarr_unused(buf));
+	memcpy(buf->ptr + buf->len, src, sz);
+	buf->len += sz;
+
+	if (buf->cap != buf->len) {
+		dst->len = 0;
+		return sz;
+	}
+
+	//buffer is full
+	ffstr_set(dst, buf->ptr, buf->len);
+	buf->len = 0;
+	return sz;
+}
+
+
+#ifdef FFDBG_PRINT_DEF
+#include <FF/atomic.h>
+#include <FFOS/file.h>
+
+static ffatomic counter;
+int ffdbg_print(int t, const char *fmt, ...)
+{
+	char buf[4096];
+	size_t n;
+	va_list va;
+	va_start(va, fmt);
+
+	n = ffs_fmt(buf, buf + FFCNT(buf), "%p#%L "
+		, &counter, (size_t)ffatom_incret(&counter));
+
+	n += ffs_fmtv(buf + n, buf + FFCNT(buf), fmt, va);
+	fffile_write(ffstdout, buf, n);
+
+	va_end(va);
+	return 0;
+}
+#endif

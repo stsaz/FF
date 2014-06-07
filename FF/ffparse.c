@@ -151,12 +151,6 @@ static int scHdlVal(ffparser_schem *ps, ffpars_ctx *ctx);
 static int scOpenBrace(ffparser_schem *ps);
 static int scCloseBrace(ffparser_schem *ps);
 
-enum FFPARS_SCHEMFLAG {
-	FFPARS_SCHAVKEY = 1
-	, FFPARS_SCHAVVAL = 2
-	, FFPARS_SCCTX = 4
-};
-
 void ffpars_scheminit(ffparser_schem *ps, ffparser *p, const ffpars_arg *top)
 {
 	ffmem_tzero(ps);
@@ -174,9 +168,12 @@ static int scHdlKey(ffparser_schem *ps, ffpars_ctx *ctx)
 	if (er > 0)
 		return er;
 	else if (er == FFPARS_OK) {
+		int (*cmpz)(const char *s1, size_t len, const char *sz2);
+		cmpz = (ps->flags & FFPARS_KEYICASE) ? &ffs_icmpz : &ffs_cmpz;
+
 		for (i = 0;  i < ctx->nargs;  i++) {
 			if (ctx->args[i].name != NULL
-				&& ffstr_eqz(&ps->p->val, ctx->args[i].name))
+				&& 0 == cmpz(ps->p->val.ptr, ps->p->val.len, ctx->args[i].name))
 				break;
 		}
 	}
@@ -516,6 +513,10 @@ int ffpars_schemrun(ffparser_schem *ps, int e)
 		if (ps->ctxs.len == 0)
 			return FFPARS_ECONF;
 
+#ifdef FFDBG_PARSE
+		ffdbg_print(0, "%s(): processing key '%S'\n", FF_FUNC, &ps->p->val);
+#endif
+
 		rc = scHdlKey(ps, &ffarr_back(&ps->ctxs));
 		break;
 
@@ -550,5 +551,6 @@ const char * ffpars_schemerrstr(ffparser_schem *ps, int code, char *buf, size_t 
 		return ffarr_back(&ps->ctxs).errfunc(code);
 	}
 
+	FF_ASSERT(code < FFCNT(_ffpars_serr));
 	return _ffpars_serr[code];
 }

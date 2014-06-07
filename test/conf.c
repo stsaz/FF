@@ -12,7 +12,7 @@ Copyright (c) 2013 Simon Zolin
 #define x FFTEST_BOOL
 
 
-static int test_conf_parse(const ffsyschar *testConfFile)
+static int test_conf_parse(const char *testConfFile)
 {
 	ffparser conf;
 	int rc;
@@ -79,7 +79,7 @@ static int test_conf_parse(const ffsyschar *testConfFile)
 	return 0;
 }
 
-int test_conf_schem(const ffsyschar *testConfFile)
+int test_conf_schem(const char *testConfFile)
 {
 	obj_s o;
 	ffparser conf;
@@ -279,8 +279,8 @@ int test_conf()
 {
 	FFTEST_FUNC;
 
-	test_conf_parse(TESTDIR TEXT("/schem.conf"));
-	test_conf_schem(TESTDIR TEXT("/schem.conf"));
+	test_conf_parse(TESTDIR "/schem.conf");
+	test_conf_schem(TESTDIR "/schem.conf");
 	return 0;
 }
 
