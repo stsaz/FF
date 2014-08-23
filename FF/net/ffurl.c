@@ -3,6 +3,7 @@ Copyright (c) 2013 Simon Zolin
 */
 
 #include <FF/net/url.h>
+#include <FF/net/http.h>
 #include <FF/path.h>
 
 
@@ -414,6 +415,15 @@ ssize_t ffuri_escape(char *dst, size_t cap, const char *s, size_t len, int type)
 	return dst - dsto;
 }
 
+uint ffuri_scheme2port(const char *scheme, size_t schemelen)
+{
+	if (ffs_eqcz(scheme, schemelen, "http"))
+		return FFHTTP_PORT;
+	else if (ffs_eqcz(scheme, schemelen, "https"))
+		return FFHTTPS_PORT;
+	return 0;
+}
+
 
 int ffip4_parse(struct in_addr *a, const char *s, size_t len)
 {
@@ -592,4 +602,29 @@ size_t ffip6_tostr(char *dst, size_t cap, const void *addr, size_t addrlen, int 
 		p += ffs_fmt(p, end, "]:%u", port);
 
 	return p - dst;
+}
+
+
+int ffaddr_set(ffaddr *a, const char *ip, size_t iplen, const char *port, size_t portlen)
+{
+	ushort nport;
+	struct in6_addr a6;
+	struct in_addr a4;
+
+	if (iplen == 0) {
+		ffaddr_setany(a, AF_INET6);
+	} else if (0 == ffip4_parse(&a4, ip, iplen))
+		ffip4_set(a, &a4);
+	else if (0 == ffip6_parse(&a6, ip, iplen))
+		ffip6_set(a, &a6);
+	else
+		return 1; //invalid IP
+
+	if (portlen != 0) {
+		if (portlen != ffs_toint(port, portlen, &nport, FFS_INT16))
+			return 1; //invalid port
+		ffip_setport(a, nport);
+	}
+
+	return 0;
 }

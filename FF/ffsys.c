@@ -5,6 +5,7 @@ Copyright (c) 2014 Simon Zolin
 #include <FFOS/time.h>
 #include <FFOS/file.h>
 #include <FF/filemap.h>
+#include <FF/sendfile.h>
 #include <FF/timer-queue.h>
 #include <FF/taskqueue.h>
 
@@ -18,7 +19,7 @@ static void tree_instimer(fftree_node *nod, fftree_node **root, void *sentl);
 void fffile_mapclose(fffilemap *fm)
 {
 	if (fm->map != NULL)
-		(void)ffmap_unmap(fm->map, fm->mapsz);
+		ffmap_unmap(fm->map, fm->mapsz);
 	if (fm->hmap != 0)
 		ffmap_close(fm->hmap);
 	fffile_mapinit(fm);
@@ -51,15 +52,17 @@ int fffile_mapbuf(fffilemap *fm, ffstr *dst)
 	return 0;
 }
 
-int fffile_mapshift(fffilemap *fm, ssize_t by)
+int fffile_mapshift(fffilemap *fm, int64 by)
 {
-	FF_ASSERT(fm->fsize >= by);
+	FF_ASSERT(by >= 0 && fm->fsize >= (uint64)by);
 	fm->fsize -= by;
 	fm->foff += by;
 
 	if (fm->fsize != 0) {
-		if (fm->foff == fm->mapoff + fm->mapsz) {
-			(void)ffmap_unmap(fm->map, fm->mapsz);
+		if (fm->map != NULL
+			&& fm->foff >= fm->mapoff + fm->mapsz) {
+
+			ffmap_unmap(fm->map, fm->mapsz);
 			fm->mapoff = 0;
 			fm->mapsz = 0;
 			fm->map = NULL;
@@ -68,6 +71,114 @@ int fffile_mapshift(fffilemap *fm, ssize_t by)
 	}
 
 	fffile_mapclose(fm);
+	return 0;
+}
+
+
+#ifdef FF_WIN
+static ssize_t fmap_send(fffilemap *fm, ffskt sk, int flags)
+{
+	ffstr dst;
+	if (0 != fffile_mapbuf(fm, &dst))
+		return -1;
+	return ffskt_send(sk, dst.ptr, dst.len, 0);
+}
+
+int64 ffsf_send(ffsf *sf, ffskt sk, int flags)
+{
+	int64 sent = 0;
+	int64 r;
+	const sf_hdtr *ht = &sf->ht;
+
+	if (ht->hdr_cnt != 0) {
+		r = ffskt_sendv(sk, ht->headers, ht->hdr_cnt);
+		if (r == -1)
+			goto err;
+
+		sent = r;
+
+		if ((sf->fm.fsize != 0 || ht->trl_cnt != 0)
+			&& r != ffiov_size(ht->headers, ht->hdr_cnt))
+			goto done; //headers are not sent yet completely
+	}
+
+	if (sf->fm.fsize != 0) {
+		r = fmap_send(&sf->fm, sk, flags);
+		if (r == -1)
+			goto err;
+
+		sent += r;
+		if (r != sf->fm.fsize)
+			goto done; //file is not sent yet completely
+	}
+
+	if (ht->trl_cnt != 0) {
+		r = ffskt_sendv(sk, ht->trailers, ht->trl_cnt);
+		if (r == -1)
+			goto err;
+
+		sent += r;
+	}
+
+done:
+	return sent;
+
+err:
+	if (sent != 0)
+		return sent;
+	return -1;
+}
+
+int ffsf_sendasync(ffsf *sf, ffaio_task *t, ffaio_handler handler)
+{
+	const sf_hdtr *ht = &sf->ht;
+
+	if (ht->hdr_cnt != 0)
+		return ffaio_sendv(t, handler, ht->headers, ht->hdr_cnt);
+
+	if (sf->fm.fsize != 0) {
+		ffstr dst;
+		if (0 != fffile_mapbuf(&sf->fm, &dst))
+			return FFAIO_ERROR;
+
+		return ffaio_send(t, handler, dst.ptr, dst.len);
+	}
+
+	if (ht->trl_cnt != 0)
+		return ffaio_sendv(t, handler, ht->trailers, ht->trl_cnt);
+
+	return FFAIO_ERROR;
+}
+#endif //FF_WIN
+
+int ffsf_shift(ffsf *sf, uint64 by)
+{
+	size_t r;
+	sf_hdtr *ht = &sf->ht;
+
+	if (sf->ht.hdr_cnt != 0) {
+		r = ffiov_shiftv(ht->headers, ht->hdr_cnt, &by);
+		ht->headers += r;
+		ht->hdr_cnt -= (int)r;
+		if (ht->hdr_cnt != 0)
+			return 1;
+	}
+
+	if (sf->fm.fsize != 0) {
+		uint64 fby = ffmin64(sf->fm.fsize, by);
+		if (0 != fffile_mapshift(&sf->fm, (int64)fby))
+			return 1;
+		by -= fby;
+	}
+
+	if (ht->trl_cnt != 0) {
+		r = ffiov_shiftv(ht->trailers, ht->trl_cnt, &by);
+		ht->trailers += r;
+		ht->trl_cnt -= (int)r;
+		if (ht->trl_cnt != 0)
+			return 1;
+	}
+
 	return 0;
 }
 

@@ -341,7 +341,7 @@ void ffrbtl_insert(ffrbtree *tr, ffrbtl_node *k)
 	ffrbtl_node *found = (ffrbtl_node*)fftree_findnode(k->key, (fftree_node**)&n, &tr->sentl);
 
 	if (found == NULL)
-		ffrbt_insert(tr, (ffrbt_node*)k, n);
+		ffrbtl_insert3(tr, k, n);
 	else {
 		fflist_link(&k->sib, &found->sib);
 		tr->len++;
@@ -353,7 +353,7 @@ void ffrbtl_insert(ffrbtree *tr, ffrbtl_node *k)
     /  \
    25   75
   /  \
-15    35[0] <-> 35[1] <-> 35[2] ->|
+15    35[0] <-> 35[1] <-> 35[2] <-> 35[0]...
      /  \
    30    45
 */
@@ -363,25 +363,24 @@ void ffrbtl_rm(ffrbtree *tr, ffrbtl_node *k)
 
 	FF_ASSERT(tr->len != 0);
 
-	if (k->sib.prev != NULL) {
-		// the node is just a list item
-		fflist_unlink(&k->sib);
-		tr->len--;
-		return;
-	}
-
-	if (k->sib.next == NULL) {
+	if (k->sib.next == &k->sib) {
 		// the node has no siblings
 		ffrbt_rm(tr, (ffrbt_node*)k);
 		return;
 	}
 
-	// the node has a sibling
 	next = (ffrbt_node*)ffrbtl_nodebylist(k->sib.next);
+	fflist_unlink(&k->sib);
+
+	if (k->parent == NULL) {
+		// the node is just a list item
+		tr->len--;
+		return;
+	}
+
+	// the node has a sibling
 	next->key = k->key;
 	next->color = k->color;
-	((ffrbtl_node*)next)->sib.prev = NULL;
-
 	relink_parent((fftree_node*)k, (fftree_node*)next, (fftree_node**)&tr->root, &tr->sentl);
 
 	next->left = &tr->sentl;
@@ -393,7 +392,6 @@ void ffrbtl_rm(ffrbtree *tr, ffrbtl_node *k)
 		link_rightchild(next, k->right);
 
 	k->left = k->right = k->parent = NULL;
-	k->sib.next = k->sib.prev = NULL;
 	tr->len--;
 }
 
@@ -406,6 +404,9 @@ int ffrbtl_enumsafe(ffrbtree *tr, fftree_on_item_t on_item, void *udata, uint of
 	FFTREE_WALKSAFE(tr, nod, next) {
 
 		FFLIST_WALKNEXTSAFE(((ffrbtl_node*)nod)->sib.next, li, nextli) {
+			if (li == &((ffrbtl_node*)nod)->sib)
+				break; //reached the beginning of chain
+
 			rc = on_item((byte*)ffrbtl_nodebylist(li) - off, udata);
 			if (rc != 0)
 				return rc;

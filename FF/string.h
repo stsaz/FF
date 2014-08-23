@@ -137,6 +137,12 @@ FF_EXTN ssize_t ffs_findarrz(const char *const *ar, size_t n, const char *search
 FF_EXTN size_t ffutf8_len(const char *p, size_t len);
 
 
+#define ffmemcpy  memcpy
+
+/** Copy data and return the tail. */
+#define ffmem_copy(dst, src, len)  ((char*)ffmemcpy(dst, src, len) + (len))
+#define ffmem_copycz(dst, s)  ((char*)ffmemcpy(dst, s, FFSLEN(s)) + FFSLEN(s))
+
 /** Copy 1 character.
 Return the tail. */
 static FFINL char * ffs_copyc(char *dst, const char *bufend, int ch) {
@@ -165,7 +171,7 @@ static FFINL char * ffs_copy(char *dst, const char *bufend, const char *s, size_
 
 #define ffsz_cmp  strcmp
 
-#ifdef FF_UNIX
+#ifndef FF_MSVC
 #define ffsz_icmp  strcasecmp
 #else
 #define ffsz_icmp  _stricmp

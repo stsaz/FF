@@ -60,6 +60,15 @@ FF_EXTN fftree_node * fftree_successor(fftree_node *it, void *sentl);
 			; nod != (void*)&(tr)->sentl && ((next = fftree_successor(nod, &(tr)->sentl)) || 1) \
 			; nod = next)
 
+/** Call func() for every item in rbtree. */
+#define FFRBT_ENUMSAFE(tree, func, struct_name, member_name) \
+do { \
+	fftree_node *nod, *next; \
+	FFTREE_WALKSAFE(tree, nod, next) { \
+		func(FF_GETPTR(struct_name, member_name, nod)); \
+	} \
+} while (0)
+
 
 /** Red-black tree node. */
 typedef struct ffrbt_node ffrbt_node;
@@ -118,6 +127,12 @@ typedef struct ffrbtl_node {
 
 /** Insert a new node or list-item. */
 FF_EXTN void ffrbtl_insert(ffrbtree *tr, ffrbtl_node *k);
+
+#define ffrbtl_insert3(tr, nod, parent) \
+do { \
+	ffrbt_insert(tr, (ffrbt_node*)(nod), parent); \
+	(nod)->sib.next = (nod)->sib.prev = &(nod)->sib; \
+} while (0)
 
 /** Remove node or its sibling. */
 FF_EXTN void ffrbtl_rm(ffrbtree *tr, ffrbtl_node *k);

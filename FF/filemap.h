@@ -42,5 +42,6 @@ Return 0 on success. */
 FF_EXTN int fffile_mapbuf(fffilemap *fm, ffstr *dst);
 
 /** Shift offset in a file mapping.
+Note: @by < 0 is not supported.
 Return 0 if there is no more data. */
-FF_EXTN int fffile_mapshift(fffilemap *fm, ssize_t by);
+FF_EXTN int fffile_mapshift(fffilemap *fm, int64 by);

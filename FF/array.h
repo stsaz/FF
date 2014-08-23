@@ -160,6 +160,12 @@ static FFINL void ffstr_acq(ffstr *dst, ffstr *src) {
 	ffstr_null(src);
 }
 
+static FFINL void ffstr_acqstr3(ffstr *dst, ffstr3 *src) {
+	dst->ptr = src->ptr;
+	dst->len = src->len;
+	ffarr_null(src);
+}
+
 #define ffstr_shift  ffarr_shift
 
 /** Copy the contents of ffstr* into char* buffer. */

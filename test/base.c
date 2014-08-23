@@ -62,7 +62,7 @@ int test_rbtlist()
 		n = 1;
 		x(nl->key == i);
 
-		FFLIST_WALKNEXT(nl->sib.next, li) {
+		for (li = nl->sib.next;  li != &((ffrbtl_node*)nod)->sib;  li = li->next) {
 			nl = ffrbtl_nodebylist(li);
 			x(nl->key == i);
 			n++;

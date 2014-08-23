@@ -22,7 +22,8 @@ size_t ffpath_norm(char *dst, size_t dstcap, const char *path, size_t len, int f
 	for (i = 0; i < len; ++i) {
 		int ch = path[i];
 
-		if (dst == dstend)
+		if (dst == dstend
+			|| ch == '\0')
 			return 0;
 
 		switch (idx) {

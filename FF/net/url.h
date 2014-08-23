@@ -90,6 +90,10 @@ Return the number of bytes written.
 Return <0 if there is no enough space. */
 FF_EXTN ssize_t ffuri_escape(char *dst, size_t cap, const char *s, size_t len, int type);
 
+/** Get port number by scheme name.
+Return 0 if unknown. */
+FF_EXTN uint ffuri_scheme2port(const char *scheme, size_t schemelen);
+
 
 /** Parse IPv4 address.
 Return 0 on success. */
@@ -111,11 +115,13 @@ Return the number of characters written.
 Note: v4-mapped address is not supported. */
 FF_EXTN size_t ffip6_tostr(char *dst, size_t cap, const void *addr, size_t addrlen, int port);
 
+
 enum FFADDR_FLAGS {
 	FFADDR_USEPORT = 1
 };
 
-/** Convert IPv4/IPv6 address to string. */
+/** Convert IPv4/IPv6 address to string.
+@flags: enum FFADDR_FLAGS. */
 static FFINL size_t ffaddr_tostr(const ffaddr *a, char *dst, size_t cap, int flags) {
 	int port = 0;
 	if (flags & FFADDR_USEPORT)
@@ -126,3 +132,7 @@ static FFINL size_t ffaddr_tostr(const ffaddr *a, char *dst, size_t cap, int fla
 	else //AF_INET6
 		return ffip6_tostr(dst, cap, &a->ip6.sin6_addr, 16, port);
 }
+
+/** Set address and port.
+Return 0 on success. */
+FF_EXTN int ffaddr_set(ffaddr *a, const char *ip, size_t iplen, const char *port, size_t portlen);

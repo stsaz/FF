@@ -487,6 +487,10 @@ static int test_bufadd()
 	x(ffstr_eqcz(&dst, "78901234567"));
 	x(3 == ffbuf_add(&buf, FFSTR("890"), &dst));
 	x(ffstr_eqcz(&buf, "890"));
+
+	x(0 == ffbuf_add(&buf, FFSTR(""), &dst));
+	x(ffstr_eqcz(&dst, ""));
+
 	return 0;
 }
 
@@ -519,6 +523,8 @@ int test_str()
 		x(FFSLEN("asdfasdf") == ffs_replacechar(FFSTR("asdfasdf"), buf, FFCNT(buf), 'a', 'z', &n));
 		x(n == 2);
 		x(0 == ffmemcmp(buf, "zsdfzsdf", n));
+
+		x(buf + 8 == ffmem_copycz(buf, "asdfasdf"));
 	}
 
 	x(ffchar_islow('a') && !ffchar_islow('A') && !ffchar_islow('\xff') && !ffchar_islow('-'));

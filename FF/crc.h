@@ -7,6 +7,10 @@ Copyright (c) 2013 Simon Zolin
 #include <FFOS/types.h>
 #include <FF/string.h>
 
+enum FFCRC_F {
+	FFCRC_ICASE = 1
+};
+
 static FFINL uint ffcrc32_start() {
 	return 0xffffffff;
 }

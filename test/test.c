@@ -14,14 +14,14 @@ Copyright (c) 2013 Simon Zolin
 #include <FF/atomic.h>
 #include <FF/net/dns.h>
 #include <FF/filemap.h>
+#include <FF/sendfile.h>
+#include <FF/net/url.h>
 
 #include <test/all.h>
 
 #define x FFTEST_BOOL
 #define CALL FFTEST_TIMECALL
 
-uint _fftest_nrun;
-uint _fftest_nfail;
 
 static int test_crc()
 {
@@ -77,6 +77,8 @@ static int test_path()
 
 	x(0 == ffpath_norm(buf, 0, FFSTR("/"), 0));
 
+	x(0 == ffpath_norm(buf, 0, FFSTR("/path/fn\0.ext"), 0)); //invalid char
+
 	x(FFSLEN("filename") == ffpath_makefn(buf, FFCNT(buf), FFSTR("filename"), '_'));
 	n = ffpath_makefn(buf, FFCNT(buf), FFSTR("\x00\x1f *?/\\:\""), '_');
 	buf[n] = '\0';
@@ -89,6 +91,10 @@ static int test_path()
 #define FN "file"
 	x(FN + FFSLEN(FN) == ffpath_rfindslash(FN, FFSLEN(FN)));
 #undef FN
+
+	x(0 != ffpath_isvalidfn("filename", FFSLEN("filename")));
+	x(0 == ffpath_isvalidfn("filename/withslash", FFSLEN("filename/withslash")));
+	x(0 == ffpath_isvalidfn("filename\0withzero", FFSLEN("filename\0withzero")));
 
 	s = ffpath_fileext(FFSTR("file.txt"));
 	x(ffstr_eqcz(&s, "txt"));
@@ -312,6 +318,115 @@ static int test_fmap()
 	return 0;
 }
 
+static int test_sendfile()
+{
+	ffsf sf;
+	int64 n;
+	ssize_t nr;
+	ffskt lsn, cli, sk;
+	fffd f;
+	char *rbuf;
+	int64 nread;
+	char *iov_bufs[4];
+	ffiovec hdtr[4];
+	int i;
+	ffaddr adr;
+	ffsyschar fne[FF_MAXPATH];
+	const ffsyschar *fn;
+
+	enum { M = 1024 * 1024 };
+
+	FFTEST_FUNC;
+
+	// prepare file
+	fn = TEXT(TMPDIR) TEXT("/tmp-ff");
+	if (0 != ffenv_expand(fn, fne, FFCNT(fne)))
+		fn = fne;
+	f = fffile_createtempq(fn, O_RDWR);
+	x(f != FF_BADFD);
+	x(0 == fffile_trunc(f, 4 * M + 2));
+	x(2 == fffile_write(f, ".[", 2));
+	fffile_seek(f, -2, SEEK_END);
+	x(2 == fffile_write(f, "].", 2));
+
+	// prepare hdtr
+	for (i = 0;  i < 4;  i++) {
+		iov_bufs[i] = ffmem_alloc(2 * M);
+		x(iov_bufs[i] != NULL);
+		iov_bufs[i][0] = 'A' + i;
+		iov_bufs[i][2 * M - 1] = 'a' + i;
+		ffiov_set(&hdtr[i], iov_bufs[i], 2 * M);
+	}
+
+	// prepare sf
+	ffsf_init(&sf);
+	fffile_mapset(&sf.fm, 64 * 1024, f, 1, 4 * M);
+	ffsf_sethdtr(&sf.ht, &hdtr[0], 2, &hdtr[2], 2);
+	x(!ffsf_empty(&sf));
+	x(12 * M == ffsf_len(&sf));
+
+	// prepare sockets
+	ffaddr_init(&adr);
+	x(0 == ffaddr_set(&adr, FFSTR("127.0.0.1"), NULL, 0));
+	ffip_setport(&adr, 64000);
+
+	ffskt_init(FFSKT_WSA);
+	lsn = ffskt_create(AF_INET, SOCK_STREAM, 0);
+	x(lsn != FF_BADSKT);
+	x(0 == ffskt_bind(lsn, &adr.a, adr.len));
+	x(0 == ffskt_listen(lsn, SOMAXCONN));
+
+	cli = ffskt_create(AF_INET, SOCK_STREAM, 0);
+	x(cli != FF_BADSKT);
+	x(0 == ffskt_connect(cli, &adr.a, adr.len));
+
+	sk = ffskt_accept(lsn, NULL, NULL, 0);
+	x(sk != FF_BADSKT);
+	x(0 == ffskt_nblock(sk, 1));
+	x(0 == ffskt_nblock(cli, 1));
+
+	rbuf = ffmem_alloc(12 * M);
+	x(rbuf != NULL);
+	nread = 0;
+
+	for (;;) {
+		n = ffsf_send(&sf, cli, 0);
+		x(n != -1 || fferr_again(fferr_last()));
+		printf("sent %d\n", (int)n);
+
+		for (;;) {
+			nr = ffskt_recv(sk, rbuf + nread, 12 * M - nread, 0);
+			x(nr != -1 || fferr_again(fferr_last()));
+			if (nr == -1 || nr == 0)
+				break;
+			nread += nr;
+			printf("recvd %d\n", (int)nr);
+		}
+
+		if (n != -1 && 0 == ffsf_shift(&sf, n))
+			break;
+	}
+
+	ffskt_close(lsn);
+	ffskt_close(cli);
+	ffskt_close(sk);
+
+	ffsf_close(&sf);
+	for (i = 0;  i < 4;  i++) {
+		ffmem_free(iov_bufs[i]);
+	}
+	fffile_close(f);
+
+	x(rbuf[0] == 'A' && rbuf[2 * M - 1] == 'a');
+	x(rbuf[2 * M] == 'B' && rbuf[4 * M - 1] == 'b');
+	x(rbuf[4 * M] == '[' && rbuf[8 * M - 1] == ']');
+	x(rbuf[8 * M] == 'C' && rbuf[10 * M - 1] == 'c');
+	x(rbuf[10 * M] == 'D' && rbuf[12 * M - 1] == 'd');
+	ffmem_free(rbuf);
+
+	return 0;
+}
+
 int test_all()
 {
 	ffos_init();
@@ -330,12 +445,13 @@ int test_all()
 	test_fmap();
 	test_time();
 	test_timer();
+	test_sendfile();
 
 	FFTEST_TIMECALL(test_json());
 	test_conf();
 	test_args();
 
-	printf("Tests run: %u.  Failed: %u.\n", _fftest_nrun, _fftest_nfail);
+	printf("%u tests were run, failed: %u.\n", fftestobj.nrun, fftestobj.nfail);
 
 	return 0;
 }

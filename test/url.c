@@ -162,6 +162,20 @@ int test_ip6()
 	return 0;
 }
 
+static int test_addr()
+{
+	ffaddr a;
+	x(0 == ffaddr_set(&a, FFSTR("127.0.0.1"), FFSTR("8080")));
+	x(AF_INET == ffaddr_family(&a) && 8080 == ffip_port(&a));
+
+	x(0 == ffaddr_set(&a, FFSTR("::1"), FFSTR("8080")));
+	x(AF_INET6 == ffaddr_family(&a));
+
+	x(0 != ffaddr_set(&a, FFSTR("::11111"), FFSTR("8080")));
+	x(0 != ffaddr_set(&a, FFSTR("::1"), FFSTR("88080")));
+	return 0;
+}
+
 int test_url()
 {
 	ffurl u;
@@ -378,6 +392,7 @@ int test_url()
 	test_urldecode();
 	test_ip4();
 	test_ip6();
+	test_addr();
 
 	return 0;
 }

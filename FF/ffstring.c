@@ -884,9 +884,9 @@ size_t ffs_fmtv(char *buf_o, const char *end, const char *fmt, va_list va)
 
 		case 'E': {
 			int e = va_arg(va, int);
-			ffsyschar tmp[256];
-			int tmplen = fferr_str(e, tmp, FFCNT(tmp));
-			size_t r = ffs_fmt(buf, end, "(%u) %*q", (int)e, (size_t)tmplen, tmp);
+			char tmp[256];
+			size_t tmplen = fferr_str(e, tmp, FFCNT(tmp));
+			size_t r = ffs_fmt(buf, end, "(%u) %*s", e, tmplen, tmp);
 			if (buf != NULL)
 				buf += r;
 			else
@@ -1098,9 +1098,6 @@ size_t ffstr_nextval(const char *buf, size_t len, ffstr *dst, int spl)
 size_t ffbuf_add(ffstr3 *buf, const char *src, size_t len, ffstr *dst)
 {
 	size_t sz;
-
-	if (len == 0)
-		return 0; //no input
 
 	if (buf->len == 0 && len > buf->cap) {
 		// input is larger than buffer
