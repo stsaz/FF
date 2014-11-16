@@ -6,12 +6,12 @@ Copyright (c) 2013 Simon Zolin
 #include <FFOS/test.h>
 #include <FFOS/file.h>
 #include <FFOS/timer.h>
+#include <FFOS/thread.h>
 #include <FFOS/process.h>
 #include <FF/array.h>
 #include <FF/crc.h>
 #include <FF/path.h>
 #include <FF/bitops.h>
-#include <FF/atomic.h>
 #include <FF/net/dns.h>
 #include <FF/filemap.h>
 #include <FF/sendfile.h>
@@ -164,51 +164,6 @@ static int test_bits()
 	return 0;
 }
 
-static int test_atomic()
-{
-	ffatomic a;
-
-	FFTEST_FUNC;
-
-	ffatom_set(&a, 0x12345678);
-	x(0x12345678 == ffatom_xchg(&a, 0x87654321));
-	x(!ffatom_cmpxchg(&a, 0x11223344, 0xabcdef));
-	x(ffatom_cmpxchg(&a, 0x87654321, 0xabcdef));
-	x(0xabcdef == ffatom_get(&a));
-	x(0xffabcdef == ffatom_addret(&a, 0xff000000));
-	x(0xffabcdee == ffatom_decret(&a));
-	x(0xffabcdef == ffatom_incret(&a));
-
-#ifdef FF_64
-	ffatom_set(&a, 0x12345678);
-	x(0xffffffff12345678ULL == ffatom_addret(&a, 0xffffffff00000000ULL));
-
-	ffatom_set(&a, 0x12345678);
-	ffatom_add(&a, 0xffffffff00000000ULL);
-	x(0xffffffff12345678ULL == ffatom_get(&a));
-
-	ffatom_set(&a, 0xffffffffffffffffULL);
-	ffatom_inc(&a);
-	x(0 == ffatom_get(&a));
-
-	ffatom_dec(&a);
-	x(0xffffffffffffffffULL == ffatom_get(&a));
-
-#else
-	ffatom_set(&a, 0x12345678);
-	ffatom_add(&a, 0x98000000);
-	x(0xaa345678 == ffatom_get(&a));
-
-	ffatom_inc(&a);
-	x(0xaa345679 == ffatom_get(&a));
-
-	ffatom_dec(&a);
-	x(0xaa345678 == ffatom_get(&a));
-#endif
-
-	return 0;
-}
-
 static int test_dns()
 {
 	char buf[FFDNS_MAXNAME];
@@ -338,6 +293,19 @@ static int test_sendfile()
 
 	FFTEST_FUNC;
 
+	{
+	ffstr chunk;
+	ffsf_init(&sf);
+	ffiov_set(&hdtr[0], FFSTR("123"));
+	ffiov_set(&hdtr[1], FFSTR("asdf"));
+	ffsf_sethdtr(&sf.ht, &hdtr[0], 1, &hdtr[1], 1);
+	x(0 != ffsf_nextchunk(&sf, &chunk));
+	x(ffstr_eqcz(&chunk, "123"));
+	ffsf_shift(&sf, chunk.len);
+	x(0 == ffsf_nextchunk(&sf, &chunk));
+	x(ffstr_eqcz(&chunk, "asdf"));
+	}
+
 	// prepare file
 	fn = TEXT(TMPDIR) TEXT("/tmp-ff");
 	if (0 != ffenv_expand(fn, fne, FFCNT(fne)))
@@ -392,6 +360,8 @@ static int test_sendfile()
 	for (;;) {
 		n = ffsf_send(&sf, cli, 0);
 		x(n != -1 || fferr_again(fferr_last()));
+		if (n == -1)
+			ffthd_sleep(50);
 		printf("sent %d\n", (int)n);
 
 		for (;;) {
@@ -432,7 +402,6 @@ int test_all()
 	ffos_init();
 
 	test_bits();
-	test_atomic();
 	test_str();
 	test_list();
 	test_rbtlist();

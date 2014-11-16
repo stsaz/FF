@@ -132,6 +132,7 @@ enum FFPARS_F {
 
 	, FFPARS_FNULL = 0x100 ///< allow null value
 	, FFPARS_FNOTEMPTY = 0x200 ///< don't allow empty string
+	, FFPARS_FNONULL = 0x400 //don't allow escaped '\0'
 	, FFPARS_FNOTZERO = 0x400 ///< don't allow number zero
 
 	//, FFPARS_F32BIT = 0

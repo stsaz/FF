@@ -246,17 +246,22 @@ static void scHdlBits(size_t f, int64 i, union ffpars_val dst)
 {
 	uint bit = (f & FFPARS_FBITMASK) >> 24;
 
-	if (i == 0)
-		return ; //we don't reset bits
-
-	if (f & FFPARS_F64BIT)
-		ffbit_set64((uint64*)dst.i64, bit);
+	if (f & FFPARS_F64BIT) {
+		if (i != 0)
+			ffbit_set64((uint64*)dst.i64, bit);
+		else
+			ffbit_reset64((uint64*)dst.i64, bit);
+	}
 	//else if (f & FFPARS_F16BIT)
 	//	ffbit_set32((uint*)dst.i16, bit);
 	//else if (f & FFPARS_F8BIT)
 	//	ffbit_set32((uint*)dst.b, bit);
-	else
-		ffbit_set32((uint*)dst.i32, bit);
+	else {
+		if (i != 0)
+			ffbit_set32((uint*)dst.i32, bit);
+		else
+			ffbit_reset32((uint*)dst.i32, bit);
+	}
 }
 
 static int scSetInt(ffparser_schem *ps, ffpars_ctx *ctx, union ffpars_val dst, union ffpars_val edst, int64 n)
@@ -307,6 +312,7 @@ static int scHdlVal(ffparser_schem *ps, ffpars_ctx *ctx)
 	ffbool func = 0;
 	union ffpars_val dst;
 	union ffpars_val edst;
+	ffstr tmp;
 
 	if (ffarr_back(&p->ctxs) == FFPARS_TARR) {
 		curarg = ps->curarg = scGetArg(ctx, ps->p->type);
@@ -341,24 +347,25 @@ static int scHdlVal(ffparser_schem *ps, ffpars_ctx *ctx)
 		if (p->val.len == 0 && (f & FFPARS_FNOTEMPTY))
 			return FFPARS_EVALEMPTY;
 
-		if (func) {
-			ffstr tmp = p->val;
+		if ((f & FFPARS_FNONULL)
+			&& NULL != ffs_findc(p->val.ptr, p->val.len, '\0'))
+			return FFPARS_EBADCHAR;
 
-			if (f & FFPARS_FCOPY) {
-				if (p->val.len == 0)
-					ffstr_null(&tmp);
-				else if (NULL == ffstr_copy(&tmp, p->val.ptr, p->val.len))
-					return FFPARS_ESYS;
-			}
-
-			er = edst.f_str(ps, ctx->obj, &tmp);
-
-		} else if (f & FFPARS_FCOPY) {
-			if (NULL == ffstr_copy(dst.s, p->val.ptr, p->val.len))
+		if (f & FFPARS_FCOPY) {
+			if (p->val.len == 0)
+				ffstr_null(&tmp);
+			else if (NULL == ffstr_copy(&tmp, p->val.ptr, p->val.len))
 				return FFPARS_ESYS;
-		}
-		else
-			*dst.s = p->val;
+		} else
+			tmp = p->val;
+
+		if (func) {
+			er = edst.f_str(ps, ctx->obj, &tmp);
+			if (er != 0 && (f & FFPARS_FCOPY))
+				ffstr_free(&tmp);
+		} else
+			*dst.s = tmp;
+
 		break;
 
 	case FFPARS_TENUM:
@@ -439,7 +446,9 @@ static int scOpenBrace(ffparser_schem *ps)
 		o = curctx->obj;
 
 		er = curarg->dst.f_obj(ps, o, ctx);
-		if (er != 0)
+		if (er == 0)
+			ps->vals[0].len = 0;
+		else
 			ps->ctxs.len--;
 	}
 
@@ -463,10 +472,15 @@ static int scCloseBrace(ffparser_schem *ps)
 		uint n = ~ctx->used[i / 32];
 		while (n != 0) {
 			uint bit = ffbit_ffs(n) - 1;
+			const ffpars_arg *arg = &ctx->args[i + bit];
 			if (i + bit >= maxargs)
 				break;
-			if (ctx->args[i + bit].flags & FFPARS_FREQUIRED)
+
+			if (arg->flags & FFPARS_FREQUIRED) {
+				ps->curarg = arg;
 				return FFPARS_ENOREQ;
+			}
+
 			ffbit_reset32(&n, bit);
 		}
 	}

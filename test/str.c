@@ -4,6 +4,7 @@ Copyright (c) 2013 Simon Zolin
 
 #include <FFOS/test.h>
 #include <FF/array.h>
+#include <FF/xml.h>
 
 #include <test/all.h>
 
@@ -318,6 +319,25 @@ static int test_strf()
 	return 0;
 }
 
+static int test_fmatch()
+{
+	char buf[8];
+	uint u;
+	uint64 u8;
+
+	x(-2 == ffs_fmatch(FFSTR("1a"), "%2u:", &u));
+	x(-3 == ffs_fmatch(FFSTR("12"), "%2u:", &u));
+
+	x(8 + 1 == ffs_fmatch(FFSTR("asdfqwer:"), "%8s:", buf));
+	x(!ffs_cmpz(buf, 8, "asdfqwer"));
+
+	x(7 + 1 + 15 + 1 == ffs_fmatch(FFSTR("1234567:123456789012345%"), "%7u:%15U%%", &u, &u8));
+	x(u == 1234567);
+	x(u8 == 123456789012345);
+
+	return 0;
+}
+
 static int test_str_cmp()
 {
 	const char *ptr = "asdfa";
@@ -363,6 +383,8 @@ static int test_str_find()
 	x(ptr == ffs_find(ptr, n, 'a'));
 	x(ptr + 3 == ffs_find(ptr, n, 'f'));
 	x(end == ffs_find(ptr, n, 'z'));
+	x(2 == ffs_nfindc(ptr, n, 'a'));
+	x(0 == ffs_nfindc(ptr, n, 'z'));
 
 	x(ptr + 4 == ffs_rfind(ptr, n, 'a'));
 	x(ptr + 3 == ffs_rfind(ptr, n, 'f'));
@@ -494,6 +516,20 @@ static int test_bufadd()
 	return 0;
 }
 
+static int test_xml(void)
+{
+	char buf[64];
+	ffstr s;
+	FFTEST_FUNC;
+
+	s.ptr = buf;
+	x(FFSLEN("hello&lt;&gt;&amp;&quot;hi") == ffxml_escape(NULL, 0, FFSTR("hello<>&\"hi")));
+	s.len = ffxml_escape(buf, FFCNT(buf), FFSTR("hello<>&\"hi"));
+	x(ffstr_eqcz(&s, "hello&lt;&gt;&amp;&quot;hi"));
+
+	return 0;
+}
+
 int test_str()
 {
 	FFTEST_FUNC;
@@ -501,6 +537,9 @@ int test_str()
 #define STR "  asdf  "
 	x(STR + 2 == ffs_skip(FFSTR(STR), ' '));
 	x(STR + FFSLEN(STR) - 2 == ffs_rskip(FFSTR(STR), ' '));
+#undef STR
+#define STR "  asdf\n\r\n"
+	x(STR + FFSLEN(STR) - 3 == ffs_rskipof(FFSTR(STR), FFSTR("\r\n")));
 #undef STR
 
 	test_str_cmp();
@@ -510,6 +549,7 @@ int test_str()
 	test_strtoint();
 	test_strtoflt();
 	test_strf();
+	test_fmatch();
 	test_arr();
 	test_arrmem();
 	test_str_nextval();
@@ -532,5 +572,6 @@ int test_str()
 	x(ffchar_isansiwhite(' ') && ffchar_isansiwhite('\xff') && !ffchar_isansiwhite('-'));
 	x(10 == ffchar_sizesfx('k') && 10 * 4 == ffchar_sizesfx('t'));
 
+	test_xml();
 	return 0;
 }

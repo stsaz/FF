@@ -69,6 +69,12 @@ do { \
 } while (0)
 
 
+/** Return TRUE if the item is added into the list. */
+static FFINL ffbool fflist_exists(fflist *lst, fflist_item *it) {
+	return it->next != FFLIST_END || it->prev != FFLIST_END
+		|| lst->first == it;
+}
+
 /** Add item to the end. */
 FF_EXTN void fflist_ins(fflist *lst, fflist_item *it);
 

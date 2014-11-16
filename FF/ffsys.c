@@ -182,6 +182,26 @@ int ffsf_shift(ffsf *sf, uint64 by)
 	return 0;
 }
 
+int ffsf_nextchunk(ffsf *sf, ffstr *dst)
+{
+	if (sf->ht.hdr_cnt != 0) {
+		ffstr_setiovec(dst, &sf->ht.headers[0]);
+		return sf->fm.fsize != 0 || 0 != ((sf->ht.hdr_cnt - 1) | sf->ht.trl_cnt);
+
+	} else if (sf->fm.fsize != 0) {
+		if (0 != fffile_mapbuf(&sf->fm, dst))
+			return -1;
+		return sf->fm.fsize != dst->len || sf->ht.trl_cnt != 0;
+
+	} else if (sf->ht.trl_cnt != 0) {
+		ffstr_setiovec(dst, &sf->ht.trailers[0]);
+		return (sf->ht.trl_cnt - 1) != 0;
+	}
+
+	ffstr_null(dst);
+	return 0;
+}
+
 
 static void tree_instimer(fftree_node *nod, fftree_node **root, void *sentl)
 {
@@ -266,12 +286,16 @@ void fftask_run(fftaskmgr *mgr)
 	while (mgr->tasks.len != 0) {
 		fftask *task = FF_GETPTR(fftask, sib, mgr->tasks.first);
 
+		if (!fflk_trylock(&mgr->lk))
+			return;
+
 #ifdef FFDBG_TASKS
 		ffdbg_print(0, "%s(): [%L] %p handler=%p, param=%p\n"
 			, FF_FUNC, mgr->tasks.len, task, task->handler, task->param);
 #endif
 
 		fflist_rm(&mgr->tasks, &task->sib);
+		fflk_unlock(&mgr->lk);
 
 		task->handler(task->param);
 	}

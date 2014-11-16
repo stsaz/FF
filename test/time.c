@@ -16,6 +16,7 @@ int test_time()
 	char buf[64];
 	ffstr s;
 	ffdtm dt = {0};
+	fftime t;
 
 	FFTEST_FUNC;
 
@@ -35,10 +36,27 @@ int test_time()
 	s.len = fftime_tostr(&dt, buf, FFCNT(buf), FFTIME_DATE_YMD | FFTIME_HMS_MSEC);
 	x(ffstr_eqcz(&s, "2014-05-19 08:52:36.023"));
 
+	s.len = fftime_tostr(&dt, buf, FFCNT(buf), FFTIME_HMS_MSEC);
+	x(ffstr_eqcz(&s, "08:52:36.023"));
+
 	s.len = fftime_tostr(&dt, buf, FFCNT(buf), FFTIME_WDMY);
 	x(ffstr_eqcz(&s, "Mon, 19 May 2014 08:52:36 GMT"));
+
+	{
+	ffdtm dt2;
+	x(FFSLEN("Mon, 19 May 2014 08:52:36 GMT") == fftime_fromstr(&dt2, FFSTR("Mon, 19 May 2014 08:52:36 GMT"), FFTIME_WDMY));
+	dt2.msec = dt.msec;
+	x(!ffmemcmp(&dt2, &dt, sizeof(ffdtm)));
+	x(0 == fftime_fromstr(&dt2, FFSTR("Mon, 19 May 2014 08:52:36 GM"), FFTIME_WDMY));
+	x(0 == fftime_fromstr(&dt2, FFSTR("Mon, 19 May 2014 25:52:36 GMT"), FFTIME_WDMY));
+	}
+
+	x(fftime_join(&t, &dt, FFTIME_TZUTC)->s == fftime_strtounix(FFSTR("Mon, 19 May 2014 08:52:36 GMT"), FFTIME_WDMY));
+	x((uint)-1 == fftime_strtounix(FFSTR("Mon, 19 May 201408:52:36 GMT"), FFTIME_WDMY));
+
 	return 0;
 }
+
 
 static void t1_func(const fftime *now, void *param) {
 	x(0 != (*(int*)param & 1));

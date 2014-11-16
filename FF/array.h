@@ -58,8 +58,14 @@ do { \
 /** The tail of array. */
 #define ffarr_end(ar)  ((ar)->ptr + (ar)->len)
 
+/** Get the edge of allocated buffer. */
+#define ffarr_edge(ar)  ((ar)->ptr + (ar)->cap)
+
 /** The number of free elements. */
 #define ffarr_unused(ar)  ((ar)->cap - (ar)->len)
+
+/** Return TRUE if array is full. */
+#define ffarr_isfull(ar)  ((ar)->len == (ar)->cap)
 
 /** Forward walk. */
 #define FFARR_WALK(ar, it) \
@@ -107,7 +113,7 @@ FF_EXTN void * _ffarr_push(ffarr *ar, size_t elsz);
 #define ffarr_push(ar, T) \
 	(T*)_ffarr_push((ffarr*)ar, sizeof(T))
 
-/** Add items into array.
+/** Add items into array.  Reallocate memory, if needed.
 Return the tail.
 Return NULL on error. */
 FF_EXTN void * _ffarr_append(ffarr *ar, const void *src, size_t num, size_t elsz);
@@ -148,6 +154,12 @@ static FFINL void ffstr_set(ffstr *s, const char *d, size_t len) {
 
 /** Set constant NULL-terminated string. */
 #define ffstr_setcz(s, csz)  ffarr_set(s, (char*)csz, FFSLEN(csz))
+
+/** Set NULL-terminated string. */
+#define ffstr_setz(s, sz)  ffarr_set(s, (char*)sz, ffsz_len(sz))
+
+/** Set ffstr from ffiovec. */
+#define ffstr_setiovec(s, iov)  ffarr_set(s, (iov)->iov_base, (iov)->iov_len)
 
 #define ffstr_null(ar) \
 do { \
@@ -217,6 +229,9 @@ static FFINL ffbool ffstr_imatch(const ffstr *s1, const char *s2, size_t n) {
 	return s1->len >= n
 		&& 0 == ffs_icmp(s1->ptr, s2, n);
 }
+
+#define ffstr_matchcz(s, csz)  ffstr_match(s, csz, FFSLEN(csz))
+#define ffstr_imatchcz(s, csz)  ffstr_imatch(s, csz, FFSLEN(csz))
 
 
 static FFINL char * ffstr_alloc(ffstr *s, size_t cap) {

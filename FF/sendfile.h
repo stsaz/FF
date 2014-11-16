@@ -59,3 +59,7 @@ FF_EXTN int ffsf_sendasync(ffsf *sf, ffaio_task *t, ffaio_handler handler);
 /** Shift file mapping and sf_hdtr.
 Return 0 if there is no more data. */
 FF_EXTN int ffsf_shift(ffsf *sf, uint64 by);
+
+/** Get next buffer of header, file (mapping) or trailer.
+Return 0 if there's no more data.  Return -1 on error. */
+FF_EXTN int ffsf_nextchunk(ffsf *sf, ffstr *dst);

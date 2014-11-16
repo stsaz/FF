@@ -805,19 +805,19 @@ int ffhttp_reqparse(ffhttp_request *r, const char *d, size_t len)
 
 more:
 	r->h.hdr.idx = idx;
-	r->h.hdr.len = (ushort)i;
+	r->h.len = r->h.hdr.len = (ushort)i;
 	return FFHTTP_MORE;
 
 done:
 	++i;
-	r->h.hdr.len = (ushort)i;
+	r->h.len = r->h.hdr.len = (ushort)i;
 	r->h.firstline_len = (ushort)i;
 	r->h.base = d;
 	r->h.hdr.idx = 0; //iKey
 	return FFHTTP_OK;
 
 fail:
-	r->h.hdr.len = (ushort)i;
+	r->h.len = r->h.hdr.len = (ushort)i;
 	r->h.firstline_len = (ushort)(ffs_findof(d + i, len - i, FFSTR("\r\n")) - d);
 	return er;
 }
@@ -1036,19 +1036,19 @@ int ffhttp_respparse(ffhttp_response *r, const char *d, size_t len, int flags)
 	}
 
 	r->h.hdr.idx = idx;
-	r->h.hdr.len = (ushort)i;
+	r->h.len = r->h.hdr.len = (ushort)i;
 	return FFHTTP_MORE;
 
 done:
 	++i;
-	r->h.hdr.len = (ushort)i;
+	r->h.len = r->h.hdr.len = (ushort)i;
 	r->h.firstline_len = (ushort)i;
 	r->h.hdr.idx = 0; //iKey
 	r->h.base = d;
 	return FFHTTP_OK;
 
 fail:
-	r->h.hdr.len = (ushort)i;
+	r->h.len = r->h.hdr.len = (ushort)i;
 	r->h.firstline_len = (ushort)(ffs_findof(d + i, len - i, FFSTR("\r\n")) - d);
 	return er;
 }

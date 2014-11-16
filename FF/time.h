@@ -26,3 +26,18 @@ enum FFTIME_FMT {
 @fmt: enum FFTIME_FMT.
 Return 0 on error. */
 FF_EXTN size_t fftime_tostr(const ffdtm *dt, char *dst, size_t cap, uint fmt);
+
+/** Convert string to date/time.
+Return the number of processed bytes.  Return 0 on error. */
+FF_EXTN size_t fftime_fromstr(ffdtm *dt, const char *s, size_t len, uint fmt);
+
+/** Convert string to UNIX timestamp.
+Return -1 on error. */
+static FFINL uint fftime_strtounix(const char *s, size_t len, uint fmt) {
+	ffdtm dt;
+	fftime t;
+	if (len != fftime_fromstr(&dt, s, len, fmt)
+		|| dt.year < 1970)
+		return (uint)-1;
+	return fftime_join(&t, &dt, FFTIME_TZUTC)->s;
+}

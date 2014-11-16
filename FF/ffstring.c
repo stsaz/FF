@@ -94,6 +94,20 @@ void * ffmemchr(const void *_d, int b, size_t len)
 	return NULL;
 }
 
+size_t ffs_nfindc(const char *buf, size_t len, int ch)
+{
+	const char *end = buf + len;
+	size_t n = 0;
+
+	for (;  buf != end;  n++, buf++) {
+		buf = ffs_findc(buf, end - buf, ch);
+		if (buf == NULL)
+			break;
+	}
+
+	return n;
+}
+
 #ifdef FF_MSVC
 char * ffs_rfind(const char *buf, size_t len, int ch)
 {
@@ -221,6 +235,15 @@ char * ffs_rskip(const char *buf, size_t len, int ch)
 		end--;
 	return (char*)end;
 }
+
+char * ffs_rskipof(const char *buf, size_t len, const char *anyof, size_t cnt)
+{
+	const char *end = buf + len;
+	while (end != buf && NULL != ffs_findc(anyof, cnt, *(end - 1)))
+		end--;
+	return (char*)end;
+}
+
 
 static const int64 ff_intmasks[9] = {
 	0
@@ -990,6 +1013,96 @@ size_t fffile_fmt(fffd fd, ffstr3 *buf, const char *fmt, ...)
 	return r;
 }
 
+size_t ffs_fmatchv(const char *s, size_t len, const char *fmt, va_list va)
+{
+	const char *s_o = s, *s_end = s + len;
+	uint width = 0;
+	union {
+		char *s;
+		uint *i4;
+		uint64 *i8;
+	} dst;
+	dst.s = NULL;
+
+	for (;  s != s_end && *fmt != '\0';  s++) {
+
+		if (width != 0) {
+			switch (*fmt) {
+			case 'U':
+				if (!ffchar_isdigit(*s))
+					goto fail;
+				*dst.i8 = *dst.i8 * 10 + ffchar_tonum(*s);
+				break;
+
+			case 'u':
+				if (!ffchar_isdigit(*s))
+					goto fail;
+				*dst.i4 = *dst.i4 * 10 + ffchar_tonum(*s);
+				break;
+
+			case 's':
+				*(dst.s++) = *s;
+				break;
+			}
+
+			if (--width == 0)
+				fmt++;
+			continue;
+		}
+
+		if (*fmt != '%') {
+			if (*fmt != *s)
+				goto fail; //mismatch
+			fmt++;
+			continue;
+		}
+
+		fmt++; //skip %
+
+		if (*fmt == '%') {
+			if (*fmt != *s)
+				goto fail; //mismatch
+			fmt++;
+			continue;
+		}
+
+		while (ffchar_isdigit(*fmt)) {
+			width = width * 10 + (*fmt++ - '0');
+		}
+
+		switch (*fmt) {
+		case 'U':
+			dst.i8 = va_arg(va, uint64*);
+			*dst.i8 = 0;
+			break;
+
+		case 'u':
+			dst.i4 = va_arg(va, uint*);
+			*dst.i4 = 0;
+			break;
+
+		case 's':
+			dst.s = va_arg(va, char*);
+			break;
+
+		default:
+			goto fail; //invalid format specifier
+		}
+
+		if (width == 0)
+			fmt++;
+		s--;
+	}
+
+	if (*fmt != '\0')
+		goto fail; //input string is too short
+
+	return s - s_o;
+
+fail:
+	return -(s - s_o + 1);
+}
+
 
 void * _ffarr_realloc(ffarr *ar, size_t newlen, size_t elsz)
 {
@@ -1123,7 +1236,7 @@ size_t ffbuf_add(ffstr3 *buf, const char *src, size_t len, ffstr *dst)
 
 
 #ifdef FFDBG_PRINT_DEF
-#include <FF/atomic.h>
+#include <FFOS/atomic.h>
 #include <FFOS/file.h>
 
 static ffatomic counter;

@@ -98,6 +98,9 @@ static FFINL char * ffs_find(const char *buf, size_t len, int ch) {
 Return NULL if not found. */
 #define ffs_findc(buf, len, ch)  memchr(buf, ch, len)
 
+/** Return the number of occurrences of byte. */
+FF_EXTN size_t ffs_nfindc(const char *buf, size_t len, int ch);
+
 /** Perform reverse search of byte in a buffer. */
 #if !defined FF_MSVC
 static FFINL char * ffs_rfind(const char *buf, size_t len, int ch) {
@@ -124,6 +127,8 @@ FF_EXTN char * ffs_skip(const char *buf, size_t len, int ch);
 
 /** Skip characters at the end of the string. */
 FF_EXTN char * ffs_rskip(const char *buf, size_t len, int ch);
+
+FF_EXTN char * ffs_rskipof(const char *buf, size_t len, const char *anyof, size_t cnt);
 
 /** Search a string in array using operations with type int64.
 Return 'count' if not found. */
@@ -169,6 +174,7 @@ static FFINL char * ffs_copy(char *dst, const char *bufend, const char *s, size_
 
 #define ffs_copycz(dst, bufend, csz)  ffs_copy(dst, bufend, csz, FFSLEN(csz))
 
+#define ffsz_len  strlen
 #define ffsz_cmp  strcmp
 
 #ifndef FF_MSVC
@@ -377,6 +383,20 @@ static FFINL size_t ffs_fmt(char *buf, const char *end, const char *fmt, ...) {
 	va_list args;
 	va_start(args, fmt);
 	r = ffs_fmtv(buf, end, fmt, args);
+	va_end(args);
+	return r;
+}
+
+/** Match string by format:
+	% width u|U|s
+Return the number of bytes parsed.  Return negative value on error. */
+FF_EXTN size_t ffs_fmatchv(const char *s, size_t len, const char *fmt, va_list va);
+
+static FFINL size_t ffs_fmatch(const char *s, size_t len, const char *fmt, ...) {
+	size_t r;
+	va_list args;
+	va_start(args, fmt);
+	r = ffs_fmatchv(s, len, fmt, args);
 	va_end(args);
 	return r;
 }

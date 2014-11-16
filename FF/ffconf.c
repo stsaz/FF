@@ -350,12 +350,16 @@ int ffconf_schemval(ffparser_schem *ps, void *obj, void *dst)
 		if (!(ps->curarg->flags & FFPARS_FOBJ1))
 			return FFPARS_EVALTYPE;
 
+		if (v.len == 0 && (ps->curarg->flags & FFPARS_FNOTEMPTY))
+			return FFPARS_EVALEMPTY;
+
 		{
 			// save the value
 			ffstr *s = &ps->vals[0];
-			s->ptr = ffmem_realloc(s->ptr, v.len);
-			if (s->ptr == NULL)
+			char *ptr = ffmem_realloc(s->ptr, v.len);
+			if (ptr == NULL)
 				return FFPARS_ESYS;
+			s->ptr = ptr;
 
 			memcpy(s->ptr, v.ptr, v.len);
 			s->len = v.len;
