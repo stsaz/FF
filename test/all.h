@@ -18,7 +18,7 @@ FF_EXTN int test_conf();
 FF_EXTN int test_args();
 
 FF_EXTN int test_time();
-FF_EXTN int test_timer();
+FF_EXTN int test_timerq();
 
 FF_EXTN int test_all();
 

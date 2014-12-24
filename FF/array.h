@@ -121,6 +121,14 @@ FF_EXTN void * _ffarr_append(ffarr *ar, const void *src, size_t num, size_t elsz
 #define ffarr_append(ar, src, num) \
 	_ffarr_append((ffarr*)ar, src, num, sizeof(*(ar)->ptr))
 
+static FFINL void * _ffarr_copy(ffarr *ar, const void *src, size_t num, size_t elsz) {
+	ar->len = 0;
+	return _ffarr_append(ar, src, num, elsz);
+}
+
+#define ffarr_copy(ar, src, num) \
+	_ffarr_copy((ffarr*)ar, src, num, sizeof(*(ar)->ptr))
+
 /** Remove element from array.  Move the last element into the hole. */
 static FFINL void _ffarr_rmswap(ffarr *ar, void *el, size_t elsz) {
 	const void *last;
@@ -335,6 +343,37 @@ FF_EXTN size_t fffile_fmt(fffd fd, ffstr3 *buf, const char *fmt, ...);
 @dst is set if an output data block is ready.
 Return the number of processed bytes. */
 size_t ffbuf_add(ffstr3 *buf, const char *src, size_t len, ffstr *dst);
+
+
+typedef struct ffbstr {
+	ushort len;
+	char data[0];
+} ffbstr;
+
+/** Add one more ffbstr into array.  Reallocate memory, if needed.
+If @data is set, copy it into a new ffbstr. */
+FF_EXTN ffbstr * ffbstr_push(ffstr *buf, const char *data, size_t len);
+
+/** Copy data into ffbstr. */
+static FFINL void ffbstr_copy(ffbstr *bs, const char *data, size_t len)
+{
+	bs->len = (ushort)len;
+	ffmemcpy(bs->data, data, len);
+}
+
+/** Get the next string from array.
+@off: set value to 0 before the first call.
+Return 0 if there is no more data. */
+static FFINL int ffbstr_next(const char *buf, size_t len, size_t *off, ffstr *dst)
+{
+	ffbstr *bs = (ffbstr*)(buf + *off);
+	if (*off == len)
+		return 0;
+
+	ffstr_set(dst, bs->data, bs->len);
+	*off += sizeof(ffbstr) + bs->len;
+	return 1;
+}
 
 
 typedef struct ffrange {

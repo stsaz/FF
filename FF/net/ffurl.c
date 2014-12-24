@@ -197,7 +197,7 @@ int ffurl_parse(ffurl *url, const char *s, size_t len)
 
 	consistent = ((idx == iHost && url->hostlen != 0) || idx == iAfterHost
 		|| (idx == iPort && url->portlen != 0)
-		|| idx == iPathStart || idx == iPath || idx == iQs);
+		|| idx == iPath || idx == iQs);
 	if (consistent)
 		er = FFURL_EOK;
 	else
@@ -206,7 +206,8 @@ int ffurl_parse(ffurl *url, const char *s, size_t len)
 fin:
 	url->idx = (byte)idx;
 	url->len = (ushort)i;
-	if (!(idx == iPath || idx == iQs))
+
+	if (er != FFURL_EMORE && !(idx == iPath || idx == iQs))
 		url->offpath = url->len;
 
 	return er;

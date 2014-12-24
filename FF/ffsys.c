@@ -249,6 +249,16 @@ void fftmrq_init(fftimer_queue *tq)
 	}
 }
 
+void fftmrq_destroy(fftimer_queue *tq, fffd kq)
+{
+	ffrbt_init(&tq->items);
+	if (tq->tmr != FF_BADTMR) {
+		fftmr_close(tq->tmr, kq);
+		tq->tmr = FF_BADTMR;
+		ffaio_fin(&tq->task);
+	}
+}
+
 static void tmrq_onfire(void *t)
 {
 	fftimer_queue *tq = t;

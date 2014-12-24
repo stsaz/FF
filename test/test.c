@@ -413,7 +413,7 @@ int test_all()
 	test_dns();
 	test_fmap();
 	test_time();
-	test_timer();
+	test_timerq();
 	test_sendfile();
 
 	FFTEST_TIMECALL(test_json());

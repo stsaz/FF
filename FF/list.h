@@ -15,6 +15,8 @@ struct fflist_item {
 		, *prev;
 };
 
+#define fflist_sentl(lst)  FFLIST_END
+
 /** Insert a new item into the chain. */
 FF_EXTN void fflist_link(fflist_item *it, fflist_item *after);
 
@@ -48,8 +50,16 @@ static FFINL void fflist_init(fflist *ls) {
 @p: pointer to a structure containing @member_name. */
 #define FFLIST_WALK(lst, p, member_name) \
 	for (p = (void*)(lst)->first \
-		; p != FFLIST_END && NULL != (p = (void*)((size_t)p - ((size_t)&p->member_name - (size_t)p))) \
+		; p != fflist_sentl(lst) \
+			&& ((p = (void*)((size_t)p - ((size_t)&p->member_name - (size_t)p))) || 1) \
 		; p = (void*)p->member_name.next)
+
+#define FFLIST_WALKSAFE(lst, p, li, nextitem) \
+	for (p = (void*)(lst)->first \
+		; p != fflist_sentl(lst) \
+			&& ((nextitem = ((fflist_item*)p)->next) || 1) \
+			&& ((p = (void*)((size_t)p - ((size_t)&p->li - (size_t)p))) || 1) \
+		; p = (void*)nextitem)
 
 /** Call func() for every item in list.
 A list item pointer is translated (by offset in a structure) into an object.

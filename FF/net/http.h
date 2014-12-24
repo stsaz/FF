@@ -456,6 +456,10 @@ static FFINL void ffhttp_addhdr(ffhttp_cook *c, const char *name, size_t namelen
 		, (size_t)namelen, name, (size_t)vallen, val);
 }
 
+static FFINL void ffhttp_addhdr_str(ffhttp_cook *c, const ffstr *name, const ffstr *val) {
+	ffhttp_addhdr(c, name->ptr, name->len, val->ptr, val->len);
+}
+
 /** Write header line.
 'ihdr': enum FFHTTP_HDR. */
 static FFINL void ffhttp_addihdr(ffhttp_cook *c, uint ihdr, const char *val, size_t vallen) {

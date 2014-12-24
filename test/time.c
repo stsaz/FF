@@ -77,7 +77,7 @@ static void t4_func(const fftime *now, void *param) {
 	x(0); //this handler must not be called
 }
 
-int test_timer()
+int test_timerq()
 {
 	fffd kq;
 	ffkqu_time tt;
@@ -128,7 +128,7 @@ int test_timer()
 			break;
 	}
 
-	fftmrq_free(&tq, kq);
+	fftmrq_destroy(&tq, kq);
 	x(0 == ffkqu_close(kq));
 	return 0;
 }

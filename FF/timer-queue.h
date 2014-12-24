@@ -29,13 +29,7 @@ typedef struct fftimer_queue {
 FF_EXTN void fftmrq_init(fftimer_queue *tq);
 
 /** Stop and destroy timer queue. */
-static FFINL void fftmrq_free(fftimer_queue *tq, fffd kq) {
-	tq->items.len = 0;
-	if (tq->tmr != FF_BADTMR) {
-		fftmr_close(tq->tmr, kq);
-		tq->tmr = FF_BADTMR;
-	}
-}
+FF_EXTN void fftmrq_destroy(fftimer_queue *tq, fffd kq);
 
 /** Return TRUE if a timer is in the queue. */
 static FFINL ffbool fftmrq_active(fftimer_queue *tq, fftmrq_entry *t) {
@@ -61,5 +55,5 @@ static FFINL int fftmrq_start(fftimer_queue *tq, fffd kq, uint interval_ms) {
 	tq->tmr = fftmr_create(0);
 	if (tq->tmr == FF_BADTMR)
 		return 1;
-	return fftmr_start(tq->tmr, kq, &tq->task, interval_ms);
+	return fftmr_start(tq->tmr, kq, ffaio_kqudata(&tq->task), interval_ms);
 }

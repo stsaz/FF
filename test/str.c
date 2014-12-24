@@ -530,6 +530,29 @@ static int test_xml(void)
 	return 0;
 }
 
+static int test_bstr(void)
+{
+	ffstr s = {0}, d;
+	ffbstr *bs;
+	size_t off;
+	FFTEST_FUNC;
+
+	bs = ffbstr_push(&s, FFSTR("123"));
+	x(bs != NULL);
+	bs = ffbstr_push(&s, FFSTR("4567"));
+	x(bs != NULL);
+
+	off = 0;
+	x(0 != ffbstr_next(s.ptr, s.len, &off, &d));
+	x(ffstr_eqcz(&d, "123"));
+	x(0 != ffbstr_next(s.ptr, s.len, &off, &d));
+	x(ffstr_eqcz(&d, "4567"));
+	x(0 == ffbstr_next(s.ptr, s.len, &off, &d));
+
+	ffstr_free(&s);
+	return 0;
+}
+
 int test_str()
 {
 	FFTEST_FUNC;
@@ -573,5 +596,6 @@ int test_str()
 	x(10 == ffchar_sizesfx('k') && 10 * 4 == ffchar_sizesfx('t'));
 
 	test_xml();
+	test_bstr();
 	return 0;
 }

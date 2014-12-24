@@ -508,7 +508,7 @@ uint ffchar_sizesfx(int suffix)
 		return 30;
 	case 't':
 		return 40;
-		}
+	}
 	return 0;
 }
 
@@ -1232,6 +1232,23 @@ size_t ffbuf_add(ffstr3 *buf, const char *src, size_t len, ffstr *dst)
 	ffstr_set(dst, buf->ptr, buf->len);
 	buf->len = 0;
 	return sz;
+}
+
+
+ffbstr * ffbstr_push(ffstr *buf, const char *data, size_t len)
+{
+	ffbstr *bs;
+	char *p = ffmem_realloc(buf->ptr, buf->len + sizeof(ffbstr) + len);
+	if (p == NULL)
+		return NULL;
+
+	bs = (ffbstr*)(p + buf->len);
+	if (data != NULL)
+		ffbstr_copy(bs, data, len);
+
+	buf->ptr = p;
+	buf->len += sizeof(ffbstr) + len;
+	return bs;
 }
 
 
