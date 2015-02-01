@@ -21,6 +21,11 @@ typedef struct fftaskmgr {
 	fflock lk;
 } fftaskmgr;
 
+static FFINL void fftask_init(fftaskmgr *mgr) {
+	fflist_init(&mgr->tasks);
+	fflk_init(&mgr->lk);
+}
+
 /** Return TRUE if a task is in the queue. */
 static FFINL ffbool fftask_active(fftaskmgr *mgr, fftask *task) {
 	return task->sib.next != FFLIST_END || task->sib.prev != FFLIST_END

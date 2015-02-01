@@ -189,8 +189,14 @@ static FFINL char * ffsz_copy(char *dst, size_t cap, const char *src, size_t len
 	char *end = dst + cap;
 	if (cap != 0) {
 		dst = ffs_copy(dst, end - 1, src, len);
-		ffs_copyc(dst, end, '\0');
+		*dst = '\0';
 	}
+	return dst;
+}
+
+static FFINL char * ffsz_fcopy(char *dst, const char *src, size_t len) {
+	dst = ffmem_copy(dst, src, len);
+	*dst = '\0';
 	return dst;
 }
 

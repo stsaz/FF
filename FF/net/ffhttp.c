@@ -267,7 +267,7 @@ int ffhttp_nexthdr(ffhttp_hdr *h, const char *d, size_t len)
 				//break;
 
 			default:
-				if (!(ffchar_isname(ch) && ch != '_')) {
+				if (!ffchar_isname(ch)) {
 					// headers starting with '-' are not allowed
 					er = FFHTTP_EHDRKEY;
 					goto fail;
@@ -291,7 +291,7 @@ int ffhttp_nexthdr(ffhttp_hdr *h, const char *d, size_t len)
 				//break;
 
 			default:
-				if (!((ffchar_isname(ch) && ch != '_') || ch == '-')) {
+				if (!(ffchar_isname(ch) || ch == '-')) {
 					er = FFHTTP_EHDRKEY;
 					goto fail;
 				}

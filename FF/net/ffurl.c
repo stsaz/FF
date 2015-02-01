@@ -426,6 +426,129 @@ uint ffuri_scheme2port(const char *scheme, size_t schemelen)
 }
 
 
+static int _ffurlqs_process_str(ffparser *p, const char **pd)
+{
+	const char *d = *pd;
+	char c;
+
+	if (*d == '+') {
+		c = ' ';
+		return _ffpars_copyBuf(p, &c, sizeof(char));
+
+	} else if (*d == '%') {
+		//no check for invalid hex char
+		int b = (ffchar_tohex(d[1]) << 4);
+		c = b | ffchar_tohex(d[2]);
+		*pd += FFSLEN("XX");
+		return _ffpars_copyBuf(p, &c, sizeof(char));
+	}
+
+	c = *d;
+	return _ffpars_addchar(p, c);
+}
+
+int ffurlqs_parse(ffparser *p, const char *d, size_t *len)
+{
+	enum {
+		qs_key_start, qs_key, qs_val_start, qs_val
+	};
+	const char *datao = d;
+	const char *end = d + *len;
+	int r = FFPARS_MORE, st = p->state;
+
+	for (;  d != end;  d++) {
+		int ch = *d;
+		p->ch++;
+
+		switch (st) {
+
+		case qs_key_start:
+			if (ch == '&')
+				break;
+
+			ffpars_cleardata(p);
+			p->val.ptr = (char*)d;
+			st = qs_key;
+			//break;
+
+		case qs_key:
+			if (ch == '=') {
+				st = qs_val_start;
+				r = FFPARS_KEY;
+				break;
+			}
+
+			r = _ffurlqs_process_str(p, &d);
+			break;
+
+		case qs_val_start:
+			ffpars_cleardata(p);
+			p->val.ptr = (char*)d;
+			st = qs_val;
+			//break;
+
+		case qs_val:
+			if (ch == '&') {
+				st = qs_key_start;
+				r = FFPARS_VAL;
+				break;
+			}
+
+			r = _ffurlqs_process_str(p, &d);
+			break;
+		}
+
+		if (r != 0) {
+			d++;
+			break;
+		}
+	}
+
+	if (r == FFPARS_MORE && st == qs_val)
+		r = FFPARS_VAL; //the last value
+
+	p->state = st;
+	*len = d - datao;
+	p->ret = (char)r;
+	return r;
+}
+
+int ffurlqs_parseinit(ffparser *p)
+{
+	char *ctx;
+	ffpars_init(p);
+
+	ctx = ffarr_push(&p->ctxs, char);
+	if (ctx == NULL)
+		return 1;
+
+	*ctx = FFPARS_OPEN;
+	p->type = FFPARS_TOBJ;
+	return 0;
+}
+
+int ffurlqs_scheminit(ffparser_schem *ps, ffparser *p, const ffpars_ctx *ctx)
+{
+	const ffpars_arg top = { NULL, FFPARS_TOBJ | FFPARS_FPTR, FFPARS_DST(ctx) };
+	ffpars_scheminit(ps, p, &top);
+
+	if (0 != ffurlqs_parseinit(p))
+		return 1;
+	if (FFPARS_OPEN != ffpars_schemrun(ps, FFPARS_OPEN))
+		return 1;
+
+	return 0;
+}
+
+int ffurlqs_schemfin(ffparser_schem *ps)
+{
+	int r = ffpars_schemrun(ps, FFPARS_CLOSE);
+	if (r != FFPARS_CLOSE)
+		return r;
+	return 0;
+}
+
+
 int ffip4_parse(struct in_addr *a, const char *s, size_t len)
 {
 	byte *adr = (byte*)a;

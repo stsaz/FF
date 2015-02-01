@@ -46,6 +46,8 @@ static FFINL void fflist_init(fflist *ls) {
 	ls->first = ls->last = FFLIST_END;
 }
 
+#define fflist_empty(lst)  ((lst)->first == fflist_sentl(lst))
+
 /** Traverse a list.
 @p: pointer to a structure containing @member_name. */
 #define FFLIST_WALK(lst, p, member_name) \

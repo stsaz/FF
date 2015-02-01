@@ -28,7 +28,7 @@ int test_json_parse(const char *testJsonFile)
 	int ckf = FFJSON_PRETTY4SPC;
 	void *dst;
 
-	f = fffile_open(testJsonFile, FFO_OPEN | O_RDONLY);
+	f = fffile_open(testJsonFile, O_RDONLY);
 	if (!x(f != FF_BADFD))
 		return 0;
 
@@ -232,7 +232,7 @@ int test_json_generat(const ffsyschar *fn)
 
 	if (0 != ffenv_expand(fn, fne, FFCNT(fne)))
 		fn = fne;
-	f = fffile_openq(fn, FFO_CREATE | O_WRONLY);
+	f = fffile_openq(fn, O_CREAT | O_TRUNC | O_WRONLY);
 	if (!x(f != FF_BADFD))
 		return 0;
 

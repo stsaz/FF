@@ -151,11 +151,17 @@ static int scHdlVal(ffparser_schem *ps, ffpars_ctx *ctx);
 static int scOpenBrace(ffparser_schem *ps);
 static int scCloseBrace(ffparser_schem *ps);
 
+static int _ffpars_schem_onval_def(ffparser_schem *ps, void *obj, void *dst)
+{
+	return FFPARS_OK;
+}
+
 void ffpars_scheminit(ffparser_schem *ps, ffparser *p, const ffpars_arg *top)
 {
 	ffmem_tzero(ps);
 	ps->p = p;
 	ps->curarg = top;
+	ps->onval = &_ffpars_schem_onval_def;
 }
 
 // search key name in the current context

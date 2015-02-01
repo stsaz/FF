@@ -240,7 +240,7 @@ static int test_fmap()
 
 	if (0 != ffenv_expand(fn, fne, FFCNT(fne)))
 		fn = fne;
-	fd = fffile_openq(fn, FFO_CREATE | O_RDWR);
+	fd = fffile_openq(fn, O_CREAT | O_TRUNC | O_RDWR);
 	x(fd != FF_BADFD);
 
 	ffs_fill(buf, buf + FFCNT(buf), ' ', FFCNT(buf));

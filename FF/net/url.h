@@ -5,6 +5,7 @@ Copyright (c) 2013 Simon Zolin
 #pragma once
 
 #include <FF/array.h>
+#include <FF/parse.h>
 #include <FFOS/socket.h>
 
 
@@ -93,6 +94,17 @@ FF_EXTN ssize_t ffuri_escape(char *dst, size_t cap, const char *s, size_t len, i
 /** Get port number by scheme name.
 Return 0 if unknown. */
 FF_EXTN uint ffuri_scheme2port(const char *scheme, size_t schemelen);
+
+
+/** Parse and decode query string.
+@d: full and valid query string. */
+FF_EXTN int ffurlqs_parse(ffparser *p, const char *d, size_t *len);
+
+FF_EXTN int ffurlqs_parseinit(ffparser *p);
+
+FF_EXTN int ffurlqs_scheminit(ffparser_schem *ps, ffparser *p, const ffpars_ctx *ctx);
+
+FF_EXTN int ffurlqs_schemfin(ffparser_schem *ps);
 
 
 /** Parse IPv4 address.

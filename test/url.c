@@ -5,6 +5,8 @@ Copyright (c) 2013 Simon Zolin
 #include <FFOS/test.h>
 #include <FFOS/socket.h>
 #include <FF/net/url.h>
+#include <FF/parse.h>
+
 
 #define x FFTEST_BOOL
 
@@ -175,6 +177,66 @@ static int test_addr()
 	x(0 != ffaddr_set(&a, FFSTR("::1"), FFSTR("88080")));
 	return 0;
 }
+
+
+struct qs_data_s {
+	ffstr empty_val
+		, v
+		, v1
+		, v2;
+};
+
+static const ffpars_arg qs_kv_args[] = {
+	{ "",  FFPARS_TSTR | FFPARS_FCOPY,  FFPARS_DSTOFF(struct qs_data_s, v) }
+	, { "key0",  FFPARS_TSTR | FFPARS_FCOPY,  FFPARS_DSTOFF(struct qs_data_s, empty_val) }
+	, { "key1",  FFPARS_TSTR | FFPARS_FCOPY,  FFPARS_DSTOFF(struct qs_data_s, v1) }
+	, { "my key2",  FFPARS_TSTR | FFPARS_FCOPY,  FFPARS_DSTOFF(struct qs_data_s, v2) }
+};
+
+static int test_qs_parse(void)
+{
+	ffparser_schem ps;
+	ffparser p;
+	ffstr input;
+	int rc;
+	size_t len;
+	struct qs_data_s qsd;
+	ffpars_ctx psctx = {0};
+	FFTEST_FUNC;
+
+	ffstr_setcz(&qsd.empty_val, "non-empty");
+	ffpars_setargs(&psctx, &qsd, qs_kv_args, FFCNT(qs_kv_args));
+	ffurlqs_scheminit(&ps, &p, &psctx);
+	ffstr_setcz(&input, "&=my+val&key0=&key1=my+val1&&my%20key2=my%20val2");
+
+	while (input.len != 0) {
+
+		len = input.len;
+		rc = ffurlqs_parse(&p, input.ptr, &len);
+		x(!ffpars_iserr(rc));
+		ffstr_shift(&input, len);
+
+		rc = ffpars_schemrun(&ps, rc);
+		x(!ffpars_iserr(rc));
+	}
+
+	x(ffstr_eqcz(&qsd.v, "my val"));
+	x(ffstr_eqcz(&qsd.empty_val, ""));
+	x(ffstr_eqcz(&qsd.v1, "my val1"));
+	x(ffstr_eqcz(&qsd.v2, "my val2"));
+
+	x(0 == ffurlqs_schemfin(&ps));
+	ffpars_free(&p);
+	ffpars_schemfree(&ps);
+
+	ffstr_free(&qsd.v);
+	ffstr_free(&qsd.empty_val);
+	ffstr_free(&qsd.v1);
+	ffstr_free(&qsd.v2);
+
+	return 0;
+}
+
 
 int test_url()
 {
@@ -393,6 +455,7 @@ int test_url()
 	test_ip4();
 	test_ip6();
 	test_addr();
+	test_qs_parse();
 
 	return 0;
 }
