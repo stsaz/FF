@@ -364,15 +364,16 @@ static FFINL void ffbstr_copy(ffbstr *bs, const char *data, size_t len)
 /** Get the next string from array.
 @off: set value to 0 before the first call.
 Return 0 if there is no more data. */
-static FFINL int ffbstr_next(const char *buf, size_t len, size_t *off, ffstr *dst)
+static FFINL ffbstr* ffbstr_next(const char *buf, size_t len, size_t *off, ffstr *dst)
 {
 	ffbstr *bs = (ffbstr*)(buf + *off);
 	if (*off == len)
-		return 0;
+		return NULL;
 
-	ffstr_set(dst, bs->data, bs->len);
+	if (dst != NULL)
+		ffstr_set(dst, bs->data, bs->len);
 	*off += sizeof(ffbstr) + bs->len;
-	return 1;
+	return bs;
 }
 
 

@@ -497,6 +497,57 @@ ssize_t ffs_escape(char *dst, size_t cap, const char *s, size_t len, int type)
 	return dst - dsto;
 }
 
+int ffs_wildcard(const char *pattern, size_t patternlen, const char *s, size_t len, uint flags)
+{
+	const char *endpatt = pattern + patternlen, *end = s + len;
+	const char *astk = endpatt, *astk_s = NULL;
+	int ch1, ch2;
+
+	while (pattern != endpatt) {
+
+		if (*pattern == '*') {
+			if (++pattern == endpatt)
+				return 0; //the rest of input string matches
+			astk = pattern;
+			astk_s = s + 1;
+			continue;
+		}
+
+		if (s == end)
+			return 1; //too short input string
+
+		if (*pattern == '?') {
+			s++;
+			pattern++;
+			continue;
+		}
+
+		ch1 = *pattern;
+		ch2 = *s;
+		if (flags & FFS_WC_ICASE) {
+			if (ffchar_isup(ch1))
+				ch1 = ffchar_lower(ch1);
+			if (ffchar_isup(ch2))
+				ch2 = ffchar_lower(ch2);
+		}
+
+		if (ch1 == ch2) {
+			s++;
+			pattern++;
+
+		} else {
+			if (astk == endpatt)
+				return 1; //mismatch
+
+			pattern = astk;
+			s = astk_s++;
+		}
+	}
+
+	return (pattern == endpatt && s == end) ? 0 : 1;
+}
+
+
 uint ffchar_sizesfx(int suffix)
 {
 	switch (ffchar_lower(suffix)) {

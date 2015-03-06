@@ -15,6 +15,7 @@ Copyright (c) 2013 Simon Zolin
 #include <FF/net/dns.h>
 #include <FF/filemap.h>
 #include <FF/sendfile.h>
+#include <FF/dir.h>
 #include <FF/net/url.h>
 
 #include <test/all.h>
@@ -397,35 +398,106 @@ static int test_sendfile()
 	return 0;
 }
 
-int test_all()
+static int test_direxp(void)
 {
+	uint n;
+	ffdirexp dex;
+	const char *name;
+	char mask[64];
+	static const char *const names[] = {
+		"./ff-anothertmpfile.html", "./ff-tmpfile.htm"
+#ifdef FF_WIN
+		, "./ff-tmpfile.HTML"
+#else
+		, "./ff-tmpfile.html"
+#endif
+	};
+
+	FFTEST_FUNC;
+
+	for (n = 0;  n < 3;  n++) {
+		fffd f = fffile_open(names[n], O_CREAT);
+		x(f != FF_BADFD);
+		fffile_close(f);
+	}
+
+	ffsz_copycz(mask, "./*.htm.tmp");
+	x(0 != ffdir_expopen(&dex, mask, 0) && fferr_last() == ENOMOREFILES);
+
+	ffsz_copycz(mask, "./*.htm");
+	x(0 == ffdir_expopen(&dex, mask, 0));
+	n = 0;
+	for (;;) {
+		name = ffdir_expread(&dex);
+		if (name == NULL)
+			break;
+		x(!ffsz_cmp(name, names[1]));
+		n++;
+	}
+	x(n == 1);
+	ffdir_expclose(&dex);
+
+	ffsz_copycz(mask, "./f*.htm*");
+	x(0 == ffdir_expopen(&dex, mask, 0));
+	n = 0;
+	for (;;) {
+		name = ffdir_expread(&dex);
+		if (name == NULL)
+			break;
+		x(!ffsz_cmp(name, names[n++]));
+	}
+	x(n == 3);
+	ffdir_expclose(&dex);
+
+	for (n = 0;  n < 3;  n++) {
+		fffile_rm(names[n]);
+	}
+	return 0;
+}
+
+FF_EXTN int test_regex(void);
+
+struct test_s {
+	const char *nm;
+	int (*func)();
+};
+
+#define F(nm) { #nm, &test_ ## nm }
+static const struct test_s _fftests[] = {
+	F(str), F(regex)
+	, F(bits), F(list), F(rbtlist), F(htable), F(crc)
+	, F(fmap), F(time), F(timerq), F(sendfile), F(path), F(direxp)
+	, F(url), F(http), F(dns)
+	, F(json), F(conf), F(args)
+};
+#undef F
+
+int main(int argc, const char **argv)
+{
+	size_t i, iarg;
 	ffos_init();
 
-	test_bits();
-	test_str();
-	test_list();
-	test_rbtlist();
-	test_htable();
-	test_crc();
-	test_path();
-	test_url();
-	test_http();
-	test_dns();
-	test_fmap();
-	test_time();
-	test_timerq();
-	test_sendfile();
+	if (argc == 1) {
+		//run all tests
+		for (i = 0;  i < FFCNT(_fftests);  i++) {
+			FFTEST_TIMECALL(_fftests[i].func());
+		}
 
-	FFTEST_TIMECALL(test_json());
-	test_conf();
-	test_args();
+	} else {
+		//run the specified tests only
+
+		for (iarg = 1;  iarg < argc;  iarg++) {
+			for (i = 0;  i < FFCNT(_fftests);  i++) {
+
+				if (!ffsz_cmp(argv[iarg], _fftests[i].nm)) {
+					FFTEST_TIMECALL(_fftests[i].func());
+					break;
+				}
+			}
+		}
+	}
 
 	printf("%u tests were run, failed: %u.\n", fftestobj.nrun, fftestobj.nfail);
 
 	return 0;
-}
-
-int main(int argc, const char **argv)
-{
-	return test_all();
 }

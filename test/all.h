@@ -20,8 +20,6 @@ FF_EXTN int test_args();
 FF_EXTN int test_time();
 FF_EXTN int test_timerq();
 
-FF_EXTN int test_all();
-
 #define TESTDIR "./test"
 
 #ifdef FF_UNIX

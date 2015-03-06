@@ -8,6 +8,8 @@ Copyright (c) 2014 Simon Zolin
 #include <FF/sendfile.h>
 #include <FF/timer-queue.h>
 #include <FF/taskqueue.h>
+#include <FF/dir.h>
+#include <FF/path.h>
 
 
 static void tmrq_onfire(void *t);
@@ -309,4 +311,149 @@ void fftask_run(fftaskmgr *mgr)
 
 		task->handler(task->param);
 	}
+}
+
+
+struct _ffdir_sort {
+	size_t nameoff;
+	uint flags;
+};
+
+#if defined FF_MSVC || defined FF_BSD
+static int _ffdir_cmpfilename(void *udata, const void *a, const void *b)
+#else
+static int _ffdir_cmpfilename(const void *a, const void *b, void *udata)
+#endif
+{
+#if defined FF_WIN && !defined FF_MSVC
+	char *n1 = (*(char**)a), *n2 = (*(char**)b);
+#else
+	struct _ffdir_sort *ds = udata;
+	char *n1 = (*(char**)a) + ds->nameoff, *n2 = (*(char**)b) + ds->nameoff;
+#endif
+
+#ifdef FF_UNIX
+	return ffsz_cmp(n1, n2);
+#else
+	return ffsz_icmp(n1, n2);
+#endif
+}
+
+/*
+Windows: Find*() functions also match filenames with short 8.3 names */
+int ffdir_expopen(ffdirexp *dex, char *pattern, uint flags)
+{
+	ffdir dir;
+	ffdirentry de;
+	int rc = 1;
+	uint wcflags;
+	char **pname;
+	ffstr path, wildcard;
+	ffarr names = {0};
+	ffstr3 fullname = {0};
+
+	ffmem_tzero(dex);
+	ffmem_tzero(&de);
+
+	if (-1 != ffpath_split2(pattern, ffsz_len(pattern), &path, &wildcard))
+		path.len += FFSLEN("/");
+
+#ifdef FF_UNIX
+	if (path.len == 0)
+		dir = opendir(".");
+	else {
+		ffarr_back(&path) = '\0';
+		dir = opendir(path.ptr);
+		ffarr_back(&path) = '/';
+	}
+
+	if (dir == NULL)
+		return 1;
+
+#else //windows:
+	{
+	ffsyschar *wpatt;
+	ffsyschar wpatt_s[FF_MAXFN];
+	size_t wpatt_len = FFCNT(wpatt_s);
+
+	wpatt = ffs_utow(wpatt_s, &wpatt_len, pattern, -1);
+	if (wpatt == NULL)
+		return 1;
+
+	dir = FindFirstFileEx(wpatt, FindExInfoBasic, &de.info, 0, NULL, 0);
+	if (wpatt != wpatt_s)
+		ffmem_free(wpatt);
+
+	if (dir == INVALID_HANDLE_VALUE) {
+		if (fferr_last() == ERROR_FILE_NOT_FOUND)
+			fferr_set(ENOMOREFILES);
+		return 1;
+	}
+	}
+#endif
+
+	wcflags = FFPATH_ICASE ? FFS_WC_ICASE : 0;
+
+	for (;;) {
+
+		if (0 != ffdir_read(dir, &de)) {
+			if (fferr_last() == ENOMOREFILES)
+				break;
+			goto done;
+		}
+
+		if (NULL == _ffarr_grow(&names, 1, FFARR_GROWQUARTER, sizeof(char*)))
+			goto done;
+
+		fullname.len = 0;
+		if (0 == ffstr_catfmt(&fullname, "%S%*q%Z", &path, de.namelen, ffdir_entryname(&de)))
+			goto done;
+		fullname.len--;
+
+		if (0 != ffs_wildcard(wildcard.ptr, wildcard.len, fullname.ptr + path.len, fullname.len - path.len, wcflags))
+			continue;
+
+		pname = ffarr_push(&names, char*);
+		*pname = fullname.ptr;
+		ffarr_null(&fullname);
+	}
+
+	if (names.len == 0)
+		goto done;
+
+	if (!(flags & FFDIR_EXP_NOSORT)) {
+#if defined FF_WIN && !defined FF_MSVC
+		qsort(names.ptr, names.len, sizeof(char*), (int(*)(const void*, const void*))&_ffdir_cmpfilename);
+#else
+		struct _ffdir_sort ds;
+		ds.nameoff = path.len;
+#ifdef FF_WIN
+		qsort_s(names.ptr, names.len, sizeof(char*), &_ffdir_cmpfilename, &ds);
+#elif defined FF_LINUX
+		qsort_r(names.ptr, names.len, sizeof(char*), &_ffdir_cmpfilename, &ds);
+#else
+		qsort_r(names.ptr, names.len, sizeof(char*), &ds, &_ffdir_cmpfilename);
+#endif
+#endif
+	}
+
+	rc = 0;
+
+done:
+	dex->size = names.len;
+	dex->names = (char**)names.ptr;
+	if (rc != 0)
+		ffdir_expclose(dex);
+	ffdir_close(dir);
+	ffarr_free(&fullname);
+	return rc;
+}
+
+void ffdir_expclose(ffdirexp *dex)
+{
+	size_t i;
+	for (i = 0;  i < dex->size;  i++) {
+		ffmem_free(dex->names[i]);
+	}
+	ffmem_free(dex->names);
 }

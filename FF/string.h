@@ -175,6 +175,7 @@ static FFINL char * ffs_copy(char *dst, const char *bufend, const char *s, size_
 #define ffs_copycz(dst, bufend, csz)  ffs_copy(dst, bufend, csz, FFSLEN(csz))
 
 #define ffsz_len  strlen
+#define ffsz_findof strpbrk
 #define ffsz_cmp  strcmp
 
 #ifndef FF_MSVC
@@ -199,6 +200,8 @@ static FFINL char * ffsz_fcopy(char *dst, const char *src, size_t len) {
 	*dst = '\0';
 	return dst;
 }
+
+#define ffsz_copycz(dst, csz)  ffmemcpy(dst, csz, sizeof(csz))
 
 /** Convert case (ANSI).
 Return the number of bytes written. */
@@ -417,3 +420,28 @@ enum FFS_ESCAPE {
 Return the number of bytes written.
 Return <0 if there is no enough space (the number of input bytes processed, negative value). */
 FF_EXTN ssize_t ffs_escape(char *dst, size_t cap, const char *s, size_t len, int type);
+
+
+enum FFS_WILDCARD {
+	FFS_WC_ICASE = 1
+};
+
+/** Match string by a wildcard pattern ('*', '?').
+@flags: enum FFS_WILDCARD.
+Return 0 if match. */
+FF_EXTN int ffs_wildcard(const char *pattern, size_t patternlen, const char *s, size_t len, uint flags);
+
+
+/** Match string by a regular expression.
+REGEX:     MEANING:
+.          any character
+c?         optional character
+\.         a special character is escaped
+[az]       either 'a' or 'z'
+[a-z]      any character from 'a' to 'z'
+a|bc       either "a" or "bc"
+Return 0 if match;  >0 if non-match;  <0 if regexp is invalid. */
+FF_EXTN int ffs_regex(const char *regexp, size_t regexp_len, const char *s, size_t len, uint flags);
+
+#define ffs_regexcz(regexpcz, s, len, flags) \
+	ffs_regex(regexpcz, FFSLEN(regexpcz), s, len, flags)

@@ -553,6 +553,92 @@ static int test_bstr(void)
 	return 0;
 }
 
+static void test_wildcard(void)
+{
+	FFTEST_FUNC;
+
+	x(0 == ffs_wildcard(NULL, 0, NULL, 0, 0));
+	x(0 == ffs_wildcard(FFSTR("*"), NULL, 0, 0));
+	x(0 < ffs_wildcard(FFSTR("?"), NULL, 0, 0));
+	x(0 < ffs_wildcard(NULL, 0, FFSTR("a"), 0));
+	x(0 == ffs_wildcard(FFSTR("aa"), FFSTR("aa"), 0));
+	x(0 < ffs_wildcard(FFSTR("aa"), FFSTR("ba"), 0));
+	x(0 == ffs_wildcard(FFSTR("*"), FFSTR("aa"), 0));
+	x(0 == ffs_wildcard(FFSTR("?b?"), FFSTR("abc"), 0));
+
+	x(0 == ffs_wildcard(FFSTR("*c"), FFSTR("abc"), 0));
+	x(0 < ffs_wildcard(FFSTR("*c"), FFSTR("ab!"), 0));
+	x(0 == ffs_wildcard(FFSTR("a*"), FFSTR("abc"), 0));
+	x(0 == ffs_wildcard(FFSTR("a*c"), FFSTR("abbc"), 0));
+
+	x(0 == ffs_wildcard(FFSTR("*aB*"), FFSTR("ac.Abc"), FFS_WC_ICASE));
+	x(0 == ffs_wildcard(FFSTR("*ab*"), FFSTR("ac.abc"), 0));
+	x(0 == ffs_wildcard(FFSTR("a*a*bb*c"), FFSTR("aabcabbc"), 0));
+	x(0 < ffs_wildcard(FFSTR("a*a*bbc*c"), FFSTR("aabcabbc"), 0));
+	x(0 < ffs_wildcard(FFSTR("*ab*"), FFSTR("ac.ac"), 0));
+}
+
+int test_regex(void)
+{
+	FFTEST_FUNC;
+
+	x(0 == ffs_regex(FFSTR("ab"), FFSTR("ab"), 0));
+	x(0 != ffs_regex(FFSTR("ab"), FFSTR("abc"), 0));
+	x(0 != ffs_regex(FFSTR("abc"), FFSTR("ab"), 0));
+
+	x(0 == ffs_regex(FFSTR("a|b"), FFSTR("a"), 0));
+	x(0 != ffs_regex(FFSTR("a|b"), FFSTR("aa"), 0));
+	x(0 == ffs_regex(FFSTR("a|b"), FFSTR("b"), 0));
+	x(0 != ffs_regex(FFSTR("a|bc"), FFSTR("b"), 0));
+	x(0 == ffs_regex(FFSTR("a|bc"), FFSTR("bc"), 0));
+	x(0 == ffs_regex(FFSTR("a|"), FFSTR(""), 0));
+	x(0 == ffs_regex(FFSTR("ab|abc|abcd"), FFSTR("abcd"), 0));
+	x(0 != ffs_regex(FFSTR("ab|abc\\|abcd"), FFSTR("abcd"), 0));
+	x(0 == ffs_regex(FFSTR("ab|abc\\|abcd"), FFSTR("abc|abcd"), 0));
+
+	x(0 == ffs_regex(FFSTR("a."), FFSTR("ab"), 0));
+	x(0 == ffs_regex(FFSTR("a\\..c"), FFSTR("a.bc"), 0));
+	x(0 != ffs_regex(FFSTR("a\\..c"), FFSTR("a!bc"), 0));
+	x(0 != ffs_regex(FFSTR("a\\!.c"), FFSTR("a!bc"), 0));
+
+	x(0 != ffs_regex(FFSTR("a?bc"), FFSTR("bcc"), 0));
+	//x(0 > ffs_regex(FFSTR("a??bc"), FFSTR("abc"), 0));
+	//x(0 > ffs_regex(FFSTR("?bc"), FFSTR("abc"), 0));
+	x(0 == ffs_regex(FFSTR("a?bc?"), FFSTR("b"), 0));
+	x(0 == ffs_regex(FFSTR("a?bc?"), FFSTR("ab"), 0));
+	x(0 == ffs_regex(FFSTR("a?bc?"), FFSTR("bc"), 0));
+	x(0 == ffs_regex(FFSTR("a?bc?"), FFSTR("abc"), 0));
+	x(0 == ffs_regex(FFSTR("a\\??"), FFSTR("a?"), 0));
+	x(0 == ffs_regex(FFSTR("a\\??"), FFSTR("a"), 0));
+	x(0 == ffs_regex(FFSTR("\\|?bc"), FFSTR("|bc"), 0));
+
+	x(0 == ffs_regex(FFSTR("[123]"), FFSTR("1"), 0));
+	x(0 == ffs_regex(FFSTR("[123]"), FFSTR("3"), 0));
+	x(1 == ffs_regex(FFSTR("[123]"), FFSTR("4"), 0));
+	x(1 == ffs_regex(FFSTR("[123]"), FFSTR("123"), 0));
+	x(0 == ffs_regex(FFSTR("[12\\?3]"), FFSTR("?"), 0));
+	x(0 == ffs_regex(FFSTR("[12\\]3]"), FFSTR("]"), 0));
+	x(0 == ffs_regex(FFSTR("[\\[-\\]]"), FFSTR("\\"), 0));
+	x(0 == ffs_regex(FFSTR("[1-2-3]"), FFSTR("3"), 0));
+	x(0 == ffs_regex(FFSTR("[1-3]"), FFSTR("2"), 0));
+	x(1 == ffs_regex(FFSTR("[1-3]"), FFSTR("4"), 0));
+	x(0 == ffs_regex(FFSTR("[a-z0-9]"), FFSTR("1"), 0));
+	x(0 == ffs_regex(FFSTR("[a-z0-9]"), FFSTR("3"), 0));
+	x(0 == ffs_regex(FFSTR("[a-z0-9]"), FFSTR("w"), 0));
+	x(0 == ffs_regex(FFSTR("[a-z0-9]"), FFSTR("z"), 0));
+	x(1 == ffs_regex(FFSTR("[a-z0-9]"), FFSTR("Z"), 0));
+	x(0 > ffs_regex(FFSTR("[]"), FFSTR(""), 0));
+	x(0 > ffs_regex(FFSTR("[["), FFSTR(""), 0));
+	x(0 > ffs_regex(FFSTR("["), FFSTR(""), 0));
+	x(0 > ffs_regex(FFSTR("]"), FFSTR(""), 0));
+	x(0 > ffs_regex(FFSTR("[1--"), FFSTR("1"), 0));
+	x(1 == ffs_regex(FFSTR("[3-1]"), FFSTR("3"), 0));
+	x(0 > ffs_regex(FFSTR("[-1]"), FFSTR("1"), 0));
+	x(0 > ffs_regex(FFSTR("[1-]"), FFSTR("1"), 0));
+
+	return 0;
+}
+
 int test_str()
 {
 	FFTEST_FUNC;
@@ -597,5 +683,6 @@ int test_str()
 
 	test_xml();
 	test_bstr();
+	test_wildcard();
 	return 0;
 }
