@@ -2,7 +2,7 @@
 Copyright (c) 2013 Simon Zolin
 */
 
-#include <FF/json.h>
+#include <FF/data/json.h>
 
 
 static const char *const _ffjson_stypes[] = {

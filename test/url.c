@@ -5,7 +5,7 @@ Copyright (c) 2013 Simon Zolin
 #include <FFOS/test.h>
 #include <FFOS/socket.h>
 #include <FF/net/url.h>
-#include <FF/parse.h>
+#include <FF/data/parse.h>
 
 
 #define x FFTEST_BOOL

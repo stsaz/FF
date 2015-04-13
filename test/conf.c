@@ -4,8 +4,8 @@ Copyright (c) 2013 Simon Zolin
 
 #include <FFOS/test.h>
 #include <FFOS/file.h>
-#include <FF/conf.h>
-#include <FF/psarg.h>
+#include <FF/data/conf.h>
+#include <FF/data/psarg.h>
 #include "schem.h"
 #include "all.h"
 

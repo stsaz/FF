@@ -5,7 +5,7 @@ Copyright (c) 2013 Simon Zolin
 #include <FFOS/test.h>
 #include <FFOS/file.h>
 #include <FFOS/process.h>
-#include <FF/json.h>
+#include <FF/data/json.h>
 #include "schem.h"
 #include "all.h"
 

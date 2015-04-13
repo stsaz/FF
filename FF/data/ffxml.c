@@ -2,7 +2,7 @@
 Copyright (c) 2014 Simon Zolin
 */
 
-#include <FF/xml.h>
+#include <FF/data/xml.h>
 #include <FF/string.h>
 
 

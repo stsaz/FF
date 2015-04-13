@@ -2,7 +2,7 @@
 Copyright (c) 2013 Simon Zolin
 */
 
-#include <FF/parse.h>
+#include <FF/data/parse.h>
 
 static const char *const _ffpars_serr[] = {
 	""

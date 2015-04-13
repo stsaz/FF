@@ -4,7 +4,7 @@ Copyright (c) 2013 Simon Zolin
 
 #include <FFOS/test.h>
 #include <FF/array.h>
-#include <FF/xml.h>
+#include <FF/data/xml.h>
 
 #include <test/all.h>
 
