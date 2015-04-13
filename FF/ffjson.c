@@ -474,6 +474,18 @@ int ffjson_validate(ffparser *json, const char *data, size_t len)
 }
 
 
+/* Search and select an argument by type */
+static const ffpars_arg * _ffjson_schem_argfind(ffpars_ctx *ctx, int type)
+{
+	uint i;
+	for (i = 0;  i < ctx->nargs;  i++) {
+		if (type == (ctx->args[i].flags & FFPARS_FTYPEMASK))
+			return &ctx->args[i];
+	}
+
+	return NULL;
+}
+
 // keep in sync with FFPARS_T
 static const byte parsTypes[] = {
 	FFJSON_TSTR
@@ -485,19 +497,40 @@ static const byte parsTypes[] = {
 	, FFJSON_TINT
 };
 
+/*
+. If the context is array, find a handler for a data type */
 int ffjson_schemval(ffparser_schem *ps, void *obj, void *dst)
 {
-	int t = ps->curarg->flags & FFPARS_FTYPEMASK;
+	int t;
 	uint pt = ps->p->type;
 
 	if (ps->p->ret == FFPARS_KEY)
 		return FFPARS_OK;
 
+	else if (ps->p->ret == FFPARS_OPEN) {
+		if (ps->p->ctxs.len >= 2 && ffarr_back(&ps->p->ctxs) == FFPARS_TARR) {
+
+			ps->curarg = _ffjson_schem_argfind(&ffarr_back(&ps->ctxs), ps->p->type);
+			if (ps->curarg == NULL)
+				return FFPARS_EARRTYPE;
+		}
+
+		return FFPARS_OK;
+
+	} else if (ps->p->ret != FFPARS_VAL)
+		return FFPARS_OK;
+
+	if (ffarr_back(&ps->p->ctxs) == FFPARS_TARR) {
+		ps->curarg = _ffjson_schem_argfind(&ffarr_back(&ps->ctxs), ps->p->type);
+		if (ps->curarg == NULL)
+			return FFPARS_EARRTYPE; //handler for this data type isn't defined in context of the array
+	}
+
 	if (pt == FFJSON_TNULL) {
 		if (!(ps->curarg->flags & FFPARS_FNULL))
 			return FFPARS_EVALNULL;
 
-		if (dst == NULL) {
+		if (ffpars_arg_isfunc(ps->curarg)) {
 			int er = ps->curarg->dst.f_str(ps, obj, NULL);
 			if (er != 0)
 				return er;
@@ -506,6 +539,7 @@ int ffjson_schemval(ffparser_schem *ps, void *obj, void *dst)
 		return FFPARS_DONE;
 	}
 
+	t = ps->curarg->flags & FFPARS_FTYPEMASK;
 	if (pt != parsTypes[t - FFPARS_TSTR]
 		&& !(t == FFPARS_TSIZE && pt == FFJSON_TSTR))
 		return FFPARS_EVALTYPE;

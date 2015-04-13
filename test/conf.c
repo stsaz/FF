@@ -41,23 +41,27 @@ static int test_conf_parse(const char *testConfFile)
 
 		switch (rc) {
 		case FFPARS_KEY:
+			x(conf.type == FFCONF_TKEY);
 			fffile_fmt(ffstdout, &buf, "%*c'%*s'  "
 				, (size_t)4 * conf.ctxs.len, (int)' '
 				, (size_t)conf.val.len, conf.val.ptr);
 			break;
 
 		case FFPARS_VAL:
+			x(conf.type == FFCONF_TVAL || conf.type == FFCONF_TVALNEXT);
 			fffile_fmt(ffstdout, &buf, ":  '%*s'\n"
 				, (size_t)conf.val.len, conf.val.ptr);
 			break;
 
 		case FFPARS_OPEN:
+			x(conf.type == FFCONF_TOBJ);
 			fffile_fmt(ffstdout, &buf, "\n%*c%c\n"
 				, (size_t)4 * conf.ctxs.len, (int)' '
 				, (int)'{');
 			break;
 
 		case FFPARS_CLOSE:
+			x(conf.type == FFCONF_TOBJ);
 			fffile_fmt(ffstdout, &buf, "%*c%c\n\n"
 				, (size_t)4 * (conf.ctxs.len - 1), (int)' '
 				, (int)'}');
@@ -128,6 +132,32 @@ int test_conf_schem(const char *testConfFile)
 
 	ffpars_free(&conf);
 	ffpars_schemfree(&ps);
+
+	{
+		const char *s = "int  123 456 ";
+		const char *s_end = s + ffsz_len(s);
+		x(0 == ffconf_scheminit(&ps, &conf, &oinf));
+
+		len = s_end - s;
+		rc = ffconf_parse(&conf, s, &len);
+		s += len;
+		x(FFPARS_KEY == ffpars_schemrun(&ps, rc));
+
+		len = s_end - s;
+		rc = ffconf_parse(&conf, s, &len);
+		s += len;
+		x(FFPARS_VAL == ffpars_schemrun(&ps, rc));
+
+		len = s_end - s;
+		rc = ffconf_parse(&conf, s, &len);
+		x(conf.type & FFCONF_TVALNEXT);
+		x(FFPARS_EVALUNEXP == ffpars_schemrun(&ps, rc));
+
+		x(0 == ffconf_schemfin(&ps));
+		ffpars_free(&conf);
+		ffpars_schemfree(&ps);
+	}
+
 	return 0;
 }
 
@@ -137,22 +167,22 @@ static int test_args_parse()
 	static const char *const args_ar[] = {
 		"-a", "-bc", "someval"
 		, "--def", "--qwe=val"
-		, "--zxc", "val2"
+		, "--zxc", "val2", "ival"
 	};
 	static const char *const sargs[] = {
 		"a", "b", "c", "someval"
 		, "def", "qwe", "val"
-		, "zxc", "val2"
+		, "zxc", "val2", "ival"
 	};
 	static const int iargs[] = {
 		FFPARS_KEY, FFPARS_KEY, FFPARS_KEY, FFPARS_VAL
 		, FFPARS_KEY, FFPARS_KEY, FFPARS_VAL
-		, FFPARS_KEY, FFPARS_VAL
+		, FFPARS_KEY, FFPARS_VAL, FFPARS_VAL
 	};
 	static const int itypes[] = {
 		FFPSARG_SHORT, FFPSARG_SHORT, FFPSARG_SHORT, FFPSARG_VAL
-		, FFPSARG_LONG, FFPSARG_LONG, FFPSARG_VAL
-		, FFPSARG_LONG, FFPSARG_VAL
+		, FFPSARG_LONG, FFPSARG_LONG, FFPSARG_KVAL
+		, FFPSARG_LONG, FFPSARG_VAL, FFPSARG_INPUTVAL
 	};
 	const char *const *args = args_ar;
 	int len;
@@ -174,6 +204,8 @@ typedef struct Opts {
 	int S;
 	int D;
 	int V;
+	uint i;
+	uint input;
 } Opts;
 
 static const char *const ssigs[] = { "valss0", "valss1", "valss2" };
@@ -184,6 +216,8 @@ static const ffpars_arg cmd_args[] = {
 	, { "cc", FFPARS_TSTR | FFPARS_SETVAL('c'),  FFPARS_DSTOFF(Opts, C) }
 	, { "dd", FFPARS_TBOOL | FFPARS_SETVAL('d') | FFPARS_FALONE,  FFPARS_DSTOFF(Opts, D) }
 	, { "ss", FFPARS_TENUM | FFPARS_SETVAL('s'),  FFPARS_DST(&en) }
+	, { "int", FFPARS_TINT,  FFPARS_DSTOFF(Opts, i) }
+	, { "", FFPARS_TINT,  FFPARS_DSTOFF(Opts, input) }
 };
 
 static int test_args_schem()
@@ -195,7 +229,7 @@ static int test_args_schem()
 	int r = 0;
 	int n;
 	int i;
-	static const char *cmds[] = { "--cc=valcc", "-s", "valss1", "-dv" };
+	static const char *cmds[] = { "--cc=valcc", "-s", "valss1", "54321", "-dv", "--int=123" };
 
 	ffmem_tzero(&o);
 	x(0 == ffpsarg_scheminit(&ps, &p, &ctx));
@@ -204,8 +238,11 @@ static int test_args_schem()
 		r = ffpsarg_parse(&p, cmds[i], &n);
 		i += n;
 		r = ffpars_schemrun(&ps, r);
-		if (r > 0)
+		if (!x(r <= 0)) {
+			fffile_fmt(ffstdout, NULL, "\nerror: %u:%u near '%S' (%u) %s\n"
+				, p.line, p.ch, &p.val, r, ffpars_errstr(r));
 			break;
+		}
 	}
 
 	x(0 == ffpsarg_schemfin(&ps));
@@ -214,6 +251,8 @@ static int test_args_schem()
 	x(o.S == 1); //valss1
 	x(o.D == 1);
 	x(o.V == 1);
+	x(o.i == 123);
+	x(o.input == 54321);
 
 	ffpars_free(&p);
 	ffpars_schemfree(&ps);
@@ -224,7 +263,7 @@ static int test_args_schem()
 static int test_args_err()
 {
 	Opts o;
-	const ffpars_ctx ctx = { &o, cmd_args, FFCNT(cmd_args), NULL };
+	ffpars_ctx ctx = { &o, cmd_args, FFCNT(cmd_args), NULL };
 	ffparser p;
 	ffparser_schem ps;
 	int r = 0;
@@ -258,6 +297,7 @@ static int test_args_err()
 		ffpars_schemfree(&ps);
 	}
 
+	ctx.nargs--; //don't set o.input
 	{
 		static const char *const cmds[] = { "-d", "asdf" };
 		ffpsarg_scheminit(&ps, &p, &ctx);
@@ -271,6 +311,7 @@ static int test_args_err()
 		ffpars_free(&p);
 		ffpars_schemfree(&ps);
 	}
+	ctx.nargs++;
 
 	return 0;
 }

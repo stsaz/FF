@@ -115,7 +115,7 @@ int test_timerq()
 		nevents = ffkqu_wait(kq, &ent, 1, kqtm);
 
 		if (nevents > 0) {
-			ffaio_run1(&ent);
+			ffkev_call(&ent);
 		}
 
 		if (nevents == -1 && fferr_last() != EINTR) {

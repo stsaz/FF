@@ -118,7 +118,7 @@ enum FFPARS_T {
 	, FFPARS_TARR ///< new context: sub-array
 	, FFPARS_TENUM ///< byte index in the array of possible values of type string
 	, FFPARS_TSIZE ///< integer with suffix k|m|g|t.  e.g. "1m" = 1 * 1024 * 1024
-	, FFPARS_TCLOSE ///< notification on closing the current context
+	, FFPARS_TCLOSE ///< notification on closing the current context.  MUST be the last in list.
 };
 
 enum FFPARS_F {
@@ -131,10 +131,13 @@ enum FFPARS_F {
 	, FFPARS_FMULTI = 0x80 ///< allow multiple occurences.  note: up to 63 arguments only
 
 	, FFPARS_FNULL = 0x100 ///< allow null value
+
+//TSTR
 	, FFPARS_FNOTEMPTY = 0x200 ///< don't allow empty string
 	, FFPARS_FNONULL = 0x400 //don't allow escaped '\0'
-	, FFPARS_FNOTZERO = 0x400 ///< don't allow number zero
+	, FFPARS_FSTRZ = FFPARS_FNONULL | 0x800 //NULL-terminated string.  Must be used only with FFPARS_FCOPY.
 
+	, FFPARS_FNOTZERO = 0x400 ///< don't allow number zero
 	//, FFPARS_F32BIT = 0
 	, FFPARS_F64BIT = 0x800 ///< 64-bit number
 	, FFPARS_F16BIT = 0x1000 ///< 16-bit number
@@ -186,6 +189,15 @@ typedef struct ffpars_arg {
 	union ffpars_val dst;
 } ffpars_arg;
 
+/** Return TRUE if a handler procedure is defined for this argument. */
+static FFINL ffbool ffpars_arg_isfunc(const ffpars_arg *a)
+{
+	return ((a->flags & FFPARS_FTYPEMASK) != FFPARS_TENUM
+		&& !(a->flags & FFPARS_FPTR))
+		&& a->dst.off >= 64 * 1024;
+}
+
+
 struct ffpars_ctx {
 	void *obj;
 	const ffpars_arg *args;
@@ -209,7 +221,6 @@ enum FFPARS_RETHDL {
 enum FFPARS_SCHEMFLAG {
 	// internal:
 	FFPARS_SCHAVKEY = 1
-	, FFPARS_SCHAVVAL = 2
 	, FFPARS_SCCTX = 4
 
 	, FFPARS_KEYICASE = 0x100 // case-insensitive key names

@@ -103,10 +103,11 @@ static const ffpars_arg obj_schem[] = {
 	, { "obj", FFPARS_TOBJ | FFPARS_FNULL | FFPARS_FMULTI, FFPARS_DST(&newObj) }
 	, { "arr", FFPARS_TARR, FFPARS_DST(&newArr) }
 	, { "*", FFPARS_TSTR, FFPARS_DST(&any) }
-	, { NULL, FFPARS_TCLOSE, FFPARS_DST(&objClose) }
 
 	, { "list", FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&arrItem) }
 	, { "obj1", FFPARS_TOBJ | FFPARS_FOBJ1, FFPARS_DST(&newObj1) }
+
+	, { NULL, FFPARS_TCLOSE, FFPARS_DST(&objClose) }
 };
 
 int newObj(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)

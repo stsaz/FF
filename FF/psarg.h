@@ -9,6 +9,8 @@ Copyright (c) 2013 Simon Zolin
 
 enum FFPSARG_TYPE {
 	FFPSARG_VAL = 1
+	, FFPSARG_KVAL //--key=VAL
+	, FFPSARG_INPUTVAL //value without a key
 	, FFPSARG_SHORT
 	, FFPSARG_LONG
 };

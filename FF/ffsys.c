@@ -239,10 +239,10 @@ void fftmrq_init(fftimer_queue *tq)
 	tq->tmr = FF_BADTMR;
 	ffrbt_init(&tq->items);
 	tq->items.insnode = &tree_instimer;
-	ffaio_init(&tq->task);
-	tq->task.oneshot = 0;
-	tq->task.rhandler = &tmrq_onfire;
-	tq->task.udata = tq;
+	ffkev_init(&tq->kev);
+	tq->kev.oneshot = 0;
+	tq->kev.handler = &tmrq_onfire;
+	tq->kev.udata = tq;
 
 	{
 		fftime now;
@@ -257,7 +257,7 @@ void fftmrq_destroy(fftimer_queue *tq, fffd kq)
 	if (tq->tmr != FF_BADTMR) {
 		fftmr_close(tq->tmr, kq);
 		tq->tmr = FF_BADTMR;
-		ffaio_fin(&tq->task);
+		ffkev_fin(&tq->kev);
 	}
 }
 

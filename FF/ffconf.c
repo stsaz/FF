@@ -23,7 +23,11 @@ static int hdlQuote(ffparser *p, int *st, int *nextst, int ch)
 
 	switch (ch) {
 	case '"':
-		p->type = FFPARS_TSTR;
+		if (*nextst == iKey)
+			p->type = FFCONF_TKEY;
+		else if (p->type < FFCONF_TVALNEXT)
+			p->type++; //FFCONF_TVAL, FFCONF_TVALNEXT, ...
+
 		*st = iValSplit;
 		r = (*nextst == iKey ? FFPARS_KEY : FFPARS_VAL);
 		break;
@@ -105,7 +109,8 @@ int ffconf_parseinit(ffparser *p)
 		return 1;
 
 	*ctx = FFPARS_OPEN;
-	p->type = FFPARS_TOBJ;
+	p->ret = FFPARS_OPEN;
+	p->type = FFCONF_TOBJ;
 	return 0;
 }
 
@@ -163,7 +168,7 @@ int ffconf_parse(ffparser *p, const char *data, size_t *len)
 
 			} else if (ch == '}') {
 				st = iRmCtx;
-				p->type = FFPARS_TOBJ;
+				p->type = FFCONF_TOBJ;
 				r = FFPARS_CLOSE;
 				ffstr_setcz(&p->val, "}");
 
@@ -179,7 +184,11 @@ int ffconf_parse(ffparser *p, const char *data, size_t *len)
 			if (!ffchar_iswhitespace(ch) && ch != '/' && ch != '#')
 				r = _ffpars_addchar(p, ch);
 			else {
-				p->type = FFPARS_TSTR;
+				if (st == iKeyBare)
+					p->type = FFCONF_TKEY;
+				else if (p->type < FFCONF_TVALNEXT)
+					p->type++; //FFCONF_TVAL, FFCONF_TVALNEXT, ...
+
 				r = (st == iKeyBare ? FFPARS_KEY : FFPARS_VAL);
 				st = iValSplit;
 				data--;
@@ -193,7 +202,7 @@ int ffconf_parse(ffparser *p, const char *data, size_t *len)
 
 			} else if (ch == '{') {
 				st = iNewCtx;
-				p->type = FFPARS_TOBJ;
+				p->type = FFCONF_TOBJ;
 				nextst = iValSplit;
 				r = FFPARS_OPEN;
 				ffstr_setcz(&p->val, "{");
@@ -246,7 +255,7 @@ int ffconf_parse(ffparser *p, const char *data, size_t *len)
 
 		case iRmCtx:
 			st = iValSplit;
-			p->type = FFPARS_TOBJ;
+			p->type = FFCONF_TOBJ;
 			p->ctxs.len--; //ffarr_pop()
 			again = 1;
 			break;
@@ -297,7 +306,11 @@ int ffconf_scheminit(ffparser_schem *ps, ffparser *p, const ffpars_ctx *ctx)
 int ffconf_schemfin(ffparser_schem *ps)
 {
 	if (ps->ctxs.len == 1) {
-		int r = ffpars_schemrun(ps, FFPARS_CLOSE);
+		int r;
+
+		ps->p->ret = FFPARS_CLOSE;
+		ps->p->type = FFCONF_TOBJ;
+		r = ffpars_schemrun(ps, FFPARS_CLOSE);
 		if (r != FFPARS_CLOSE)
 			return r;
 	}
@@ -313,8 +326,11 @@ int ffconf_schemval(ffparser_schem *ps, void *obj, void *dst)
 	int t;
 	int r = FFPARS_OK;
 
-	if (p->ret == FFPARS_KEY)
+	if (p->ret != FFPARS_VAL)
 		return FFPARS_OK;
+
+	if (p->type == FFCONF_TVALNEXT && !(ps->curarg->flags & FFPARS_FLIST))
+		return FFPARS_EVALUNEXP; //value has been specified already
 
 	t = ps->curarg->flags & FFPARS_FTYPEMASK;
 
@@ -328,18 +344,16 @@ int ffconf_schemval(ffparser_schem *ps, void *obj, void *dst)
 	case FFPARS_TINT:
 		if (v.len < FFINT_MAXCHARS
 			&& v.len == ffs_toint(v.ptr, v.len, &p->intval, FFS_INT64 | FFS_INTSIGN))
-			p->type = FFPARS_TINT;
+			{}
 		else
 			r = FFPARS_EVALTYPE;
 		break;
 
 	case FFPARS_TBOOL:
 		if (ffstr_ieqcz(&v, "true")) {
-			p->type = FFPARS_TBOOL;
 			p->intval = 1;
 
 		} else if (ffstr_ieqcz(&v, "false")) {
-			p->type = FFPARS_TBOOL;
 			p->intval = 0;
 
 		} else
@@ -391,7 +405,7 @@ int ffpsarg_parseinit(ffparser *p)
 		return 1;
 
 	*ctx = FFPARS_OPEN;
-	p->type = FFPARS_TOBJ;
+	p->type = 0;
 	return 0;
 }
 
@@ -437,6 +451,9 @@ int ffpsarg_parse(ffparser *p, const char *a, int *processed)
 					st = iArgDone;
 				}
 
+				if (alen == 0)
+					return FFPARS_EUKNKEY; //"--" is not allowed
+
 				p->type = FFPSARG_LONG;
 				ffstr_set(&p->val, a, alen);
 				r = FFPARS_KEY;
@@ -449,8 +466,13 @@ int ffpsarg_parse(ffparser *p, const char *a, int *processed)
 		a += p->ch;
 		*processed = 1;
 		p->ch = 0;
+		if (st == iArgVal)
+			p->type = FFPSARG_KVAL;
+		else if (p->type == FFPSARG_LONG || p->type == FFPSARG_SHORT)
+			p->type = FFPSARG_VAL;
+		else
+			p->type = FFPSARG_INPUTVAL;
 		st = iArgDone;
-		p->type = FFPSARG_VAL;
 		ffstr_set(&p->val, a, strlen(a));
 		r = FFPARS_VAL;
 		break;
@@ -495,17 +517,24 @@ int ffpsarg_scheminit(ffparser_schem *ps, ffparser *p, const ffpars_ctx *ctx)
 
 int ffpsarg_schemfin(ffparser_schem *ps)
 {
-	int r = ffpars_schemrun(ps, FFPARS_CLOSE);
+	int r;
+	ps->p->ret = FFPARS_CLOSE;
+	r = ffpars_schemrun(ps, FFPARS_CLOSE);
 	if (r != FFPARS_CLOSE)
 		return r;
 	return 0;
 }
 
+/*
+. Process an argument without the preceding option
+. Convert a string to integer */
 int ffpsarg_schemval(ffparser_schem *ps, void *obj, void *dst)
 {
+	ffparser *p = ps->p;
+	uint i;
+	const ffpars_ctx *ctx = &ffarr_back(&ps->ctxs);
+
 	if (ps->p->ret == FFPARS_KEY && ps->p->type == FFPSARG_SHORT) {
-		uint i;
-		const ffpars_ctx *ctx = &ffarr_back(&ps->ctxs);
 		uint a;
 
 		if (ps->p->val.len != 1)
@@ -515,12 +544,37 @@ int ffpsarg_schemval(ffparser_schem *ps, void *obj, void *dst)
 		for (i = 0;  i < ctx->nargs;  i++) {
 			uint ch1 = (ctx->args[i].flags & FFPARS_FBITMASK) >> 24;
 			if (a == ch1) {
-				*(uint*)dst = i;
+				ps->curarg = &ctx->args[i];
 				break;
 			}
 		}
 
 		return FFPARS_DONE;
+	}
+
+	if (p->ret != FFPARS_VAL)
+		return FFPARS_OK;
+
+	if (p->type == FFPSARG_INPUTVAL
+		|| (p->type == FFPSARG_VAL && (ps->curarg->flags & FFPARS_FALONE))) {
+
+		ps->curarg = NULL;
+		for (i = 0;  i < ctx->nargs;  i++) {
+			if (ctx->args[i].name[0] == '\0') {
+				ps->curarg = &ctx->args[i];
+				break;
+			}
+		}
+
+		if (ps->curarg == NULL)
+			return FFPARS_EVALUNEXP;
+
+	} else if (p->type == FFPSARG_KVAL && (ps->curarg->flags & FFPARS_FALONE))
+		return FFPARS_EVALUNEXP;
+
+	if ((ps->curarg->flags & FFPARS_FTYPEMASK) == FFPARS_TINT) {
+		if (p->val.len != ffs_toint(p->val.ptr, p->val.len, &p->intval, FFS_INT64 | FFS_INTSIGN))
+			return FFPARS_EBADVAL;
 	}
 
 	return FFPARS_OK;

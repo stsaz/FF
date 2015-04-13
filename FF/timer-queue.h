@@ -5,7 +5,6 @@ Copyright (c) 2014 Simon Zolin
 #pragma once
 
 #include <FFOS/timer.h>
-#include <FFOS/asyncio.h>
 #include <FF/rbtree.h>
 
 
@@ -22,7 +21,7 @@ typedef struct fftimer_queue {
 	fftmr tmr;
 	uint64 msec_time;
 	ffrbtree items; //fftmrq_entry[].  Note: 'items.sentl' is still fftree_node, not fftree_node8.
-	ffaio_task task;
+	ffkevent kev;
 } fftimer_queue;
 
 /** Initialize. */
@@ -55,5 +54,5 @@ static FFINL int fftmrq_start(fftimer_queue *tq, fffd kq, uint interval_ms) {
 	tq->tmr = fftmr_create(0);
 	if (tq->tmr == FF_BADTMR)
 		return 1;
-	return fftmr_start(tq->tmr, kq, ffaio_kqudata(&tq->task), interval_ms);
+	return fftmr_start(tq->tmr, kq, ffkev_ptr(&tq->kev), interval_ms);
 }

@@ -7,6 +7,13 @@ Copyright (c) 2013 Simon Zolin
 #include <FF/parse.h>
 
 
+enum FFCONF_T {
+	FFCONF_TOBJ
+	, FFCONF_TKEY
+	, FFCONF_TVAL
+	, FFCONF_TVALNEXT //"key val1 VAL2..."
+};
+
 /** Initialize parser.
 Return 0 on success. */
 FF_EXTN int ffconf_parseinit(ffparser *p);
