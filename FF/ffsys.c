@@ -10,6 +10,7 @@ Copyright (c) 2014 Simon Zolin
 #include <FF/taskqueue.h>
 #include <FF/dir.h>
 #include <FF/path.h>
+#include <FFOS/error.h>
 
 
 static void tmrq_onfire(void *t);
@@ -355,7 +356,7 @@ int ffdir_expopen(ffdirexp *dex, char *pattern, uint flags)
 	ffmem_tzero(dex);
 	ffmem_tzero(&de);
 
-	if (-1 != ffpath_split2(pattern, ffsz_len(pattern), &path, &wildcard))
+	if (NULL != ffpath_split2(pattern, ffsz_len(pattern), &path, &wildcard))
 		path.len += FFSLEN("/");
 
 #ifdef FF_UNIX

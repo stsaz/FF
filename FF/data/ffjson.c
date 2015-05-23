@@ -3,6 +3,7 @@ Copyright (c) 2013 Simon Zolin
 */
 
 #include <FF/data/json.h>
+#include <FF/data/utf8.h>
 
 
 static const char *const _ffjson_stypes[] = {
@@ -32,7 +33,6 @@ int ffjson_unescape(char *dst, size_t cap, const char *text, size_t len)
 		return 1;
 	}
 	else if (text[0] == 'u') {
-		wchar_t wch;
 		ushort sh;
 		size_t r;
 
@@ -42,8 +42,7 @@ int ffjson_unescape(char *dst, size_t cap, const char *text, size_t len)
 		if (FFSLEN("XXXX") != ffs_toint(text + 1, FFSLEN("XXXX"), &sh, FFS_INT16 | FFS_INTHEX))
 			return -1;
 
-		wch = sh;
-		r = ff_wtou(dst, cap, &wch, 1, 0);
+		r = ffutf8_encode1(dst, cap, sh);
 		if (r != 0)
 			return (int)r;
 	}

@@ -38,24 +38,16 @@ FF_EXTN size_t ffpath_makefn(char *dst, size_t dstcap, const char *src, size_t l
 #define ffpath_isvalidfn(fn, len)  ((fn) + (len) == ffs_findof(fn, len, "/\\\0", 3))
 #endif
 
-/** Get filename extension without a dot. */
-FF_EXTN ffstr ffpath_fileext(const char *fn, size_t len);
-
-/** Get filename and directory (without the last slash).
-Return the index of the last slash or -1 if not found. */
-static FFINL ssize_t ffpath_split2(const char *fn, size_t len, ffstr *dir, ffstr *name) {
+/** Get filename and directory (without the last slash). */
+static FFINL const char* ffpath_split2(const char *fn, size_t len, ffstr *dir, ffstr *name)
+{
 	const char *slash = ffpath_rfindslash(fn, len);
 	if (slash == fn + len) {
 		if (dir != NULL)
-			dir->len = 0;
+ 			dir->len = 0;
 		if (name != NULL)
 			ffstr_set(name, fn, len);
-		return -1;
-	}
-
-	if (dir != NULL)
-		ffstr_set(dir, fn, slash - fn);
-	if (name != NULL)
-		ffstr_set(name, slash + 1, (fn + len) - (slash + 1));
-	return slash - fn;
+		return NULL;
+ 	}
+	return ffs_split2(fn, len, slash, dir, name);
 }

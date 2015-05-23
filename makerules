@@ -3,7 +3,20 @@
 # FF = .
 # FF_OBJ_DIR = .
 
-FF_SRC = $(wildcard $(FF)/FF/*.c) $(wildcard $(FF)/FF/net/*.c) $(wildcard $(FF)/FF/data/*.c)
+FF_SRC = $(FF)/FF/ffcrc.c \
+	$(FF)/FF/ffhashtab.c \
+	$(FF)/FF/fflist.c \
+	$(FF)/FF/ffpath.c \
+	$(FF)/FF/ffrbtree.c \
+	$(FF)/FF/ffs-regex.c \
+	$(FF)/FF/ffstring.c \
+	$(FF)/FF/ffsys.c \
+	$(FF)/FF/fftime.c \
+	\
+	$(wildcard $(FF)/FF/net/*.c) \
+	\
+	$(wildcard $(FF)/FF/data/*.c)
+
 FF_HDR = $(wildcard $(FF)/FF/*.h) $(wildcard $(FF)/FF/net/*.h) $(wildcard $(FF)/FF/data/*.h)
 
 # FF_OBJ=$(FF_SRC:.c=.o)

@@ -280,26 +280,24 @@ ssize_t ffs_findarrz(const char *const *ar, size_t n, const char *search, size_t
 	return -1;
 }
 
-size_t ffutf8_len(const char *p, size_t len)
+const char* ffs_split2(const char *s, size_t len, const char *at, ffstr *first, ffstr *second)
 {
-	size_t nchars = 0;
-	const char *end = p + len;
-	while (p < end) {
-		uint d = (byte)*p;
-		if (d < 0x80) //1 byte-seq: U+0000..U+007F
-			p++;
-		else if ((d & 0xe0) == 0xc0) //2 byte-seq: U+0080..U+07FF
-			p += 2;
-		else if ((d & 0xf0) == 0xe0) //3 byte-seq: U+0800..U+FFFF
-			p += 3;
-		else if ((d & 0xf8) == 0xf0) //4 byte-seq: U+10000..U+10FFFF
-			p += 4;
-		else //invalid char
-			p++;
-		nchars++;
+	if (at == NULL || at == s + len) {
+		if (first != NULL)
+			ffstr_set(first, s, len);
+		if (second != NULL)
+			ffstr_null(second);
+		return NULL;
 	}
-	return nchars;
+
+	if (first != NULL)
+		ffstr_set(first, s, at - s);
+
+	if (second != NULL)
+		ffstr_set(second, at + 1, s + len - (at + 1));
+	return at;
 }
+
 
 size_t ffs_lower(char *dst, const char *end, const char *src, size_t len)
 {

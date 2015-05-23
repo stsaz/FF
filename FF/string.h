@@ -5,6 +5,7 @@ Copyright (c) 2013 Simon Zolin
 #pragma once
 
 #include <FFOS/string.h>
+#include <FFOS/mem.h>
 #include <FF/bitops.h>
 
 #if defined FF_UNIX
@@ -202,6 +203,17 @@ static FFINL char * ffsz_fcopy(char *dst, const char *src, size_t len) {
 }
 
 #define ffsz_copycz(dst, csz)  ffmemcpy(dst, csz, sizeof(csz))
+
+/** Allocate memory and copy string. */
+static FFINL char* ffsz_alcopy(const char *src, size_t len)
+{
+	char *s = ffmem_alloc(len + 1);
+	if (s != NULL)
+		ffsz_fcopy(s, src, len);
+	return s;
+}
+
+#define ffsz_alcopyz(src)  ffsz_alcopy(src, ffsz_len(src))
 
 /** Convert case (ANSI).
 Return the number of bytes written. */

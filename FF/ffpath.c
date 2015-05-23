@@ -108,15 +108,3 @@ size_t ffpath_makefn(char *dst, size_t dstcap, const char *src, size_t len, int 
 	}
 	return dst - dsto;
 }
-
-ffstr ffpath_fileext(const char *fn, size_t len)
-{
-	ffstr s = { 0 };
-	char *pos = ffs_rfind(fn, len, '.');
-	if (pos != fn + len) {
-		pos++;
-		ffstr_set(&s, pos, fn + len - pos);
-	}
-	return s;
-}
-

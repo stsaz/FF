@@ -295,7 +295,7 @@ int ffhttp_nexthdr(ffhttp_hdr *h, const char *d, size_t len)
 					er = FFHTTP_EHDRKEY;
 					goto fail;
 				}
-				ffcrc32_update(&h->crc, ch, 1);
+				ffcrc32_iupdate(&h->crc, ch);
 			}
 			break;
 

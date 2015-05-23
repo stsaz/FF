@@ -191,6 +191,18 @@ static FFINL void ffstr_acqstr3(ffstr *dst, ffstr3 *src) {
 /** Copy the contents of ffstr* into char* buffer. */
 #define ffs_copystr(dst, bufend, pstr)  ffs_copy(dst, bufend, (pstr)->ptr, (pstr)->len)
 
+/** Split string by a character.
+@at: pointer within the range [s..s+len] or NULL.
+Return @at or NULL. */
+FF_EXTN const char* ffs_split2(const char *s, size_t len, const char *at, ffstr *first, ffstr *second);
+
+#define ffs_split2by(s, len, by, first, second) \
+	ffs_split2(s, len, ffs_find(s, len, by), first, second)
+
+#define ffs_rsplit2by(s, len, by, first, second) \
+	ffs_split2(s, len, ffs_rfind(s, len, by), first, second)
+
+
 /** Compare ANSI strings.  Case-insensitive. */
 static FFINL int ffstr_icmp(const ffstr *s1, const char *s2, size_t len) {
 	int r = ffs_icmp(s1->ptr, s2, ffmin(s1->len, len));

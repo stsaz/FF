@@ -5,6 +5,7 @@ Copyright (c) 2013 Simon Zolin
 #include <FFOS/test.h>
 #include <FF/array.h>
 #include <FF/data/xml.h>
+#include <FF/data/utf8.h>
 
 #include <test/all.h>
 
@@ -639,6 +640,37 @@ int test_regex(void)
 	return 0;
 }
 
+static void test_utf(void)
+{
+	char utf8[FFUTF8_MAXCHARLEN];
+	size_t sl, r;
+
+	FFTEST_FUNC;
+
+	sl = 2;
+	x(2 == (r = ffutf8_encode(NULL, 0, "\xfc\x00", &sl, FFU_UTF16LE)) && sl == 2);
+
+	sl = 2;
+	x(2 == (r = ffutf8_encode(utf8, 2, "\xfc\x00", &sl, FFU_UTF16LE)) && sl == 2);
+
+	sl = 2;
+	x(2 == (r = ffutf8_encode(utf8, 2, "\x00\xfc", &sl, FFU_UTF16BE)) && sl == 2);
+
+	//not enough output space
+	sl = 2;
+	x(0 == (r = ffutf8_encode(utf8, 1, "\xfc\x00", &sl, FFU_UTF16LE)) && sl == 0);
+
+	//incomplete input
+	sl = 1;
+	x(0 == (r = ffutf8_encode(utf8, 2, "\xfc", &sl, FFU_UTF16LE)) && sl == 0);
+
+	x(3 == (r = ffutf8_encodewhole(utf8, 3, "\xfc", 1, FFU_UTF16LE)));
+
+
+	sl = 4;
+	x(FFU_UTF8 == ffutf_bom("\xef\xbb\xbf\x00", &sl) && sl == 3);
+}
+
 int test_str()
 {
 	FFTEST_FUNC;
@@ -684,5 +716,6 @@ int test_str()
 	test_xml();
 	test_bstr();
 	test_wildcard();
+	test_utf();
 	return 0;
 }
