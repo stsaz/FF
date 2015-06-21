@@ -390,6 +390,21 @@ static int scHdlVal(ffparser_schem *ps, ffpars_ctx *ctx)
 		er = scSetInt(ps, ctx, dst, edst, p->intval);
 		break;
 
+	case FFPARS_TFLOAT:
+		if (ffpars_arg_isfunc(ps->curarg))
+			return FFPARS_ECONF; //unsupported
+
+		if (!(f & FFPARS_FSIGN) && p->fltval < 0)
+			return FFPARS_EVALNEG;
+
+		if (!(f & (FFPARS_F64BIT | FFPARS_F16BIT | FFPARS_F8BIT)))
+			*dst.f32 = (float)p->fltval;
+		else if (f & FFPARS_F64BIT)
+			*dst.f64 = p->fltval;
+		else
+			return FFPARS_ECONF; //invalid bits for a float
+		break;
+
 	default:
 		er = FFPARS_EVALTYPE;
 	}

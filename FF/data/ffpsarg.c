@@ -191,6 +191,10 @@ int ffpsarg_schemval(ffparser_schem *ps, void *obj, void *dst)
 	if ((ps->curarg->flags & FFPARS_FTYPEMASK) == FFPARS_TINT) {
 		if (p->val.len != ffs_toint(p->val.ptr, p->val.len, &p->intval, FFS_INT64 | FFS_INTSIGN))
 			return FFPARS_EBADVAL;
+
+	} else if ((ps->curarg->flags & FFPARS_FTYPEMASK) == FFPARS_TFLOAT) {
+		if (p->val.len != ffs_tofloat(p->val.ptr, p->val.len, &p->fltval, 0))
+			return FFPARS_EBADVAL;
 	}
 
 	return FFPARS_OK;

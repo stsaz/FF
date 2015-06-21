@@ -113,6 +113,7 @@ static FFINL int _ffpars_addchar(ffparser *p, int ch) {
 enum FFPARS_T {
 	FFPARS_TSTR = 1 ///< string
 	, FFPARS_TINT ///< 32-bit or 64-bit integer
+	, FFPARS_TFLOAT // 32/64-bit floating point number
 	, FFPARS_TBOOL ///< byte integer, the possible values are 0 and 1.  Valid input: false|true
 	, FFPARS_TOBJ ///< new context: sub-object
 	, FFPARS_TARR ///< new context: sub-array
@@ -171,6 +172,8 @@ union ffpars_val {
 	int *i32;
 	short *i16;
 	byte *b;
+	float *f32;
+	double *f64;
 	ffpars_ctx *ctx; ///< a new context for type object or array
 };
 
