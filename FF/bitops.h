@@ -6,7 +6,7 @@ Copyright (c) 2013 Simon Zolin
 
 #include <FFOS/types.h>
 
-#if !defined FF_MSVC
+#if !defined FF_MSVC && !defined FF_MINGW
 #include <FF/bitops-gc.h>
 #else
 #include <FF/bitops-vc.h>

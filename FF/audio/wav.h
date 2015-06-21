@@ -81,7 +81,7 @@ static FFINL void ffwav_setbr(ffwav_fmt *wf)
 /** Get WAV format from extended header. */
 static FFINL ushort ffwav_extfmt(const ffwav_ext *we)
 {
-	return *(ushort*)we->subformat;
+	return ((short)we->subformat[1] << 16) | we->subformat[0];
 }
 
 /** Convert between WAV format and PCM format.

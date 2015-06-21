@@ -14,7 +14,7 @@ static FFINL ffbool ffbit_set32(uint *i, uint bit) {
 }
 
 #ifdef FF_64
-#define ffbit_set64  BitTestAndSet64
+#define ffbit_set64(p, bit)  BitTestAndSet64((int64*)p, bit)
 #endif
 
 static FFINL ffbool ffbit_reset32(uint *i, uint bit) {
@@ -22,7 +22,7 @@ static FFINL ffbool ffbit_reset32(uint *i, uint bit) {
 }
 
 #ifdef FF_64
-#define ffbit_reset64  BitTestAndReset64
+#define ffbit_reset64(p, bit)  BitTestAndReset64((int64*)p, bit)
 #endif
 
 static FFINL uint ffbit_ffs32(uint i) {
