@@ -46,8 +46,12 @@ typedef struct ffdsnd_buf {
 	IDirectSoundBuffer *buf;
 	HANDLE evtnotify;
 	uint bufsize;
-	uint wpos;
-	unsigned isfull :1;
+	uint wpos
+		, rpos;
+	unsigned isfull :1
+		, underflow :1
+		, last :1
+		;
 } ffdsnd_buf;
 
 /** Open device for playback.
@@ -75,6 +79,9 @@ static FFINL int ffdsnd_pause(ffdsnd_buf *ds)
 {
 	return IDirectSoundBuffer_Stop(ds->buf);
 }
+
+/** Return 1 if stopped. */
+FF_EXTN int ffdsnd_stoplazy(ffdsnd_buf *ds);
 
 
 typedef struct ffdsnd_capt {

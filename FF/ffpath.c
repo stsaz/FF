@@ -108,3 +108,17 @@ size_t ffpath_makefn(char *dst, size_t dstcap, const char *src, size_t len, int 
 	}
 	return dst - dsto;
 }
+
+const char* ffpath_splitname(const char *fullname, size_t len, ffstr *name, ffstr *ext)
+{
+	char *dot = ffs_rfind(fullname, len, '.');
+	if (dot == fullname) {
+		//handle filename ".foo"
+		if (name != NULL)
+			ffstr_set(name, fullname, len);
+		if (ext != NULL)
+			ext->len = 0;
+		return dot;
+	}
+	return ffs_split2(fullname, len, dot, name, ext);
+}

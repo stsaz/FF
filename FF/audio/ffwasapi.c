@@ -89,6 +89,7 @@ void ffwas_uninit(void)
 const GUID CLSID_MMDeviceEnumerator = {0xbcde0395, 0xe52f, 0x467c, {0x8e,0x3d, 0xc4,0x57,0x92,0x91,0x69,0x2e}};
 const GUID IID_IMMDeviceEnumerator = {0xa95664d2, 0x9614, 0x4f35, {0xa7,0x46, 0xde,0x8d,0xb6,0x36,0x17,0xe6}};
 const GUID IID_IAudioRenderClient = {0xf294acfc, 0x3146, 0x4483, {0xa7,0xbf, 0xad,0xdc,0xa7,0xc2,0x60,0xe2}};
+const GUID IID_IAudioCaptureClient = {0xc8adbd64, 0xe71e, 0x48a0, {0xa4,0xde, 0x18,0x5c,0x39,0x5c,0xd3,0x17}};
 const GUID IID_IAudioClient = {0x1cb9ad4c, 0xdbfa, 0x4c32, {0xb1,0x78, 0xc2,0xf5,0x68,0xa7,0x03,0xb2}};
 
 //#include <functiondiscoverykeys_devpkey.h>
@@ -196,7 +197,7 @@ int ffwas_open(ffwasapi *w, const WCHAR *id, ffpcm *fmt, uint bufsize)
 		goto fail;
 
 	if (id == NULL)
-		r = IMMDeviceEnumerator_GetDefaultAudioEndpoint(enu, eRender, eConsole, &dev);
+		r = IMMDeviceEnumerator_GetDefaultAudioEndpoint(enu, (!w->capture) ? eRender : eCapture, eConsole, &dev);
 	else
 		r = IMMDeviceEnumerator_GetDevice(enu, id, &dev);
 	if (r != 0)
@@ -239,7 +240,11 @@ int ffwas_open(ffwasapi *w, const WCHAR *id, ffpcm *fmt, uint bufsize)
 
 	if (0 != (r = IAudioClient_GetBufferSize(w->cli, &w->bufsize)))
 		goto fail;
-	if (0 != (r = IAudioClient_GetService(w->cli, &IID_IAudioRenderClient, (void**)&w->rend)))
+	if (!w->capture
+		&& 0 != (r = IAudioClient_GetService(w->cli, &IID_IAudioRenderClient, (void**)&w->rend)))
+		goto fail;
+	else if (w->capture
+		&& 0 != (r = IAudioClient_GetService(w->cli, &IID_IAudioCaptureClient, (void**)&w->capt)))
 		goto fail;
 
 	fflk_init(&w->lk);
@@ -264,8 +269,10 @@ void ffwas_close(ffwasapi *w)
 		ffwoh_rm(_ffwas_woh, w->evt);
 		CloseHandle(w->evt);
 	}
-	if (w->rend != NULL)
+	if (!w->capture && w->rend != NULL)
 		IAudioRenderClient_Release(w->rend);
+	else if (w->capture && w->capt != NULL)
+		IAudioCaptureClient_Release(w->capt);
 	if (w->cli != NULL)
 		IAudioClient_Release(w->cli);
 }
@@ -286,7 +293,8 @@ int ffwas_filled(ffwasapi *w)
 static void _ffwas_onplay_sh(void *udata)
 {
 	ffwasapi *w = udata;
-	if (ffwas_filled(w) / w->frsize > w->bufsize / 4)
+	if ((!w->capture && ffwas_filled(w) / w->frsize > w->bufsize * 3 / 4)
+		|| (w->capture && ffwas_filled(w) / w->frsize < w->bufsize / 4))
 		return; //don't trigger too many events
 	w->handler(w->udata);
 }
@@ -298,6 +306,12 @@ static void _ffwas_onplay_excl(void *udata)
 	fflk_lock(&w->lk);
 	if (w->starting != 0 && --w->starting != 0)
 		goto done; //skip events signaled by ffwas_start()
+
+	if (w->capture) {
+		fflk_unlock(&w->lk);
+		w->handler(w->udata);
+		return;
+	}
 
 	if (w->actvbufs == 0) {
 		if (!w->underflow) {
@@ -384,8 +398,7 @@ int ffwas_write(ffwasapi *w, const void *d, size_t len)
 		}
 	}
 
-	fflk_unlock(&w->lk);
-	return (int)(data - (byte*)d);
+	r = (int)(data - (byte*)d);
 
 done:
 	fflk_unlock(&w->lk);
@@ -419,4 +432,49 @@ int ffwas_silence(ffwasapi *w)
 	if (0 != (r = IAudioRenderClient_ReleaseBuffer(w->rend, nfree, 0)))
 		return r;
 	return nfree * w->frsize;
+}
+
+int ffwas_stoplazy(ffwasapi *w)
+{
+	HRESULT r;
+	if (0 == ffwas_filled(w))
+		return 1;
+
+	if (!w->last) {
+		w->last = 1;
+		if (0 > (r = ffwas_silence(w)))
+			return r;
+	}
+
+	if (!w->started) {
+		if (0 != (r = ffwas_start(w)))
+			return r;
+	}
+
+	return 0;
+}
+
+
+int ffwas_capt_read(ffwasapi *w, void **data, size_t *len)
+{
+	int r;
+	DWORD flags;
+
+	if (w->actvbufs != 0) {
+		if (0 != (r = IAudioCaptureClient_ReleaseBuffer(w->capt, w->wpos)))
+			return r;
+		w->actvbufs = 0;
+	}
+
+	if (0 != (r = IAudioCaptureClient_GetBuffer(w->capt, (byte**)data, &w->wpos, &flags, NULL, NULL))) {
+		if (r == 0x8890001 /*AUDCNT_S_BUFFEREMPTY*/) {
+			*len = 0;
+			return 0;
+		}
+		return r;
+	}
+
+	w->actvbufs = 1;
+	*len = w->wpos * w->frsize;
+	return 1;
 }

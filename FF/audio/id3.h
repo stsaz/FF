@@ -37,7 +37,13 @@ static FFINL ffbool ffid31_valid(const ffid31 *h)
 typedef struct ffid3_hdr {
 	char id3[3]; //"ID3"
 	byte ver[2]; //e.g. \3 \0
+	union {
 	byte flags;
+	struct {
+		byte unsupported :7
+			, unsync :1;
+	};
+	};
 	byte size[4]; //7-bit numbers
 } ffid3_hdr;
 
@@ -66,7 +72,15 @@ FF_EXTN const char ffid3_frames[][4];
 typedef struct ffid3_frhdr {
 	char id[4];
 	byte size[4]; //v2.4: 7-bit numbers.
+	union {
 	byte flags[2];
+	struct {
+		byte unsupported1;
+		byte unsupported2 :1
+			, unsync :1
+			, unsupported3 :6;
+	};
+	};
 } ffid3_frhdr;
 
 enum FFID3_TXTENC {

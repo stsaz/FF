@@ -4,7 +4,10 @@ Copyright (c) 2015 Simon Zolin
 
 #include <FF/audio/wav.h>
 #include <FF/audio/pcm.h>
+#include <FFOS/error.h>
 
+
+static int _ffwav_parse(ffwav *w);
 
 static const char *const _ffwav_sfmt[] = {
 	"", "PCM", "", "IEEE (Float)"
@@ -65,9 +68,45 @@ void ffwav_pcmfmtset(ffwav_fmt *wf, uint pcm_fmt)
 }
 
 
-int ffwav_parse(const char *data, size_t *len)
+enum WAV_E {
+	WAV_EOK
+	, WAV_ENOFMT
+	, WAV_EDUPFMT
+	, WAV_EUKN
+
+	, WAV_ESYS
+};
+
+static const char *const wav_errstr[] = {
+	""
+	, "no format chunk"
+	, "duplicate format chunk"
+	, "unknown chunk"
+};
+
+const char* ffwav_errstr(ffwav *w)
+{
+	if (w->err == WAV_ESYS)
+		return fferr_strp(fferr_last());
+	return wav_errstr[w->err];
+}
+
+enum WAV_T {
+	WAV_TERR = 1 << 31
+	, WAV_TMORE = 1 << 30
+
+	, WAV_TRIFF = 1
+	, WAV_TFMT
+	, WAV_TEXT
+	, WAV_TDATA
+};
+
+/* Get the next chunk.
+Return enum WAV_T. */
+static int _ffwav_parse(ffwav *w)
 {
 	int r = 0;
+	size_t len2 = w->datalen;
 	union {
 		const ffwav_riff *wr;
 		const ffwav_fmt *wf;
@@ -75,24 +114,24 @@ int ffwav_parse(const char *data, size_t *len)
 		const ffwav_data *wd;
 	} u;
 
-	u.wr = (ffwav_riff*)data;
+	u.wr = (ffwav_riff*)w->data;
 
-	if (*len < 4)
-		return FFWAV_MORE;
+	if (w->datalen < 4)
+		return WAV_TMORE;
 
-	switch (data[0]) {
+	switch (((char*)w->data)[0]) {
 
 	case 'R':
 		if (ffs_cmp(u.wr->riff, ffwav_pcmhdr.wr.riff, 4))
 			break;
 
-		r = FFWAV_RRIFF;
-		if (*len < sizeof(ffwav_riff))
-			return r | FFWAV_MORE;
+		r = WAV_TRIFF;
+		if (w->datalen < sizeof(ffwav_riff))
+			return r | WAV_TMORE;
 
 		if (!ffs_cmp(u.wr->wave, ffwav_pcmhdr.wr.wave, 4)) {
-			*len = sizeof(ffwav_riff);
-			return r;
+			w->datalen -= sizeof(ffwav_riff);
+			goto done;
 		}
 		break;
 
@@ -100,27 +139,27 @@ int ffwav_parse(const char *data, size_t *len)
 		if (ffs_cmp(u.wf->fmt, ffwav_pcmhdr.wf.fmt, 4))
 			break;
 
-		r = FFWAV_RFMT;
-		if (*len < sizeof(ffwav_fmt))
-			return r | FFWAV_MORE;
+		r = WAV_TFMT;
+		if (w->datalen < sizeof(ffwav_fmt))
+			return r | WAV_TMORE;
 
 		if (u.wf->format == 0 || u.wf->channels == 0 || u.wf->sample_rate == 0 || u.wf->bit_depth == 0)
 			break;
 
-		if (u.wf->format == FFWAV_EXT) {
-			r = FFWAV_REXT;
+		if (u.wf->format == WAV_TEXT) {
+			r = WAV_TEXT;
 
-			if (*len < sizeof(ffwav_ext))
-				return r | FFWAV_MORE;
+			if (w->datalen < sizeof(ffwav_ext))
+				return r | WAV_TMORE;
 
 			if (u.wf->size == 40 && u.we->size == 22) {
-				*len = sizeof(ffwav_ext);
-				return r;
+				w->datalen -= sizeof(ffwav_ext);
+				goto done;
 			}
 
 		} else if (u.wf->size == 16) {
-			*len = sizeof(ffwav_fmt);
-			return r;
+			w->datalen -= sizeof(ffwav_fmt);
+			goto done;
 		}
 		break;
 
@@ -128,13 +167,157 @@ int ffwav_parse(const char *data, size_t *len)
 		if (ffs_cmp(u.wd->data, ffwav_pcmhdr.wd.data, 4))
 			break;
 
-		r = FFWAV_RDATA;
-		if (*len < sizeof(ffwav_data))
-			return r | FFWAV_MORE;
+		r = WAV_TDATA;
+		if (w->datalen < sizeof(ffwav_data))
+			return r | WAV_TMORE;
 
-		*len = sizeof(ffwav_data);
-		return r;
+		w->datalen -= sizeof(ffwav_data);
+		goto done;
 	}
 
-	return r | FFWAV_ERR;
+	w->err = WAV_EUKN;
+	return r | WAV_TERR;
+
+done:
+	w->data += len2 - w->datalen;
+	return r;
+}
+
+void ffwav_close(ffwav *w)
+{
+	ffarr_free(&w->sample);
+}
+
+enum { I_HDR, I_DATA, I_DATAOK, I_BUFDATA, I_SEEK };
+
+static int _ffwav_gethdr(ffwav *w)
+{
+	const ffwav_fmt *wf = NULL;
+	const ffwav_data *wd;
+	const char *data_first = w->data;
+	const void *pchunk;
+	int r;
+
+	for (;;) {
+		pchunk = w->data;
+		r = _ffwav_parse(w);
+
+		if (r & WAV_TERR) {
+			return FFWAV_RERR;
+		}
+
+		if (r & WAV_TMORE) {
+			return FFWAV_RERR;
+		}
+
+		switch (r) {
+		case WAV_TFMT:
+		case WAV_TEXT:
+			if (wf != NULL) {
+				w->err = WAV_EDUPFMT;
+				return FFWAV_RERR;
+			}
+
+			wf = pchunk;
+			w->bitrate = wf->byte_rate * 8;
+			w->fmt.format = ffwav_pcmfmt(wf);
+			w->fmt.channels = wf->channels;
+			w->fmt.sample_rate = wf->sample_rate;
+			if (NULL == ffarr_alloc(&w->sample, ffpcm_size1(&w->fmt))) {
+				w->err = WAV_ESYS;
+				return FFWAV_RERR;
+			}
+			break;
+
+		case WAV_TDATA:
+			if (wf == NULL) {
+				w->err = WAV_ENOFMT;
+				return FFWAV_RERR;
+			}
+
+			wd = pchunk;
+			w->dataoff = (char*)w->data - data_first;
+			w->datasize = w->dsize = wd->size;
+			w->total_samples = w->datasize / ffpcm_size1(&w->fmt);
+			w->state = I_DATA;
+			return FFWAV_RHDR;
+		}
+	}
+
+	//unreachable
+}
+
+void ffwav_seek(ffwav *w, uint64 sample)
+{
+	w->seek_sample = sample;
+	w->state = I_SEEK;
+}
+
+int ffwav_decode(ffwav *w)
+{
+	size_t ntail;
+	uint n;
+
+	for (;;) {
+
+	switch (w->state) {
+	case I_HDR:
+		return _ffwav_gethdr(w);
+
+	case I_SEEK:
+		w->cursample = w->seek_sample;
+		w->off = w->dataoff + w->datasize * w->seek_sample / w->total_samples;
+		w->dsize = w->datasize - w->off;
+		w->state = I_DATA;
+		return FFWAV_RSEEK;
+
+	case I_DATAOK:
+		w->cursample += w->pcmlen / ffpcm_size1(&w->fmt);
+		w->state = (w->sample.len == 0) ? I_DATA : I_BUFDATA;
+		break;
+
+	case I_DATA:
+		if (w->dsize == 0)
+			return FFWAV_RDONE;
+		if (w->datalen == 0)
+			return FFWAV_RMORE;
+		n = (uint)ffmin(w->dsize, w->datalen);
+		ntail = n % w->sample.cap;
+
+		ffmemcpy(w->sample.ptr, w->data + n - ntail, ntail);
+		w->sample.len = ntail;
+
+		w->datalen = 0;
+		w->dsize -= n;
+		if (n == ntail) {
+			w->state = I_BUFDATA;
+			return FFWAV_RMORE; //not even 1 complete PCM sample
+		}
+		w->pcm = (void*)w->data;
+		w->pcmlen = n - ntail;
+		w->state = I_DATAOK;
+		return FFWAV_RDATA;
+
+	case I_BUFDATA:
+		if (w->dsize == 0)
+			return FFWAV_RDONE;
+		n = (uint)ffmin(w->dsize, w->datalen);
+		n = (uint)ffmin(n, ffarr_unused(&w->sample));
+		ffmemcpy(ffarr_end(&w->sample), w->data, n);
+		w->sample.len += n;
+
+		w->data += n;
+		w->datalen -= n;
+		w->dsize -= n;
+		if (!ffarr_isfull(&w->sample))
+			return FFWAV_RMORE;
+
+		w->pcm = w->sample.ptr;
+		w->pcmlen = w->sample.len;
+		w->sample.len = 0;
+		w->state = I_DATAOK;
+		return FFWAV_RDATA;
+	}
+	}
+	//unreachable
 }

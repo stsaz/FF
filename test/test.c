@@ -97,10 +97,13 @@ static int test_path()
 	x(0 == ffpath_isvalidfn("filename/withslash", FFSLEN("filename/withslash")));
 	x(0 == ffpath_isvalidfn("filename\0withzero", FFSLEN("filename\0withzero")));
 
-	ffs_rsplit2by("file.txt", FFSLEN("file.txt"), '.', NULL, &s);
+	ffpath_splitname("file.txt", FFSLEN("file.txt"), NULL, &s);
 	x(ffstr_eqcz(&s, "txt"));
 
-	ffs_rsplit2by("qwer", FFSLEN("qwer"), '.', NULL, &s);
+	ffpath_splitname("qwer", FFSLEN("qwer"), NULL, &s);
+	x(ffstr_eqcz(&s, ""));
+
+	ffpath_splitname(".qwer", FFSLEN(".qwer"), NULL, &s);
 	x(ffstr_eqcz(&s, ""));
 
 	{

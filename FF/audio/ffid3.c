@@ -70,10 +70,43 @@ uint ffid3_frsize(const ffid3_frhdr *fr, uint majver)
 }
 
 
+enum { I_HDR, I_FR, I_TXTENC, I_DATA, I_UNSYNC_00, I_FRDONE, I_PADDING };
+
+/*replace: FF 00 -> FF*/
+static FFINL int _ffid3_unsync(ffid3 *p, const char *data, size_t len)
+{
+	size_t i;
+	char *out;
+
+	if (NULL == ffarr_grow(&p->data, len, 0))
+		return -1; //no mem
+	out = ffarr_end(&p->data);
+
+	for (i = 0;  i != len;  i++) {
+		switch (p->state) {
+
+		case I_DATA:
+			if ((byte)data[i] == 0xff)
+				p->state = I_UNSYNC_00;
+			break;
+
+		case I_UNSYNC_00:
+			p->state = I_DATA;
+			if ((byte)data[i] == 0x00)
+				continue;
+			break;
+		}
+
+		*out++ = data[i];
+	}
+
+	p->data.len += out - ffarr_end(&p->data);
+	return 0;
+}
+
 int ffid3_parse(ffid3 *p, const char *data, size_t *len)
 {
 	const char *dstart = data, *end = data + *len;
-	enum { I_HDR, I_FR, I_TXTENC, I_DATA, I_FRDONE, I_PADDING };
 	uint n;
 	uint r = FFID3_RERR;
 
@@ -86,6 +119,7 @@ int ffid3_parse(ffid3 *p, const char *data, size_t *len)
 		switch (p->state) {
 		case I_TXTENC:
 		case I_DATA:
+		case I_UNSYNC_00:
 			if (p->frsize == 0)
 				p->state = I_FRDONE;
 			break;
@@ -105,7 +139,7 @@ int ffid3_parse(ffid3 *p, const char *data, size_t *len)
 			end = data + p->size;
 
 			if (p->h.ver[0] > 4 //v2.4 is max supported version
-				|| p->h.flags != 0) //not supported
+				|| (p->h.flags & ~0x80) != 0) //not supported
 				goto done;
 
 			p->state = I_FR;
@@ -135,7 +169,7 @@ int ffid3_parse(ffid3 *p, const char *data, size_t *len)
 			if (p->frsize > p->size)
 				goto done; //frame size is too large
 
-			if (p->fr.flags[1] != 0)
+			if ((p->fr.flags[1] & ~0x02) != 0)
 				goto done; //not supported
 
 			if (p->fr.id[0] == 'T')
@@ -154,8 +188,13 @@ int ffid3_parse(ffid3 *p, const char *data, size_t *len)
 			break;
 
 		case I_DATA:
+		case I_UNSYNC_00:
 			n = (uint)ffmin(p->frsize, end - data);
-			if ((p->flags & FFID3_FWHOLE) && (n != p->frsize || p->data.len != 0)) {
+			if (p->fr.unsync || p->h.unsync) {
+				if (0 != _ffid3_unsync(p, data, n))
+					goto done;
+
+			} else if ((p->flags & FFID3_FWHOLE) && (n != p->frsize || p->data.len != 0)) {
 				if (NULL == ffarr_append(&p->data, (char*)data, n))
 					goto done; //no mem
 
@@ -167,7 +206,7 @@ int ffid3_parse(ffid3 *p, const char *data, size_t *len)
 			p->size -= n;
 			p->frsize -= n;
 
-			if (p->data.cap != 0 && p->frsize != 0)
+			if ((p->flags & FFID3_FWHOLE) && p->frsize != 0)
 				break; //wait until we copy data completely
 
 			r = FFID3_RDATA;

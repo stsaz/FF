@@ -1,4 +1,4 @@
-/** WAVE format.
+/** WAVE.
 Copyright (c) 2015 Simon Zolin
 */
 
@@ -8,7 +8,8 @@ ffwav_riff  ([ffwav_fmt]  [ffwav_data  DATA...])
 
 #pragma once
 
-#include <FF/string.h>
+#include <FF/audio/pcm.h>
+#include <FF/array.h>
 
 
 enum FFWAV_FMT {
@@ -90,16 +91,49 @@ FF_EXTN uint ffwav_pcmfmt(const ffwav_fmt *wf);
 FF_EXTN void ffwav_pcmfmtset(ffwav_fmt *wf, uint pcm_fmt);
 
 
-enum FFWAV_R {
-	FFWAV_ERR = 1 << 31
-	, FFWAV_MORE = 1 << 30
+typedef struct ffwav {
+	uint state;
+	uint err;
+	ffarr sample; //holds 1 incomplete sample
+	ffpcm fmt;
+	uint bitrate;
+	uint64 datasize
+		, dsize
+		, dataoff
+		, off;
+	uint64 cursample
+		, total_samples
+		, seek_sample;
 
-	, FFWAV_RRIFF = 1
-	, FFWAV_RFMT
-	, FFWAV_REXT
+	size_t datalen;
+	const void *data;
+
+	size_t pcmlen;
+	void *pcm;
+} ffwav;
+
+enum FFWAV_R {
+	FFWAV_RERR = -1
+	, FFWAV_RMORE
+	, FFWAV_RHDR
+	, FFWAV_RSEEK
 	, FFWAV_RDATA
+	, FFWAV_RDONE
 };
 
-/** Get the next chunk.
-Return enum FFWAV_R. */
-FF_EXTN int ffwav_parse(const char *data, size_t *len);
+FF_EXTN const char* ffwav_errstr(ffwav *w);
+
+#define ffwav_init(w)  ffmem_tzero(w)
+
+#define ffwav_rate(w)  ((w)->fmt.sample_rate)
+
+FF_EXTN void ffwav_close(ffwav *w);
+
+FF_EXTN void ffwav_seek(ffwav *w, uint64 sample);
+
+#define ffwav_seekoff(w)  ((w)->off)
+
+/** Return enum FFWAV_R. */
+FF_EXTN int ffwav_decode(ffwav *w);
+
+#define ffwav_cursample(w)  ((w)->cursample)

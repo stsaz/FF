@@ -44,10 +44,13 @@ static FFINL const char* ffpath_split2(const char *fn, size_t len, ffstr *dir, f
 	const char *slash = ffpath_rfindslash(fn, len);
 	if (slash == fn + len) {
 		if (dir != NULL)
- 			dir->len = 0;
+			dir->len = 0;
 		if (name != NULL)
 			ffstr_set(name, fn, len);
 		return NULL;
- 	}
+	}
 	return ffs_split2(fn, len, slash, dir, name);
 }
+
+/** Get name and extension. */
+FF_EXTN const char* ffpath_splitname(const char *fullname, size_t len, ffstr *name, ffstr *ext);

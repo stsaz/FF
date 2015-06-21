@@ -121,6 +121,17 @@ void ffdsnd_devenumfree(struct ffdsnd_devenum *head)
 static void _ffdsnd_onplay(void *udata)
 {
 	ffdsnd_buf *ds = udata;
+	DWORD rpos;
+	if (0 == IDirectSoundBuffer8_GetCurrentPosition(ds->buf, &rpos, NULL)) {
+		uint filled = ffdsnd_filled(ds);
+		ds->rpos = rpos;
+		if (ffdsnd_filled(ds) > filled) {
+			ds->underflow = 1;
+			ffdsnd_pause(ds);
+			IDirectSoundBuffer_SetCurrentPosition(ds->buf, 0);
+			ds->wpos = ds->rpos = 0;
+		}
+	}
 	ds->isfull = 0;
 	ds->handler(ds->udata);
 }
@@ -192,14 +203,10 @@ void ffdsnd_close(ffdsnd_buf *ds)
 
 uint ffdsnd_filled(ffdsnd_buf *ds)
 {
-	DWORD rpos;
-	if (0 != IDirectSoundBuffer8_GetCurrentPosition(ds->buf, &rpos, NULL))
-		return 0;
-
-	if (ds->wpos == rpos && ds->isfull)
+	if (ds->wpos == ds->rpos && ds->isfull)
 		return ds->bufsize;
 
-	return (ds->wpos >= rpos) ? (ds->wpos - rpos) : ds->bufsize - (rpos - ds->wpos);
+	return (ds->wpos >= ds->rpos) ? (ds->wpos - ds->rpos) : ds->bufsize - (ds->rpos - ds->wpos);
 }
 
 int ffdsnd_write(ffdsnd_buf *ds, const void *data, size_t len)
@@ -250,6 +257,24 @@ int ffdsnd_silence(ffdsnd_buf *ds)
 
 	IDirectSoundBuffer_Unlock(ds->buf, buf1, nbuf1, buf2, nbuf2);
 	return nfree;
+}
+
+int ffdsnd_stoplazy(ffdsnd_buf *ds)
+{
+	HRESULT r;
+	if (0 == ffdsnd_filled(ds))
+		return 1;
+
+	if (!ds->last) {
+		ds->last = 1;
+		if (0 > (r = ffdsnd_silence(ds)))
+			return r;
+	}
+
+	if (0 != (r = ffdsnd_start(ds)))
+		return r;
+
+	return 0;
 }
 
 

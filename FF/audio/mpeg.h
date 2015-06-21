@@ -1,4 +1,4 @@
-/** MPEG format.  Only MPEG-1 Layer 3 is supported.
+/** MPEG.
 Copyright (c) 2013 Simon Zolin
 */
 
@@ -70,3 +70,61 @@ FF_EXTN uint ffmpg_framelen(const ffmpg_hdr *h);
 /** Get channels. */
 #define ffmpg_channels(h) \
 	((h)->channel == FFMPG_MONO ? 1 : 2)
+
+
+#include <FF/audio/pcm.h>
+#include <FF/array.h>
+
+#include <mad/mad.h>
+
+typedef struct ffmpg {
+	uint state;
+
+	struct mad_stream stream;
+	struct mad_frame frame;
+	struct mad_synth synth;
+
+	ffpcm fmt;
+	uint bitrate;
+	uint err;
+	ffstr3 buf; //holds 1 incomplete frame
+	uint64 seek_sample
+		, total_samples
+		, cur_sample;
+	uint64 dataoff
+		, total_size
+		, off;
+
+	size_t datalen;
+	const void *data;
+
+	size_t pcmlen;
+	float *pcm[2];
+} ffmpg;
+
+enum FFMPG_R {
+	FFMPG_RWARN = -2
+	, FFMPG_RERR
+	, FFMPG_RHDR
+	, FFMPG_RDATA
+	, FFMPG_RMORE
+	, FFMPG_RSEEK
+};
+
+/** Get the last error as a string. */
+FF_EXTN const char* ffmpg_errstr(ffmpg *m);
+
+FF_EXTN void ffmpg_init(ffmpg *m);
+
+FF_EXTN void ffmpg_close(ffmpg *m);
+
+FF_EXTN void ffmpg_seek(ffmpg *m, uint64 sample);
+
+/** Get an absolute file offset to seek. */
+#define ffmpg_seekoff(m)  ((m)->off)
+
+/** Return enum FFMPG_R. */
+FF_EXTN int ffmpg_decode(ffmpg *m);
+
+/** Get an absolute sample number. */
+#define ffmpg_cursample(m)  ((m)->cur_sample)

@@ -49,7 +49,10 @@ typedef struct ffwasapi {
 	void *udata;
 
 	IAudioClient *cli;
+	union {
 	IAudioRenderClient *rend;
+	IAudioCaptureClient *capt;
+	};
 	uint bufsize;
 	uint frsize;
 	HANDLE evt;
@@ -60,11 +63,13 @@ typedef struct ffwasapi {
 	uint actvbufs;
 
 	unsigned excl :1 //exclusive mode
+		, capture :1
 		, autostart :1
 
 		, started :1
 		, underflow :1
 		, starting :2
+		, last :1
 		;
 } ffwasapi;
 
@@ -105,3 +110,17 @@ static FFINL int ffwas_stop(ffwasapi *w)
 	w->started = 0;
 	return IAudioClient_Stop(w->cli);
 }
+
+/** Return 1 if stopped. */
+FF_EXTN int ffwas_stoplazy(ffwasapi *w);
+
+
+static FFINL int ffwas_capt_open(ffwasapi *w, const WCHAR *id, ffpcm *fmt, uint bufsize)
+{
+	w->capture = 1;
+	return ffwas_open(w, id, fmt, bufsize);
+}
+
+#define ffwas_capt_close  ffwas_close
+
+FF_EXTN int ffwas_capt_read(ffwasapi *w, void **data, size_t *len);
