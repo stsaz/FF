@@ -151,7 +151,14 @@ int ffmpg_decode(ffmpg *m)
 				m->fmt.channels = MAD_NCHANNELS(&m->frame.header);
 				m->fmt.sample_rate = m->frame.header.samplerate;
 
-				if (m->total_size != 0) {
+				if (m->total_len != 0) {
+					m->total_samples = ffpcm_samples(m->total_len, m->fmt.sample_rate);
+					if (m->total_size != 0) {
+						m->total_size -= m->dataoff;
+						m->bitrate = ffpcm_bitrate(m->total_size, m->total_len);
+					}
+
+				} else if (m->total_size != 0) {
 					m->total_size -= m->dataoff;
 					m->total_samples = ffpcm_samples(m->total_size * 1000 / (m->bitrate/8), m->fmt.sample_rate);
 				}

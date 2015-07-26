@@ -90,6 +90,7 @@ typedef struct ffmpg {
 	ffstr3 buf; //holds 1 incomplete frame
 	uint64 seek_sample
 		, total_samples
+		, total_len //msec
 		, cur_sample;
 	uint64 dataoff
 		, total_size
