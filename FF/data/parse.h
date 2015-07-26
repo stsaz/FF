@@ -25,6 +25,7 @@ enum FFPARS_E {
 	, FFPARS_EBIGVAL
 	, FFPARS_EESC
 	, FFPARS_EBADBRACE
+	, FFPARS_ENOBRACE
 	, FFPARS_EBADCMT
 
 	// error codes for a parsing using scheme:

@@ -552,6 +552,15 @@ int ffjson_schemval(ffparser_schem *ps, void *obj, void *dst)
 	return FFPARS_OK;
 }
 
+int ffjson_schemfin(ffparser_schem *ps)
+{
+	if (ps->ctxs.len != 0)
+		return FFPARS_ENOBRACE;
+	if (ps->p->line == 0 && ps->p->ch == 0)
+		return FFPARS_ENOVAL;
+	return 0;
+}
+
 
 void ffjson_cookinit(ffjson_cook *c, char *buf, size_t cap)
 {

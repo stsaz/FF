@@ -58,6 +58,8 @@ static FFINL void ffjson_scheminit(ffparser_schem *ps, ffparser *p, const ffpars
 	ps->onval = &ffjson_schemval;
 }
 
+FF_EXTN int ffjson_schemfin(ffparser_schem *ps);
+
 
 typedef struct ffjson_cook {
 	ffstr3 buf;

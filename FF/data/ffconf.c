@@ -315,8 +315,9 @@ int ffconf_schemfin(ffparser_schem *ps)
 		r = ffpars_schemrun(ps, FFPARS_CLOSE);
 		if (r != FFPARS_CLOSE)
 			return r;
+		return 0;
 	}
-	return 0;
+	return FFPARS_ENOBRACE;
 }
 
 /* Convert value of type string into integer or boolean, fail if can't.

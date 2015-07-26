@@ -15,6 +15,7 @@ static const char *const _ffpars_serr[] = {
 	, "too large value"
 	, "invalid escape sequence"
 	, "inconsistent brace"
+	, "expected brace"
 	, "invalid comment"
 
 	, "unknown key name"

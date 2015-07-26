@@ -178,6 +178,8 @@ int test_json_schem(const char *testJsonFile)
 		js += len;
 	}
 
+	x(0 == (rc = ffjson_schemfin(&ps)));
+
 	objChk(&o);
 	x(o.o[0]->o[0] == (void*)-1);
 	x(o.arrCloseOk == 1);
