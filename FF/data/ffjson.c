@@ -473,12 +473,14 @@ int ffjson_validate(ffparser *json, const char *data, size_t len)
 }
 
 
+static const byte parsTypes[];
+
 /* Search and select an argument by type */
 static const ffpars_arg * _ffjson_schem_argfind(ffpars_ctx *ctx, int type)
 {
 	uint i;
 	for (i = 0;  i < ctx->nargs;  i++) {
-		if (type == (ctx->args[i].flags & FFPARS_FTYPEMASK))
+		if (type == parsTypes[(ctx->args[i].flags & FFPARS_FTYPEMASK) - FFPARS_TSTR])
 			return &ctx->args[i];
 	}
 
@@ -488,6 +490,7 @@ static const ffpars_arg * _ffjson_schem_argfind(ffpars_ctx *ctx, int type)
 // keep in sync with FFPARS_T
 static const byte parsTypes[] = {
 	FFJSON_TSTR
+	, FFJSON_TINT
 	, FFJSON_TINT
 	, FFJSON_TBOOL
 	, FFJSON_TOBJ
@@ -507,7 +510,7 @@ int ffjson_schemval(ffparser_schem *ps, void *obj, void *dst)
 		return FFPARS_OK;
 
 	else if (ps->p->ret == FFPARS_OPEN) {
-		if (ps->p->ctxs.len >= 2 && ffarr_back(&ps->p->ctxs) == FFPARS_TARR) {
+		if (ps->p->ctxs.len >= 2 && ffarr_back(&ps->p->ctxs) == FFJSON_TARR) {
 
 			ps->curarg = _ffjson_schem_argfind(&ffarr_back(&ps->ctxs), ps->p->type);
 			if (ps->curarg == NULL)
@@ -519,7 +522,7 @@ int ffjson_schemval(ffparser_schem *ps, void *obj, void *dst)
 	} else if (ps->p->ret != FFPARS_VAL)
 		return FFPARS_OK;
 
-	if (ffarr_back(&ps->p->ctxs) == FFPARS_TARR) {
+	if (ffarr_back(&ps->p->ctxs) == FFJSON_TARR) {
 		ps->curarg = _ffjson_schem_argfind(&ffarr_back(&ps->ctxs), ps->p->type);
 		if (ps->curarg == NULL)
 			return FFPARS_EARRTYPE; //handler for this data type isn't defined in context of the array
