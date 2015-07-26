@@ -111,6 +111,17 @@ static FFINL int _ffpars_addchar(ffparser *p, int ch) {
 	return _ffpars_copyBuf(p, &c, sizeof(char));
 }
 
+static FFINL int _ffpars_addchar2(ffparser *p, const char *src)
+{
+	if (p->val.ptr != p->buf.ptr) {
+		if (p->val.ptr == NULL)
+			p->val.ptr = (char*)src;
+		p->val.len++;
+		return 0;
+	}
+	return _ffpars_copyBuf(p, src, sizeof(char));
+}
+
 enum FFPARS_T {
 	FFPARS_TSTR = 1 ///< string
 	, FFPARS_TINT ///< 32-bit or 64-bit integer

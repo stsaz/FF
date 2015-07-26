@@ -7,20 +7,20 @@ Copyright (c) 2013 Simon Zolin
 
 static int hdlEsc(ffparser *p, int *st, int ch);
 static int unesc(char *dst, size_t cap, const char *text, size_t len);
-static int hdlQuote(ffparser *p, int *st, int *nextst, int ch);
+static int hdlQuote(ffparser *p, int *st, int *nextst, const char *data);
 
 enum CONF_IDX {
 	iKeyFirst = 16, iKey, iKeyBare
 	, iValSplit, iValFirst, iVal, iValBare
 	, iNewCtx, iRmCtx
-	, iQuot, iQuotFirst, iQuotEsc
+	, iQuot, iQuotEsc
 };
 
-static int hdlQuote(ffparser *p, int *st, int *nextst, int ch)
+static int hdlQuote(ffparser *p, int *st, int *nextst, const char *data)
 {
 	int r = 0;
 
-	switch (ch) {
+	switch (*data) {
 	case '"':
 		if (*nextst == iKey)
 			p->type = FFCONF_TKEY;
@@ -40,7 +40,7 @@ static int hdlQuote(ffparser *p, int *st, int *nextst, int ch)
 		break;
 
 	default:
-		r = _ffpars_addchar(p, ch);
+		r = _ffpars_addchar2(p, data);
 	}
 
 	return r;
@@ -162,7 +162,7 @@ int ffconf_parse(ffparser *p, const char *data, size_t *len)
 //KEY-VALUE
 		case iKey:
 			if (ch == '"') {
-				st = iQuotFirst;
+				st = iQuot;
 				nextst = iKey;
 
 			} else if (ch == '}') {
@@ -173,7 +173,6 @@ int ffconf_parse(ffparser *p, const char *data, size_t *len)
 
 			} else {
 				st = iKeyBare;
-				p->val.ptr = (char*)data;
 				again = 1;
 			}
 			break;
@@ -181,7 +180,7 @@ int ffconf_parse(ffparser *p, const char *data, size_t *len)
 		case iKeyBare:
 		case iValBare:
 			if (!ffchar_iswhitespace(ch) && ch != '/' && ch != '#')
-				r = _ffpars_addchar(p, ch);
+				r = _ffpars_addchar2(p, data);
 			else {
 				if (st == iKeyBare)
 					p->type = FFCONF_TKEY;
@@ -196,7 +195,7 @@ int ffconf_parse(ffparser *p, const char *data, size_t *len)
 
 		case iVal:
 			if (ch == '"') {
-				st = iQuotFirst;
+				st = iQuot;
 				nextst = iVal;
 
 			} else if (ch == '{') {
@@ -208,7 +207,6 @@ int ffconf_parse(ffparser *p, const char *data, size_t *len)
 
 			} else {
 				st = iValBare;
-				p->val.ptr = (char*)data;
 				again = 1;
 			}
 			break;
@@ -225,13 +223,8 @@ int ffconf_parse(ffparser *p, const char *data, size_t *len)
 			break;
 
 //QUOTE
-		case iQuotFirst:
-			p->val.ptr = (char*)data;
-			st = iQuot;
-			//break;
-
 		case iQuot:
-			r = hdlQuote(p, &st, &nextst, ch);
+			r = hdlQuote(p, &st, &nextst, data);
 			break;
 
 		case iQuotEsc:
