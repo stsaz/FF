@@ -140,9 +140,6 @@ Return -1 if not found. */
 FF_EXTN ssize_t ffs_findarrz(const char *const *ar, size_t n, const char *search, size_t search_len);
 FF_EXTN ssize_t ffszarr_ifindsorted(const char *const *ar, size_t n, const char *search, size_t search_len);
 
-/** Return the number of characters in UTF-8 string. */
-FF_EXTN size_t ffutf8_len(const char *p, size_t len);
-
 
 #define ffmemcpy  memcpy
 

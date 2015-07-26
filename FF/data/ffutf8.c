@@ -12,13 +12,13 @@ size_t ffutf8_len(const char *p, size_t len)
 	const char *end = p + len;
 	while (p < end) {
 		uint d = (byte)*p;
-		if (d < 0x80) //1 byte-seq: U+0000..U+007F
+		if (d < 0x80)
 			p++;
-		else if ((d & 0xe0) == 0xc0) //2 byte-seq: U+0080..U+07FF
+		else if ((d & 0xe0) == 0xc0)
 			p += 2;
-		else if ((d & 0xf0) == 0xe0) //3 byte-seq: U+0800..U+FFFF
+		else if ((d & 0xf0) == 0xe0)
 			p += 3;
-		else if ((d & 0xf8) == 0xf0) //4 byte-seq: U+10000..U+10FFFF
+		else if ((d & 0xf8) == 0xf0)
 			p += 4;
 		else //invalid char
 			p++;

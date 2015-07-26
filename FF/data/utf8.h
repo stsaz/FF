@@ -2,6 +2,14 @@
 Copyright (c) 2015 Simon Zolin
 */
 
+/*
+UTF-8:
+U+0000..U+007F    0xxxxxxx
+U+0080..U+07FF    110xxxxx 10xxxxxx
+U+0800..U+FFFF    1110xxxx 10xxxxxx*2
+U+10000..U+10FFFF 11110xxx 10xxxxxx*3
+*/
+
 #pragma once
 
 #include <FF/array.h>
