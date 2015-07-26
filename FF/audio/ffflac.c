@@ -269,9 +269,6 @@ int ffflac_decode(ffflac *f)
 
 	case I_SEEK2:
 	case I_DATA:
-		if (f->datalen == 0)
-			f->fin = 1;
-
 		datalen_last = f->datalen;
 		off_last = f->off;
 		f->nbuf = f->buf.len; //number of valid bytes in buf
@@ -281,7 +278,8 @@ int ffflac_decode(ffflac *f)
 		switch (f->r) {
 		case FFFLAC_RMORE:
 			// f->datalen == 0
-			if (NULL == ffarr_append(&f->buf, f->data - datalen_last, datalen_last)) {
+			if (datalen_last != 0
+				&& NULL == ffarr_append(&f->buf, f->data - datalen_last, datalen_last)) {
 				f->errtype = FLAC_ESYS;
 				return FFFLAC_RERR;
 			}
@@ -469,9 +467,9 @@ int ffflac_create(ffflac_enc *f, const ffpcm *pcm)
 
 int ffflac_encode(ffflac_enc *f)
 {
-	uint i, samples, sampsize;
+	uint i, ich, j, samples, sampsize;
 	int *dst = (void*)f->data32.ptr;
-	const short *src16 = f->pcmi;
+	const short *src16 = f->pcmi, **src16ni;
 
 	if (f->outbuf.len != 0) {
 		f->data = (void*)f->outbuf.ptr;
@@ -480,28 +478,46 @@ int ffflac_encode(ffflac_enc *f)
 		return FFFLAC_RDATA;
 	}
 
-	if (f->pcmlen == 0) {
+	sampsize = f->bpsample / 8 * f->fmt.channels;
+	samples = ffmin(f->data32.cap / (sizeof(int) * f->fmt.channels), f->pcmlen / sampsize);
+
+	if (f->pcmi != NULL) {
+		//short[] -> int[]
+		for (i = 0;  i < samples * f->fmt.channels;  i++) {
+			dst[i] = src16[i];
+		}
+		f->pcmlen -= samples * sampsize;
+		f->pcmi = (byte*)f->pcmi + samples * sampsize;
+
+	} else {
+		src16ni = (const short**)f->pcm;
+		//short[] -> int[]
+		for (ich = 0;  ich < f->fmt.channels;  ich++) {
+			j = ich;
+			for (i = f->off;  i < samples;  i++) {
+				dst[j] = src16ni[ich][i];
+				j += f->fmt.channels;
+			}
+		}
+
+		f->pcmlen -= samples * sampsize;
+		f->off += samples;
+		if (f->pcmlen == 0)
+			f->off = 0;
+	}
+
+	if (!FLAC__stream_encoder_process_interleaved(f->enc, dst, samples)) {
+		f->errtype = FLAC_EUKN;
+		return FFFLAC_RERR;
+	}
+
+	if (f->fin) {
 		if (!FLAC__stream_encoder_finish(f->enc))
 			return FFFLAC_RERR;
 		f->data = (void*)f->outbuf.ptr;
 		f->datalen = f->outbuf.len;
 		f->outbuf.len = 0;
 		return FFFLAC_RDONE;
-	}
-
-	sampsize = f->bpsample / 8 * f->fmt.channels;
-	samples = ffmin(f->data32.cap / (sizeof(int) * f->fmt.channels), f->pcmlen / sampsize);
-
-	//short[] -> int[]
-	for (i = 0;  i < samples * f->fmt.channels;  i++) {
-		dst[i] = src16[i];
-	}
-	f->pcmlen -= samples * sampsize;
-	f->pcmi = (byte*)f->pcmi + samples * sampsize;
-
-	if (!FLAC__stream_encoder_process_interleaved(f->enc, dst, samples)) {
-		f->errtype = FLAC_EUKN;
-		return FFFLAC_RERR;
 	}
 
 	f->data = (void*)f->outbuf.ptr;

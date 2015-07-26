@@ -109,13 +109,16 @@ typedef struct ffflac_enc {
 	const byte *data;
 	ffstr3 data32; //int[]
 
-	size_t pcmlen;
+	size_t pcmlen
+		, off;
 	const void *pcmi;
+	const void **pcm;
 	ffstr3 outbuf;
 
 	uint64 total_samples;
 	uint min_meta;
 	uint level; //0..8
+	uint fin :1;
 } ffflac_enc;
 
 FF_EXTN const char* ffflac_enc_errstr(ffflac_enc *f);
