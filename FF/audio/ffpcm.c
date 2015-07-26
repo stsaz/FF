@@ -76,7 +76,7 @@ interleaved: data[0,2..] - left */
 int ffpcm_convert(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm, const void *in, size_t samples)
 {
 	size_t i;
-	uint ich;
+	uint ich, j;
 	union {
 		short *sh;
 		float *f;
@@ -94,9 +94,11 @@ int ffpcm_convert(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm, const 
 	switch (CASE(inpcm->format, inpcm->ileaved, outpcm->format, outpcm->ileaved)) {
 
 	case CASE(FFPCM_16LE, 0, FFPCM_16LE, 1):
-		for (i = 0;  i != samples;  i++) {
-			for (ich = 0;  ich != inpcm->channels;  ich++) {
-				*to.sh++ = from.psh[ich][i];
+		for (ich = 0;  ich != inpcm->channels;  ich++) {
+			j = ich;
+			for (i = 0;  i != samples;  i++) {
+				to.sh[j] = from.psh[ich][i];
+				j += outpcm->channels;
 			}
 		}
 		break;
@@ -136,17 +138,21 @@ int ffpcm_convert(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm, const 
 		break;
 
 	case CASE(FFPCM_FLOAT, 0, FFPCM_16LE, 1):
-		for (i = 0;  i != samples;  i++) {
-			for (ich = 0;  ich != inpcm->channels;  ich++) {
-				*to.sh++ = _ffpcm_flt_16le(from.pf[ich][i]);
+		for (ich = 0;  ich != inpcm->channels;  ich++) {
+			j = ich;
+			for (i = 0;  i != samples;  i++) {
+				to.sh[j] = _ffpcm_flt_16le(from.pf[ich][i]);
+				j += outpcm->channels;
 			}
 		}
 		break;
 
 	case CASE(FFPCM_FLOAT, 0, FFPCM_FLOAT, 1):
-		for (i = 0;  i != samples;  i++) {
-			for (ich = 0;  ich != inpcm->channels;  ich++) {
-				*to.f++ = from.pf[ich][i];
+		for (ich = 0;  ich != inpcm->channels;  ich++) {
+			j = ich;
+			for (i = 0;  i != samples;  i++) {
+				to.f[j] = from.pf[ich][i];
+				j += outpcm->channels;
 			}
 		}
 		break;
