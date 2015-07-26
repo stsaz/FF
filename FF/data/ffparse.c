@@ -568,3 +568,26 @@ const char * ffpars_schemerrstr(ffparser_schem *ps, int code, char *buf, size_t 
 	FF_ASSERT(code < FFCNT(_ffpars_serr));
 	return _ffpars_serr[code];
 }
+
+
+int ffsvar_parse(ffsvar *p, const char *data, size_t *plen)
+{
+	size_t i;
+
+	if (*data != '$') {
+		const char *s = ffs_find(data, *plen, '$');
+		p->val.ptr = (char*)data;
+		p->val.len = s - data;
+		*plen = p->val.len;
+		return FFSVAR_TEXT;
+	}
+
+	for (i = 1 /*skip $*/;  i != *plen;  i++) {
+		if (!ffchar_isname(data[i]))
+			break;
+	}
+	p->val.ptr = (char*)&data[1];
+	p->val.len = i - 1;
+	*plen = i;
+	return FFSVAR_S;
+}

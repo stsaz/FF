@@ -265,3 +265,17 @@ FF_EXTN int ffpars_schemrun(ffparser_schem *ps, int e);
 
 /** Get error message. */
 FF_EXTN const char * ffpars_schemerrstr(ffparser_schem *ps, int code, char *buf, size_t cap);
+
+
+typedef struct ffsvar {
+	ffstr val;
+} ffsvar;
+
+enum FFSVAR {
+	FFSVAR_TEXT,
+	FFSVAR_S,
+};
+
+/** Process input string of the format "...text $var text...".
+Return enum FFSVAR. */
+FF_EXTN int ffsvar_parse(ffsvar *p, const char *data, size_t *plen);
