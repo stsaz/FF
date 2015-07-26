@@ -38,7 +38,7 @@ typedef struct ffhstab {
 	Return 0 if equal. */
 	int (*cmpkey)(void *val, const char *key, size_t keylen, void *param);
 
-#ifdef _DEBUG
+#ifdef FFHST_DEBUG
 	size_t ncoll; //total number of collisions
 	size_t maxcoll; //maximum collisions in one slot
 #endif

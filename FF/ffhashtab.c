@@ -29,7 +29,7 @@ int ffhst_init(ffhstab *ht, size_t nslots)
 	ht->nslots = nslots;
 	ht->len = 0;
 
-#ifdef _DEBUG
+#ifdef FFHST_DEBUG
 	ht->ncoll = ht->maxcoll = 0;
 #endif
 	return 0;
@@ -96,7 +96,7 @@ int ffhst_ins(ffhstab *ht, uint hash, void *val)
 		hst_slot_setext(slot, ext);
 		r = (int)ext->len;
 
-#ifdef _DEBUG
+#ifdef FFHST_DEBUG
 		ht->ncoll++;
 		if (ht->maxcoll < ext->len)
 			ht->maxcoll = ext->len;
