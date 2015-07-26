@@ -444,6 +444,9 @@ int ffjson_parse(ffparser *p, const char *data, size_t *len)
 		}
 	}
 
+	if (er == FFPARS_MORE)
+		er = ffpars_savedata(p);
+
 	p->state = st;
 	p->nextst = nextst;
 	*len = data - datao;

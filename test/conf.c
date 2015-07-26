@@ -68,7 +68,6 @@ static int test_conf_parse(const char *testConfFile)
 			break;
 
 		case FFPARS_MORE:
-			x(0 == ffpars_savedata(&conf));
 			break;
 
 		default:

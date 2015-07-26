@@ -277,6 +277,9 @@ int ffconf_parse(ffparser *p, const char *data, size_t *len)
 		}
 	}
 
+	if (r == FFPARS_MORE)
+		r = ffpars_savedata(p);
+
 	p->state = st;
 	p->nextst = nextst;
 	*len = data - datao;

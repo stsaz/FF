@@ -74,7 +74,6 @@ int test_json_parse(const char *testJsonFile)
 			break;
 
 		case FFPARS_MORE:
-			x(0 == ffpars_savedata(&json));
 			break;
 
 		default:
