@@ -138,6 +138,7 @@ FF_EXTN size_t ffs_findarr(const void *s, size_t len, const void *ar, ssize_t el
 /** Search a string in array of pointers to NULL-terminated strings.
 Return -1 if not found. */
 FF_EXTN ssize_t ffs_findarrz(const char *const *ar, size_t n, const char *search, size_t search_len);
+FF_EXTN ssize_t ffszarr_ifindsorted(const char *const *ar, size_t n, const char *search, size_t search_len);
 
 /** Return the number of characters in UTF-8 string. */
 FF_EXTN size_t ffutf8_len(const char *p, size_t len);
@@ -278,6 +279,15 @@ static FFINL char * ffs_copyq(char *dst, const char *bufend, const ffsyschar *sr
 	if (i == 0)
 		return dst + dst_cap;
 	return dst + i;
+}
+
+static FFINL char* ffsz_alcopyqz(const ffsyschar *wsz)
+{
+	size_t len = ffq_len(wsz) + 1, cap = ff_wtou(NULL, 0, wsz, len, 0);
+	char *s = ffmem_alloc(cap);
+	if (s != NULL)
+		ff_wtou(s, cap, wsz, len, 0);
+	return s;
 }
 
 /** Return the number of characters to allocate for system string. */

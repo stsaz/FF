@@ -154,9 +154,7 @@ typedef ffarr ffstr3;
 
 #define FFSTR2(s)  (s).ptr, (s).len
 
-static FFINL void ffstr_set(ffstr *s, const char *d, size_t len) {
-	ffarr_set(s, (char*)d, len);
-}
+#define ffstr_set(s, d, len)  ffarr_set(s, (char*)(d), len)
 
 #define ffstr_set2(s, src)  ffarr_set(s, (src)->ptr, (src)->len)
 
@@ -276,6 +274,8 @@ static FFINL char * ffstr_copy(ffstr *s, const char *d, size_t len) {
 	ffstr_cat(s, len, d, len);
 	return s->ptr;
 }
+
+#define ffstr_alcopystr(dst, src)  ffstr_copy(dst, (src)->ptr, (src)->len)
 
 
 #if defined FF_UNIX

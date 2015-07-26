@@ -280,6 +280,23 @@ ssize_t ffs_findarrz(const char *const *ar, size_t n, const char *search, size_t
 	return -1;
 }
 
+ssize_t ffszarr_ifindsorted(const char *const *ar, size_t n, const char *search, size_t search_len)
+{
+	const char *const *ar_o = ar, *const *start = ar, *const *end = ar + n;
+	int r;
+	while (start != end) {
+		ar = start + (end - start) / 2;
+		r = ffs_icmpz(search, search_len, *ar);
+		if (r == 0)
+			return ar - ar_o;
+		else if (r < 0)
+			end = ar;
+		else
+			start = ar + 1;
+	}
+	return -1;
+}
+
 const char* ffs_split2(const char *s, size_t len, const char *at, ffstr *first, ffstr *second)
 {
 	if (at == NULL || at == s + len) {
@@ -1008,13 +1025,17 @@ size_t ffs_fmtv(char *buf_o, const char *end, const char *fmt, va_list va)
 
 		case 'E': {
 			int e = va_arg(va, int);
-			char tmp[256];
-			size_t tmplen = fferr_str(e, tmp, FFCNT(tmp));
-			size_t r = ffs_fmt(buf, end, "(%u) %*s", e, tmplen, tmp);
-			if (buf != NULL)
+			size_t r = ffs_fmt(buf, end, "(%u) ", e);
+			if (buf != NULL) {
 				buf += r;
-			else
-				len += r;
+				fferr_str(e, buf, end - buf);
+				buf += ffsz_len(buf);
+
+			} else {
+				char tmp[256];
+				fferr_str(e, tmp, sizeof(tmp));
+				len += r + ffsz_len(tmp);
+			}
 			}
 			break;
 
