@@ -1,9 +1,20 @@
-# FF v1.12 compile rules for GNU make
+# FF makerules for GNU make
 
-# FF = .
-# FF_OBJ_DIR = .
+# FF := .
+FF_OBJ_DIR := ./ff-obj
 
-FF_SRC = $(FF)/FF/ffcrc.c \
+
+# FFOS
+FFOS_HDR := $(wildcard $(FFOS)/*.h) $(wildcard $(FFOS)/unix/*.h) $(wildcard $(FFOS)/win/*.h)
+FFOS_OBJ := $(FF_OBJ_DIR)/ffos.o \
+	$(FF_OBJ_DIR)/ff$(OSTYPE).o \
+	$(FF_OBJ_DIR)/ff$(OS).o
+FF_ALL_OBJ := $(FFOS_OBJ)
+$(FF_OBJ_DIR)/%.o: $(FFOS)/FFOS/%.c $(FFOS_HDR)
+	$(C) $(CFLAGS)  $< -o$@
+
+
+FF_SRC := $(FF)/FF/ffcrc.c \
 	$(FF)/FF/ffhashtab.c \
 	$(FF)/FF/fflist.c \
 	$(FF)/FF/ffpath.c \
@@ -11,33 +22,92 @@ FF_SRC = $(FF)/FF/ffcrc.c \
 	$(FF)/FF/ffs-regex.c \
 	$(FF)/FF/ffstring.c \
 	$(FF)/FF/ffsys.c \
-	$(FF)/FF/fftime.c \
-	\
-	$(wildcard $(FF)/FF/net/*.c) \
-	\
-	$(wildcard $(FF)/FF/data/*.c)
+	$(FF)/FF/fftime.c
 
-FF_HDR = $(wildcard $(FF)/FF/*.h) $(wildcard $(FF)/FF/net/*.h) $(wildcard $(FF)/FF/data/*.h)
+ifeq ($(OS),win)
+FF_SRC += $(FF)/FF/ffwohandler.c
+endif
+
+FF_HDR := $(FFOS_HDR) $(wildcard $(FF)/FF/*.h)
 
 # FF_OBJ=$(FF_SRC:.c=.o)
-FF_OBJ = $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_SRC)))))
-
-FF_TEST_HDR = $(wildcard $(FF)/test/*.h)
-FF_TEST_SRC = $(wildcard $(FF)/test/*.c)
-FF_TEST_OBJ = $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_TEST_SRC)))))
-
-
-$(FF_TEST_BIN): $(FFOS_HDR) $(FFOS_OBJ) $(FFOS_OBJ_DIR)/fftest.o $(FF_HDR) $(FF_OBJ) $(FF_TEST_HDR) $(FF_TEST_OBJ)
-	$(LD) $(FFOS_OBJ) $(FFOS_OBJ_DIR)/fftest.o $(FF_OBJ) $(FF_TEST_OBJ) $(LDFLAGS) $(LIBS) $(O_LD)$@
+FF_OBJ := $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_SRC)))))
+FF_ALL_OBJ += $(FF_OBJ)
 
 $(FF_OBJ_DIR)/%.o: $(FF)/FF/%.c $(FF_HDR)
-	$(C) $(CFLAGS) $(C1FLAGS) $< $(O)$@
-
-$(FF_OBJ_DIR)/%.o: $(FF)/FF/net/%.c $(FF_HDR)
-	$(C) $(CFLAGS) $(C1FLAGS) $< $(O)$@
+	$(C) $(CFLAGS)  $< -o$@
 
 $(FF_OBJ_DIR)/%.o: $(FF)/FF/data/%.c $(FF_HDR)
-	$(C) $(CFLAGS) $(C1FLAGS) $< $(O)$@
+	$(C) $(CFLAGS)  $< -o$@
 
+
+# data
+FF_DATA_HDR := $(wildcard $(FF)/FF/data/*.h)
+FF_DATA_SRC := $(wildcard $(FF)/FF/data/*.c)
+FF_DATA_OBJ := $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_DATA_SRC)))))
+FF_ALL_OBJ += $(FF_DATA_OBJ)
+
+
+# net
+FF_NET_HDR := $(wildcard $(FF)/FF/net/*.h)
+FF_NET_SRC := $(wildcard $(FF)/FF/net/*.c)
+FF_NET_OBJ := $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_NET_SRC)))))
+FF_ALL_OBJ += $(FF_NET_OBJ)
+$(FF_OBJ_DIR)/%.o: $(FF)/FF/net/%.c $(FF_HDR) $(FF_NET_HDR)
+	$(C) $(CFLAGS)  $< -o$@
+
+
+# audio
+FF_AUDIO_HDR := $(wildcard $(FF)/FF/audio/*.h)
+FF_AUDIO_SRC := $(wildcard $(FF)/FF/audio/*.c)
+FF_AUDIO_OBJ := $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_AUDIO_SRC)))))
+FF_ALL_OBJ += $(FF_AUDIO_OBJ)
+$(FF_OBJ_DIR)/%.o: $(FF)/FF/audio/%.c $(FF_HDR) $(FF_AUDIO_HDR)
+	$(C) $(CFLAGS)  $< -o$@
+
+
+# GUI
+FF_GUI_HDR := $(wildcard $(FF)/FF/gui/*.h)
+FF_GUI_OBJ := \
+	$(FF_OBJ_DIR)/ffgui-loader.o \
+	$(FF_OBJ_DIR)/ffgui-winapi.o
+FF_ALL_OBJ += $(FF_GUI_OBJ)
+$(FF_OBJ_DIR)/%.o: $(FF)/FF/gui/%.c $(FF_HDR) $(FF_GUI_HDR)
+	$(C) $(CFLAGS)  $< -o$@
+
+
+# AES
+FF_AES_SRC := $(wildcard $(FF)/3pt/aes/*.c)
+FF_AES_OBJ := $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_AES_SRC)))))
+FF_ALL_OBJ += $(FF_AES_OBJ)
+$(FF_OBJ_DIR)/%.o: $(FF)/3pt/aes/%.c
+	$(C) -c -O2 -g -ffunction-sections -fdata-sections -fvisibility=hidden -fno-exceptions $< -o$@
+
+
+# SHA
+FF_SHA_SRC := $(wildcard $(FF)/3pt/sha/*.c)
+FF_SHA_OBJ := $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_SHA_SRC)))))
+FF_ALL_OBJ += $(FF_SHA_OBJ)
+$(FF_OBJ_DIR)/%.o: $(FF)/3pt/sha/%.c
+	$(C) -O2 -g $(CFLAGS) $< -o$@
+
+
+# test
+FF_TEST_HDR := $(wildcard $(FF)/test/*.h)
+FF_TEST_SRC := $(wildcard $(FF)/test/*.c)
+FF_TEST_OBJ := $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_TEST_SRC)))))
 $(FF_OBJ_DIR)/%.o: $(FF)/test/%.c $(FF_HDR) $(FF_TEST_HDR)
-	$(C) $(CFLAGS) $(C1FLAGS) $< $(O)$@
+	$(C) $(CFLAGS)  $< -o$@
+FF_TEST_O := $(FFOS_OBJ) $(FF_OBJ) $(FF_NET_OBJ) $(FF_DATA_OBJ) $(FF_OBJ_DIR)/fftest.o $(FF_TEST_OBJ)
+$(FF_TEST_BIN): $(FF_TEST_O)
+	$(LD) $(FF_TEST_O) $(LDFLAGS) $(LIBS) -o$@
+
+
+ff: $(FF_OBJ_DIR) $(FFOS_OBJ) $(FF_OBJ)
+
+$(FF_OBJ_DIR):
+	mkdir $(FF_OBJ_DIR)
+
+ffclean:
+	rm -vfr $(FF_ALL_OBJ)
+	rmdir -v $(FF_OBJ_DIR)
