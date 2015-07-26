@@ -19,7 +19,7 @@ static int _ffogg_open(ffogg *o);
 static int _ffogg_pageseek(ffogg *o);
 
 enum { I_HDRPG, I_HDRPKT, I_COMM, I_HDRDONE
-	, I_SEEK_EOS, I_SEEK_EOS2, I_SEEK_EOS3
+	, I_SEEK_EOS, I_SEEK_EOS2, I_SEEK_EOS_THIS, I_SEEK_EOS3
 	, I_SEEK, I_SEEKDATA, I_SEEK2
 	, I_PAGE, I_PKT, I_SYNTH, I_DATA };
 
@@ -237,17 +237,22 @@ static int _ffogg_open(ffogg *o)
 		ogsk.osync = o->osync_seek;
 
 		while (FFOGG_RDONE == _ffogg_pageseek(&ogsk)) {
+			o->total_samples = ogg_page_granulepos(&ogsk.opg) - o->first_sample;
 			if (ogg_page_eos(&ogsk.opg)) {
 				o->osync_seek = ogsk.osync;
-				o->total_samples = ogg_page_granulepos(&ogsk.opg) - o->first_sample;
-				ogg_sync_clear(&o->osync_seek);
-				o->state = I_SEEK_EOS3;
-				return FFOGG_RINFO;
+				// o->state = I_SEEK_EOS_THIS;
+				goto eos_this;
 			}
 		}
 		o->osync_seek = ogsk.osync;
 		return FFOGG_RMORE;
 		}
+
+eos_this:
+	case I_SEEK_EOS_THIS:
+		ogg_sync_clear(&o->osync_seek);
+		o->state = I_SEEK_EOS3;
+		return FFOGG_RINFO;
 
 	case I_SEEK_EOS3:
 		o->off = o->off_data;
@@ -256,6 +261,14 @@ static int _ffogg_open(ffogg *o)
 	}
 	}
 	//unreachable
+}
+
+int ffogg_nodata(ffogg *o)
+{
+	if (o->state != I_SEEK_EOS2)
+		return -1;
+	o->state = I_SEEK_EOS_THIS;
+	return 0;
 }
 
 void ffogg_close(ffogg *o)
@@ -314,13 +327,7 @@ int ffogg_decode(ffogg *o)
 	for (;;) {
 
 	switch (o->state) {
-	case I_HDRPG:
-	case I_HDRPKT:
-	case I_COMM:
-	case I_HDRDONE:
-	case I_SEEK_EOS:
-	case I_SEEK_EOS2:
-	case I_SEEK_EOS3:
+	default:
 		return _ffogg_open(o);
 
 	case I_SEEKDATA:

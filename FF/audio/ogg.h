@@ -112,6 +112,10 @@ FF_EXTN void ffogg_seek(ffogg *o, uint64 sample);
 /** Get an absolute file offset to seek. */
 #define ffogg_seekoff(o)  ((o)->off)
 
+/** No more input data.
+Return 0 if decoding can proceed. */
+FF_EXTN int ffogg_nodata(ffogg *o);
+
 /** Decode OGG stream.
 Note: decoding errors are skipped. */
 FF_EXTN int ffogg_decode(ffogg *o);
