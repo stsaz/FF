@@ -48,12 +48,20 @@ FF_EXTN const byte ffpcm_bits[];
 #define ffpcm_bytes2time(pcm, bytes) \
 	ffpcm_time((bytes) / ffpcm_size1(pcm), (pcm)->sample_rate)
 
+#define ffpcm_bitrate(bytes, time_ms)  ((bytes) * 8 * 1000 / (time_ms))
 
 /** Combine two streams together. */
 FF_EXTN void ffpcm_mix(const ffpcm *pcm, char *stm1, const char *stm2, size_t samples);
 
 /** Convert PCM data. */
 FF_EXTN int ffpcm_convert(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm, const void *in, size_t samples);
+
+/** Convert volume knob position to dB value. */
+#define ffpcm_vol2db(pos, db_min) \
+	(((pos) != 0) ? (log10(pos) * (db_min)/2 /*log10(100)*/ - (db_min)) : -100)
+
+#define ffpcm_vol2db_inc(pos, pos_max, db_max) \
+	((pow(10, (double)(pos) / (pos_max)) - 1) / 10 * (db_max))
 
 /* gain = 10 ^ (db / 20) */
 #define ffpcm_db2gain(db)  pow(10, (double)(db) / 20)

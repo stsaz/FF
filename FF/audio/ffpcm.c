@@ -173,6 +173,9 @@ int ffpcm_gain(const ffpcmex *pcm, float gain, const void *in, void *out, uint s
 		float **pf;
 	} from, to;
 
+	if (gain == 1)
+		return 0;
+
 	from.sh = (void*)in;
 	to.sh = out;
 
