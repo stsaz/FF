@@ -439,9 +439,10 @@ static int scOpenBrace(ffparser_schem *ps)
 		o = curctx->obj;
 
 		er = curarg->dst.f_obj(ps, o, ctx);
-		if (er == 0)
+		if (er == 0) {
+			ps->curarg = NULL;
 			ps->vals[0].len = 0;
-		else
+		} else
 			ps->ctxs.len--;
 	}
 
