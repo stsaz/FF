@@ -814,11 +814,48 @@ uint ffs_tofloat(const char *s, size_t len, double *dst, int flags)
 	return i;
 }
 
+uint ffs_fromfloat(double d, char *dst, size_t cap, uint flags)
+{
+	const char *end = dst + cap;
+	char *buf = dst;
+	uint64 num, frac = 0;
+	uint width = (byte)(flags >> 24), wfrac = (byte)(flags >> 16), n, scale;
+
+	if (d < 0) {
+		buf = ffs_copyc(buf, end, '-');
+		d = -d;
+	}
+
+	num = (int64)d;
+
+	if (wfrac != 0) {
+		scale = 1;
+		for (n = wfrac;  n != 0;  n--) {
+			scale *= 10;
+		}
+		frac = (uint64)((d - (double)num) * scale + 0.5);
+		if (frac == scale) {
+			num++;
+			frac = 0;
+		}
+	}
+
+	buf += ffs_fromint(num, buf, end - buf, (flags & FFINT_ZEROWIDTH) | FFINT_WIDTH(width));
+
+	if (wfrac != 0) {
+		buf = ffs_copyc(buf, end, '.');
+		buf += ffs_fromint(frac, buf, end - buf, FFINT_ZEROWIDTH | FFINT_WIDTH(wfrac));
+	}
+
+	return buf - dst;
+}
+
 size_t ffs_fmtv(char *buf_o, const char *end, const char *fmt, va_list va)
 {
 	size_t swidth, len = 0;
-	uint width;
+	uint width, wfrac;
 	int64 num = 0;
+	double d;
 	uint itoaFlags = 0;
 	ffbool itoa = 0;
 	char *buf = buf_o;
@@ -836,7 +873,7 @@ size_t ffs_fmtv(char *buf_o, const char *end, const char *fmt, va_list va)
 		fmt++; //skip %
 
 		swidth = (size_t)-1;
-		width = 0;
+		width = wfrac = 0;
 
 		if (*fmt == '0') {
 			itoaFlags |= FFINT_ZEROWIDTH;
@@ -861,6 +898,13 @@ size_t ffs_fmtv(char *buf_o, const char *end, const char *fmt, va_list va)
 		case 'X':
 			itoaFlags |= FFINT_HEXUP;
 			fmt++;
+			break;
+
+		case '.':
+			fmt++;
+			while (ffchar_isdigit(*fmt)) {
+				wfrac = wfrac * 10 + (*fmt++ - '0');
+			}
 			break;
 		}
 
@@ -896,6 +940,14 @@ size_t ffs_fmtv(char *buf_o, const char *end, const char *fmt, va_list va)
 			num = va_arg(va, size_t);
 			width = sizeof(void*) * 2;
 			itoaFlags |= FFINT_HEXLOW | FFINT_ZEROWIDTH;
+			break;
+
+		case 'F':
+			d = va_arg(va, double);
+			itoaFlags |= FFINT_WIDTH(width) | (wfrac << 16);
+			buf += ffs_fromfloat(d, buf, end - buf, itoaFlags);
+			len += width + FFINT_MAXCHARS + FFSLEN(".") + wfrac + FFINT_MAXCHARS;
+			itoaFlags = 0;
 			break;
 
 #ifdef FF_UNIX

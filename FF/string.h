@@ -376,10 +376,14 @@ Return the number of chars processed.
 Return 0 on error. */
 FF_EXTN uint ffs_tofloat(const char *s, size_t len, double *dst, int flags);
 
+/** Convert float to string. */
+FF_EXTN uint ffs_fromfloat(double d, char *dst, size_t cap, uint flags);
+
 /** String format.
 %[0][width][x|X]d|u  int|uint
 %[0][width][x|X]D|U  int64|uint64
 %[0][width][x|X]I|L  ssize_t|size_t
+%[0][width][.width]F double
 
 %[*]s  [size_t,] char*
 %S     ffstr*
