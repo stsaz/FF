@@ -164,6 +164,8 @@ typedef ffarr ffstr3;
 /** Set NULL-terminated string. */
 #define ffstr_setz(s, sz)  ffarr_set(s, (char*)sz, ffsz_len(sz))
 
+#define ffstr_setnz(s, sz, maxlen)  ffarr_set(s, (char*)sz, ffsz_nlen(sz, maxlen))
+
 /** Set ffstr from ffiovec. */
 #define ffstr_setiovec(s, iov)  ffarr_set(s, (iov)->iov_base, (iov)->iov_len)
 

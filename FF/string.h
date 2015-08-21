@@ -187,6 +187,12 @@ static FFINL char * ffs_copy(char *dst, const char *bufend, const char *s, size_
 #define ffsz_icmp  _stricmp
 #endif
 
+/** Search the end of string limited by @maxlen. */
+static FFINL size_t ffsz_nlen(const char *s, size_t maxlen)
+{
+	return ffs_find(s, maxlen, '\0') - s;
+}
+
 /** Copy buffer and append zero byte.
 Return the pointer to the trailing zero. */
 static FFINL char * ffsz_copy(char *dst, size_t cap, const char *src, size_t len) {
