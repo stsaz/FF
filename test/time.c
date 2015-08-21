@@ -94,9 +94,6 @@ int test_timerq()
 	kq = ffkqu_create();
 	x(kq != FF_BADFD);
 	kqtm = ffkqu_settm(&tt, -1);
-#ifdef FF_WIN
-	kqtm = ffkqu_settm(&tt, tmr_resol / 2);
-#endif
 
 	fftmrq_init(&tq);
 	t1.handler = &t1_func;
@@ -123,7 +120,6 @@ int test_timerq()
 			break;
 		}
 
-		ffkqu_runtimer();
 		if (num == 0x0303)
 			break;
 	}

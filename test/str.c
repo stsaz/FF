@@ -300,7 +300,7 @@ static int test_strf()
 
 	s.len = 0;
 	ffstr_setcz(&s1, "hello");
-	ffqstr_set(&qs1, "hello", 5);
+	ffqstr_set(&qs1, TEXT("hello"), 5);
 	x(0 != ffstr_catfmt(&s, "%*s %S %*q %Q", (size_t)3, "hello", &s1, (size_t)3, TEXT("hello"), &qs1));
 	x(ffstr_eqcz(&s, "hel hello hel hello"));
 

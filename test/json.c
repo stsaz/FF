@@ -193,9 +193,9 @@ int test_json_schem(const char *testJsonFile)
 }
 
 /** Generate JSON file. */
-int test_json_generat(const ffsyschar *fn)
+int test_json_generat(const char *fn)
 {
-	ffsyschar fne[FF_MAXPATH];
+	char fne[FF_MAXPATH];
 	char buf[16 * 1024];
 	fffd f;
 	int i;
@@ -231,9 +231,8 @@ int test_json_generat(const ffsyschar *fn)
 
 	ffjson_cookinit(&j, buf, sizeof(buf));
 
-	if (0 != ffenv_expand(fn, fne, FFCNT(fne)))
-		fn = fne;
-	f = fffile_openq(fn, O_CREAT | O_TRUNC | O_WRONLY);
+	fn = ffenv_expand(fne, sizeof(fne), fn);
+	f = fffile_open(fn, O_CREAT | O_TRUNC | O_WRONLY);
 	if (!x(f != FF_BADFD))
 		return 0;
 
@@ -258,7 +257,7 @@ int test_json_generat(const ffsyschar *fn)
 
 	x(j.buf.len == fffile_write(f, j.buf.ptr, j.buf.len));
 	x(0 == fffile_close(f));
-	x(0 == fffile_rmq(fn));
+	x(0 == fffile_rm(fn));
 	ffjson_cookfin(&j);
 	return 0;
 }
@@ -321,7 +320,7 @@ int test_json()
 	test_json_err();
 	test_json_schem(TESTDIR "/schem.json");
 
-	test_json_generat(TEXT(TMPDIR) TEXT("/gen.json"));
+	test_json_generat(TMPDIR "/gen.json");
 	test_json_cook();
 	return 0;
 }

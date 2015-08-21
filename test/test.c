@@ -238,14 +238,13 @@ static int test_fmap()
 	char buf[64 * 1024];
 	uint64 sz;
 	ffstr d;
-	ffsyschar fne[FF_MAXPATH];
-	const ffsyschar *fn = TEXT(TMPDIR) TEXT("/ff_fmap.tmp");
+	char fne[FF_MAXPATH];
+	const char *fn = TMPDIR "/ff_fmap.tmp";
 
 	FFTEST_FUNC;
 
-	if (0 != ffenv_expand(fn, fne, FFCNT(fne)))
-		fn = fne;
-	fd = fffile_openq(fn, O_CREAT | O_TRUNC | O_RDWR);
+	fn = ffenv_expand(fne, sizeof(fne), fn);
+	fd = fffile_open(fn, O_CREAT | O_TRUNC | O_RDWR);
 	x(fd != FF_BADFD);
 
 	ffs_fill(buf, buf + FFCNT(buf), ' ', FFCNT(buf));
@@ -274,7 +273,7 @@ static int test_fmap()
 
 	fffile_mapclose(&fm);
 	fffile_close(fd);
-	fffile_rmq(fn);
+	fffile_rm(fn);
 	return 0;
 }
 
@@ -291,8 +290,8 @@ static int test_sendfile()
 	ffiovec hdtr[4];
 	int i;
 	ffaddr adr;
-	ffsyschar fne[FF_MAXPATH];
-	const ffsyschar *fn;
+	char fne[FF_MAXPATH];
+	const char *fn;
 
 	enum { M = 1024 * 1024 };
 
@@ -312,10 +311,9 @@ static int test_sendfile()
 	}
 
 	// prepare file
-	fn = TEXT(TMPDIR) TEXT("/tmp-ff");
-	if (0 != ffenv_expand(fn, fne, FFCNT(fne)))
-		fn = fne;
-	f = fffile_createtempq(fn, O_RDWR);
+	fn = TMPDIR "/tmp-ff";
+	fn = ffenv_expand(fne, sizeof(fne), fn);
+	f = fffile_createtemp(fn, O_RDWR);
 	x(f != FF_BADFD);
 	x(0 == fffile_trunc(f, 4 * M + 2));
 	x(2 == fffile_write(f, ".[", 2));
