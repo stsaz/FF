@@ -327,8 +327,13 @@ FF_EXTN ssize_t ffstr_findarr(const ffstr *ar, size_t n, const char *search, siz
 
 FF_EXTN ssize_t ffstr_ifindarr(const ffstr *ar, size_t n, const char *search, size_t search_len);
 
+enum FFSTR_NEXTVAL {
+	FFSTR_NV_DBLQUOT = 0x100, // val1 "val2 with space" val3
+};
+
 /** Get the next value from input string like "val1, val2, ...".
 Spaces on the edges are trimmed.
+@spl: split-character OR-ed with enum FFSTR_NEXTVAL.
 Return the number of processed bytes. */
 FF_EXTN size_t ffstr_nextval(const char *buf, size_t len, ffstr *dst, int spl);
 
