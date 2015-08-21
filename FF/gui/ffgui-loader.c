@@ -9,6 +9,7 @@ Copyright (c) 2014 Simon Zolin
 #include <FFOS/file.h>
 
 
+static void loadconf(ffui_loader *g, const char *fn);
 static uint ffui_hotkeyparse(const char *s, size_t len);
 
 // ICON
@@ -1322,5 +1323,100 @@ done:
 	ffmem_safefree(buf);
 	if (f != FF_BADFD)
 		fffile_close(f);
+
+	loadconf(g, fn);
 	return r;
+}
+
+
+void ffui_ldr_set(ffui_loaderw *ldr, const char *name, const char *val, size_t len)
+{
+	ffstr_catfmt(&ldr->buf, "%s %*s\n", name, len, val);
+}
+
+int ffui_ldr_write(ffui_loaderw *ldr, const char *fn)
+{
+	fffd f = FF_BADFD;
+	ffstr3 fnconf = {0};
+
+	if (0 == ffstr_catfmt(&fnconf, "%s.conf%Z", fn))
+		return -1;
+	if (FF_BADFD == (f = fffile_open(fnconf.ptr, O_CREAT | O_TRUNC | O_WRONLY)))
+		goto done;
+	fffile_write(f, ldr->buf.ptr, ldr->buf.len);
+
+done:
+	FF_SAFECLOSE(f, FF_BADFD, fffile_close);
+	ffarr_free(&ldr->buf);
+	ffarr_free(&fnconf);
+	return 0;
+}
+
+static void loadconf(ffui_loader *g, const char *fn)
+{
+	ffstr3 buf = {0}, fnconf = {0};
+	ffstr s, line, name, val;
+	fffd f = FF_BADFD;
+
+	if (0 == ffstr_catfmt(&fnconf, "%s.conf%Z", fn))
+		return;
+
+	if (FF_BADFD == (f = fffile_open(fnconf.ptr, O_RDONLY)))
+		goto done;
+
+	if (NULL == ffarr_alloc(&buf, fffile_size(f)))
+		goto done;
+
+	fffile_read(f, buf.ptr, buf.cap);
+	ffstr_set(&s, buf.ptr, buf.cap);
+
+	while (s.len != 0) {
+		size_t n = ffstr_nextval(s.ptr, s.len, &line, '\n');
+		ffstr_shift(&s, n);
+
+		if (line.len == 0)
+			continue;
+
+		//note: EVERY line must be terminated with \n, otherwise ffconf can't detect end of line
+		if (NULL == ffs_split2by(line.ptr, line.len + FFSLEN("\n"), '.', &name, &val))
+			continue;
+
+		g->ctl = g->getctl(g->udata, &name);
+		if (g->ctl != NULL) {
+			ffparser p;
+			ffparser_schem ps;
+			ffpars_ctx ctx = {0};
+
+			switch (g->ctl->uid) {
+			case FFUI_UID_WINDOW:
+				g->wnd = (void*)g->ctl;
+				ffpars_setargs(&ctx, g, wnd_args, FFCNT(wnd_args));
+				break;
+
+			case FFUI_UID_TRACKBAR:
+				ffpars_setargs(&ctx, g, trkbar_args, FFCNT(trkbar_args));
+				break;
+
+			default:
+				continue;
+			}
+			ffconf_scheminit(&ps, &p, &ctx);
+
+			while (val.len != 0) {
+				n = val.len;
+				int r = ffconf_parse(&p, val.ptr, &n);
+				ffstr_shift(&val, n);
+				r = ffpars_schemrun(&ps, r);
+			}
+
+			ffconf_schemfin(&ps);
+			ffpars_free(&p);
+			ffpars_schemfree(&ps);
+		}
+	}
+
+done:
+	FF_SAFECLOSE(f, FF_BADFD, fffile_close);
+	ffarr_free(&buf);
+	ffarr_free(&fnconf);
 }
