@@ -7,7 +7,7 @@ Copyright (c) 2014 Simon Zolin
 #include <FFOS/process.h>
 
 
-static uint _ffui_dpi;
+static int _ffui_dpi;
 
 enum {
 	_FFUI_WNDSTYLE = 1

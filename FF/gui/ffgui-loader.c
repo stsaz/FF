@@ -86,7 +86,7 @@ static const ffpars_arg label_args[] = {
 	{ "text",	FFPARS_TSTR, FFPARS_DST(&label_text) },
 	{ "style",	FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&label_style) },
 	{ "font",	FFPARS_TOBJ, FFPARS_DST(&label_font) },
-	{ "position",	FFPARS_TINT | FFPARS_FLIST, FFPARS_DST(&label_pos) },
+	{ "position",	FFPARS_TINT | FFPARS_FSIGN | FFPARS_FLIST, FFPARS_DST(&label_pos) },
 };
 static int new_label(ffparser_schem *ps, void *obj, ffpars_ctx *ctx);
 
@@ -97,7 +97,7 @@ static const ffpars_arg btn_args[] = {
 	{ "text",	FFPARS_TSTR, FFPARS_DST(&label_text) },
 	{ "style",	FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&label_style) },
 	{ "font",	FFPARS_TOBJ, FFPARS_DST(&label_font) },
-	{ "position",	FFPARS_TINT | FFPARS_FLIST, FFPARS_DST(&label_pos) },
+	{ "position",	FFPARS_TINT | FFPARS_FSIGN | FFPARS_FLIST, FFPARS_DST(&label_pos) },
 	{ "tooltip",	FFPARS_TSTR, FFPARS_DST(&ctl_tooltip) },
 	{ "action",	FFPARS_TSTR, FFPARS_DST(&btn_action) },
 };
@@ -110,7 +110,7 @@ static const ffpars_arg editbox_args[] = {
 	{ "text",	FFPARS_TSTR, FFPARS_DST(&label_text) },
 	{ "style",	FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&edit_style) },
 	{ "font",	FFPARS_TOBJ, FFPARS_DST(&label_font) },
-	{ "position",	FFPARS_TINT | FFPARS_FLIST, FFPARS_DST(&label_pos) },
+	{ "position",	FFPARS_TINT | FFPARS_FSIGN | FFPARS_FLIST, FFPARS_DST(&label_pos) },
 	{ "onchange",	FFPARS_TSTR, FFPARS_DST(&edit_action) },
 };
 static int new_editbox(ffparser_schem *ps, void *obj, ffpars_ctx *ctx);
@@ -124,7 +124,7 @@ static int trkbar_onscroll(ffparser_schem *ps, void *obj, const ffstr *val);
 static int trkbar_onscrolling(ffparser_schem *ps, void *obj, const ffstr *val);
 static const ffpars_arg trkbar_args[] = {
 	{ "style",	FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&trkbar_style) },
-	{ "position",	FFPARS_TINT | FFPARS_FLIST, FFPARS_DST(&label_pos) },
+	{ "position",	FFPARS_TINT | FFPARS_FSIGN | FFPARS_FLIST, FFPARS_DST(&label_pos) },
 	{ "range",	FFPARS_TINT, FFPARS_DST(&trkbar_range) },
 	{ "value",	FFPARS_TINT, FFPARS_DST(&trkbar_val) },
 	{ "page_size",	FFPARS_TINT, FFPARS_DST(&trkbar_pagesize) },
@@ -137,7 +137,7 @@ static int new_trkbar(ffparser_schem *ps, void *obj, ffpars_ctx *ctx);
 static int pgsbar_style(ffparser_schem *ps, void *obj, const ffstr *val);
 static const ffpars_arg pgsbar_args[] = {
 	{ "style",	FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&pgsbar_style) },
-	{ "position",	FFPARS_TINT | FFPARS_FLIST, FFPARS_DST(&label_pos) },
+	{ "position",	FFPARS_TINT | FFPARS_FSIGN | FFPARS_FLIST, FFPARS_DST(&label_pos) },
 };
 static int new_pgsbar(ffparser_schem *ps, void *obj, ffpars_ctx *ctx);
 
@@ -161,7 +161,7 @@ static int view_lclick(ffparser_schem *ps, void *obj, const ffstr *val);
 static int view_dblclick(ffparser_schem *ps, void *obj, const ffstr *val);
 static const ffpars_arg view_args[] = {
 	{ "style",	FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&view_style) },
-	{ "position",	FFPARS_TINT | FFPARS_FLIST, FFPARS_DST(&view_pos) },
+	{ "position",	FFPARS_TINT | FFPARS_FSIGN | FFPARS_FLIST, FFPARS_DST(&view_pos) },
 	{ "chsel",	FFPARS_TSTR, FFPARS_DST(&view_chsel) },
 	{ "lclick",	FFPARS_TSTR, FFPARS_DST(&view_lclick) },
 	{ "dblclick",	FFPARS_TSTR, FFPARS_DST(&view_dblclick) },
@@ -203,7 +203,7 @@ static int wnd_parent(ffparser_schem *ps, void *obj, const ffstr *val);
 static int wnd_done(ffparser_schem *ps, void *obj);
 static const ffpars_arg wnd_args[] = {
 	{ "title",	FFPARS_TSTR, FFPARS_DST(&wnd_title) },
-	{ "position",	FFPARS_TINT | FFPARS_FLIST, FFPARS_DST(&wnd_position) },
+	{ "position",	FFPARS_TINT | FFPARS_FSIGN | FFPARS_FLIST, FFPARS_DST(&wnd_position) },
 	{ "opacity",	FFPARS_TINT, FFPARS_DST(&wnd_opacity) },
 	{ "borderstick",	FFPARS_TINT | FFPARS_F8BIT, FFPARS_DST(&wnd_borderstick) },
 	{ "icon",	FFPARS_TOBJ, FFPARS_DST(&wnd_icon) },
