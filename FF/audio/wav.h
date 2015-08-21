@@ -104,6 +104,7 @@ typedef struct ffwav {
 	uint64 cursample
 		, total_samples
 		, seek_sample;
+	uint has_fmt :1;
 
 	size_t datalen;
 	const void *data;
@@ -113,6 +114,7 @@ typedef struct ffwav {
 } ffwav;
 
 enum FFWAV_R {
+	FFWAV_RWARN = -2,
 	FFWAV_RERR = -1
 	, FFWAV_RMORE
 	, FFWAV_RHDR

@@ -101,6 +101,11 @@ enum WAV_T {
 	, WAV_TDATA
 };
 
+struct _ffwav_ukn {
+	char id[4];
+	uint size;
+};
+
 /* Get the next chunk.
 Return enum WAV_T. */
 static int _ffwav_parse(ffwav *w)
@@ -108,6 +113,7 @@ static int _ffwav_parse(ffwav *w)
 	int r = 0;
 	size_t len2 = w->datalen;
 	union {
+		const struct _ffwav_ukn *ukn;
 		const ffwav_riff *wr;
 		const ffwav_fmt *wf;
 		const ffwav_ext *we;
@@ -176,6 +182,11 @@ static int _ffwav_parse(ffwav *w)
 	}
 
 	w->err = WAV_EUKN;
+	if (w->datalen < sizeof(struct _ffwav_ukn) + u.ukn->size)
+		return WAV_TMORE;
+	w->data += sizeof(struct _ffwav_ukn) + u.ukn->size;
+	w->datalen -= sizeof(struct _ffwav_ukn) + u.ukn->size;
+
 	return r | WAV_TERR;
 
 done:
@@ -192,7 +203,7 @@ enum { I_HDR, I_DATA, I_DATAOK, I_BUFDATA, I_SEEK };
 
 static int _ffwav_gethdr(ffwav *w)
 {
-	const ffwav_fmt *wf = NULL;
+	const ffwav_fmt *wf;
 	const ffwav_data *wd;
 	const char *data_first = w->data;
 	const void *pchunk;
@@ -203,6 +214,8 @@ static int _ffwav_gethdr(ffwav *w)
 		r = _ffwav_parse(w);
 
 		if (r & WAV_TERR) {
+			if (w->err == WAV_EUKN)
+				return FFWAV_RWARN;
 			return FFWAV_RERR;
 		}
 
@@ -213,7 +226,7 @@ static int _ffwav_gethdr(ffwav *w)
 		switch (r) {
 		case WAV_TFMT:
 		case WAV_TEXT:
-			if (wf != NULL) {
+			if (w->has_fmt) {
 				w->err = WAV_EDUPFMT;
 				return FFWAV_RERR;
 			}
@@ -227,10 +240,11 @@ static int _ffwav_gethdr(ffwav *w)
 				w->err = WAV_ESYS;
 				return FFWAV_RERR;
 			}
+			w->has_fmt = 1;
 			break;
 
 		case WAV_TDATA:
-			if (wf == NULL) {
+			if (!w->has_fmt) {
 				w->err = WAV_ENOFMT;
 				return FFWAV_RERR;
 			}
