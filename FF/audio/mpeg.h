@@ -96,11 +96,17 @@ typedef struct ffmpg {
 		, total_size
 		, off;
 
+	uint id31state;
+	int tagframe; //enum FFID3_FRAME
+	ffstr tagval;
+
 	size_t datalen;
 	const void *data;
 
 	size_t pcmlen;
 	float *pcm[2];
+
+	uint seekable :1;
 } ffmpg;
 
 enum FFMPG_R {
@@ -110,6 +116,7 @@ enum FFMPG_R {
 	, FFMPG_RDATA
 	, FFMPG_RMORE
 	, FFMPG_RSEEK
+	, FFMPG_RTAG
 };
 
 /** Get the last error as a string. */

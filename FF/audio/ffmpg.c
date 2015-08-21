@@ -3,6 +3,7 @@ Copyright (c) 2013 Simon Zolin
 */
 
 #include <FF/audio/mpeg.h>
+#include <FF/audio/id3.h>
 #include <FF/string.h>
 #include <FFOS/error.h>
 
@@ -72,7 +73,7 @@ void ffmpg_close(ffmpg *m)
 	mad_stream_finish(&m->stream);
 }
 
-enum { I_INPUT, I_BUFINPUT, I_FR, I_FROK, I_SYNTH, I_SEEK, I_SEEK2 };
+enum { I_INPUT, I_BUFINPUT, I_FR, I_FROK, I_SYNTH, I_SEEK, I_SEEK2, I_HDR, I_ID31 };
 
 void ffmpg_seek(ffmpg *m, uint64 sample)
 {
@@ -101,6 +102,20 @@ int ffmpg_decode(ffmpg *m)
 			m->stream.sync = 0;
 			m->state = I_FR;
 			break;
+
+
+		case I_ID31:
+			if (m->datalen == sizeof(ffid31)
+				&& (m->id31state != 0 || ffid31_valid((void*)m->data))
+				&& -1 != (m->tagframe = ffid31_parse((void*)m->data, &m->id31state, &m->tagval)))
+				return FFMPG_RTAG;
+
+			m->state = I_HDR;
+			m->off = m->dataoff;
+			if (m->id31state != 0)
+				m->total_size -= sizeof(ffid31);
+			return FFMPG_RSEEK;
+
 
 		case I_INPUT:
 			mad_stream_buffer(&m->stream, m->data, m->datalen);
@@ -145,28 +160,38 @@ int ffmpg_decode(ffmpg *m)
 			}
 
 			if (m->fmt.channels == 0) {
-				m->state = I_SYNTH;
 				m->bitrate = m->frame.header.bitrate;
 				m->fmt.format = FFPCM_FLOAT;
 				m->fmt.channels = MAD_NCHANNELS(&m->frame.header);
 				m->fmt.sample_rate = m->frame.header.samplerate;
 
-				if (m->total_len != 0) {
-					m->total_samples = ffpcm_samples(m->total_len, m->fmt.sample_rate);
-					if (m->total_size != 0) {
-						m->total_size -= m->dataoff;
-						m->bitrate = ffpcm_bitrate(m->total_size, m->total_len);
-					}
-
-				} else if (m->total_size != 0) {
-					m->total_size -= m->dataoff;
-					m->total_samples = ffpcm_samples(m->total_size * 1000 / (m->bitrate/8), m->fmt.sample_rate);
+				if (m->seekable && m->total_size > sizeof(ffid31)) {
+					m->state = I_ID31;
+					m->off = m->total_size - sizeof(ffid31);
+					return FFMPG_RSEEK;
 				}
 
-				return FFMPG_RHDR;
+				goto hdr;
 			}
 
 			goto ok;
+
+		case I_HDR:
+hdr:
+			if (m->total_len != 0) {
+				m->total_samples = ffpcm_samples(m->total_len, m->fmt.sample_rate);
+				if (m->total_size != 0) {
+					m->total_size -= m->dataoff;
+					m->bitrate = ffpcm_bitrate(m->total_size, m->total_len);
+				}
+
+			} else if (m->total_size != 0) {
+				m->total_size -= m->dataoff;
+				m->total_samples = ffpcm_samples(m->total_size * 1000 / (m->bitrate/8), m->fmt.sample_rate);
+			}
+
+			m->state = I_SYNTH;
+			return FFMPG_RHDR;
 
 		case I_SYNTH:
 			m->state = I_FR;
