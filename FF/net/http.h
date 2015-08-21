@@ -395,7 +395,8 @@ typedef struct ffhttp_cook {
 	ffstr3 buf;
 	ushort code;
 	unsigned conn_close : 1
-		, http10_keepalive : 1;
+		, http10_keepalive : 1
+		, err :1; //memory allocation error
 	ffstr proto
 		, status;
 
@@ -417,15 +418,20 @@ static FFINL void ffhttp_cookinit(ffhttp_cook *c, char *buf, size_t cap) {
 	ffstr_setcz(&c->proto, "HTTP/1.1");
 }
 
+static FFINL void ffhttp_cookdestroy(ffhttp_cook *c)
+{
+	ffarr_free(&c->buf);
+}
+
 static FFINL void ffhttp_cookreset(ffhttp_cook *c) {
 	ffhttp_cookinit(c, c->buf.ptr, c->buf.cap);
 }
 
 /** Add request line. */
 static FFINL void ffhttp_addrequest(ffhttp_cook *c, const char *method, size_t methlen, const char *uri, size_t urilen) {
-	ffstr3 *s = &c->buf;
-	s->len += ffs_fmt(ffarr_end(s), s->ptr + s->cap, "%*s %*s %S" FFCRLF
-		, (size_t)methlen, method, (size_t)urilen, uri, &c->proto);
+	if (0 == ffstr_catfmt(&c->buf, "%*s %*s %S" FFCRLF
+		, methlen, method, urilen, uri, &c->proto))
+		c->err = 1;
 }
 
 /** Set response code and default status message. */
@@ -444,16 +450,16 @@ static FFINL void ffhttp_setstatus4(ffhttp_cook *c, uint code, const char *statu
 
 /** Write status line. */
 static FFINL void ffhttp_addstatus(ffhttp_cook *c) {
-	ffstr3 *s = &c->buf;
-	s->len += ffs_fmt(ffarr_end(s), s->ptr + s->cap, "%S %S" FFCRLF
-		, &c->proto, &c->status);
+	if (0 == ffstr_catfmt(&c->buf, "%S %S" FFCRLF
+		, &c->proto, &c->status))
+		c->err = 1;
 }
 
 /** Write header line. */
 static FFINL void ffhttp_addhdr(ffhttp_cook *c, const char *name, size_t namelen, const char *val, size_t vallen) {
-	ffstr3 *s = &c->buf;
-	s->len += ffs_fmt(ffarr_end(s), s->ptr + s->cap, "%*s: %*s" FFCRLF
-		, (size_t)namelen, name, (size_t)vallen, val);
+	if (0 == ffstr_catfmt(&c->buf, "%*s: %*s" FFCRLF
+		, namelen, name, vallen, val))
+		c->err = 1;
 }
 
 static FFINL void ffhttp_addhdr_str(ffhttp_cook *c, const ffstr *name, const ffstr *val) {
@@ -466,17 +472,15 @@ static FFINL void ffhttp_addihdr(ffhttp_cook *c, uint ihdr, const char *val, siz
 	ffhttp_addhdr(c, FFSTR2(ffhttp_shdr[ihdr]), val, vallen);
 }
 
-/** Write special headers in ffhttp_cook.
-Return 0 on success.
-Return 1 if buffer is full. */
-FF_EXTN int ffhttp_cookflush(ffhttp_cook *c);
+/** Write special headers in ffhttp_cook. */
+FF_EXTN void ffhttp_cookflush(ffhttp_cook *c);
 
 /** Write the last CRLF.
-Return 0 on success.
-Return 1 if buffer is full. */
+Return 0 on success. */
 static FFINL int ffhttp_cookfin(ffhttp_cook *c) {
-	ffstr3_cat(&c->buf, FFSTR(FFCRLF));
-	return (c->buf.len == c->buf.cap);
+	if (NULL == ffarr_append(&c->buf, FFCRLF, 2))
+		c->err = 1;
+	return c->err;
 }
 
 

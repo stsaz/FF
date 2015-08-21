@@ -1206,7 +1206,7 @@ static const byte offs[] = {
 };
 #undef _OFF
 
-int ffhttp_cookflush(ffhttp_cook *c)
+void ffhttp_cookflush(ffhttp_cook *c)
 {
 	uint i;
 	for (i = 0;  i < FFCNT(offs);  i++) {
@@ -1225,8 +1225,6 @@ int ffhttp_cookflush(ffhttp_cook *c)
 		ffhttp_addihdr(c, FFHTTP_CONNECTION, FFSTR("close"));
 	else if (c->http10_keepalive)
 		ffhttp_addihdr(c, FFHTTP_CONNECTION, FFSTR("keep-alive"));
-
-	return (c->buf.len == c->buf.cap);
 }
 
 

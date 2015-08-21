@@ -371,10 +371,9 @@ static int test_findhdr()
 
 static int test_cook()
 {
-	char buf[1024];
 	ffhttp_cook c;
 
-	ffhttp_cookinit(&c, buf, FFCNT(buf));
+	ffhttp_cookinit(&c, NULL, 0);
 	ffhttp_addrequest(&c, FFSTR("GET"), FFSTR("/someurl"));
 	ffhttp_addhdr(&c, FFSTR("my-hdr"), FFSTR("my value"));
 	ffhttp_addihdr(&c, FFHTTP_LOCATION, FFSTR("my location"));
@@ -407,6 +406,7 @@ static int test_cook()
 	x(ffstr_eqcz(&c.buf,
 		"HTTP/1.1 999 some status" FFCRLF
 		FFCRLF));
+	ffhttp_cookdestroy(&c);
 
 	return 0;
 }
