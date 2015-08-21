@@ -144,6 +144,10 @@ static void getpos_noscale(HWND h, ffui_pos *r)
 		ScreenToClient(parent, &pt);
 		r->x = pt.x;
 		r->y = pt.y;
+
+	} else {
+		r->x = rect.left;
+		r->y = rect.top;
 	}
 }
 
