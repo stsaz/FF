@@ -556,7 +556,7 @@ int ffjson_schemfin(ffparser_schem *ps)
 {
 	if (ps->ctxs.len != 0)
 		return FFPARS_ENOBRACE;
-	if (ps->p->line == 0 && ps->p->ch == 0)
+	if (ps->p->line == 1 && ps->p->ch == 0)
 		return FFPARS_ENOVAL;
 	return 0;
 }
