@@ -228,6 +228,8 @@ static FFINL void ffpars_setargs(ffpars_ctx *ctx, void *o, const ffpars_arg *arg
 	ctx->nargs = nargs;
 }
 
+FF_EXTN void ffpars_ctx_skip(ffpars_ctx *ctx);
+
 enum FFPARS_RETHDL {
 	FFPARS_OK = 0
 	, FFPARS_DONE = -1

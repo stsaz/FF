@@ -494,12 +494,37 @@ static int scCloseBrace(ffparser_schem *ps)
 	return 0;
 }
 
+static const ffpars_arg empty_args[1];
+
+void ffpars_ctx_skip(ffpars_ctx *ctx)
+{
+	ffpars_setargs(ctx, NULL, empty_args, FFCNT(empty_args));
+}
+
 int ffpars_schemrun(ffparser_schem *ps, int e)
 {
 	int rc = 0;
 
 	if (e >= 0)
 		return e;
+
+	if (ps->ctxs.len != 0 && ffarr_back(&ps->ctxs).args == empty_args) {
+		ffpars_ctx *ctx;
+
+		switch (e) {
+		case FFPARS_OPEN:
+			ctx = ffarr_push(&ps->ctxs, ffpars_ctx);
+			if (ctx == NULL)
+				return FFPARS_ESYS;
+			*ctx = ps->ctxs.ptr[ps->ctxs.len - 2];
+			break;
+
+		case FFPARS_CLOSE:
+			ps->ctxs.len--;
+			break;
+		}
+		return e;
+	}
 
 	if (ps->flags & FFPARS_SCHAVKEY) {
 		if (e != FFPARS_VAL)
