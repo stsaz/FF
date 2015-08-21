@@ -71,6 +71,7 @@ void ffwav_pcmfmtset(ffwav_fmt *wf, uint pcm_fmt)
 enum WAV_E {
 	WAV_EOK
 	, WAV_ENOFMT
+	, WAV_EBADFMT
 	, WAV_EDUPFMT
 	, WAV_EUKN
 
@@ -80,6 +81,7 @@ enum WAV_E {
 static const char *const wav_errstr[] = {
 	""
 	, "no format chunk"
+	, "bad format chunk"
 	, "duplicate format chunk"
 	, "unknown chunk"
 };
@@ -150,7 +152,7 @@ static int _ffwav_parse(ffwav *w)
 			return r | WAV_TMORE;
 
 		if (u.wf->format == 0 || u.wf->channels == 0 || u.wf->sample_rate == 0 || u.wf->bit_depth == 0)
-			break;
+			return WAV_TFMT | WAV_EBADFMT;
 
 		if (u.wf->format == WAV_TEXT) {
 			r = WAV_TEXT;
