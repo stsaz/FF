@@ -14,7 +14,8 @@ typedef struct ffdirexp {
 } ffdirexp;
 
 enum FFDIR_EXP {
-	FFDIR_EXP_NOSORT = 1
+	FFDIR_EXP_NOSORT = 1,
+	FFDIR_EXP_DOT12 = 2, //include "." and ".."
 };
 
 /** Get file names by a wildcard pattern.

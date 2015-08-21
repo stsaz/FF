@@ -349,6 +349,7 @@ int ffdir_expopen(ffdirexp *dex, char *pattern, uint flags)
 	int rc = 1;
 	uint wcflags;
 	char **pname;
+	const ffsyschar *nm;
 	ffstr path, wildcard;
 	ffarr names = {0};
 	ffstr3 fullname = {0};
@@ -402,6 +403,12 @@ int ffdir_expopen(ffdirexp *dex, char *pattern, uint flags)
 				break;
 			goto done;
 		}
+
+		nm = ffdir_entryname(&de);
+		if (!(flags & FFDIR_EXP_DOT12)
+			&& nm[0] == '.' && (nm[1] == '\0'
+				|| (nm[1] == '.' && nm[2] == '\0')))
+			continue;
 
 		if (NULL == _ffarr_grow(&names, 1, FFARR_GROWQUARTER, sizeof(char*)))
 			goto done;
