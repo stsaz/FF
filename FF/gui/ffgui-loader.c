@@ -118,11 +118,15 @@ static int new_editbox(ffparser_schem *ps, void *obj, ffpars_ctx *ctx);
 // TRACKBAR
 static int trkbar_style(ffparser_schem *ps, void *obj, const ffstr *val);
 static int trkbar_pagesize(ffparser_schem *ps, void *obj, const int64 *val);
+static int trkbar_range(ffparser_schem *ps, void *obj, const int64 *val);
+static int trkbar_val(ffparser_schem *ps, void *obj, const int64 *val);
 static int trkbar_onscroll(ffparser_schem *ps, void *obj, const ffstr *val);
 static int trkbar_onscrolling(ffparser_schem *ps, void *obj, const ffstr *val);
 static const ffpars_arg trkbar_args[] = {
 	{ "style",	FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&trkbar_style) },
 	{ "position",	FFPARS_TINT | FFPARS_FLIST, FFPARS_DST(&label_pos) },
+	{ "range",	FFPARS_TINT, FFPARS_DST(&trkbar_range) },
+	{ "value",	FFPARS_TINT, FFPARS_DST(&trkbar_val) },
 	{ "page_size",	FFPARS_TINT, FFPARS_DST(&trkbar_pagesize) },
 	{ "onscroll",	FFPARS_TSTR, FFPARS_DST(&trkbar_onscroll) },
 	{ "onscrolling",	FFPARS_TSTR, FFPARS_DST(&trkbar_onscrolling) },
@@ -499,6 +503,20 @@ static int trkbar_style(ffparser_schem *ps, void *obj, const ffstr *val)
 		ffui_styleset(g->trkbar->h, TBS_NOTICKS);
 	else if (ffstr_eqcz(val, "both"))
 		ffui_styleset(g->trkbar->h, TBS_BOTH);
+	return 0;
+}
+
+static int trkbar_range(ffparser_schem *ps, void *obj, const int64 *val)
+{
+	ffui_loader *g = obj;
+	ffui_trk_setrange(g->trkbar, *val);
+	return 0;
+}
+
+static int trkbar_val(ffparser_schem *ps, void *obj, const int64 *val)
+{
+	ffui_loader *g = obj;
+	ffui_trk_set(g->trkbar, *val);
 	return 0;
 }
 
