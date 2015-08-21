@@ -78,9 +78,13 @@ FF_EXTN int ffs_icmp(const char *s1, const char *s2, size_t len);
 #define ffs_ieqcz(s1, len, csz2) \
 	((len) == FFSLEN(csz2) && 0 == ffs_icmp(s1, csz2, len))
 
-/** Compare buffer and NULL-terminated string. */
-int ffs_cmpz(const char *s1, size_t len, const char *sz2);
-int ffs_icmpz(const char *s1, size_t len, const char *sz2);
+/** Compare buffer and NULL-terminated string.
+Return 0 if equal.
+Return the mismatch byte position:
+ . n+1 if s1 > sz2
+ . -n-1 if s1 < sz2. */
+ssize_t ffs_cmpz(const char *s1, size_t len, const char *sz2);
+ssize_t ffs_icmpz(const char *s1, size_t len, const char *sz2);
 
 /** Search for a byte in buffer. */
 FF_EXTN void * ffmemchr(const void *d, int b, size_t len);

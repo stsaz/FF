@@ -177,7 +177,7 @@ static int scHdlKey(ffparser_schem *ps, ffpars_ctx *ctx)
 		return er;
 
 	else if (er == FFPARS_OK) {
-		int (*cmpz)(const char *s1, size_t len, const char *sz2);
+		ssize_t (*cmpz)(const char *s1, size_t len, const char *sz2);
 		cmpz = (ps->flags & FFPARS_KEYICASE) ? &ffs_icmpz : &ffs_cmpz;
 
 		for (i = 0;  i < ctx->nargs;  i++) {

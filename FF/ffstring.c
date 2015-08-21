@@ -31,9 +31,9 @@ int ffs_icmp(const char *s1, const char *s2, size_t len)
 	return 0;
 }
 
-int ffs_cmpz(const char *s1, size_t len, const char *sz2)
+ssize_t ffs_cmpz(const char *s1, size_t len, const char *sz2)
 {
-	size_t i;
+	ssize_t i;
 	uint ch1, ch2;
 
 	for (i = 0;  i != len;  i++) {
@@ -41,21 +41,21 @@ int ffs_cmpz(const char *s1, size_t len, const char *sz2)
 		ch2 = (byte)sz2[i];
 
 		if (ch2 == '\0')
-			return 1; //s1 > sz2
+			return i + 1; //s1 > sz2
 
 		if (ch1 != ch2)
-			return (ch1 < ch2) ? -1 : 1;
+			return (ch1 < ch2) ? -i - 1 : i + 1;
 	}
 
 	if (sz2[i] != '\0')
-		return -1; //s1 < sz2
+		return -i - 1; //s1 < sz2
 
 	return 0; //s1 == sz2
 }
 
-int ffs_icmpz(const char *s1, size_t len, const char *sz2)
+ssize_t ffs_icmpz(const char *s1, size_t len, const char *sz2)
 {
-	size_t i;
+	ssize_t i;
 	uint ch1, ch2;
 
 	for (i = 0;  i != len;  i++) {
@@ -63,7 +63,7 @@ int ffs_icmpz(const char *s1, size_t len, const char *sz2)
 		ch2 = (byte)sz2[i];
 
 		if (ch2 == '\0')
-			return 1; //s1 > sz2
+			return i + 1; //s1 > sz2
 
 		if (ch1 != ch2) {
 			if (ffchar_isup(ch1))
@@ -73,12 +73,12 @@ int ffs_icmpz(const char *s1, size_t len, const char *sz2)
 				ch2 = ffchar_lower(ch2);
 
 			if (ch1 != ch2)
-				return (ch1 < ch2) ? -1 : 1;
+				return (ch1 < ch2) ? -i - 1 : i + 1;
 		}
 	}
 
 	if (sz2[i] != '\0')
-		return -1; //s1 < sz2
+		return -i - 1; //s1 < sz2
 
 	return 0; //s1 == sz2
 }
