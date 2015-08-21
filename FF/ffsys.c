@@ -315,23 +315,15 @@ void fftask_run(fftaskmgr *mgr)
 }
 
 
-struct _ffdir_sort {
-	size_t nameoff;
-	uint flags;
-};
-
 #if defined FF_MSVC || defined FF_BSD
 static int _ffdir_cmpfilename(void *udata, const void *a, const void *b)
+#elif defined FF_WIN
+static int _ffdir_cmpfilename(const void *a, const void *b)
 #else
 static int _ffdir_cmpfilename(const void *a, const void *b, void *udata)
 #endif
 {
-#if defined FF_WIN && !defined FF_MSVC
-	char *n1 = (*(char**)a), *n2 = (*(char**)b);
-#else
-	struct _ffdir_sort *ds = udata;
-	char *n1 = (*(char**)a) + ds->nameoff, *n2 = (*(char**)b) + ds->nameoff;
-#endif
+	char *n1 = *(char**)a, *n2 = *(char**)b;
 
 #ifdef FF_UNIX
 	return ffsz_cmp(n1, n2);
@@ -353,27 +345,44 @@ int ffdir_expopen(ffdirexp *dex, char *pattern, uint flags)
 	ffstr path, wildcard;
 	ffarr names = {0};
 	ffstr3 fullname = {0};
+	size_t len = ffsz_len(pattern), max_namelen = 0;
 
 	ffmem_tzero(dex);
 	ffmem_tzero(&de);
 
-	if (NULL != ffpath_split2(pattern, ffsz_len(pattern), &path, &wildcard))
-		path.len += FFSLEN("/");
+	ffpath_split2(pattern, len, &path, &wildcard);
+
+	if (wildcard.len != 0
+		&& ffarr_end(&wildcard) == ffs_findof(wildcard.ptr, wildcard.len, "*?", 2)) {
+		// "/path" (without the last "/")
+		path.len = len;
+		wildcard.len = 0;
+	}
 
 #ifdef FF_UNIX
 	if (path.len == 0)
 		dir = opendir(".");
 	else {
-		ffarr_back(&path) = '\0';
+		// "/path..." -> "/path\0"
+		char *p = path.ptr + path.len;
+		int back = *p;
+		if (back != '\0')
+			*p = '\0';
 		dir = opendir(path.ptr);
-		ffarr_back(&path) = '/';
+		if (back != '\0')
+			*p = back;
 	}
 
 	if (dir == NULL)
 		return 1;
 
 #else //windows:
-	{
+	if (wildcard.len == 0) {
+		if (NULL == (dir = ffdir_open(pattern, 0, &de)))
+			return 1;
+
+	} else {
+
 	ffsyschar *wpatt;
 	ffsyschar wpatt_s[FF_MAXFN];
 	size_t wpatt_len = FFCNT(wpatt_s);
@@ -414,12 +423,16 @@ int ffdir_expopen(ffdirexp *dex, char *pattern, uint flags)
 			goto done;
 
 		fullname.len = 0;
-		if (0 == ffstr_catfmt(&fullname, "%S%*q%Z", &path, de.namelen, ffdir_entryname(&de)))
+		if (0 == ffstr_catfmt(&fullname, "%*q%Z", de.namelen, ffdir_entryname(&de)))
 			goto done;
 		fullname.len--;
 
-		if (0 != ffs_wildcard(wildcard.ptr, wildcard.len, fullname.ptr + path.len, fullname.len - path.len, wcflags))
+		if (wildcard.len != 0
+			&& 0 != ffs_wildcard(wildcard.ptr, wildcard.len, fullname.ptr, fullname.len, wcflags))
 			continue;
+
+		if (max_namelen < fullname.len)
+			max_namelen = fullname.len;
 
 		pname = ffarr_push(&names, char*);
 		*pname = fullname.ptr;
@@ -429,20 +442,19 @@ int ffdir_expopen(ffdirexp *dex, char *pattern, uint flags)
 	if (names.len == 0)
 		goto done;
 
+	dex->pathlen = path.len;
+	if (NULL == (dex->path_fn = ffmem_alloc(dex->pathlen + FFSLEN("/") + max_namelen + 1)))
+		goto done;
+	ffmemcpy(dex->path_fn, path.ptr, path.len);
+	if (path.len != 0) {
+		char c = path.ptr[dex->pathlen];
+		if (!ffpath_slash(c))
+			c = FFPATH_SLASH;
+		dex->path_fn[dex->pathlen++] = c;
+	}
+
 	if (!(flags & FFDIR_EXP_NOSORT)) {
-#if defined FF_WIN && !defined FF_MSVC
-		qsort(names.ptr, names.len, sizeof(char*), (int(*)(const void*, const void*))&_ffdir_cmpfilename);
-#else
-		struct _ffdir_sort ds;
-		ds.nameoff = path.len;
-#ifdef FF_WIN
-		qsort_s(names.ptr, names.len, sizeof(char*), &_ffdir_cmpfilename, &ds);
-#elif defined FF_LINUX
-		qsort_r(names.ptr, names.len, sizeof(char*), &_ffdir_cmpfilename, &ds);
-#else
-		qsort_r(names.ptr, names.len, sizeof(char*), &ds, &_ffdir_cmpfilename);
-#endif
-#endif
+		ff_qsort(names.ptr, names.len, sizeof(char*), &_ffdir_cmpfilename, NULL);
 	}
 
 	rc = 0;
@@ -464,4 +476,5 @@ void ffdir_expclose(ffdirexp *dex)
 		ffmem_free(dex->names[i]);
 	}
 	ffmem_free(dex->names);
+	ffmem_safefree(dex->path_fn);
 }

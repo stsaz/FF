@@ -451,6 +451,18 @@ static int test_direxp(void)
 	x(n == 3);
 	ffdir_expclose(&dex);
 
+	ffsz_copycz(mask, "./");
+	x(0 == ffdir_expopen(&dex, mask, 0));
+	n = 0;
+	while (NULL != (name = ffdir_expread(&dex))) {
+		if (!ffsz_cmp(name, names[0])
+			|| !ffsz_cmp(name, names[1])
+			|| !ffsz_cmp(name, names[2]))
+			n++;
+	}
+	x(n == 3);
+	ffdir_expclose(&dex);
+
 	for (n = 0;  n < 3;  n++) {
 		fffile_rm(names[n]);
 	}
