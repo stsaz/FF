@@ -103,6 +103,16 @@ int ffpcm_convert(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm, const 
 		}
 		break;
 
+	case CASE(FFPCM_16LE, 1, FFPCM_16LE, 0):
+		for (ich = 0;  ich != inpcm->channels;  ich++) {
+			from.sh = (short*)in + ich;
+			for (i = 0;  i != samples;  i++) {
+				to.psh[ich][i] = *from.sh;
+				from.sh += inpcm->channels;
+			}
+		}
+		break;
+
 	case CASE(FFPCM_16LE, 0, FFPCM_FLOAT, 0):
 		for (ich = 0;  ich != inpcm->channels;  ich++) {
 			for (i = 0;  i != samples;  i++) {
@@ -143,6 +153,14 @@ int ffpcm_convert(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm, const 
 			for (i = 0;  i != samples;  i++) {
 				to.sh[j] = _ffpcm_flt_16le(from.pf[ich][i]);
 				j += outpcm->channels;
+			}
+		}
+		break;
+
+	case CASE(FFPCM_FLOAT, 0, FFPCM_16LE, 0):
+		for (ich = 0;  ich != inpcm->channels;  ich++) {
+			for (i = 0;  i != samples;  i++) {
+				to.psh[ich][i] = _ffpcm_flt_16le(from.pf[ich][i]);
 			}
 		}
 		break;
