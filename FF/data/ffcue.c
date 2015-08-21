@@ -236,7 +236,7 @@ int ffcue_parse(ffparser *p, const char *data, size_t *len)
 					r = FFPARS_EBADVAL;
 					break;
 				}
-				p->intval = (int64)(m * 60 + s) * 1000 + f * 1000 / 75;
+				p->intval = (int64)(m * 60 + s) * 75 + f;
 				r = FFPARS_VAL;
 				p->type = (idx == 0) ? FFCUE_TRK_INDEX00 : FFCUE_TRK_INDEX;
 				p->nextst = I_TRK_CMD;

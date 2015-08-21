@@ -26,6 +26,8 @@ enum FFCUE_T {
 	FFCUE_TRACKNO,
 	FFCUE_TRK_TITLE,
 	FFCUE_TRK_PERFORMER,
+
+	//for these values ffparser.intval contains the number of CD frames (1/75 sec):
 	FFCUE_TRK_INDEX00,
 	FFCUE_TRK_INDEX,
 };
