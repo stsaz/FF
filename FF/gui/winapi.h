@@ -295,6 +295,14 @@ static FFINL int ffui_menu_ins(ffui_menu *m, int pos, ffui_menuitem *mi)
 
 #define ffui_menu_append(m, mi)  ffui_menu_ins(m, -1, mi)
 
+static FFINL int ffui_menu_set(ffui_menu *m, int pos, ffui_menuitem *mi)
+{
+	mi->cbSize = sizeof(MENUITEMINFO);
+	int r = !SetMenuItemInfo(m->h, pos, 1, mi);
+	ffui_menu_itemreset(mi);
+	return r;
+}
+
 static FFINL int ffui_menu_destroy(ffui_menu *m)
 {
 	int r = 0;
@@ -468,6 +476,12 @@ typedef struct ffui_viewitem {
 	ffsyschar wtext[255];
 	ffsyschar *w;
 } ffui_viewitem;
+
+static FFINL void ffui_view_iteminit(ffui_viewitem *it)
+{
+	it->item.mask = 0;
+	it->w = NULL;
+}
 
 static FFINL void ffui_view_itemreset(ffui_viewitem *it)
 {
