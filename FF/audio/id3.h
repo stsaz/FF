@@ -20,7 +20,7 @@ typedef struct ffid31 {
 	char title[30];
 	char artist[30];
 	char album[30];
-	byte year[4];
+	char year[4];
 	char comment[29];
 	byte track_no; //undefined: 0
 	byte genre; //undefined: 0xff
@@ -31,6 +31,11 @@ static FFINL ffbool ffid31_valid(const ffid31 *h)
 {
 	return h->tag[0] == 'T' && h->tag[1] == 'A' && h->tag[2] == 'G';
 }
+
+/** Get the next value from ID3v1 tag.
+@state: initially must be 0.
+Return enum FFID3_FRAME or -1. */
+FF_EXTN int ffid31_parse(const ffid31 *id31, uint *state, ffstr *val);
 
 
 //10 bytes

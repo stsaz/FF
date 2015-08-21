@@ -6,6 +6,56 @@ Copyright (c) 2013 Simon Zolin
 #include <FF/data/utf8.h>
 
 
+int ffid31_parse(const ffid31 *id31, uint *state, ffstr *val)
+{
+	enum { I_TITLE, I_ARTIST, I_ALBUM, I_YEAR, I_COMMENT, I_DONE };
+
+	switch (*state) {
+	case I_TITLE:
+		if (id31->title[0] != '\0') {
+			*state = I_ARTIST;
+			ffstr_setnz(val, id31->title, sizeof(id31->title));
+			return FFID3_TITLE;
+		}
+		//break
+
+	case I_ARTIST:
+		if (id31->artist[0] != '\0') {
+			ffstr_setnz(val, id31->artist, sizeof(id31->artist));
+			*state = I_ALBUM;
+			return FFID3_ARTIST;
+		}
+		//break
+
+	case I_ALBUM:
+		if (id31->album[0] != '\0') {
+			ffstr_setnz(val, id31->album, sizeof(id31->album));
+			*state = I_YEAR;
+			return FFID3_ALBUM;
+		}
+		//break
+
+	case I_YEAR:
+		if (id31->year[0] != '\0') {
+			ffstr_setnz(val, id31->year, sizeof(id31->year));
+			*state = I_COMMENT;
+			return FFID3_YEAR;
+		}
+		//break
+
+	case I_COMMENT:
+		if (id31->comment[0] != '\0') {
+			ffstr_setnz(val, id31->comment, sizeof(id31->comment));
+			*state = I_DONE;
+			return FFID3_COMMENT;
+		}
+		//break
+	}
+
+	return -1;
+}
+
+
 ffbool ffid3_valid(const ffid3_hdr *h)
 {
 	const uint *hsize = (void*)h->size;
