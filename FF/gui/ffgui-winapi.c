@@ -236,6 +236,31 @@ fail:
 }
 
 
+const char* ffui_fdrop_next(ffui_fdrop *df)
+{
+	uint nbuf;
+	wchar_t *w, ws[255];
+
+	nbuf = DragQueryFile(df->hdrop, df->idx, NULL, 0);
+	if (nbuf == 0)
+		return NULL;
+	nbuf++;
+
+	if (nbuf < FFCNT(ws))
+		w = ws;
+	else if (NULL == (w = ffq_alloc(nbuf)))
+		return NULL;
+
+	DragQueryFile(df->hdrop, df->idx++, w, nbuf);
+
+	ffmem_safefree(df->fn);
+	df->fn = ffsz_alcopyqz(w);
+	if (w != ws)
+		ffmem_free(w);
+	return df->fn;
+}
+
+
 int ffui_menu_settext(ffui_menuitem *mi, const char *s, size_t len)
 {
 	ffsyschar *w;
@@ -976,6 +1001,19 @@ int ffui_wndproc(ffui_wnd *wnd, size_t *code, HWND h, uint msg, size_t w, size_t
 			wnd_bordstick(dpi_scale(wnd->bordstick), (WINDOWPOS *)l);
 			return 0;
 		}
+		break;
+
+	case WM_DROPFILES:
+		print("WM_DROPFILES", h, w, l);
+		if (wnd->on_dropfiles != NULL) {
+			ffui_fdrop d;
+			d.hdrop = (void*)w;
+			d.idx = 0;
+			d.fn = NULL;
+			wnd->on_dropfiles(wnd, &d);
+			ffmem_safefree(d.fn);
+		}
+		DragFinish((void*)w);
 		break;
 
 	case WM_USER_TRAY:

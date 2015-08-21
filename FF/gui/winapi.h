@@ -166,6 +166,17 @@ FF_EXTN int ffui_ctl_destroy(void *c);
 	SetWindowLong(h, GWL_STYLE, GetWindowLong(h, GWL_STYLE) & ~(style_bit))
 
 
+typedef struct ffui_fdrop {
+	HDROP hdrop;
+	uint idx;
+	char *fn;
+} ffui_fdrop;
+
+#define ffui_fdrop_accept(c, enable)  DragAcceptFiles((c)->h, enable)
+
+FF_EXTN const char* ffui_fdrop_next(ffui_fdrop *df);
+
+
 FF_EXTN HIMAGELIST ffui_imglist_create(uint width, uint height);
 
 
@@ -593,6 +604,7 @@ struct ffui_wnd {
 	void (*on_create)(ffui_wnd *wnd);
 	void (*on_destroy)(ffui_wnd *wnd);
 	void (*on_action)(ffui_wnd *wnd, int id);
+	void (*on_dropfiles)(ffui_wnd *wnd, ffui_fdrop *df);
 
 	uint onclose_id;
 };
