@@ -478,3 +478,25 @@ FF_EXTN int ffs_regex(const char *regexp, size_t regexp_len, const char *s, size
 
 #define ffs_regexcz(regexpcz, s, len, flags) \
 	ffs_regex(regexpcz, FFSLEN(regexpcz), s, len, flags)
+
+
+#if defined FF_LINUX
+/** @func: int func(a, b, udata) */
+#define ff_qsort(ar, n, elsize, func, udata) \
+	qsort_r(ar, n, elsize, func, udata)
+
+#elif defined FF_BSD
+/** @func: int func(udata, a, b) */
+#define ff_qsort(ar, n, elsize, func, udata) \
+	qsort_r(ar, n, elsize, udata, func)
+
+#elif defined FF_MSVC
+/** @func: int func(udata, a, b) */
+#define ff_qsort(ar, n, elsize, func, udata) \
+	qsort_s(ar, n, elsize, func, udata)
+
+#else //gcc on windows:
+/** @func: int func(a, b) */
+#define ff_qsort(ar, n, elsize, func, udata) \
+	qsort(ar, n, elsize, func)
+#endif
