@@ -635,13 +635,18 @@ char* ffui_dlg_open(ffui_dialog *d, ffui_wnd *parent)
 	return ffui_dlg_nextname(d);
 }
 
-char* ffui_dlg_save(ffui_dialog *d, ffui_wnd *parent, const char *fn)
+char* ffui_dlg_save(ffui_dialog *d, ffui_wnd *parent, const char *fn, size_t fnlen)
 {
 	ffsyschar ws[4096];
+	size_t n = 0;
+
+	if (fn != NULL)
+		n = ff_utow(ws, FFCNT(ws), fn, fnlen, 0);
+	ws[n] = '\0';
+
 	d->of.hwndOwner = parent->h;
 	d->of.lpstrFile = ws;
 	d->of.nMaxFile = FFCNT(ws);
-	ws[0] = '\0';
 	if (!GetSaveFileName(&d->of))
 		return NULL;
 

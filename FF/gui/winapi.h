@@ -88,7 +88,7 @@ static FFINL void ffui_dlg_filter(ffui_dialog *d, const char *title, size_t len)
 Return 1 on success. */
 FF_EXTN char* ffui_dlg_open(ffui_dialog *d, ffui_wnd *parent);
 
-FF_EXTN char* ffui_dlg_save(ffui_dialog *d, ffui_wnd *parent, const char *fn);
+FF_EXTN char* ffui_dlg_save(ffui_dialog *d, ffui_wnd *parent, const char *fn, size_t fnlen);
 
 FF_EXTN void ffui_dlg_destroy(ffui_dialog *d);
 
