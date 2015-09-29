@@ -122,9 +122,15 @@ FF_EXTN int ffmpg_lame_parse(ffmpg_lame *lame, const char *data, size_t *len);
 
 
 #include <FF/audio/pcm.h>
+#include <FF/audio/id3.h>
 #include <FF/array.h>
 
 #include <mad/mad.h>
+
+enum FFMPG_O {
+	FFMPG_O_NOXING = 1,
+	FFMPG_O_ID3V1 = 2,
+};
 
 typedef struct ffmpg {
 	uint state;
@@ -144,10 +150,11 @@ typedef struct ffmpg {
 	uint64 dataoff
 		, total_size
 		, off;
+	ffmpg_xing xing;
+	ffmpg_lame lame;
+	uint skip_samples;
 
-	uint id31state;
-	int tagframe; //enum FFID3_FRAME
-	ffstr tagval;
+	ffid31ex id31tag;
 
 	size_t datalen;
 	const void *data;
@@ -155,7 +162,7 @@ typedef struct ffmpg {
 	size_t pcmlen;
 	float *pcm[2];
 
-	uint seekable :1;
+	uint options; //enum FFMPG_O
 } ffmpg;
 
 enum FFMPG_R {

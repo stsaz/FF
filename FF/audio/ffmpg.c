@@ -8,6 +8,9 @@ Copyright (c) 2013 Simon Zolin
 #include <FFOS/error.h>
 
 
+static int mpg_streaminfo(ffmpg *m);
+
+
 const byte ffmpg1l3_kbyterate[16] = {
 	0, 32/8, 40/8, 48/8
 	, 56/8, 64/8, 80/8, 96/8
@@ -131,6 +134,10 @@ int ffmpg_lame_parse(ffmpg_lame *lame, const char *data, size_t *len)
 
 
 enum {
+	DEC_DELAY = 528,
+};
+
+enum {
 	MPG_EFMT = 0
 	, MPG_ESTM = 1
 	, MPG_ESYS = 2
@@ -160,32 +167,104 @@ void ffmpg_init(ffmpg *m)
 
 void ffmpg_close(ffmpg *m)
 {
+	ffid31_parse_fin(&m->id31tag);
 	ffarr_free(&m->buf);
 	mad_synth_finish(&m->synth);
 	mad_frame_finish(&m->frame);
 	mad_stream_finish(&m->stream);
 }
 
-enum { I_INPUT, I_BUFINPUT, I_FR, I_FROK, I_SYNTH, I_SEEK, I_SEEK2, I_HDR, I_ID31 };
+enum { I_START, I_INPUT, I_BUFINPUT, I_FR, I_FROK, I_SYNTH, I_SEEK, I_SEEK2, I_ID31 };
 
 void ffmpg_seek(ffmpg *m, uint64 sample)
 {
 	if (m->total_size == 0 || m->total_samples == 0)
 		return;
+	if (m->skip_samples != 0)
+		m->skip_samples = 0;
 	m->seek_sample = sample;
 	m->state = I_SEEK;
+}
+
+/** Convert sample number to stream offset (in bytes) based on:
+ . seek table from Xing tag
+ . 'total samples' and 'total size' values (linear) */
+static FFINL uint64 mpg_getseekoff(ffmpg *m)
+{
+	if (m->xing.flags & FFMPG_XING_TOC)
+		return m->dataoff + ffmpg_xing_seekoff(m->xing.toc, m->seek_sample, m->total_samples, m->total_size);
+	else
+		return m->dataoff + m->total_size * m->seek_sample / m->total_samples;
+}
+
+/**
+Total samples number is estimated from:
+ . 'frames' value from Xing tag
+ . encoder/decoder delays from LAME tag
+ . TLEN frame from ID3v2
+ . bitrate from the first header and total stream size */
+static FFINL int mpg_streaminfo(ffmpg *m)
+{
+	const char *p;
+	uint n;
+	size_t len;
+
+	m->bitrate = m->frame.header.bitrate;
+	m->fmt.format = FFPCM_FLOAT;
+	m->fmt.channels = MAD_NCHANNELS(&m->frame.header);
+	m->fmt.sample_rate = m->frame.header.samplerate;
+
+	if (m->total_size != 0)
+		m->total_size -= m->dataoff;
+
+	len = m->stream.anc_bitlen / 8;
+	if (!(m->options & FFMPG_O_NOXING)
+		&& 0 == ffmpg_xing_parse(&m->xing, (char*)m->stream.anc_ptr.byte, &len)) {
+
+		if (m->xing.flags & FFMPG_XING_FRAMES) {
+			m->total_samples = m->xing.frames * 32 * MAD_NSBSAMPLES(&m->frame.header);
+		}
+
+		p = (char*)m->stream.anc_ptr.byte + len;
+		len = m->stream.anc_bitlen / 8 - len;
+		if (0 == ffmpg_lame_parse(&m->lame, p, &len)) {
+			n = m->lame.enc_delay + DEC_DELAY + 1;
+			if (m->lame.enc_padding != 0)
+				n += m->lame.enc_padding - (DEC_DELAY + 1);
+			m->total_samples -= ffmin(n, m->total_samples);
+			m->skip_samples = m->lame.enc_delay + DEC_DELAY + 1;
+		}
+
+		if (m->total_samples != 0 && m->total_size != 0)
+			m->bitrate = ffpcm_bitrate(m->total_size, ffpcm_time(m->total_samples, m->fmt.sample_rate));
+
+		return FFMPG_RHDR;
+	}
+
+	if (m->total_len != 0) {
+		if (m->total_size != 0)
+			m->bitrate = ffpcm_bitrate(m->total_size, m->total_len);
+
+	} else
+		m->total_len = m->total_size * 1000 / (m->bitrate/8);
+
+	m->total_samples = ffpcm_samples(m->total_len, m->fmt.sample_rate);
+
+	m->state = I_SYNTH;
+	return FFMPG_RHDR;
 }
 
 /* stream -> frame -> synth */
 int ffmpg_decode(ffmpg *m)
 {
-	uint i, ich;
+	uint i, ich, isrc, skip, dlen;
+	size_t len;
 
 	for (;;) {
 		switch (m->state) {
 		case I_SEEK:
 			m->buf.len = 0;
-			m->off = m->dataoff + m->total_size * m->seek_sample / m->total_samples;
+			m->off = mpg_getseekoff(m);
 			m->cur_sample = m->seek_sample;
 			m->state = I_SEEK2;
 			return FFMPG_RSEEK;
@@ -203,12 +282,21 @@ int ffmpg_decode(ffmpg *m)
 				&& -1 != (m->tagframe = ffid31_parse((void*)m->data, &m->id31state, &m->tagval)))
 				return FFMPG_RTAG;
 
-			m->state = I_HDR;
+			m->state = I_INPUT;
 			m->off = m->dataoff;
 			if (m->id31state != 0)
 				m->total_size -= sizeof(ffid31);
 			return FFMPG_RSEEK;
 
+
+		case I_START:
+			if ((m->options & FFMPG_O_ID3V1) && m->total_size > sizeof(ffid31)) {
+				m->state = I_ID31;
+				m->off = m->total_size - sizeof(ffid31);
+				return FFMPG_RSEEK;
+			}
+			// m->state = I_INPUT;
+			// break;
 
 		case I_INPUT:
 			mad_stream_buffer(&m->stream, m->data, m->datalen);
@@ -253,61 +341,51 @@ int ffmpg_decode(ffmpg *m)
 			}
 
 			if (m->fmt.channels == 0) {
-				m->bitrate = m->frame.header.bitrate;
-				m->fmt.format = FFPCM_FLOAT;
-				m->fmt.channels = MAD_NCHANNELS(&m->frame.header);
-				m->fmt.sample_rate = m->frame.header.samplerate;
-
-				if (m->seekable && m->total_size > sizeof(ffid31)) {
-					m->state = I_ID31;
-					m->off = m->total_size - sizeof(ffid31);
-					return FFMPG_RSEEK;
-				}
-
-				goto hdr;
+				return mpg_streaminfo(m);
 			}
 
-			goto ok;
-
-		case I_HDR:
-hdr:
-			if (m->total_len != 0) {
-				m->total_samples = ffpcm_samples(m->total_len, m->fmt.sample_rate);
-				if (m->total_size != 0) {
-					m->total_size -= m->dataoff;
-					m->bitrate = ffpcm_bitrate(m->total_size, m->total_len);
-				}
-
-			} else if (m->total_size != 0) {
-				m->total_size -= m->dataoff;
-				m->total_samples = ffpcm_samples(m->total_size * 1000 / (m->bitrate/8), m->fmt.sample_rate);
-			}
-
-			m->state = I_SYNTH;
-			return FFMPG_RHDR;
+			// m->state = I_SYNTH;
+			// break
 
 		case I_SYNTH:
-			m->state = I_FR;
+			mad_synth_frame(&m->synth, &m->frame);
+			if (m->synth.pcm.channels != m->fmt.channels
+				|| m->synth.pcm.samplerate != m->fmt.sample_rate) {
+				m->err = MPG_EFMT;
+				return FFMPG_RERR;
+			}
+
+			skip = 0;
+			if (m->skip_samples != 0) {
+				skip = ffmin(m->synth.pcm.length, m->skip_samples);
+				m->synth.pcm.length -= skip;
+				m->skip_samples -= skip;
+			}
+
+			if (m->cur_sample + m->synth.pcm.length > m->total_samples
+				&& m->lame.enc_padding != 0) {
+				m->synth.pcm.length = m->total_samples - m->cur_sample;
+			}
+
+			if (m->synth.pcm.length == 0) {
+				m->state = I_FR;
+				continue;
+			}
+
 			goto ok;
 		}
 	}
 
 ok:
-	mad_synth_frame(&m->synth, &m->frame);
-	if (m->synth.pcm.channels != m->fmt.channels
-		|| m->synth.pcm.samplerate != m->fmt.sample_rate) {
-		m->err = MPG_EFMT;
-		return FFMPG_RERR;
-	}
-
 	//in-place convert int[] -> float[]
 	for (ich = 0;  ich != m->synth.pcm.channels;  ich++) {
 		m->pcm[ich] = (float*)&m->synth.pcm.samples[ich];
-		for (i = 0;  i != m->synth.pcm.length;  i++) {
-			m->pcm[ich][i] = (float)mad_f_todouble(m->synth.pcm.samples[ich][i]);
+		for (i = 0, isrc = skip;  i != m->synth.pcm.length;  i++, isrc++) {
+			m->pcm[ich][i] = (float)mad_f_todouble(m->synth.pcm.samples[ich][isrc]);
 		}
 	}
 	m->pcmlen = m->synth.pcm.length * m->synth.pcm.channels * sizeof(float);
+
 	m->state = I_FROK;
 	return FFMPG_RDATA;
 }
