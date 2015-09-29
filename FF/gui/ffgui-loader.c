@@ -1315,6 +1315,7 @@ static int wnd_done(ffparser_schem *ps, void *obj)
 
 	if (g->accels.len != 0) {
 		HACCEL a = CreateAcceleratorTable(g->accels.ptr, FF_TOINT(g->accels.len));
+		g->accels.len = 0;
 		if (a == NULL)
 			return FFPARS_ESYS;
 		g->wnd->acceltbl = a;

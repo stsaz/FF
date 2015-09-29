@@ -1187,10 +1187,14 @@ static LRESULT __stdcall wnd_proc(HWND h, uint msg, WPARAM w, LPARAM l)
 }
 
 
+/** Get handle of the window. */
 static HWND base_parent(HWND h)
 {
 	HWND parent;
-	while (NULL != (parent = GetParent(h))) {
+	ffui_wnd *w;
+
+	while ((NULL == (w = ffui_getctl(h)) || w->uid != FFUI_UID_WINDOW)
+		&& NULL != (parent = GetParent(h))) {
 		h = parent;
 	}
 	return h;
