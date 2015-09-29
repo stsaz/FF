@@ -32,6 +32,8 @@ enum FFPARS_E {
 	, FFPARS_EUKNKEY
 	, FFPARS_EDUPKEY
 	, FFPARS_ENOREQ
+	, FFPARS_EBADINT
+	, FFPARS_EBADBOOL
 	, FFPARS_EARRTYPE
 	, FFPARS_EVALTYPE
 	, FFPARS_EVALNULL
@@ -124,6 +126,7 @@ static FFINL int _ffpars_addchar2(ffparser *p, const char *src)
 
 enum FFPARS_T {
 	FFPARS_TSTR = 1 ///< string
+	, FFPARS_TCHARPTR // char*, must be used with FFPARS_FSTRZ
 	, FFPARS_TINT ///< 32-bit or 64-bit integer
 	, FFPARS_TFLOAT // 32/64-bit floating point number
 	, FFPARS_TBOOL ///< byte integer, the possible values are 0 and 1.  Valid input: false|true
@@ -174,12 +177,14 @@ union ffpars_val {
 	size_t off; ///< offset of the member inside a structure (default)
 	int (*f_0)(ffparser_schem *p, void *obj);
 	int (*f_str)(ffparser_schem *p, void *obj, const ffstr *val);
+	int (*f_charptr)(ffparser_schem *p, void *obj, const char *val);
 	int (*f_int)(ffparser_schem *p, void *obj, const int64 *val);
 	int (*f_obj)(ffparser_schem *p, void *obj, ffpars_ctx *ctx);
 	ffpars_enumlist *enum_list;
 
 	// set with FFPARS_FPTR:
 	ffstr *s;
+	char **charptr;
 	int64 *i64;
 	int *i32;
 	short *i16;

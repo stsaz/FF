@@ -493,6 +493,7 @@ static const ffpars_arg * _ffjson_schem_argfind(ffpars_ctx *ctx, int type)
 // keep in sync with FFPARS_T
 static const byte parsTypes[] = {
 	FFJSON_TSTR
+	, FFJSON_TSTR
 	, FFJSON_TINT
 	, FFJSON_TINT
 	, FFJSON_TBOOL

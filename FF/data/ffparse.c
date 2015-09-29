@@ -21,6 +21,8 @@ static const char *const _ffpars_serr[] = {
 	, "unknown key name"
 	, "duplicate key"
 	, "unspecified required parameter"
+	, "invalid integer"
+	, "invalid boolean"
 	, "array value type mismatch"
 	, "value type mismatch"
 	, "null value"
@@ -329,6 +331,7 @@ static int scHdlVal(ffparser_schem *ps, ffpars_ctx *ctx)
 
 	switch (t) {
 	case FFPARS_TSTR:
+	case FFPARS_TCHARPTR:
 		if (p->val.len == 0 && (f & FFPARS_FNOTEMPTY))
 			return FFPARS_EVALEMPTY;
 
@@ -350,13 +353,21 @@ static int scHdlVal(ffparser_schem *ps, ffpars_ctx *ctx)
 		} else
 			tmp = p->val;
 
-		if (func) {
-			er = edst.f_str(ps, ctx->obj, &tmp);
-			if (er != 0 && (f & FFPARS_FCOPY))
-				ffstr_free(&tmp);
-		} else
-			*dst.s = tmp;
+		if (t == FFPARS_TCHARPTR) {
+			if (func)
+				er = edst.f_charptr(ps, ctx->obj, tmp.ptr);
+			else
+				*dst.charptr = tmp.ptr;
 
+		} else {
+			if (func)
+				er = edst.f_str(ps, ctx->obj, &tmp);
+			else
+				*dst.s = tmp;
+		}
+
+		if (func && er != 0 && (f & FFPARS_FCOPY))
+			ffstr_free(&tmp);
 		break;
 
 	case FFPARS_TENUM:

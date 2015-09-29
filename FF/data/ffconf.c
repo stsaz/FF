@@ -332,6 +332,7 @@ int ffconf_schemval(ffparser_schem *ps, void *obj, void *dst)
 
 	switch(t) {
 	case FFPARS_TSTR:
+	case FFPARS_TCHARPTR:
 	case FFPARS_TSIZE:
 	case FFPARS_TENUM:
 	case FFPARS_TCLOSE:
@@ -342,7 +343,7 @@ int ffconf_schemval(ffparser_schem *ps, void *obj, void *dst)
 			&& v.len == ffs_toint(v.ptr, v.len, &p->intval, FFS_INT64 | FFS_INTSIGN))
 			{}
 		else
-			r = FFPARS_EVALTYPE;
+			r = FFPARS_EBADINT;
 		break;
 
 	case FFPARS_TBOOL:
@@ -353,7 +354,7 @@ int ffconf_schemval(ffparser_schem *ps, void *obj, void *dst)
 			p->intval = 0;
 
 		} else
-			r = FFPARS_EVALTYPE;
+			r = FFPARS_EBADBOOL;
 		break;
 
 	case FFPARS_TOBJ:
