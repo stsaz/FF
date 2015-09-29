@@ -75,7 +75,9 @@ typedef struct ffwasapi {
 
 /** Open device for playback.
 @dev_id: NULL for a default device.
-Return AUDCLNT_E* on error. */
+Return AUDCLNT_E* on error.
+ AUDCLNT_E_UNSUPPORTED_FORMAT:
+  shared mode: 'fmt' is set to the format which is configured for the device. */
 FF_EXTN int ffwas_open(ffwasapi *w, const WCHAR *dev_id, ffpcm *fmt, uint bufsize_msec);
 
 FF_EXTN void ffwas_close(ffwasapi *w);

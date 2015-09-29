@@ -10,6 +10,7 @@ Copyright (c) 2015 Simon Zolin
 
 static void _ffwas_onplay_excl(void *udata);
 static void _ffwas_onplay_sh(void *udata);
+static void _ffwas_getfmt(ffwasapi *w, ffpcm *fmt);
 
 
 static const char *const _ffwas_serr[] = {
@@ -166,6 +167,15 @@ void ffwas_devdestroy(ffwas_dev *d)
 		IMMDeviceCollection_Release(d->dcoll);
 }
 
+static FFINL void _ffwas_getfmt(ffwasapi *w, ffpcm *fmt)
+{
+	HRESULT r;
+	WAVEFORMATEX *wf = NULL;
+	if (0 != (r = IAudioClient_GetMixFormat(w->cli, &wf)))
+		return;
+	fmt->sample_rate = wf->nSamplesPerSec;
+	CoTaskMemFree(wf);
+}
 
 int ffwas_open(ffwasapi *w, const WCHAR *id, ffpcm *fmt, uint bufsize)
 {
@@ -210,6 +220,12 @@ int ffwas_open(ffwasapi *w, const WCHAR *id, ffpcm *fmt, uint bufsize)
 		r = IAudioClient_Initialize(w->cli
 			, (w->excl) ? AUDCLNT_SHAREMODE_EXCLUSIVE : AUDCLNT_SHAREMODE_SHARED
 			, AUDCLNT_STREAMFLAGS_EVENTCALLBACK, dur, dur, &wf, NULL);
+
+		if (r == AUDCLNT_E_UNSUPPORTED_FORMAT && !w->excl) {
+			_ffwas_getfmt(w, fmt);
+			goto fail;
+		}
+
 		if (r != AUDCLNT_E_BUFFER_SIZE_NOT_ALIGNED || balign)
 			break;
 
