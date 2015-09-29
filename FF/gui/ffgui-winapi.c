@@ -3,8 +3,12 @@ Copyright (c) 2014 Simon Zolin
 */
 
 #include <FF/gui/winapi.h>
+#include <FF/path.h>
 #include <FFOS/file.h>
 #include <FFOS/process.h>
+#include <FFOS/dir.h>
+
+#include <shlobj.h>
 
 
 static int _ffui_dpi;
@@ -31,6 +35,7 @@ static void wnd_onaction(ffui_wnd *wnd, int id);
 static LRESULT __stdcall wnd_proc(HWND h, uint msg, WPARAM w, LPARAM l);
 
 static int process_accels(MSG *m);
+static size_t arrzz_copy(ffsyschar *dst, size_t cap, const char *const *arr, size_t n);
 
 
 struct ctlinfo {
@@ -262,6 +267,70 @@ const char* ffui_fdrop_next(ffui_fdrop *df)
 	if (w != ws)
 		ffmem_free(w);
 	return df->fn;
+}
+
+
+/** Convert '/' -> '\\' */
+static void path_backslash(ffsyschar *path)
+{
+	uint n;
+	for (n = 0;  path[n] != '\0';  n++) {
+		if (path[n] == '/')
+			path[n] = '\\';
+	}
+}
+
+int ffui_openfolder(const char *const *items, size_t selcnt)
+{
+	ITEMIDLIST *dir = NULL, **sel;
+	size_t i = 0, n;
+	int r = -1;
+	ffstr path;
+	ffsyschar *pathz = NULL;
+
+	if (selcnt != 0) {
+		if (NULL == (sel = ffmem_tcalloc(ITEMIDLIST*, selcnt)))
+			return -1;
+
+		for (i = 0;  i != selcnt;  i++) {
+			if (NULL == (pathz = ffs_utow(NULL, NULL, items[i], -1)))
+				goto done;
+			path_backslash(pathz);
+
+			if (NULL == (sel[i] = ILCreateFromPath(pathz)))
+				goto done;
+			ffmem_free(pathz);
+			pathz = NULL;
+		}
+
+		ffpath_split2(items[0], ffsz_len(items[0]), &path, NULL);
+		if (NULL == (pathz = ffs_utow(NULL, &n, path.ptr, path.len)))
+			goto done;
+		pathz[n] = '\0';
+
+	} else {
+		sel = &dir;
+		selcnt = 1;
+		if (NULL == (pathz = ffs_utow(NULL, NULL, items[0], -1)))
+			goto done;
+	}
+
+	path_backslash(pathz);
+	if (NULL == (dir = ILCreateFromPath(pathz)))
+		goto done;
+
+	r = SHOpenFolderAndSelectItems(dir, selcnt, (const ITEMIDLIST **)sel, 0);
+
+done:
+	if (dir != NULL)
+		ILFree(dir);
+	while (i != 0) {
+		ILFree(sel[--i]);
+	}
+	if (sel != &dir)
+		ffmem_free(sel);
+	ffmem_safefree(pathz);
+	return r;
 }
 
 
@@ -848,7 +917,7 @@ static FFINL void wnd_cmd(ffui_wnd *wnd, uint w, HWND h)
 
 static FFINL void wnd_nfy(ffui_wnd *wnd, NMHDR *n)
 {
-	uint id;
+	uint id = 0;
 	union ffui_anyctl ctl;
 
 #ifdef _DEBUG
@@ -866,6 +935,26 @@ static FFINL void wnd_nfy(ffui_wnd *wnd, NMHDR *n)
 
 	case LVN_ITEMCHANGED:
 		id = ctl.view->chsel_id;
+		break;
+
+	case LVN_COLUMNCLICK:
+		id = ctl.view->colclick_id;
+		ctl.view->col = ((NM_LISTVIEW*)n)->iSubItem;
+		break;
+
+	case NM_CLICK:
+		if (ctl.ctl->uid == FFUI_UID_LISTVIEW) {
+			id = ctl.view->lclick_id;
+		}
+		break;
+
+	case NM_RCLICK:
+		if (ctl.ctl->uid == FFUI_UID_LISTVIEW && ctl.view->pmenu != NULL) {
+			ffui_point pt;
+			ffui_wnd_setfront(wnd);
+			ffui_cur_pos(&pt);
+			ffui_menu_show(ctl.view->pmenu, pt.x, pt.y, wnd->h);
+		}
 		break;
 
 	case TVN_SELCHANGED:
@@ -1116,7 +1205,7 @@ int ffui_clipbd_set(const char *s, size_t len)
 	HGLOBAL glob;
 	char *buf;
 
-	if (NULL == (glob = GlobalAlloc(GMEM_SHARE | GMEM_FIXED, len + 1)))
+	if (NULL == (glob = GlobalAlloc(GMEM_SHARE | GMEM_MOVEABLE, len + 1)))
 		return -1;
 	buf = (void*)GlobalLock(glob);
 	ffmemcpy(buf, s, len);
@@ -1136,4 +1225,90 @@ fail:
 	CloseClipboard();
 	GlobalFree(glob);
 	return -1;
+}
+
+/** Prepare double-null terminated string array from char*[].
+@dst: "el1 \0 el2 \0 \0" */
+static size_t arrzz_copy(ffsyschar *dst, size_t cap, const char *const *arr, size_t n)
+{
+	ffsyschar *pw = dst;
+	size_t i;
+
+	if (dst == NULL) {
+		cap = 0;
+		for (i = 0;  i != n;  i++) {
+			cap += ff_utow(NULL, 0, arr[i], -1, 0);
+		}
+		return cap + 1;
+	}
+
+	for (i = 0;  i != n;  i++) {
+		pw += ff_utow(pw, cap - (pw - dst), arr[i], -1, 0);
+	}
+	*pw = '\0';
+	return 0;
+}
+
+int ffui_clipbd_setfile(const char *const *names, size_t cnt)
+{
+	HGLOBAL glob;
+	size_t cap = 0;
+	struct {
+		DROPFILES df;
+		ffsyschar names[0];
+	} *s;
+
+	cap = arrzz_copy(NULL, 0, names, cnt);
+	if (NULL == (glob = GlobalAlloc(GMEM_SHARE | GMEM_MOVEABLE, sizeof(DROPFILES) + cap * sizeof(ffsyschar))))
+		return -1;
+
+	s = (void*)GlobalLock(glob);
+	ffmem_tzero(&s->df);
+	s->df.pFiles = sizeof(DROPFILES);
+	s->df.fWide = 1;
+	arrzz_copy(s->names, cap, names, cnt);
+	GlobalUnlock(glob);
+
+	if (!OpenClipboard(NULL))
+		goto fail;
+	EmptyClipboard();
+	if (!SetClipboardData(CF_HDROP, glob))
+		goto fail;
+	CloseClipboard();
+
+	return 0;
+
+fail:
+	CloseClipboard();
+	GlobalFree(glob);
+	return -1;
+}
+
+
+int ffui_fop_del(const char *const *names, size_t cnt, uint flags)
+{
+	int r;
+	size_t cap = 0, i;
+	SHFILEOPSTRUCT fs, *f = &fs;
+
+	ffmem_tzero(f);
+
+	if (flags & FFUI_FOP_ALLOWUNDO) {
+		for (i = 0;  i != cnt;  i++) {
+			if (!ffpath_abs(names[i], ffsz_len(names[i])))
+				return -1; //protect against permanently deleting files with non-absolute names
+		}
+	}
+
+	cap = arrzz_copy(NULL, 0, names, cnt);
+	if (NULL == (f->pFrom = ffq_alloc(cap)))
+		return -1;
+	arrzz_copy((void*)f->pFrom, cap, names, cnt);
+
+	f->wFunc = FO_DELETE;
+	f->fFlags = flags;
+	r = SHFileOperation(f);
+
+	ffmem_free((void*)f->pFrom);
+	return r;
 }

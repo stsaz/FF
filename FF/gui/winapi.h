@@ -419,9 +419,15 @@ FF_EXTN int ffui_pgs_create(ffui_ctl *c, ffui_wnd *parent);
 typedef struct ffui_view {
 	FFUI_CTL;
 	HFONT font;
+	ffui_menu *pmenu;
 	int chsel_id;
 	int lclick_id;
 	int dblclick_id;
+	int colclick_id; //"col" is set to column #
+
+	union {
+	int col;
+	};
 } ffui_view;
 
 FF_EXTN int ffui_view_create(ffui_ctl *c, ffui_wnd *parent);
@@ -692,3 +698,14 @@ static FFINL void ffui_run(void)
 
 /** Return 0 on success. */
 FF_EXTN int ffui_clipbd_set(const char *s, size_t len);
+
+FF_EXTN int ffui_clipbd_setfile(const char *const *names, size_t cnt);
+
+
+enum FFUI_FOP_F {
+	FFUI_FOP_ALLOWUNDO = FOF_ALLOWUNDO,
+};
+
+/** Delete a file.
+@flags: enum FFUI_FOP_F */
+FF_EXTN int ffui_fop_del(const char *const *names, size_t cnt, uint flags);
