@@ -55,6 +55,8 @@ typedef struct ffwasapi {
 	};
 	uint bufsize;
 	uint frsize;
+	int nfy_next;
+	uint nfy_interval;
 	HANDLE evt;
 
 	fflock lk;
@@ -97,21 +99,12 @@ FF_EXTN int ffwas_write(ffwasapi *w, const void *data, size_t len);
 /** Write silence into sound buffer.*/
 FF_EXTN int ffwas_silence(ffwasapi *w);
 
-static FFINL int ffwas_start(ffwasapi *w)
-{
-	int r;
-	w->starting = 2;
-	if (0 != (r = IAudioClient_Start(w->cli)))
-		return r;
-	w->started = 1;
-	return 0;
-}
+FF_EXTN int ffwas_start(ffwasapi *w);
 
-static FFINL int ffwas_stop(ffwasapi *w)
-{
-	w->started = 0;
-	return IAudioClient_Stop(w->cli);
-}
+FF_EXTN int ffwas_stop(ffwasapi *w);
+
+/** Clear the buffers. */
+FF_EXTN void ffwas_clear(ffwasapi *w);
 
 /** Return 1 if stopped. */
 FF_EXTN int ffwas_stoplazy(ffwasapi *w);

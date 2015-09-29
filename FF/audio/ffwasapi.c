@@ -8,8 +8,14 @@ Copyright (c) 2015 Simon Zolin
 #include <FFOS/error.h>
 
 
+enum {
+	WAS_DEFNFYRATE = 10
+};
+
+
 static void _ffwas_onplay_excl(void *udata);
 static void _ffwas_onplay_sh(void *udata);
+static void _ffwas_oncapt_sh(void *udata);
 static void _ffwas_getfmt(ffwasapi *w, ffpcm *fmt);
 
 
@@ -249,11 +255,6 @@ int ffwas_open(ffwasapi *w, const WCHAR *id, ffpcm *fmt, uint bufsize)
 	if (0 != (r = IAudioClient_SetEventHandle(w->cli, w->evt)))
 		goto fail;
 
-	if (0 != (r = ffwoh_add(_ffwas_woh, w->evt, (w->excl) ? &_ffwas_onplay_excl : &_ffwas_onplay_sh, w))) {
-		r = fferr_last();
-		goto fail;
-	}
-
 	if (0 != (r = IAudioClient_GetBufferSize(w->cli, &w->bufsize)))
 		goto fail;
 	if (!w->capture
@@ -265,6 +266,11 @@ int ffwas_open(ffwasapi *w, const WCHAR *id, ffpcm *fmt, uint bufsize)
 
 	fflk_init(&w->lk);
 	r = 0;
+
+	if (w->nfy_interval == 0)
+		w->nfy_interval = fmt->sample_rate / WAS_DEFNFYRATE;
+	w->nfy_next = w->capture ? w->nfy_interval : -(int)w->nfy_interval;
+
 	goto done;
 
 fail:
@@ -309,9 +315,20 @@ int ffwas_filled(ffwasapi *w)
 static void _ffwas_onplay_sh(void *udata)
 {
 	ffwasapi *w = udata;
-	if ((!w->capture && ffwas_filled(w) / w->frsize > w->bufsize * 3 / 4)
-		|| (w->capture && ffwas_filled(w) / w->frsize < w->bufsize / 4))
+	int fld = ffwas_filled(w) / w->frsize;
+	if (fld != 0 && fld > w->nfy_next)
 		return; //don't trigger too many events
+	w->nfy_next -= w->nfy_interval;
+	w->handler(w->udata);
+}
+
+static void _ffwas_oncapt_sh(void *udata)
+{
+	ffwasapi *w = udata;
+	int fld = ffwas_filled(w) / w->frsize;
+	if (fld < w->nfy_next)
+		return; //don't trigger too many events
+	w->nfy_next += w->nfy_interval;
 	w->handler(w->udata);
 }
 
@@ -369,6 +386,7 @@ static int _ffwas_write_sh(ffwasapi *w, const void *data, size_t len)
 
 	if (0 != (r = IAudioRenderClient_ReleaseBuffer(w->rend, n, 0)))
 		return r;
+	w->nfy_next += n;
 	return n * w->frsize;
 }
 
@@ -450,6 +468,60 @@ int ffwas_silence(ffwasapi *w)
 	return nfree * w->frsize;
 }
 
+void ffwas_clear(ffwasapi *w)
+{
+	if (w->excl) {
+		if (w->wptr != NULL) {
+			IAudioRenderClient_ReleaseBuffer(w->rend, w->bufsize, 0);
+			w->wptr = NULL;
+		}
+		w->wpos = 0;
+		w->actvbufs = 0;
+	}
+
+	IAudioClient_Reset(w->cli);
+	w->nfy_next = w->capture ? w->nfy_interval : -(int)w->nfy_interval;
+}
+
+static FFINL int woh_add(ffwasapi *w)
+{
+	int r;
+	handler_t woh_func;
+
+	if (w->excl)
+		woh_func = &_ffwas_onplay_excl;
+	else if (w->capture)
+		woh_func = &_ffwas_oncapt_sh;
+	else
+		woh_func = &_ffwas_onplay_sh;
+
+	if (0 != (r = ffwoh_add(_ffwas_woh, w->evt, woh_func, w))) {
+		return fferr_last();
+	}
+
+	return 0;
+}
+
+int ffwas_start(ffwasapi *w)
+{
+	int r;
+	if (0 != (r = woh_add(w)))
+		return r;
+
+	w->starting = 2;
+	if (0 != (r = IAudioClient_Start(w->cli)))
+		return r;
+	w->started = 1;
+	return 0;
+}
+
+int ffwas_stop(ffwasapi *w)
+{
+	ffwoh_rm(_ffwas_woh, w->evt);
+	w->started = 0;
+	return IAudioClient_Stop(w->cli);
+}
+
 int ffwas_stoplazy(ffwasapi *w)
 {
 	HRESULT r;
@@ -492,5 +564,6 @@ int ffwas_capt_read(ffwasapi *w, void **data, size_t *len)
 
 	w->actvbufs = 1;
 	*len = w->wpos * w->frsize;
+	w->nfy_next -= w->wpos;
 	return 1;
 }
