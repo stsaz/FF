@@ -165,12 +165,9 @@ done:
 
 void ffwas_devdestroy(ffwas_dev *d)
 {
-	if (d->id != NULL)
-		CoTaskMemFree(d->id);
-	if (d->name != NULL)
-		ffmem_free(d->name);
-	if (d->dcoll != NULL)
-		IMMDeviceCollection_Release(d->dcoll);
+	ffmem_safefree(d->name);
+	FF_SAFECLOSE(d->id, NULL, CoTaskMemFree);
+	FF_SAFECLOSE(d->dcoll, NULL, IMMDeviceCollection_Release);
 }
 
 static FFINL void _ffwas_getfmt(ffwasapi *w, ffpcm *fmt)
