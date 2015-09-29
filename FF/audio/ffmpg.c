@@ -324,6 +324,8 @@ int ffmpg_decode(ffmpg *m)
 			}
 			m->dlen += i;
 			mad_stream_buffer(&m->stream, (void*)m->buf.ptr, m->buf.len);
+			if (m->datalen == 0)
+				m->stream.options |= MAD_OPTION_LASTFRAME;
 			m->state = I_FR;
 			break;
 
@@ -352,7 +354,13 @@ int ffmpg_decode(ffmpg *m)
 			if (i != 0) {
 				m->err = MPG_ESTM;
 
-				if (MAD_RECOVERABLE(m->stream.error))
+				if (m->stream.error == MAD_ERROR_LOSTSYNC
+					&& (m->options & FFMPG_O_ID3V1)
+					&& m->stream.bufend - m->stream.this_frame >= FFSLEN("TAG")
+					&& ffid31_valid((ffid31*)m->stream.this_frame))
+					return FFMPG_RDONE;
+
+				else if (MAD_RECOVERABLE(m->stream.error))
 					return FFMPG_RWARN;
 
 				else if (m->stream.error == MAD_ERROR_BUFLEN) {
