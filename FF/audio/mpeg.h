@@ -117,6 +117,13 @@ enum FFMPG_R {
 	, FFMPG_RMORE
 	, FFMPG_RSEEK
 	, FFMPG_RTAG
+	, FFMPG_RDONE
+};
+
+enum FFMPG_E {
+	FFMPG_EOK,
+	FFMPG_ESYS,
+	FFMPG_EFMT,
 };
 
 /** Get the last error as a string. */
