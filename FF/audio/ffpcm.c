@@ -64,10 +64,32 @@ void ffpcm_mix(const ffpcm *pcm, char *stm1, const char *stm2, size_t samples)
 	}
 }
 
-#define _ffpcm_16le_flt(sh)  ((float)(sh) / 32768.0f)
+#define max16f  (32768.0)
 
-#define _ffpcm_flt_16le(f) \
-	((short)_pcm_lim_16le((int)floor(f * 32767.0f + 0.5f)))
+#define _ffpcm_16le_flt(sh)  ((float)(sh) * (1 / max16f))
+
+static FFINL short _ffpcm_flt_16le(float f)
+{
+	double d = f * max16f;
+
+#if !defined FF_MSVC
+	short r;
+
+	if (d < -max16f)
+		return -0x8000;
+	else if (d > max16f - 1)
+		return 0x7fff;
+
+	asm volatile("fistps %0"
+		: "=m"(r)
+		: "t"(d)
+		: "st");
+	return r;
+
+#else
+	return _pcm_lim_16le((int)((d < 0) ? d - 0.5 : d + 0.5));
+#endif
+}
 
 #define CASE(f1, il1, f2, il2) \
 	(f1 << 16) | (il1 << 31) | (f2 & 0xffff) | (il2 << 15)
