@@ -130,6 +130,7 @@ FF_EXTN int ffmpg_lame_parse(ffmpg_lame *lame, const char *data, size_t *len);
 enum FFMPG_O {
 	FFMPG_O_NOXING = 1,
 	FFMPG_O_ID3V1 = 2,
+	FFMPG_O_ID3V2 = 4,
 };
 
 typedef struct ffmpg {
@@ -148,7 +149,7 @@ typedef struct ffmpg {
 		, total_samples
 		, total_len //msec
 		, cur_sample;
-	uint64 dataoff
+	uint64 dataoff //offset of the first MPEG header
 		, total_size
 		, off;
 	ffmpg_xing xing;
@@ -156,6 +157,8 @@ typedef struct ffmpg {
 	uint skip_samples;
 
 	ffid31ex id31tag;
+	ffid3 id32tag;
+	ffarr tagval;
 
 	size_t datalen;
 	const void *data;
@@ -164,6 +167,7 @@ typedef struct ffmpg {
 	float *pcm[2];
 
 	uint options; //enum FFMPG_O
+	uint is_id32tag :1;
 } ffmpg;
 
 enum FFMPG_R {

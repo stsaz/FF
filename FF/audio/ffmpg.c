@@ -8,6 +8,8 @@ Copyright (c) 2013 Simon Zolin
 #include <FFOS/error.h>
 
 
+static int mpg_id31(ffmpg *m);
+static int mpg_id32(ffmpg *m);
 static int mpg_streaminfo(ffmpg *m);
 
 
@@ -157,10 +159,13 @@ void ffmpg_init(ffmpg *m)
 	mad_stream_init(&m->stream);
 	mad_frame_init(&m->frame);
 	mad_synth_init(&m->synth);
+	ffid3_parseinit(&m->id32tag);
 }
 
 void ffmpg_close(ffmpg *m)
 {
+	ffarr_free(&m->tagval);
+	ffid3_parsefin(&m->id32tag);
 	ffid31_parse_fin(&m->id31tag);
 	ffarr_free(&m->buf);
 	mad_synth_finish(&m->synth);
@@ -168,7 +173,8 @@ void ffmpg_close(ffmpg *m)
 	mad_stream_finish(&m->stream);
 }
 
-enum { I_START, I_INPUT, I_BUFINPUT, I_FR, I_FROK, I_SYNTH, I_SEEK, I_SEEK2, I_ID31 };
+enum { I_START, I_INPUT, I_BUFINPUT, I_FR, I_FROK, I_SYNTH, I_SEEK, I_SEEK2,
+	I_ID31, I_ID3V2, I_TAG_SKIP };
 
 void ffmpg_seek(ffmpg *m, uint64 sample)
 {
@@ -189,6 +195,109 @@ static FFINL uint64 mpg_getseekoff(ffmpg *m)
 		return m->dataoff + ffmpg_xing_seekoff(m->xing.toc, m->seek_sample, m->total_samples, m->total_size);
 	else
 		return m->dataoff + m->total_size * m->seek_sample / m->total_samples;
+}
+
+static FFINL int mpg_id31(ffmpg *m)
+{
+	int i;
+	size_t len;
+
+	len = m->datalen;
+	i = ffid31_parse(&m->id31tag, m->data, &len);
+	m->data += len;
+	m->datalen -= len;
+
+	switch (i) {
+	case FFID3_RNO:
+		break;
+
+	case FFID3_RDONE:
+		m->total_size -= sizeof(ffid31);
+		break;
+
+	case FFID3_RMORE:
+		return FFMPG_RMORE;
+
+	case FFID3_RDATA:
+		return FFMPG_RTAG;
+	}
+
+	m->state = I_INPUT;
+	if (m->options & FFMPG_O_ID3V2)
+		m->state = I_ID3V2;
+	return FFMPG_RDONE;
+}
+
+static FFINL int mpg_id32(ffmpg *m)
+{
+	int i;
+	size_t len;
+
+	for (;;) {
+
+	len = m->datalen;
+	i = ffid3_parse(&m->id32tag, m->data, &len);
+	m->data += len;
+	m->datalen -= len;
+
+	switch (i) {
+	case FFID3_RNO:
+		return FFMPG_RDONE;
+
+	case FFID3_RDONE:
+		ffid3_parsefin(&m->id32tag);
+		ffarr_free(&m->tagval);
+		return FFMPG_RDONE;
+
+	case FFID3_RMORE:
+		return FFMPG_RMORE;
+
+	case FFID3_RHDR:
+		m->dataoff = sizeof(ffid3_hdr) + ffid3_size(&m->id32tag.h);
+		m->total_size -= m->dataoff;
+		continue;
+
+	case FFID3_RFRAME:
+		switch (ffid3_frame(&m->id32tag.fr)) {
+		case FFID3_PICTURE:
+		case FFID3_COMMENT:
+			m->id32tag.flags &= ~FFID3_FWHOLE;
+			break;
+
+		default:
+			m->id32tag.flags |= FFID3_FWHOLE;
+		}
+		continue;
+
+	case FFID3_RDATA:
+		if (!(m->id32tag.flags & FFID3_FWHOLE))
+			continue;
+
+		if (0 > ffid3_getdata(m->id32tag.data.ptr, m->id32tag.data.len, m->id32tag.txtenc, 0, &m->tagval)) {
+			m->err = FFMPG_ETAG;
+			return FFMPG_RWARN;
+		}
+
+		i = ffid3_frame(&m->id32tag.fr);
+		if (i == FFID3_LENGTH && m->id32tag.data.len != 0) {
+			uint64 dur;
+			if (m->id32tag.data.len == ffs_toint(m->id32tag.data.ptr, m->id32tag.data.len, &dur, FFS_INT64))
+				m->total_len = dur;
+		}
+
+		m->is_id32tag = 1;
+		return FFMPG_RTAG;
+
+	case FFID3_RERR:
+		m->state = I_TAG_SKIP;
+		m->err = FFMPG_ETAG;
+		return FFMPG_RWARN;
+
+	default:
+		FF_ASSERT(0);
+	}
+	}
+	//unreachable
 }
 
 /**
@@ -252,6 +361,7 @@ static FFINL int mpg_streaminfo(ffmpg *m)
 
 Workflow:
  . parse ID3v1
+ . parse ID3v2
  . parse Xing, LAME tags
  . decode frames...
 
@@ -285,15 +395,21 @@ int ffmpg_decode(ffmpg *m)
 
 
 		case I_ID31:
-			if (m->datalen == sizeof(ffid31)
-				&& (m->id31state != 0 || ffid31_valid((void*)m->data))
-				&& -1 != (m->tagframe = ffid31_parse((void*)m->data, &m->id31state, &m->tagval)))
-				return FFMPG_RTAG;
+			if (FFMPG_RDONE != (i = mpg_id31(m)))
+				return i;
+			m->off = 0;
+			return FFMPG_RSEEK;
+
+		case I_ID3V2:
+			if (FFMPG_RDONE != (i = mpg_id32(m)))
+				return i;
 
 			m->state = I_INPUT;
+			continue;
+
+		case I_TAG_SKIP:
 			m->off = m->dataoff;
-			if (m->id31state != 0)
-				m->total_size -= sizeof(ffid31);
+			m->state = I_INPUT;
 			return FFMPG_RSEEK;
 
 
@@ -303,6 +419,12 @@ int ffmpg_decode(ffmpg *m)
 				m->off = m->total_size - sizeof(ffid31);
 				return FFMPG_RSEEK;
 			}
+
+			if (m->options & FFMPG_O_ID3V2) {
+				m->state = I_ID3V2;
+				continue;
+			}
+
 			// m->state = I_INPUT;
 			// break;
 
