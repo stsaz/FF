@@ -15,6 +15,8 @@ enum FFPCM_FMT {
 	, FFPCM_FLOAT
 };
 
+FF_EXTN const char *const ffpcm_fmtstr[3];
+
 typedef struct ffpcm {
 	uint format; //enum FFPCM_FMT
 	uint channels;

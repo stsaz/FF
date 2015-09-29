@@ -7,6 +7,8 @@ Copyright (c) 2015 Simon Zolin
 #include <math.h>
 
 
+const char *const ffpcm_fmtstr[3] = { "int16", "int32", "float" };
+
 const byte ffpcm_bits[] = { 16, 32, 32 };
 
 
