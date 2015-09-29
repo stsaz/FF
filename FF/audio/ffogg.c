@@ -223,7 +223,7 @@ static int _ffogg_open(ffogg *o)
 		return FFOGG_RHDRFIN;
 
 	case I_SEEK_EOS:
-		o->off = o->total_size - 64 * 1024;
+		o->off = o->total_size - ffmin(64 * 1024, o->total_size);
 		o->state = I_SEEK_EOS2;
 		ogg_sync_init(&o->osync_seek);
 		return FFOGG_RSEEK;
@@ -475,10 +475,15 @@ int ffogg_encode(ffogg_enc *o)
 		//break;
 
 	case I_INPUT:
+		if (o->pcmlen == 0 && !o->fin)
+			return FFOGG_RMORE;
+
 		n = (uint)(o->pcmlen / (sizeof(float) * o->vinfo.channels));
 		fpcm = vorbis_analysis_buffer(&o->vds, n);
-		for (i = 0;  i < o->vinfo.channels;  i++) {
-			ffmemcpy(fpcm[i], o->pcm[i], n * sizeof(float));
+		if (o->pcmlen != 0) {
+			for (i = 0;  i < o->vinfo.channels;  i++) {
+				ffmemcpy(fpcm[i], o->pcm[i], n * sizeof(float));
+			}
 		}
 		vorbis_analysis_wrote(&o->vds, n);
 		o->pcmlen = 0;
@@ -492,8 +497,6 @@ int ffogg_encode(ffogg_enc *o)
 			return FFOGG_RERR;
 		} else if (r != 1) {
 			o->state = I_INPUT;
-			if (o->pcmlen == 0)
-				return FFOGG_RMORE;
 			break;
 		}
 

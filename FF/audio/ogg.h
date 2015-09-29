@@ -139,7 +139,8 @@ typedef struct ffogg_enc {
 
 	int err;
 	unsigned ostm_valid :1
-		, vblk_valid :1;
+		, vblk_valid :1
+		, fin :1;
 
 	size_t datalen;
 	const char *data;
