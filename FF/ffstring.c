@@ -1302,7 +1302,7 @@ void * _ffarr_append(ffarr *ar, const void *src, size_t num, size_t elsz)
 		&& NULL == _ffarr_realloc(ar, ar->len + num, elsz))
 		return NULL;
 
-	memcpy(ar->ptr + ar->len * elsz, src, num * elsz);
+	ffmemcpy(ar->ptr + ar->len * elsz, src, num * elsz);
 	ar->len += num;
 	return ar->ptr + ar->len * elsz;
 }
@@ -1372,7 +1372,7 @@ size_t ffbuf_add(ffstr3 *buf, const char *src, size_t len, ffstr *dst)
 	}
 
 	sz = ffmin(len, ffarr_unused(buf));
-	memcpy(buf->ptr + buf->len, src, sz);
+	ffmemcpy(buf->ptr + buf->len, src, sz);
 	buf->len += sz;
 
 	if (buf->cap != buf->len) {
