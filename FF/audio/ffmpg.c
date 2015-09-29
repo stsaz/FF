@@ -282,6 +282,8 @@ int ffmpg_decode(ffmpg *m)
 			return FFMPG_RSEEK;
 
 		case I_SEEK2:
+			mad_stream_finish(&m->stream);
+			mad_stream_init(&m->stream);
 			mad_stream_buffer(&m->stream, m->data, m->datalen);
 			m->stream.sync = 0;
 			m->state = I_FR;
