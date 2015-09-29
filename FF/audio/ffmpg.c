@@ -137,22 +137,16 @@ enum {
 	DEC_DELAY = 528,
 };
 
-enum {
-	MPG_EFMT = 0
-	, MPG_ESTM = 1
-	, MPG_ESYS = 2
-};
-
 const char* ffmpg_errstr(ffmpg *m)
 {
 	switch (m->err) {
-	case MPG_ESTM:
+	case FFMPG_ESTREAM:
 		return mad_stream_errorstr(&m->stream);
 
-	case MPG_EFMT:
+	case FFMPG_EFMT:
 		return "PCM format error";
 
-	case MPG_ESYS:
+	case FFMPG_ESYS:
 		return fferr_strp(fferr_last());
 	}
 	return "";
@@ -321,7 +315,7 @@ int ffmpg_decode(ffmpg *m)
 			FF_ASSERT(m->datalen >= m->dlen);
 			i = ffmin(m->datalen - m->dlen, 1024);
 			if (NULL == ffarr_append(&m->buf, m->data + m->dlen, i)) {
-				m->err = MPG_ESYS;
+				m->err = FFMPG_ESYS;
 				return FFMPG_RERR;
 			}
 			m->dlen += i;
@@ -354,7 +348,7 @@ int ffmpg_decode(ffmpg *m)
 			}
 
 			if (i != 0) {
-				m->err = MPG_ESTM;
+				m->err = FFMPG_ESTREAM;
 
 				if (m->stream.error == MAD_ERROR_LOSTSYNC
 					&& (m->options & FFMPG_O_ID3V1)
@@ -383,7 +377,7 @@ int ffmpg_decode(ffmpg *m)
 
 					if (m->stream.next_frame != m->stream.bufend) {
 						if (NULL == ffarr_copy(&m->buf, m->stream.next_frame, m->stream.bufend - m->stream.next_frame)) {
-							m->err = MPG_ESYS;
+							m->err = FFMPG_ESYS;
 							return FFMPG_RERR;
 						}
 						m->state = I_BUFINPUT;
@@ -405,7 +399,7 @@ int ffmpg_decode(ffmpg *m)
 			mad_synth_frame(&m->synth, &m->frame);
 			if (m->synth.pcm.channels != m->fmt.channels
 				|| m->synth.pcm.samplerate != m->fmt.sample_rate) {
-				m->err = MPG_EFMT;
+				m->err = FFMPG_EFMT;
 				return FFMPG_RERR;
 			}
 
