@@ -37,6 +37,99 @@ uint ffmpg_framelen(const ffmpg_hdr *h)
 }
 
 
+static const char _xing[4] = "Xing";
+static const char _info[4] = "Info";
+
+static FFINL ffbool mpg_xing_valid(const char *data)
+{
+	uint i = *(uint*)data, *xing = (uint*)_xing, *info = (uint*)_info;
+	return (i == *xing || i == *info);
+}
+
+static FFINL uint mpg_xing_size(uint flags)
+{
+	uint all = 4 + sizeof(int);
+	if (flags & FFMPG_XING_FRAMES)
+		all += sizeof(int);
+	if (flags & FFMPG_XING_BYTES)
+		all += sizeof(int);
+	if (flags & FFMPG_XING_TOC)
+		all += 100;
+	if (flags & FFMPG_XING_VBRSCALE)
+		all += sizeof(int);
+	return all;
+}
+
+uint64 ffmpg_xing_seekoff(const byte *toc, uint64 sample, uint64 total_samples, uint64 total_size)
+{
+	uint i, i1, i2;
+	double d;
+
+	FF_ASSERT(sample < total_samples);
+
+	d = sample * 100.0 / total_samples;
+	i = (int)d;
+	d -= i;
+	i1 = toc[i];
+	i2 = (i != 99) ? toc[i + 1] : 256;
+
+	return (i1 + (i2 - i1) * d) * total_size / 256.0;
+}
+
+int ffmpg_xing_parse(ffmpg_xing *xing, const char *data, size_t *len)
+{
+	const char *dstart = data;
+	if (*len < 8 || !mpg_xing_valid(data))
+		return -1;
+
+	ffmemcpy(xing, data, 4);
+	data += 4;
+
+	xing->flags = ffint_ntoh32(data);
+	data += sizeof(int);
+	if (*len < mpg_xing_size(xing->flags))
+		return -1;
+
+	if (xing->flags & FFMPG_XING_FRAMES) {
+		xing->frames = ffint_ntoh32(data);
+		data += sizeof(int);
+	}
+
+	if (xing->flags & FFMPG_XING_BYTES) {
+		xing->bytes = ffint_ntoh32(data);
+		data += sizeof(int);
+	}
+
+	if (xing->flags & FFMPG_XING_TOC) {
+		ffmemcpy(xing->toc, data, 100);
+		data += 100;
+	}
+
+	if (xing->flags & FFMPG_XING_VBRSCALE) {
+		xing->vbr_scale = ffint_ntoh32(data);
+		data += sizeof(int);
+	}
+
+	*len = data - dstart;
+	return 0;
+}
+
+
+int ffmpg_lame_parse(ffmpg_lame *lame, const char *data, size_t *len)
+{
+	const ffmpg_lamehdr *h = (void*)data;
+
+	if (*len < sizeof(ffmpg_lame))
+		return -1;
+
+	ffmemcpy(lame->id, h->id, sizeof(lame->id));
+	lame->enc_delay = ((uint)h->delay_hi << 4) | (h->delay_lo);
+	lame->enc_padding = (((uint)h->padding_hi) << 8) | h->padding_lo;
+	*len = sizeof(ffmpg_lame);
+	return 0;
+}
+
+
 enum {
 	MPG_EFMT = 0
 	, MPG_ESTM = 1

@@ -3,7 +3,7 @@ Copyright (c) 2013 Simon Zolin
 */
 
 /*
-MPEG-HEADER  [CRC16]  FRAME-DATA... ...
+MPEG-HEADER  [CRC16]  ([XING-TAG  LAME-TAG]  |  FRAME-DATA...) ...
 */
 
 #pragma once
@@ -70,6 +70,55 @@ FF_EXTN uint ffmpg_framelen(const ffmpg_hdr *h);
 /** Get channels. */
 #define ffmpg_channels(h) \
 	((h)->channel == FFMPG_MONO ? 1 : 2)
+
+
+enum FFMPG_XING_FLAGS {
+	FFMPG_XING_FRAMES = 1,
+	FFMPG_XING_BYTES = 2,
+	FFMPG_XING_TOC = 4,
+	FFMPG_XING_VBRSCALE = 8,
+};
+
+//8-120 bytes
+typedef struct ffmpg_xing {
+	char id[4]; //"Xing"(VBR) or "Info"(CBR)
+	uint flags; //enum FFMPG_XING_FLAGS
+	uint frames;
+	uint bytes;
+	byte toc[100];
+	uint vbr_scale; //100(worst)..0(best)
+} ffmpg_xing;
+
+/** Convert sample number to stream offset (in bytes). */
+FF_EXTN uint64 ffmpg_xing_seekoff(const byte *toc, uint64 sample, uint64 total_samples, uint64 total_size);
+
+/** Parse Xing tag.
+Return 0 on success. */
+FF_EXTN int ffmpg_xing_parse(ffmpg_xing *xing, const char *data, size_t *len);
+
+
+//36 bytes
+typedef struct ffmpg_lamehdr {
+	char id[9];
+	byte unsupported1[12];
+
+	byte delay_hi;
+	byte padding_hi :4
+		, delay_lo :4;
+	byte padding_lo;
+
+	byte unsupported2[12];
+} ffmpg_lamehdr;
+
+typedef struct ffmpg_lame {
+	char id[9]; //e.g. "LAME3.90a"
+	ushort enc_delay;
+	ushort enc_padding;
+} ffmpg_lame;
+
+/** Parse LAME tag.
+Return 0 on success. */
+FF_EXTN int ffmpg_lame_parse(ffmpg_lame *lame, const char *data, size_t *len);
 
 
 #include <FF/audio/pcm.h>
