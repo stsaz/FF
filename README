@@ -30,10 +30,13 @@ FEATURES
 		. WASAPI playback/capture
 		. ICY
 		. PCM operations
+		. sample rate conversion (libsoxr)
+		. APE tag
 		. WAVE
 		. OGG Vorbis (libogg, libvorbis)
-		. MPEG (libmad), ID3v1, ID3v2
+		. MPEG (libmad, libmp3lame), ID3v1, ID3v2
 		. FLAC (libflac)
+		. WavPack (libwavpack)
 
 	. GUI:
 		. GUI loader
