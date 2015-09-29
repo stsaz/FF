@@ -523,6 +523,30 @@ int ffui_view_search(ffui_view *v, size_t by)
 	return -1;
 }
 
+int ffui_view_sel_invert(ffui_view *v)
+{
+	uint i, cnt = 0;
+	ffui_viewitem it = {0};
+
+	for (i = 0;  ;  i++) {
+		ffui_view_setindex(&it, i);
+		ffui_view_select(&it, 0);
+		if (0 != ffui_view_get(v, 0, &it))
+			break;
+
+		if (ffui_view_selected(&it)) {
+			ffui_view_select(&it, 0);
+		} else {
+			ffui_view_select(&it, 1);
+			cnt++;
+		}
+
+		ffui_view_set(v, 0, &it);
+	}
+
+	return cnt;
+}
+
 int ffui_view_hittest(HWND h, const ffui_point *pt, int item)
 {
 	LVHITTESTINFO ht = {0};

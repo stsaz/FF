@@ -523,6 +523,8 @@ do { \
 	(it)->item.state = (select) ? LVIS_SELECTED : 0; \
 } while (0)
 
+#define ffui_view_selected(it)  ((it)->item.state & LVIS_SELECTED)
+
 #define ffui_view_groupid(it, grp) \
 do { \
 	(it)->item.mask |= LVIF_GROUPID; \
@@ -577,6 +579,7 @@ FF_EXTN int ffui_view_search(ffui_view *v, size_t by);
 #define ffui_view_selcount(v)  ffui_ctl_send(v, LVM_GETSELECTEDCOUNT, 0, 0)
 #define ffui_view_selnext(v, from)  ffui_ctl_send(v, LVM_GETNEXTITEM, from, LVNI_SELECTED)
 #define ffui_view_sel(v, i)  ListView_SetItemState((v)->h, i, LVIS_SELECTED, LVIS_SELECTED)
+FF_EXTN int ffui_view_sel_invert(ffui_view *v);
 
 #define ffui_view_sort(v, func, udata)  ListView_SortItems((v)->h, func, udata)
 
