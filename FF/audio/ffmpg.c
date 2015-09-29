@@ -254,10 +254,22 @@ static FFINL int mpg_streaminfo(ffmpg *m)
 	return FFMPG_RHDR;
 }
 
-/* stream -> frame -> synth */
+/* stream -> frame -> synth
+
+Workflow:
+ . parse ID3v1
+ . parse Xing, LAME tags
+ . decode frames...
+
+Frame decode:
+To decode a frame libmad needs data also for the following frames:
+ (hdr1 data1)  (hdr2 data2)  ...
+When there's not enough contiguous data, MAD_ERROR_BUFLEN is returned.
+ffmpg.buf is used to provide libmad with contiguous data enough to decode one frame.
+*/
 int ffmpg_decode(ffmpg *m)
 {
-	uint i, ich, isrc, skip, dlen;
+	uint i, ich, isrc, skip;
 	size_t len;
 
 	for (;;) {
@@ -304,10 +316,13 @@ int ffmpg_decode(ffmpg *m)
 			break;
 
 		case I_BUFINPUT:
-			if (NULL == ffarr_append(&m->buf, m->data, m->datalen)) {
+			FF_ASSERT(m->datalen >= m->dlen);
+			i = ffmin(m->datalen - m->dlen, 1024);
+			if (NULL == ffarr_append(&m->buf, m->data + m->dlen, i)) {
 				m->err = MPG_ESYS;
 				return FFMPG_RERR;
 			}
+			m->dlen += i;
 			mad_stream_buffer(&m->stream, (void*)m->buf.ptr, m->buf.len);
 			m->state = I_FR;
 			break;
@@ -318,17 +333,46 @@ int ffmpg_decode(ffmpg *m)
 			// break;
 
 		case I_FR:
-			if (0 != mad_frame_decode(&m->frame, &m->stream)) {
+			i = mad_frame_decode(&m->frame, &m->stream);
+
+			if (m->stream.buffer == (void*)m->buf.ptr
+				&& (i == 0 || MAD_RECOVERABLE(m->stream.error))) {
+
+				len = m->buf.len - (m->stream.next_frame - m->stream.buffer); //number of unprocessed bytes in m->buf
+				if (len <= m->dlen) {
+					len = m->dlen - len;
+					m->data += len;
+					m->datalen -= len;
+					mad_stream_buffer(&m->stream, m->data, m->datalen);
+					m->buf.len = 0;
+					m->dlen = 0;
+				}
+			}
+
+			if (i != 0) {
 				m->err = MPG_ESTM;
 
 				if (MAD_RECOVERABLE(m->stream.error))
 					return FFMPG_RWARN;
 
 				else if (m->stream.error == MAD_ERROR_BUFLEN) {
+
+					if (m->stream.buffer == (void*)m->buf.ptr) {
+						m->state = I_BUFINPUT;
+						len = m->stream.bufend - m->stream.next_frame;
+						ffmemcpy(m->buf.ptr, m->stream.next_frame, len);
+						m->buf.len = m->stream.bufend - m->stream.next_frame;
+						if (m->datalen - m->dlen == 0) {
+							m->dlen = 0;
+							return FFMPG_RMORE;
+						}
+						continue;
+					}
+
 					m->state = I_INPUT;
 
-					if (m->stream.this_frame != m->stream.bufend) {
-						if (NULL == ffarr_copy(&m->buf, m->stream.this_frame, m->stream.bufend - m->stream.this_frame)) {
+					if (m->stream.next_frame != m->stream.bufend) {
+						if (NULL == ffarr_copy(&m->buf, m->stream.next_frame, m->stream.bufend - m->stream.next_frame)) {
 							m->err = MPG_ESYS;
 							return FFMPG_RERR;
 						}

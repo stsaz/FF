@@ -143,6 +143,7 @@ typedef struct ffmpg {
 	uint bitrate;
 	uint err;
 	ffstr3 buf; //holds 1 incomplete frame
+	uint dlen; //number of bytes of input data copied to 'buf'
 	uint64 seek_sample
 		, total_samples
 		, total_len //msec
