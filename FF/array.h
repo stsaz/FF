@@ -203,17 +203,10 @@ FF_EXTN const char* ffs_split2(const char *s, size_t len, const char *at, ffstr 
 	ffs_split2(s, len, ffs_rfind(s, len, by), first, second)
 
 
+#define ffstr_cmp2(s1, s2)  ffs_cmp4((s1)->ptr, (s1)->len, (s2)->ptr, (s2)->len)
+
 /** Compare ANSI strings.  Case-insensitive. */
-static FFINL int ffstr_icmp(const ffstr *s1, const char *s2, size_t len) {
-	int r = ffs_icmp(s1->ptr, s2, ffmin(s1->len, len));
-	if (r == 0) {
-		if (s1->len < len)
-			return -1;
-		if (s1->len > len)
-			return 1;
-	}
-	return r;
-}
+#define ffstr_icmp(str1, s2, len2)  ffs_icmp4((str1)->ptr, (str1)->len, s2, len2)
 
 #define ffstr_eq(s, d, n) \
 	((s)->len == (n) && 0 == ffmemcmp((s)->ptr, d, n))

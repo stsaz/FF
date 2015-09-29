@@ -72,6 +72,22 @@ FF_EXTN int ffs_icmp(const char *s1, const char *s2, size_t len);
 
 #define ffs_cmp  memcmp
 
+static FFINL int ffs_cmp4(const char *s1, size_t len1, const char *s2, size_t len2)
+{
+	int r = ffs_cmp(s1, s2, ffmin(len1, len2));
+	if (r == 0)
+		return len1 - len2;
+	return r;
+}
+
+static FFINL int ffs_icmp4(const char *s1, size_t len1, const char *s2, size_t len2)
+{
+	int r = ffs_icmp(s1, s2, ffmin(len1, len2));
+	if (r == 0)
+		return len1 - len2;
+	return r;
+}
+
 /** Return TRUE if a buffer and a constant NULL-terminated string are equal. */
 #define ffs_eqcz(s1, len, csz2) \
 	((len) == FFSLEN(csz2) && 0 == ffs_cmp(s1, csz2, len))
@@ -142,6 +158,7 @@ FF_EXTN size_t ffs_findarr(const void *s, size_t len, const void *ar, ssize_t el
 /** Search a string in array of pointers to NULL-terminated strings.
 Return -1 if not found. */
 FF_EXTN ssize_t ffs_findarrz(const char *const *ar, size_t n, const char *search, size_t search_len);
+FF_EXTN ssize_t ffszarr_findsorted(const char *const *ar, size_t n, const char *search, size_t search_len);
 FF_EXTN ssize_t ffszarr_ifindsorted(const char *const *ar, size_t n, const char *search, size_t search_len);
 
 
@@ -176,6 +193,16 @@ static FFINL char * ffs_copy(char *dst, const char *bufend, const char *s, size_
 }
 
 #define ffs_copycz(dst, bufend, csz)  ffs_copy(dst, bufend, csz, FFSLEN(csz))
+
+/**
+Return the bytes copied. */
+static FFINL size_t ffs_append(void *dst, size_t off, size_t cap, const void *src, size_t len)
+{
+	size_t n = ffmin(len, cap - off);
+	ffmemcpy((char*)dst + off, src, n);
+	return n;
+}
+
 
 #define ffsz_len  strlen
 #define ffsz_findof strpbrk

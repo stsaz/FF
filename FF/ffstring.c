@@ -280,6 +280,23 @@ ssize_t ffs_findarrz(const char *const *ar, size_t n, const char *search, size_t
 	return -1;
 }
 
+ssize_t ffszarr_findsorted(const char *const *ar, size_t n, const char *search, size_t search_len)
+{
+	const char *const *ar_o = ar, *const *start = ar, *const *end = ar + n;
+	int r;
+	while (start != end) {
+		ar = start + (end - start) / 2;
+		r = ffs_cmpz(search, search_len, *ar);
+		if (r == 0)
+			return ar - ar_o;
+		else if (r < 0)
+			end = ar;
+		else
+			start = ar + 1;
+	}
+	return -1;
+}
+
 ssize_t ffszarr_ifindsorted(const char *const *ar, size_t n, const char *search, size_t search_len)
 {
 	const char *const *ar_o = ar, *const *start = ar, *const *end = ar + n;
