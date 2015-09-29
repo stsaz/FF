@@ -234,6 +234,13 @@ int ffdsnd_write(ffdsnd_buf *ds, const void *data, size_t len)
 	return n;
 }
 
+void ffdsnd_clear(ffdsnd_buf *ds)
+{
+	IDirectSoundBuffer_SetCurrentPosition(ds->buf, 0);
+	ds->wpos = ds->rpos = 0;
+	ds->isfull = 0;
+}
+
 int ffdsnd_silence(ffdsnd_buf *ds)
 {
 	void *buf1 = NULL, *buf2 = NULL;

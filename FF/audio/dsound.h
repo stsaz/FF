@@ -67,6 +67,8 @@ FF_EXTN uint ffdsnd_filled(ffdsnd_buf *ds);
 Return the number of bytes written. */
 FF_EXTN int ffdsnd_write(ffdsnd_buf *ds, const void *data, size_t len);
 
+FF_EXTN void ffdsnd_clear(ffdsnd_buf *ds);
+
 /** Write silence into sound buffer. */
 FF_EXTN int ffdsnd_silence(ffdsnd_buf *ds);
 
