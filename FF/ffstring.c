@@ -1337,14 +1337,33 @@ size_t ffstr_nextval(const char *buf, size_t len, ffstr *dst, int spl)
 	const char *end = buf + len;
 	const char *pos;
 	uint f = spl & ~0xff;
+	spl &= 0xff;
 
-	buf = ffs_skip(buf, end - buf, ' ');
+	if (f & FFS_NV_REVERSE) {
+		pos = ffs_rfind(buf, end - buf, spl);
+		if (pos == end)
+			pos = buf;
+		else {
+			len = end - pos;
+			pos++;
+		}
+
+		if (!(f & FFS_NV_KEEPWHITE)) {
+			pos = ffs_skip(pos, end - pos, ' ');
+			end = ffs_rskip(pos, end - pos, ' ');
+		}
+
+		ffstr_set(dst, pos, end - pos);
+		return len;
+	}
+
+	if (!(f & FFS_NV_KEEPWHITE))
+		buf = ffs_skip(buf, end - buf, ' ');
+
 	if (buf == end) {
 		dst->len = 0;
 		return len;
 	}
-
-	spl &= 0xff;
 
 	if ((f & FFSTR_NV_DBLQUOT) && buf[0] == '"') {
 		buf++;
@@ -1355,7 +1374,9 @@ size_t ffstr_nextval(const char *buf, size_t len, ffstr *dst, int spl)
 	if (pos != end)
 		len = pos - (end - len) + 1;
 
-	pos = ffs_rskip(buf, pos - buf, ' ');
+	if (!(f & FFS_NV_KEEPWHITE))
+		pos = ffs_rskip(buf, pos - buf, ' ');
+
 	ffstr_set(dst, buf, pos - buf);
 	return len;
 }

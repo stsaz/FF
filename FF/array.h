@@ -324,6 +324,8 @@ FF_EXTN ssize_t ffstr_ifindarr(const ffstr *ar, size_t n, const char *search, si
 
 enum FFSTR_NEXTVAL {
 	FFSTR_NV_DBLQUOT = 0x100, // val1 "val2 with space" val3
+	FFS_NV_KEEPWHITE = 0x200, // don't trim whitespace
+	FFS_NV_REVERSE = 0x400, // reverse search
 };
 
 /** Get the next value from input string like "val1, val2, ...".
