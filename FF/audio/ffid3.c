@@ -6,16 +6,47 @@ Copyright (c) 2013 Simon Zolin
 #include <FF/data/utf8.h>
 
 
-int ffid31_parse(const ffid31 *id31, uint *state, ffstr *val)
+int ffid31_parse(ffid31ex *id31ex, const char *data, size_t *len)
 {
-	enum { I_TITLE, I_ARTIST, I_ALBUM, I_YEAR, I_COMMENT, I_DONE };
+	enum { I_COPYTAG, I_TITLE, I_ARTIST, I_ALBUM, I_YEAR, I_COMMENT, I_TRK, I_DONE };
+	ffid31 *id31;
+	uint n, *state = &id31ex->state;
+	int r = FFID3_RDATA;
+	ffstr *val = &id31ex->val;
+	const char *dstart = data;
+
+	id31 = (id31ex->ntag != 0) ? &id31ex->tag : (void*)data;
 
 	switch (*state) {
+
+	case I_COPYTAG:
+		if (id31ex->ntag != 0 || *len < sizeof(ffid31)) {
+			n = ffs_append(&id31ex->tag, id31ex->ntag, sizeof(ffid31), data, *len);
+			id31ex->ntag += n;
+			if (id31ex->ntag != sizeof(ffid31))
+				return FFID3_RMORE;
+			data += n;
+			id31 = &id31ex->tag;
+
+		} else {
+			//the whole tag is in one data block
+			id31 = (void*)data;
+		}
+
+		if (!ffid31_valid(id31)) {
+			r = FFID3_RNO;
+			break;
+		}
+
+		*state = I_TITLE;
+		// break
+
 	case I_TITLE:
 		if (id31->title[0] != '\0') {
 			*state = I_ARTIST;
 			ffstr_setnz(val, id31->title, sizeof(id31->title));
-			return FFID3_TITLE;
+			id31ex->field = FFID3_TITLE;
+			break;
 		}
 		//break
 
@@ -23,7 +54,8 @@ int ffid31_parse(const ffid31 *id31, uint *state, ffstr *val)
 		if (id31->artist[0] != '\0') {
 			ffstr_setnz(val, id31->artist, sizeof(id31->artist));
 			*state = I_ALBUM;
-			return FFID3_ARTIST;
+			id31ex->field = FFID3_ARTIST;
+			break;
 		}
 		//break
 
@@ -31,7 +63,8 @@ int ffid31_parse(const ffid31 *id31, uint *state, ffstr *val)
 		if (id31->album[0] != '\0') {
 			ffstr_setnz(val, id31->album, sizeof(id31->album));
 			*state = I_YEAR;
-			return FFID3_ALBUM;
+			id31ex->field = FFID3_ALBUM;
+			break;
 		}
 		//break
 
@@ -39,20 +72,38 @@ int ffid31_parse(const ffid31 *id31, uint *state, ffstr *val)
 		if (id31->year[0] != '\0') {
 			ffstr_setnz(val, id31->year, sizeof(id31->year));
 			*state = I_COMMENT;
-			return FFID3_YEAR;
+			id31ex->field = FFID3_YEAR;
+			break;
 		}
 		//break
 
 	case I_COMMENT:
 		if (id31->comment[0] != '\0') {
 			ffstr_setnz(val, id31->comment, sizeof(id31->comment));
-			*state = I_DONE;
-			return FFID3_COMMENT;
+			*state = I_TRK;
+			id31ex->field = FFID3_COMMENT;
+			break;
 		}
 		//break
+
+	case I_TRK:
+		if (id31->track_no != 0) {
+			n = ffs_fromint(id31->track_no, id31ex->trkno, sizeof(id31ex->trkno), FFINT_ZEROWIDTH | FFINT_WIDTH(2));
+			ffstr_set(val, id31ex->trkno, n);
+			id31ex->field = FFID3_TRACKNO;
+			*state = I_DONE;
+			break;
+		}
+
+	case I_DONE:
+		if (id31 == (void*)data)
+			data += sizeof(ffid31);
+		r = FFID3_RDONE;
+		break;
 	}
 
-	return -1;
+	*len = data - dstart;
+	return r;
 }
 
 

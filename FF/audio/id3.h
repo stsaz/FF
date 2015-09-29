@@ -32,10 +32,20 @@ static FFINL ffbool ffid31_valid(const ffid31 *h)
 	return h->tag[0] == 'T' && h->tag[1] == 'A' && h->tag[2] == 'G';
 }
 
+typedef struct ffid31ex {
+	uint state;
+	ffid31 tag;
+	uint ntag;
+	char trkno[sizeof("255")];
+	int field; //enum FFID3_FRAME
+	ffstr val;
+} ffid31ex;
+
+#define ffid31_parse_fin(id31ex)
+
 /** Get the next value from ID3v1 tag.
-@state: initially must be 0.
-Return enum FFID3_FRAME or -1. */
-FF_EXTN int ffid31_parse(const ffid31 *id31, uint *state, ffstr *val);
+Return enum FFID3_R. */
+FF_EXTN int ffid31_parse(ffid31ex *id31ex, const char *data, size_t *len);
 
 
 //10 bytes
@@ -126,6 +136,7 @@ enum FFID3_R {
 	, FFID3_RHDR
 	, FFID3_RFRAME
 	, FFID3_RDATA //ffid3.data contains a chunk of frame data
+	, FFID3_RNO
 };
 
 static FFINL void ffid3_parseinit(ffid3 *p)
