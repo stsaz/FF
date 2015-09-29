@@ -46,8 +46,12 @@ static int new_mmenu(ffparser_schem *ps, void *obj, ffpars_ctx *ctx);
 
 // STATUS BAR
 static int stbar_style(ffparser_schem *ps, void *obj, const ffstr *val);
+static int stbar_parts(ffparser_schem *ps, void *obj, const int64 *val);
+static int stbar_done(ffparser_schem *ps, void *obj);
 static const ffpars_arg stbar_args[] = {
 	{ "style",	FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&stbar_style) },
+	{ "parts",	FFPARS_TINT | FFPARS_FSIGN | FFPARS_FLIST, FFPARS_DST(&stbar_parts) },
+	{ NULL,	FFPARS_TCLOSE, FFPARS_DST(&stbar_done) },
 };
 static int new_stbar(ffparser_schem *ps, void *obj, ffpars_ctx *ctx);
 
@@ -157,12 +161,18 @@ static int view_column(ffparser_schem *ps, void *obj, ffpars_ctx *ctx);
 
 static int view_style(ffparser_schem *ps, void *obj, const ffstr *val);
 static int view_pos(ffparser_schem *ps, void *obj, const int64 *val);
+static int view_color(ffparser_schem *ps, void *obj, const ffstr *val);
+static int view_pmenu(ffparser_schem *ps, void *obj, const ffstr *val);
 static int view_chsel(ffparser_schem *ps, void *obj, const ffstr *val);
 static int view_lclick(ffparser_schem *ps, void *obj, const ffstr *val);
 static int view_dblclick(ffparser_schem *ps, void *obj, const ffstr *val);
 static const ffpars_arg view_args[] = {
 	{ "style",	FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&view_style) },
 	{ "position",	FFPARS_TINT | FFPARS_FSIGN | FFPARS_FLIST, FFPARS_DST(&view_pos) },
+	{ "color",	FFPARS_TSTR, FFPARS_DST(&view_color) },
+	{ "bgcolor",	FFPARS_TSTR, FFPARS_DST(&view_color) },
+	{ "popupmenu",	FFPARS_TSTR, FFPARS_DST(&view_pmenu) },
+
 	{ "chsel",	FFPARS_TSTR, FFPARS_DST(&view_chsel) },
 	{ "lclick",	FFPARS_TSTR, FFPARS_DST(&view_lclick) },
 	{ "dblclick",	FFPARS_TSTR, FFPARS_DST(&view_dblclick) },
@@ -586,6 +596,24 @@ static int stbar_style(ffparser_schem *ps, void *obj, const ffstr *val)
 	return 0;
 }
 
+static int stbar_parts(ffparser_schem *ps, void *obj, const int64 *val)
+{
+	ffui_loader *g = obj;
+	int *it = ffarr_push(&g->sb_parts, int);
+	if (it == NULL)
+		return FFPARS_ESYS;
+	*it = (int)*val;
+	return 0;
+}
+
+static int stbar_done(ffparser_schem *ps, void *obj)
+{
+	ffui_loader *g = obj;
+	ffui_stbar_setparts(g->ctl, g->sb_parts.len, g->sb_parts.ptr);
+	ffarr_free(&g->sb_parts);
+	return 0;
+}
+
 static int new_stbar(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 {
 	ffui_loader *g = obj;
@@ -594,6 +622,7 @@ static int new_stbar(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 
 	if (0 != ffui_stbar_create(g->ctl, g->wnd))
 		return FFPARS_ESYS;
+	ffarr_null(&g->sb_parts);
 	ffpars_setargs(ctx, g, stbar_args, FFCNT(stbar_args));
 	return 0;
 }
@@ -779,6 +808,9 @@ static int edit_style(ffparser_schem *ps, void *obj, const ffstr *val)
 	else if (ffstr_eqcz(val, "password"))
 		ffui_edit_password(g->ctl);
 
+	else if (ffstr_eqcz(val, "readonly"))
+		ffui_edit_readonly(g->ctl, 1);
+
 	else if (ffstr_eqcz(val, "multiline")) {
 		ffui_styleset(g->ctl->h, ES_MULTILINE | WS_VSCROLL);
 
@@ -920,6 +952,76 @@ static int view_pos(ffparser_schem *ps, void *obj, const int64 *val)
 		ffui_setposrect(g->ctl, &g->r, 0);
 		g->ir = 0;
 	}
+	return 0;
+}
+
+static const char *const _ffui_clrstr[] = {
+	"black",
+	"blue",
+	"green",
+	"grey",
+	"lime",
+	"maroon",
+	"navy",
+	"red",
+	"silver",
+	"white",
+};
+
+static const uint _ffui_clr[] = {
+	/*black*/	0x000000,
+	/*blue*/	0x0000ff,
+	/*green*/	0x008000,
+	/*grey*/	0x808080,
+	/*lime*/	0x00ff00,
+	/*maroon*/	0x800000,
+	/*navy*/	0x000080,
+	/*red*/	0xff0000,
+	/*silver*/	0xc0c0c0,
+	/*white*/	0xffffff,
+};
+
+/** Convert color represented as a string to integer.
+@s: #rrggbb or a predefined color string (_ffui_clrstr[]) */
+static uint _ffui_getclr(const char *s, size_t len)
+{
+	ssize_t n;
+	uint clr;
+
+	if (len == FFSLEN("#rrggbb") && s[0] == '#') {
+		if (FFSLEN("rrggbb") == ffs_toint(s + 1, len - 1, &clr, FFS_INT32 | FFS_INTHEX))
+			return clr;
+
+	} else {
+		if (-1 != (n = ffszarr_ifindsorted(_ffui_clrstr, FFCNT(_ffui_clrstr), s, len)))
+			return _ffui_clr[n];
+	}
+
+	return (uint)-1;
+}
+
+static int view_color(ffparser_schem *ps, void *obj, const ffstr *val)
+{
+	ffui_loader *g = obj;
+	uint clr;
+
+	if ((uint)-1 == (clr = _ffui_getclr(val->ptr, val->len)))
+		return FFPARS_EBADVAL;
+
+	if (!ffsz_cmp(ps->curarg->name, "color"))
+		ffui_view_clr_text(g->vi, clr);
+	else
+		ffui_view_clr_bg(g->vi, clr);
+	return 0;
+}
+
+static int view_pmenu(ffparser_schem *ps, void *obj, const ffstr *val)
+{
+	ffui_loader *g = obj;
+	ffui_menu *m = g->getctl(g->udata, val);
+	if (m == NULL)
+		return FFPARS_EBADVAL;
+	g->vi->pmenu = m;
 	return 0;
 }
 

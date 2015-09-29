@@ -177,6 +177,9 @@ typedef struct ffui_fdrop {
 FF_EXTN const char* ffui_fdrop_next(ffui_fdrop *df);
 
 
+FF_EXTN int ffui_openfolder(const char *const *items, size_t selcnt);
+
+
 FF_EXTN HIMAGELIST ffui_imglist_create(uint width, uint height);
 
 
@@ -192,6 +195,9 @@ FF_EXTN int ffui_edit_create(ffui_ctl *c, ffui_wnd *parent);
 
 #define ffui_edit_password(e) \
 	ffui_ctl_send(e, EM_SETPASSWORDCHAR, (wchar_t)0x25CF, 0)
+
+#define ffui_edit_readonly(e, val) \
+	ffui_ctl_send(e, EM_SETREADONLY, val, 0)
 
 
 // BUTTON
@@ -362,6 +368,8 @@ FF_EXTN void ffui_paned_create(ffui_paned *pn, ffui_wnd *parent);
 
 // STATUS BAR
 FF_EXTN int ffui_stbar_create(ffui_ctl *c, ffui_wnd *parent);
+
+#define ffui_stbar_setparts(sb, n, parts)  ffui_send((sb)->h, SB_SETPARTS, n, parts)
 
 #define ffui_stbar_settext_q(h, idx, text)  ffui_send(h, SB_SETTEXT, idx, text)
 FF_EXTN void ffui_stbar_settext(ffui_ctl *sb, int idx, const char *text, size_t len);
@@ -562,6 +570,16 @@ FF_EXTN int ffui_view_search(ffui_view *v, size_t by);
 
 #define ffui_view_selcount(v)  ffui_ctl_send(v, LVM_GETSELECTEDCOUNT, 0, 0)
 #define ffui_view_selnext(v, from)  ffui_ctl_send(v, LVM_GETNEXTITEM, from, LVNI_SELECTED)
+#define ffui_view_sel(v, i)  ListView_SetItemState((v)->h, i, LVIS_SELECTED, LVIS_SELECTED)
+
+#define ffui_view_sort(v, func, udata)  ListView_SortItems((v)->h, func, udata)
+
+#define ffui_view_clr_text(v, val)  ffui_send((v)->h, LVM_SETTEXTCOLOR, 0, val)
+#define ffui_view_clr_bg(v, val) \
+do { \
+	ffui_send((v)->h, LVM_SETBKCOLOR, 0, val); \
+	ffui_send((v)->h, LVM_SETTEXTBKCOLOR, 0, val); \
+} while (0)
 
 
 // TREEVIEW

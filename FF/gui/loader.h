@@ -44,6 +44,7 @@ struct ffui_loader {
 		} tr;
 		ffui_font fnt;
 		ffui_viewcol vicol;
+		ffarr sb_parts;
 	};
 	union {
 		ffui_ctl *ctl;
