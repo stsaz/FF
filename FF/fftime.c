@@ -3,7 +3,7 @@ Copyright (c) 2013 Simon Zolin
 */
 
 #include <FF/time.h>
-#include <FF/string.h>
+#include <FF/array.h>
 #include <FFOS/error.h>
 
 
@@ -140,6 +140,27 @@ size_t fftime_fromstr(ffdtm *dt, const char *s, size_t len, uint fmt)
 		s += i;
 		break;
 
+	case FFTIME_HMS_MSEC_VAR: {
+		ffstr ss;
+		uint *tgt[] = { &t.sec, &t.min, &t.hour };
+
+		if (s_end != (ss.ptr = ffs_rfind(s, s_end - s, '.'))) {
+			ss.len = s_end - (ss.ptr + 1);
+			if (ss.len != ffs_toint(ss.ptr + 1, ss.len, &t.msec, FFS_INT32))
+				goto fail;
+			s_end = ss.ptr;
+		}
+
+		for (i = 0;  i != 3 && s != s_end;  i++) {
+			s_end -= ffstr_nextval(s, s_end - s, &ss, ':' | FFS_NV_REVERSE | FFS_NV_KEEPWHITE);
+			if (ss.len != ffs_toint(ss.ptr, ss.len, tgt[i], FFS_INT32))
+				goto fail;
+		}
+
+		fftime_norm(&t);
+		break;
+		}
+
 	case 0:
 		break; //no time
 
@@ -150,7 +171,9 @@ size_t fftime_fromstr(ffdtm *dt, const char *s, size_t len, uint fmt)
 	if (s != s_end)
 		goto fail;
 
-	if (!fftime_chk(&t))
+	i = ((fmt & 0x0f) ? FFTIME_CHKDATE : 0)
+		| ((fmt & 0xf0) ? FFTIME_CHKTIME : 0);
+	if (!fftime_chk(&t, i))
 		goto fail;
 
 	*dt = t;

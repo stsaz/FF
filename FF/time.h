@@ -16,6 +16,7 @@ enum FFTIME_FMT {
 	, FFTIME_HMS = 0x20	// hh:mm:ss
 	, FFTIME_HMS_MSEC = 0x30 // hh:mm:ss.msc
 	, FFTIME_HMS_GMT = 0x40	// hh:mm:ss GMT
+	, FFTIME_HMS_MSEC_VAR = 0x50 // [h:][m:][s][.ms]
 
 	//date & time:
 	, FFTIME_YMD = FFTIME_DATE_YMD | FFTIME_HMS	// yyyy-MM-dd hh:mm:ss, ISO 8601
