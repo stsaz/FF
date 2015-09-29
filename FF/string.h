@@ -527,3 +527,13 @@ FF_EXTN int ffs_regex(const char *regexp, size_t regexp_len, const char *s, size
 #define ff_qsort(ar, n, elsize, func, udata) \
 	qsort(ar, n, elsize, func)
 #endif
+
+
+/** Shift value in every element. */
+static FFINL void ffarrp_shift(void **ar, size_t size, size_t by)
+{
+	size_t i;
+	for (i = 0;  i != size;  i++) {
+		ar[i] = (char*)ar[i] + by;
+	}
+}
