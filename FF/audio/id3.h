@@ -145,7 +145,6 @@ static FFINL void ffid3_parseinit(ffid3 *p)
 }
 
 /** Parse ID3v2.
-Note: the first data chunk must be at least of sizeof(ffid3_hdr) bytes long.
 @len: [in] length of @data.  [out] processed bytes.
 Return enum FFID3_R. */
 FF_EXTN int ffid3_parse(ffid3 *p, const char *data, size_t *len);

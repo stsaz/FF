@@ -229,12 +229,14 @@ int ffid3_parse(ffid3 *p, const char *data, size_t *len)
 
 		switch (p->state) {
 		case I_HDR:
-			if (sizeof(ffid3_hdr) > end - data)
-				return FFID3_RDONE;
-
-			ffmemcpy(&p->h, data, sizeof(ffid3_hdr));
-			if (!ffid3_valid(&p->h))
-				return FFID3_RDONE; //not a valid ID3v2
+			p->frsize += ffs_append(&p->h, p->frsize, sizeof(ffid3_hdr), data, end - data);
+			if (p->frsize != sizeof(ffid3_hdr))
+				return FFID3_RMORE;
+			if (!ffid3_valid(&p->h)) {
+				*len = 0;
+				return FFID3_RNO; //not a valid ID3v2
+			}
+			p->frsize = 0;
 
 			data += sizeof(ffid3_hdr);
 			p->size = ffid3_size(&p->h);
@@ -254,10 +256,9 @@ int ffid3_parse(ffid3 *p, const char *data, size_t *len)
 				break;
 			}
 
-			n = (uint)ffmin(sizeof(ffid3_frhdr) - p->frsize, end - data);
+			n = ffs_append(&p->fr, p->frsize, sizeof(ffid3_frhdr), data, end - data);
 			if (n > p->size)
 				goto done; //no space for frame header within the tag
-			ffmemcpy((char*)&p->fr + p->frsize, data, n);
 			p->frsize += n;
 			data += n;
 			p->size -= n;
