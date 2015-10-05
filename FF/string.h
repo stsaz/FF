@@ -187,8 +187,7 @@ static FFINL char * ffs_copyz(char *dst, const char *bufend, const char *sz) {
 /** Copy buffer. */
 static FFINL char * ffs_copy(char *dst, const char *bufend, const char *s, size_t len) {
 	len = ffmin(bufend - dst, len);
-	if (len != 0)
-		memcpy(dst, s, len);
+	ffmemcpy(dst, s, len);
 	return dst + len;
 }
 
