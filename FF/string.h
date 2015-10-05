@@ -202,6 +202,18 @@ static FFINL size_t ffs_append(void *dst, size_t off, size_t cap, const void *sr
 	return n;
 }
 
+/** Select the larger buffer */
+static FFINL void ffs_max(const void *s1, size_t len1, const void *s2, size_t len2, void **out_ptr, size_t *out_len)
+{
+	if (len1 >= len2) {
+		*out_ptr = (void*)s1;
+		*out_len = len1;
+	} else {
+		*out_ptr = (void*)s2;
+		*out_len = len2;
+	}
+}
+
 
 #define ffsz_len  strlen
 #define ffsz_findof strpbrk
