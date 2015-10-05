@@ -18,6 +18,7 @@ FEATURES
 		. IPv4/IPv6 address convertion functions
 		. HTTP
 		. DNS
+		. SSL (ssleay32)
 
 	. Data:
 		. JSON: parse and serialize
