@@ -4,6 +4,7 @@ Copyright (c) 2013 Simon Zolin
 
 #include <FF/audio/id3.h>
 #include <FF/data/utf8.h>
+#include <FF/number.h>
 
 
 static const char *const id3_genres[] = {
@@ -145,21 +146,6 @@ ffbool ffid3_valid(const ffid3_hdr *h)
 		&& (*hsize & 0x80808080) == 0;
 }
 
-#pragma pack(push, 4)
-const char ffid3_frames[][4] = {
-	{'A','P','I','C'}
-	, {'C','O','M','M'}
-	, {'T','A','L','B'}
-	, {'T','C','O','N'}
-	, {'T','I','T','2'}
-	, {'T','L','E','N'}
-	, {'T','P','E','1'}
-	, {'T','P','E','2'}
-	, {'T','R','C','K'}
-	, {'T','Y','E','R'}
-};
-#pragma pack(pop)
-
 static FFINL uint i28_i32(const void *src)
 {
 	uint i = ffint_ntoh32(src);
@@ -183,26 +169,79 @@ uint ffid3_size(const ffid3_hdr *h)
 	return i28_i32(h->size);
 }
 
-uint ffid3_frame(const ffid3_frhdr *fr)
+const char ffid3_frames[][4] = {
+	"APIC",
+	"COMM",
+	"TALB",
+	"TCON",
+	"TDRC",
+	"TENC",
+	"TIT2",
+	"TLEN",
+	"TPE1",
+	"TPE2",
+	"TRCK",
+	"TYER",
+};
+
+static const byte ffid3_22_framei[] = {
+	FFID3_COMMENT,
+	FFID3_PICTURE,
+	FFID3_ALBUM,
+	FFID3_GENRE,
+	FFID3_ENCODEDBY,
+	FFID3_LENGTH,
+	FFID3_ARTIST,
+	FFID3_TRACKNO,
+	FFID3_TITLE,
+	FFID3_YEAR,
+};
+
+static const char ffid3_22_frames[][3] = {
+	"COM",
+	"PIC",
+	"TAL",
+	"TCO",
+	"TEN",
+	"TLE",
+	"TP1",
+	"TRK",
+	"TT2",
+	"TYE",
+};
+
+/** Return enum FFID3_FRAME. */
+static FFINL int _ffid3_frame(const ffid3_frhdr *fr)
 {
-	uint i, *p = (void*)fr->id, id = *p;
-	for (i = 0;  i < FFCNT(ffid3_frames);  i++) {
-		p = (void*)ffid3_frames[i];
-		if (id == *p)
-			return i;
+	return ffcharr_findsorted(ffid3_frames, FFCNT(ffid3_frames), sizeof(*ffid3_frames), fr->id, 4);
+}
+
+static FFINL int _ffid3_frame22(const ffid3_frhdr22 *fr)
+{
+	int id = ffcharr_findsorted(ffid3_22_frames, FFCNT(ffid3_22_frames), sizeof(*ffid3_22_frames), fr->id, 3);
+	if (id != -1)
+		id = ffid3_22_framei[id];
+	return id;
+}
+
+/** Get frame size. */
+static FFINL uint _ffid3_frsize(const void *fr, uint majver)
+{
+	const ffid3_frhdr22 *fr22;
+
+	switch (majver) {
+	case 2:
+		fr22 = fr;
+		return (fr22->size[0] << 16) | (fr22->size[1] << 8) | fr22->size[2];
+	case 3:
+		return ffint_ntoh32(((ffid3_frhdr*)fr)->size);
+	default:
+		return i28_i32(((ffid3_frhdr*)fr)->size);
 	}
-	return (uint)-1;
-}
-
-uint ffid3_frsize(const ffid3_frhdr *fr, uint majver)
-{
-	if (majver == 4)
-		return i28_i32(fr->size);
-	return ffint_ntoh32(fr->size);
 }
 
 
-enum { I_HDR, I_FR, I_TXTENC, I_DATA, I_UNSYNC_00, I_FRDONE, I_PADDING };
+enum { I_HDR, I_FR, I_TXTENC, I_DATA, I_TRKTOTAL, I_UNSYNC_00, I_FRDONE, I_PADDING };
 
 /*replace: FF 00 -> FF*/
 static FFINL int _ffid3_unsync(ffid3 *p, const char *data, size_t len)
@@ -239,7 +278,7 @@ static FFINL int _ffid3_unsync(ffid3 *p, const char *data, size_t len)
 int ffid3_parse(ffid3 *p, const char *data, size_t *len)
 {
 	const char *dstart = data, *end = data + *len;
-	uint n;
+	uint n, frsz;
 	uint r = FFID3_RERR;
 
 	*len = 0;
@@ -272,7 +311,7 @@ int ffid3_parse(ffid3 *p, const char *data, size_t *len)
 			p->size = ffid3_size(&p->h);
 			end = data + p->size;
 
-			if (p->h.ver[0] > 4 //v2.4 is max supported version
+			if (p->h.ver[0] < 2 || p->h.ver[0] > 4 //v2.2-v2.4
 				|| (p->h.flags & ~0x80) != 0) //not supported
 				goto done;
 
@@ -285,30 +324,37 @@ int ffid3_parse(ffid3 *p, const char *data, size_t *len)
 				p->state = I_PADDING;
 				break;
 			}
+			frsz = (p->h.ver[0] == 2) ? sizeof(ffid3_frhdr22) : sizeof(ffid3_frhdr);
 
-			n = ffs_append(&p->fr, p->frsize, sizeof(ffid3_frhdr), data, end - data);
+			n = ffs_append(&p->fr, p->frsize, frsz, data, end - data);
 			if (n > p->size)
 				goto done; //no space for frame header within the tag
 			p->frsize += n;
 			data += n;
 			p->size -= n;
 
-			if (p->frsize != sizeof(ffid3_frhdr)) {
+			if (p->frsize != frsz) {
 				r = FFID3_RMORE; //frame header is split between the 2 data chunks
 				goto done;
 			}
 
-			p->frsize = ffid3_frsize(&p->fr, p->h.ver[0]);
+			p->frsize = _ffid3_frsize(&p->fr, p->h.ver[0]);
 			if (p->frsize > p->size)
 				goto done; //frame size is too large
+
+			if (p->h.ver[0] == 2)
+				p->frame = _ffid3_frame22(&p->fr22);
+			else
+				p->frame = _ffid3_frame(&p->fr);
 
 			if ((p->fr.flags[1] & ~0x02) != 0)
 				goto done; //not supported
 
-			if (p->fr.id[0] == 'T')
+			if (p->fr.id[0] == 'T' || p->frame == FFID3_COMMENT)
 				p->state = I_TXTENC;
 			else
 				p->state = I_DATA;
+
 			r = FFID3_RFRAME;
 			goto done;
 
@@ -342,10 +388,23 @@ int ffid3_parse(ffid3 *p, const char *data, size_t *len)
 			if ((p->flags & FFID3_FWHOLE) && p->frsize != 0)
 				break; //wait until we copy data completely
 
+			if (p->h.ver[0] == 2 && p->data.len != 0)
+				p->data.len--; //remove last '\0'
+
+			if (p->frame == FFID3_TRACKNO)
+				p->state = I_TRKTOTAL;
+
+			r = FFID3_RDATA;
+			goto done;
+
+		case I_TRKTOTAL:
+			p->frame = FFID3_TRACKTOTAL;
+			p->state = I_DATA;
 			r = FFID3_RDATA;
 			goto done;
 
 		case I_FRDONE:
+			p->txtenc = -1;
 			p->data.len = 0;
 			p->state = I_FR;
 			break;
@@ -371,22 +430,62 @@ done:
 	return r;
 }
 
-int ffid3_getdata(const char *data, size_t len, uint txtenc, uint codepage, ffstr3 *dst)
+int ffid3_getdata(int frame, const char *data, size_t len, int txtenc, uint codepage, ffstr3 *dst)
 {
-	const char *end = data + len;
-	uint f;
+	const char *end = data + len, *slash;
+	uint r, f, igenre;
+	ssize_t n;
+
+	if (txtenc == -1) {
+		ffarr_free(dst);
+		ffarr_set(dst, (char*)data, len);
+		return (int)len;
+	}
+
+	switch (frame) {
+	case FFID3_COMMENT:
+		if (len >= FFSLEN("LNG\0")) {
+			data += FFSLEN("LNG");
+
+			//skip short description
+			switch (txtenc) {
+			case FFID3_ANSI:
+			case FFID3_UTF8:
+				if (NULL == (data = ffs_findc(data, end - data, '\0')))
+					return -1; //no end of short description
+				data++;
+				break;
+
+			case FFID3_UTF16BOM:
+				data += 2;
+				if (data > end)
+					return -1; //no space for BOM
+				// break
+
+			case FFID3_UTF16BE:
+				if (end == (data = ffs_finds(data, end - data, "\0", 2)))
+					return -1; //no end of short description
+				data += 2;
+				break;
+			}
+
+			len = end - data;
+		}
+		break;
+	}
 
 	switch (txtenc) {
 	case FFID3_UTF8:
 		ffarr_free(dst);
 		ffarr_set(dst, (char*)data, len);
-		return (int)len;
+		r = (int)len;
+		goto process;
 
 	case FFID3_UTF16BOM:
 		f = ffutf_bom(data, &len);
-		if (f == (uint)-1)
-			return -1;
-		data += len;
+		if (f != FFU_UTF16LE && f != FFU_UTF16BE)
+			return -1; //invalid BOM
+		data += 2;
 		break;
 
 	case FFID3_UTF16BE:
@@ -401,5 +500,38 @@ int ffid3_getdata(const char *data, size_t len, uint txtenc, uint codepage, ffst
 		return -1;
 	}
 
-	return (int)ffutf8_strencode(dst, data, end - data, f);
+	if (0 == (r = (int)ffutf8_strencode(dst, data, end - data, f)))
+		goto done;
+
+process:
+	switch (frame) {
+	case FFID3_TRACKNO:
+		if (NULL != (slash = ffs_findc(dst->ptr, dst->len, '/')))
+			dst->len = r = slash - dst->ptr;
+		break;
+
+	case FFID3_TRACKTOTAL:
+		if (NULL != (slash = ffs_findc(dst->ptr, dst->len, '/'))) {
+			_ffarr_rmleft(dst, slash + FFSLEN("/") - dst->ptr, sizeof(char));
+			r = dst->len;
+		}
+		break;
+
+	case FFID3_GENRE:
+		if ((n = ffs_fmatch(dst->ptr, dst->len, "(%u)", &igenre)) > 0) {
+
+			if ((size_t)n == dst->len && igenre < FFCNT(id3_genres)) {
+				ffarr_free(dst);
+				ffstr_setz(dst, id3_genres[igenre]);
+				return dst->len;
+			}
+
+			_ffarr_rmleft(dst, n, sizeof(char));
+			r = dst->len;
+		}
+		break;
+	}
+
+done:
+	return r;
 }

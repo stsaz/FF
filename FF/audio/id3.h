@@ -79,15 +79,19 @@ FF_EXTN uint ffid3_size(const ffid3_hdr *h);
 
 enum FFID3_FRAME {
 	FFID3_PICTURE //APIC
-	, FFID3_COMMENT //COMM
+	, FFID3_COMMENT //COMM: "LNG" "SHORT" \0 "TEXT"
 	, FFID3_ALBUM //TALB
-	, FFID3_GENRE //TCON
+	, FFID3_GENRE //TCON: "Genre" | "(NN)Genre" | "(NN)" where NN is ID3v1 genre index
+	, FFID3_RECTIME //TDRC: "yyyy[-MM[-dd[THH[:mm[:ss]]]]]"
+	, FFID3_ENCODEDBY //TENC
 	, FFID3_TITLE //TIT2
 	, FFID3_LENGTH //TLEN
 	, FFID3_ARTIST //TPE1
 	, FFID3_ALBUMARTIST //TPE2
-	, FFID3_TRACKNO //TRCK
+	, FFID3_TRACKNO //TRCK: "N[/TOTAL]"
 	, FFID3_YEAR //TYER
+
+	, FFID3_TRACKTOTAL
 };
 
 FF_EXTN const char ffid3_frames[][4];
@@ -107,19 +111,18 @@ typedef struct ffid3_frhdr {
 	};
 } ffid3_frhdr;
 
+//6 bytes
+typedef struct ffid3_frhdr22 {
+	char id[3];
+	byte size[3];
+} ffid3_frhdr22;
+
 enum FFID3_TXTENC {
 	FFID3_ANSI
 	, FFID3_UTF16BOM
 	, FFID3_UTF16BE //no BOM.  v2.4
 	, FFID3_UTF8 //v2.4
 };
-
-/** Return enum FFID3_FRAME. */
-FF_EXTN uint ffid3_frame(const ffid3_frhdr *fr);
-
-/** Get frame size.
-@majver: ffid3_hdr.ver[0] */
-FF_EXTN uint ffid3_frsize(const ffid3_frhdr *fr, uint majver);
 
 
 enum FFID3_F {
@@ -128,12 +131,16 @@ enum FFID3_F {
 
 typedef struct ffid3 {
 	ffid3_hdr h;
+	union {
 	ffid3_frhdr fr; //the currently processed frame
+	ffid3_frhdr22 fr22;
+	};
 	uint state;
 	uint size //bytes left in the whole ID3v2
 		, frsize; //bytes left in the frame
-	uint txtenc; //enum FFID3_TXTENC
+	int txtenc; //enum FFID3_TXTENC
 	uint flags; //enum FFID3_F
+	int frame; //enum FFID3_FRAME or -1 if unknown frame
 	ffstr3 data; //frame data
 } ffid3;
 
@@ -150,6 +157,7 @@ enum FFID3_R {
 static FFINL void ffid3_parseinit(ffid3 *p)
 {
 	ffmem_tzero(p);
+	p->txtenc = -1;
 }
 
 /** Parse ID3v2.
@@ -164,7 +172,8 @@ static FFINL void ffid3_parsefin(ffid3 *p)
 
 
 /** Get data from ID3v2 frame.  Convert to UTF-8 if necessary.
+@frame: enum FFID3_FRAME or -1.
 @txtenc: enum FFID3_TXTENC.
 @codepage: code page, 0 (default) or FFU_*.
 Return number of bytes copied. */
-FF_EXTN int ffid3_getdata(const char *data, size_t len, uint txtenc, uint codepage, ffstr3 *dst);
+FF_EXTN int ffid3_getdata(int frame, const char *data, size_t len, int txtenc, uint codepage, ffstr3 *dst);
