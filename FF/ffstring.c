@@ -1246,6 +1246,10 @@ fail:
 void * _ffarr_realloc(ffarr *ar, size_t newlen, size_t elsz)
 {
 	void *d = NULL;
+
+	if (newlen == 0)
+		newlen = 1; //ffmem_realloc() returns NULL if requested buffer size is 0
+
 	if (ar->cap != 0) {
 		if (ar->cap == newlen)
 			return ar->ptr; //nothing to do
