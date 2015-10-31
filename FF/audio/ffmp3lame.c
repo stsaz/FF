@@ -144,7 +144,7 @@ int ffmpg_encode(ffmpg_enc *m)
 			break;
 
 		case FFPCM_FLOAT:
-			lame_encode_buffer_ieee_float(m->lam, m->pcmf[0], ch2, nsamples, m->data, cap);
+			r = lame_encode_buffer_ieee_float(m->lam, m->pcmf[0], ch2, nsamples, m->data, cap);
 			break;
 		}
 	}
