@@ -79,8 +79,9 @@ int ffid31_parse(ffid31ex *id31ex, const char *data, size_t *len)
 
 	case I_COMMENT:
 		if (id31->comment[0] != '\0') {
-			ffstr_setnz(val, id31->comment, sizeof(id31->comment));
-			*state = I_TRK;
+			n = (id31->comment30[28] != '\0') ? sizeof(id31->comment30) : sizeof(id31->comment);
+			ffstr_setnz(val, id31->comment, n);
+			*state = (id31->comment30[28] != '\0') ? I_DONE : I_TRK;
 			id31ex->field = FFID3_COMMENT;
 			break;
 		}

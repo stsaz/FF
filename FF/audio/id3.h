@@ -21,8 +21,16 @@ typedef struct ffid31 {
 	char artist[30];
 	char album[30];
 	char year[4];
+
+	union {
+	char comment30[30];
+
+	// if comment30[28] == '\0':
+	struct {
 	char comment[29];
 	byte track_no; //undefined: 0
+	};};
+
 	byte genre; //undefined: 0xff
 } ffid31;
 
