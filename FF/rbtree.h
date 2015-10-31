@@ -110,6 +110,9 @@ static FFINL ffrbt_node * ffrbt_find(ffrbtree *tr, ffrbtkey key, ffrbt_node **pa
 	return nod;
 }
 
+/** Print contents of all nodes. */
+FF_EXTN void ffrbt_print(ffrbtree *tr);
+
 
 /** Node which holds pointers to its sibling nodes having the same key. */
 typedef struct ffrbtl_node {

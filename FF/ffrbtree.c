@@ -3,6 +3,7 @@ Copyright (c) 2013 Simon Zolin
 */
 
 #include <FF/rbtree.h>
+#include <FF/array.h>
 
 
 static fftree_node * tree_rm(fftree_node *nod, fftree_node **root, void *sentl, fftree_node **tmp);
@@ -332,6 +333,25 @@ void ffrbt_rm(ffrbtree *tr, ffrbt_node *nod)
 	}
 
 	x->color = BLACK;
+}
+
+void ffrbt_print(ffrbtree *tr)
+{
+	fftree_node *node;
+	ffarr a = {0};
+	uint i = 0;
+
+	FFTREE_WALK(tr, node) {
+		ffstr_catfmt(&a, "#%2u %c, key: %8xu, node: %p, left: %8xu, right: %8xu, parent: %8xu\n"
+			, i++, ((ffrbt_node*)node)->color == 0 ? 'B' : 'R', node->key, node
+			, (node->left == (void*)&tr->sentl) ? 0 : node->left->key
+			, (node->right == (void*)&tr->sentl) ? 0 : node->right->key
+			, node->parent->key);
+	}
+
+	FFDBG_PRINT(0, "tree: %p, len:%L, sentl: %p, nodes:\n%S\n"
+		, tr, tr->len, &tr->sentl, &a);
+	ffarr_free(&a);
 }
 
 
