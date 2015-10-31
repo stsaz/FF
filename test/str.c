@@ -336,6 +336,7 @@ static int test_fmatch()
 	x(u == 1234567);
 	x(u8 == 123456789012345);
 
+	x(5 == ffs_fmatch(FFSTR(":123:"), ":%u:", &u) && u == 123);
 	return 0;
 }
 

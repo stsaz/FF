@@ -1179,7 +1179,7 @@ size_t fffile_fmt(fffd fd, ffstr3 *buf, const char *fmt, ...)
 size_t ffs_fmatchv(const char *s, size_t len, const char *fmt, va_list va)
 {
 	const char *s_o = s, *s_end = s + len;
-	uint width = 0;
+	uint width, iflags = 0;
 	union {
 		char *s;
 		uint *i4;
@@ -1188,30 +1188,6 @@ size_t ffs_fmatchv(const char *s, size_t len, const char *fmt, va_list va)
 	dst.s = NULL;
 
 	for (;  s != s_end && *fmt != '\0';  s++) {
-
-		if (width != 0) {
-			switch (*fmt) {
-			case 'U':
-				if (!ffchar_isdigit(*s))
-					goto fail;
-				*dst.i8 = *dst.i8 * 10 + ffchar_tonum(*s);
-				break;
-
-			case 'u':
-				if (!ffchar_isdigit(*s))
-					goto fail;
-				*dst.i4 = *dst.i4 * 10 + ffchar_tonum(*s);
-				break;
-
-			case 's':
-				*(dst.s++) = *s;
-				break;
-			}
-
-			if (--width == 0)
-				fmt++;
-			continue;
-		}
 
 		if (*fmt != '%') {
 			if (*fmt != *s)
@@ -1229,6 +1205,7 @@ size_t ffs_fmatchv(const char *s, size_t len, const char *fmt, va_list va)
 			continue;
 		}
 
+		width = 0;
 		while (ffchar_isdigit(*fmt)) {
 			width = width * 10 + (*fmt++ - '0');
 		}
@@ -1236,24 +1213,36 @@ size_t ffs_fmatchv(const char *s, size_t len, const char *fmt, va_list va)
 		switch (*fmt) {
 		case 'U':
 			dst.i8 = va_arg(va, uint64*);
-			*dst.i8 = 0;
+			iflags = FFS_INT64;
 			break;
 
 		case 'u':
 			dst.i4 = va_arg(va, uint*);
-			*dst.i4 = 0;
+			iflags = FFS_INT32;
 			break;
 
 		case 's':
 			dst.s = va_arg(va, char*);
+			if (width == 0)
+				goto fail; //width must be specified for %s
+			ffmemcpy(dst.s, s, width);
+			s += width;
 			break;
 
 		default:
 			goto fail; //invalid format specifier
 		}
 
-		if (width == 0)
-			fmt++;
+		if (iflags != 0) {
+			size_t n = (width == 0) ? (size_t)(s_end - s) : ffmin(s_end - s, width);
+			n = ffs_toint(s, n, dst.i8, iflags);
+			if (n == 0)
+				goto fail; //bad integer
+			s += n;
+			iflags = 0;
+		}
+
+		fmt++;
 		s--;
 	}
 
