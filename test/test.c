@@ -470,6 +470,7 @@ static int test_direxp(void)
 }
 
 FF_EXTN int test_regex(void);
+FF_EXTN int test_num(void);
 
 struct test_s {
 	const char *nm;
@@ -479,7 +480,7 @@ struct test_s {
 #define F(nm) { #nm, &test_ ## nm }
 static const struct test_s _fftests[] = {
 	F(str), F(regex)
-	, F(bits), F(list), F(rbtlist), F(htable), F(crc)
+	, F(num), F(bits), F(list), F(rbtlist), F(htable), F(crc)
 	, F(fmap), F(time), F(timerq), F(sendfile), F(path), F(direxp)
 	, F(url), F(http), F(dns)
 	, F(json), F(conf), F(args)

@@ -4,6 +4,7 @@ Copyright (c) 2013 Simon Zolin
 
 #pragma once
 
+#include <FF/number.h>
 #include <FFOS/mem.h>
 
 

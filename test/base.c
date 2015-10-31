@@ -8,10 +8,32 @@ Copyright (c) 2014 Simon Zolin
 #include <FF/rbtree.h>
 #include <FF/crc.h>
 #include <FF/hashtab.h>
+#include <FF/number.h>
 
 #include <test/all.h>
 
 #define x FFTEST_BOOL
+
+
+static const uint iarr[] = { 0,1,2,3,4,5 };
+
+int test_num(void)
+{
+	uint i;
+
+	FFTEST_FUNC;
+
+	for (i = 0;  i != FFCNT(iarr);  i++) {
+		x(i == ffint_binfind4(iarr, FFCNT(iarr), i));
+	}
+
+	for (i = 0;  i != FFCNT(iarr) - 1;  i++) {
+		x(i == ffint_binfind4(iarr, FFCNT(iarr) - 1, i));
+	}
+
+	x(-1 == ffint_binfind4(iarr, FFCNT(iarr), 6));
+	return 0;
+}
 
 
 static int rbtRm(ffrbtl_node *nod, void *udata)

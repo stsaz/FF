@@ -5,6 +5,7 @@ Copyright (c) 2013 Simon Zolin
 #include <FF/net/url.h>
 #include <FF/net/http.h>
 #include <FF/path.h>
+#include <FF/number.h>
 
 
 /*
