@@ -312,11 +312,33 @@ int ffwas_filled(ffwasapi *w)
 static void _ffwas_onplay_sh(void *udata)
 {
 	ffwasapi *w = udata;
-	int fld = ffwas_filled(w) / w->frsize;
+	int fld;
+
+	fflk_lock(&w->lk);
+	fld = ffwas_filled(w) / w->frsize;
 	if (fld != 0 && fld > w->nfy_next)
-		return; //don't trigger too many events
+		goto done; //don't trigger too many events
+
+	if (fld == 0) {
+		if (!w->underflow) {
+			w->underflow = 1;
+			ffwas_stop(w);
+		}
+	}
+
 	w->nfy_next -= w->nfy_interval;
+
+	if (!w->callback_wait) {
+		w->callback = 1;
+		goto done;
+	}
+	w->callback_wait = 0;
+	fflk_unlock(&w->lk);
 	w->handler(w->udata);
+	return;
+
+done:
+	fflk_unlock(&w->lk);
 }
 
 static void _ffwas_oncapt_sh(void *udata)
@@ -350,12 +372,41 @@ static void _ffwas_onplay_excl(void *udata)
 	}
 
 	w->actvbufs--;
+
+	if (!w->callback_wait) {
+		w->callback = 1;
+		goto done;
+	}
+	w->callback_wait = 0;
+
 	fflk_unlock(&w->lk);
 	w->handler(w->udata);
 	return;
 
 done:
 	fflk_unlock(&w->lk);
+}
+
+int ffwas_async(ffwasapi *w, uint enable)
+{
+	fflk_lock(&w->lk);
+
+	if (!enable) {
+		w->callback_wait = w->callback = 0;
+		goto done;
+	}
+
+	if (w->callback) {
+		w->callback = 0;
+		fflk_unlock(&w->lk);
+		w->handler(w->udata);
+		return 1;
+	}
+
+	w->callback_wait = 1;
+done:
+	fflk_unlock(&w->lk);
+	return 0;
 }
 
 static int _ffwas_write_sh(ffwasapi *w, const void *data, size_t len)
@@ -379,10 +430,16 @@ static int _ffwas_write_sh(ffwasapi *w, const void *data, size_t len)
 
 	ffmemcpy(d, data, n * w->frsize);
 
+	fflk_lock(&w->lk);
 	if (0 != (r = IAudioRenderClient_ReleaseBuffer(w->rend, n, 0)))
-		return r;
+		goto done;
 	w->nfy_next += n;
+	fflk_unlock(&w->lk);
 	return n * w->frsize;
+
+done:
+	fflk_unlock(&w->lk);
+	return r;
 }
 
 int ffwas_write(ffwasapi *w, const void *d, size_t len)
@@ -399,8 +456,6 @@ int ffwas_write(ffwasapi *w, const void *d, size_t len)
 
 		if (w->actvbufs == 2) {
 			if (!w->started && w->autostart) {
-				if (w->underflow)
-					w->underflow = 0;
 				if (0 != (r = ffwas_start(w)))
 					goto done;
 			}
@@ -443,11 +498,13 @@ int ffwas_silence(ffwasapi *w)
 	if (w->excl) {
 		if (w->wpos != 0) {
 			ffmem_zero(w->wptr + w->wpos * w->frsize, (w->bufsize - w->wpos) * w->frsize);
+			fflk_lock(&w->lk);
 			if (0 != (r = IAudioRenderClient_ReleaseBuffer(w->rend, w->bufsize, 0)))
-				return r;
+				goto done;
 			w->wptr = NULL;
 			w->wpos = 0;
 			w->actvbufs++;
+			fflk_unlock(&w->lk);
 		}
 		return 0;
 	}
@@ -458,9 +515,16 @@ int ffwas_silence(ffwasapi *w)
 	if (0 != (r = IAudioRenderClient_GetBuffer(w->rend, nfree, &d)))
 		return r;
 	ffmem_zero(d, nfree * w->frsize);
+	fflk_lock(&w->lk);
 	if (0 != (r = IAudioRenderClient_ReleaseBuffer(w->rend, nfree, 0)))
-		return r;
+		goto done;
+	w->nfy_next += nfree;
+	fflk_unlock(&w->lk);
 	return nfree * w->frsize;
+
+done:
+	fflk_unlock(&w->lk);
+	return r;
 }
 
 void ffwas_clear(ffwasapi *w)
@@ -502,6 +566,9 @@ int ffwas_start(ffwasapi *w)
 	int r;
 	if (0 != (r = woh_add(w)))
 		return r;
+
+	if (w->underflow)
+		w->underflow = 0;
 
 	if (0 != (r = IAudioClient_Start(w->cli)))
 		return r;

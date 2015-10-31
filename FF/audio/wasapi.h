@@ -69,6 +69,8 @@ typedef struct ffwasapi {
 		, autostart :1
 
 		, started :1
+		, callback :1
+		, callback_wait :1
 		, underflow :1
 		, last :1
 		;
@@ -98,6 +100,10 @@ FF_EXTN int ffwas_write(ffwasapi *w, const void *data, size_t len);
 
 /** Write silence into sound buffer.*/
 FF_EXTN int ffwas_silence(ffwasapi *w);
+
+/** Enter asynchronous mode - call user handler function.
+Return 1 if user handler function has been called. */
+FF_EXTN int ffwas_async(ffwasapi *w, uint enable);
 
 FF_EXTN int ffwas_start(ffwasapi *w);
 
