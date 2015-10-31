@@ -74,17 +74,23 @@ int ffwoh_add(ffwoh *oh, HANDLE h, handler_t handler, void *udata)
 void ffwoh_rm(ffwoh *oh, HANDLE h)
 {
 	uint i;
+	ffbool is_wrker;
+
 	for (i = 1 /*skip wake_evt*/;  i < oh->count;  i++) {
 		if (oh->hdls[i] != h)
 			continue;
 
-		fflk_lock(&oh->lk);
-		ffatom_xchg(&oh->cmd, THDCMD_WAIT);
-		SetEvent(oh->wake_evt);
+		is_wrker = (GetCurrentThreadId() == GetThreadId(oh->thd));
 
-		//wait until the worker thread returns from the kernel
-		WaitForSingleObject(oh->wait_evt, INFINITE);
-		//now the worker thread waits until oh->lk is unlocked
+		fflk_lock(&oh->lk);
+		if (!is_wrker) {
+			ffatom_xchg(&oh->cmd, THDCMD_WAIT);
+			SetEvent(oh->wake_evt);
+
+			//wait until the worker thread returns from the kernel
+			WaitForSingleObject(oh->wait_evt, INFINITE);
+			//now the worker thread waits until oh->lk is unlocked
+		}
 
 		oh->count--;
 		if (i != oh->count) {
