@@ -56,7 +56,7 @@ typedef struct ffwasapi {
 	uint bufsize;
 	uint frsize;
 	int nfy_next;
-	uint nfy_interval;
+	uint nfy_interval; //shared mode: how often user handler is called (in samples)
 	HANDLE evt;
 
 	fflock lk;
@@ -75,6 +75,7 @@ typedef struct ffwasapi {
 } ffwasapi;
 
 /** Open device for playback.
+In shared mode there's only one supported sample rate.  In exclusive mode a device may support different sample rates.
 @dev_id: NULL for a default device.
 Return AUDCLNT_E* on error.
  AUDCLNT_E_UNSUPPORTED_FORMAT:

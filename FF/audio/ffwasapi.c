@@ -265,7 +265,7 @@ int ffwas_open(ffwasapi *w, const WCHAR *id, ffpcm *fmt, uint bufsize)
 	r = 0;
 
 	if (w->nfy_interval == 0)
-		w->nfy_interval = fmt->sample_rate / WAS_DEFNFYRATE;
+		w->nfy_interval = w->bufsize / WAS_DEFNFYRATE;
 	w->nfy_next = w->capture ? w->nfy_interval : -(int)w->nfy_interval;
 
 	goto done;
