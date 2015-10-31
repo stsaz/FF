@@ -92,12 +92,13 @@ enum FFOGG_VORBTAG {
 	, FFOGG_GENRE
 	, FFOGG_TITLE
 	, FFOGG_TRACKNO
+	, FFOGG_TRACKTOTAL
 };
 
 FF_EXTN const char *const ffogg_vorbtagstr[];
 
-/** Return enum FFOGG_VORBTAG. */
-FF_EXTN uint ffogg_tag(const char *name, size_t len);
+/** Return enum FFOGG_VORBTAG or -1 of unknown tag. */
+FF_EXTN int ffogg_tag(const char *name, size_t len);
 
 /** Add vorbis tag. */
 #define ffogg_addtag(o, name, val) \

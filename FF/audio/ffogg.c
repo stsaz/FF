@@ -293,16 +293,12 @@ const char *const ffogg_vorbtagstr[] = {
 	, "GENRE"
 	, "TITLE"
 	, "TRACKNUMBER"
+	, "TRACKTOTAL"
 };
 
-uint ffogg_tag(const char *name, size_t len)
+int ffogg_tag(const char *name, size_t len)
 {
-	uint i;
-	for (i = 0;  i < FFCNT(ffogg_vorbtagstr);  i++) {
-		if (!ffs_icmpz(name, len, ffogg_vorbtagstr[i]))
-			return i;
-	}
-	return (uint)-1;
+	return ffszarr_ifindsorted(ffogg_vorbtagstr, FFCNT(ffogg_vorbtagstr), name, len);
 }
 
 void ffogg_seek(ffogg *o, uint64 sample)

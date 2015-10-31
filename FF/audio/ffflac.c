@@ -65,16 +65,12 @@ const char *const ffflac_tagstr[] = {
 	, "GENRE"
 	, "TITLE"
 	, "TRACKNUMBER"
+	, "TRACKTOTAL"
 };
 
-uint ffflac_tag(const char *name, size_t len)
+int ffflac_tag(const char *name, size_t len)
 {
-	uint i;
-	for (i = 0;  i < FFCNT(ffflac_tagstr);  i++) {
-		if (!ffs_icmpz(name, len, ffflac_tagstr[i]))
-			return i;
-	}
-	return (uint)-1;
+	return ffszarr_ifindsorted(ffflac_tagstr, FFCNT(ffflac_tagstr), name, len);
 }
 
 int ffflac_addtag(ffflac_enc *f, const char *name, const char *val)

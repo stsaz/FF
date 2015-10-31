@@ -69,7 +69,7 @@ FF_EXTN void ffflac_close(ffflac *f);
 FF_EXTN const char *const ffflac_tagstr[];
 
 /** Return enum FFOGG_VORBTAG. */
-FF_EXTN uint ffflac_tag(const char *name, size_t len);
+FF_EXTN int ffflac_tag(const char *name, size_t len);
 
 /** Return total samples or 0 if unknown. */
 #define ffflac_totalsamples(f) \
