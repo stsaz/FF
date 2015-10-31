@@ -159,6 +159,7 @@ typedef struct ffmpg {
 	ffid31ex id31tag;
 	ffid3 id32tag;
 	ffarr tagval;
+	uint codepage; //codepage for non-Unicode meta tags
 
 	size_t datalen;
 	const void *data;

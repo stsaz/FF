@@ -5,6 +5,8 @@ Copyright (c) 2013 Simon Zolin
 #include <FF/audio/mpeg.h>
 #include <FF/audio/id3.h>
 #include <FF/string.h>
+#include <FF/number.h>
+#include <FF/data/utf8.h>
 #include <FFOS/error.h>
 
 
@@ -213,12 +215,21 @@ static FFINL int mpg_id31(ffmpg *m)
 
 	case FFID3_RDONE:
 		m->total_size -= sizeof(ffid31);
+		ffarr_free(&m->tagval);
 		break;
 
 	case FFID3_RMORE:
 		return FFMPG_RMORE;
 
 	case FFID3_RDATA:
+		if (m->codepage == 0) {
+			ffarr_free(&m->tagval);
+			ffarr_set(&m->tagval, m->id31tag.val.ptr, m->id31tag.val.len);
+
+		} else if (0 == ffutf8_strencode(&m->tagval, m->id31tag.val.ptr, m->id31tag.val.len, m->codepage)) {
+			m->err = FFMPG_ETAG;
+			return FFMPG_RWARN;
+		}
 		return FFMPG_RTAG;
 	}
 
@@ -258,9 +269,8 @@ static FFINL int mpg_id32(ffmpg *m)
 		continue;
 
 	case FFID3_RFRAME:
-		switch (ffid3_frame(&m->id32tag.fr)) {
+		switch (m->id32tag.frame) {
 		case FFID3_PICTURE:
-		case FFID3_COMMENT:
 			m->id32tag.flags &= ~FFID3_FWHOLE;
 			break;
 
@@ -273,13 +283,12 @@ static FFINL int mpg_id32(ffmpg *m)
 		if (!(m->id32tag.flags & FFID3_FWHOLE))
 			continue;
 
-		if (0 > ffid3_getdata(m->id32tag.data.ptr, m->id32tag.data.len, m->id32tag.txtenc, 0, &m->tagval)) {
+		if (0 > ffid3_getdata(m->id32tag.frame, m->id32tag.data.ptr, m->id32tag.data.len, m->id32tag.txtenc, m->codepage, &m->tagval)) {
 			m->err = FFMPG_ETAG;
 			return FFMPG_RWARN;
 		}
 
-		i = ffid3_frame(&m->id32tag.fr);
-		if (i == FFID3_LENGTH && m->id32tag.data.len != 0) {
+		if (m->id32tag.frame == FFID3_LENGTH && m->id32tag.data.len != 0) {
 			uint64 dur;
 			if (m->id32tag.data.len == ffs_toint(m->id32tag.data.ptr, m->id32tag.data.len, &dur, FFS_INT64))
 				m->total_len = dur;
