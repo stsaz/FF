@@ -185,9 +185,10 @@ enum FFMPG_R {
 enum FFMPG_E {
 	FFMPG_EOK,
 	FFMPG_ESYS,
+	FFMPG_ESTREAM,
 	FFMPG_EFMT,
 	FFMPG_ETAG,
-	FFMPG_ESTREAM,
+	FFMPG_ESEEK,
 };
 
 /** Get the last error as a string. */

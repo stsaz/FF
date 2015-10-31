@@ -141,19 +141,26 @@ enum {
 	DEC_DELAY = 528,
 };
 
+static const char *const _ffmpg_errs[] = {
+	"PCM format error",
+	"tags error",
+	"seek sample is too large",
+};
+
 const char* ffmpg_errstr(ffmpg *m)
 {
 	switch (m->err) {
 	case FFMPG_ESTREAM:
 		return mad_stream_errorstr(&m->stream);
 
-	case FFMPG_EFMT:
-		return "PCM format error";
-
 	case FFMPG_ESYS:
 		return fferr_strp(fferr_last());
 	}
-	return "";
+	if (m->err < FFMPG_EFMT)
+		return "";
+	m->err -= FFMPG_EFMT;
+	FF_ASSERT(m->err < FFCNT(_ffmpg_errs));
+	return _ffmpg_errs[m->err];
 }
 
 void ffmpg_init(ffmpg *m)
@@ -389,6 +396,10 @@ int ffmpg_decode(ffmpg *m)
 		switch (m->state) {
 		case I_SEEK:
 			m->buf.len = 0;
+			if (m->seek_sample >= m->total_samples) {
+				m->err = FFMPG_ESEEK;
+				return FFMPG_RERR;
+			}
 			m->off = mpg_getseekoff(m);
 			m->cur_sample = m->seek_sample;
 			m->state = I_SEEK2;
