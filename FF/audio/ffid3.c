@@ -6,9 +6,28 @@ Copyright (c) 2013 Simon Zolin
 #include <FF/data/utf8.h>
 
 
+static const char *const id3_genres[] = {
+	"Blues", "Classic Rock", "Country", "Dance", "Disco",
+	"Funk", "Grunge", "Hip-Hop", "Jazz", "Metal",
+	"New Age", "Oldies", "Other", "Pop", "R&B",
+	"Rap", "Reggae", "Rock", "Techno", "Industrial",
+	"Alternative", "Ska", "Death Metal", "Pranks", "Soundtrack",
+	"Euro-Techno", "Ambient", "Trip-Hop", "Vocal", "Jazz+Funk",
+	"Fusion", "Trance", "Classical", "Instrumental", "Acid",
+	"House", "Game", "Sound Clip", "Gospel", "Noise",
+	"AlternRock", "Bass", "Soul", "Punk", "Space",
+	"Meditative", "Instrumental Pop", "Instrumental Rock", "Ethnic", "Gothic",
+	"Darkwave", "Techno-Industrial", "Electronic", "Pop-Folk", "Eurodance",
+	"Dream", "Southern Rock", "Comedy", "Cult", "Gangsta",
+	"Top 40", "Christian Rap", "Pop/Funk", "Jungle", "Native American",
+	"Cabaret", "New Wave", "Psychadelic", "Rave", "Showtunes",
+	"Trailer", "Lo-Fi", "Tribal", "Acid Punk", "Acid Jazz",
+	"Polka", "Retro", "Musical", "Rock & Roll", "Hard Rock", //75-79
+};
+
 int ffid31_parse(ffid31ex *id31ex, const char *data, size_t *len)
 {
-	enum { I_COPYTAG, I_TITLE, I_ARTIST, I_ALBUM, I_YEAR, I_COMMENT, I_TRK, I_DONE };
+	enum { I_COPYTAG, I_TITLE, I_ARTIST, I_ALBUM, I_YEAR, I_COMMENT, I_TRK, I_GENRE, I_DONE };
 	ffid31 *id31;
 	uint n, *state = &id31ex->state;
 	int r = FFID3_RDATA;
@@ -92,9 +111,19 @@ int ffid31_parse(ffid31ex *id31ex, const char *data, size_t *len)
 			n = ffs_fromint(id31->track_no, id31ex->trkno, sizeof(id31ex->trkno), FFINT_ZEROWIDTH | FFINT_WIDTH(2));
 			ffstr_set(val, id31ex->trkno, n);
 			id31ex->field = FFID3_TRACKNO;
+			*state = I_GENRE;
+			break;
+		}
+		//break
+
+	case I_GENRE:
+		if (id31->genre < FFCNT(id3_genres)) {
+			ffstr_setz(val, id3_genres[id31->genre]);
+			id31ex->field = FFID3_GENRE;
 			*state = I_DONE;
 			break;
 		}
+		//break
 
 	case I_DONE:
 		if (id31 == (void*)data)
