@@ -2,6 +2,8 @@
 
 # FF := .
 FF_OBJ_DIR := ./ff-obj
+override FF_CFLAGS += -c -Werror -Wall -Wextra -Wno-unused-parameter -pthread \
+	-I$(FF) -I$(FF)-3pt -I$(FFOS)
 
 
 # FFOS
@@ -11,7 +13,7 @@ FFOS_OBJ := $(FF_OBJ_DIR)/ffos.o \
 	$(FF_OBJ_DIR)/ff$(OS).o
 FF_ALL_OBJ := $(FFOS_OBJ)
 $(FF_OBJ_DIR)/%.o: $(FFOS)/FFOS/%.c $(FFOS_HDR)
-	$(C) $(CFLAGS)  $< -o$@
+	$(C) $(FF_CFLAGS)  $< -o$@
 
 
 FF_SRC := $(FF)/FF/ffcrc.c \
@@ -36,10 +38,7 @@ FF_OBJ := $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_S
 FF_ALL_OBJ += $(FF_OBJ)
 
 $(FF_OBJ_DIR)/%.o: $(FF)/FF/%.c $(FF_HDR)
-	$(C) $(CFLAGS)  $< -o$@
-
-$(FF_OBJ_DIR)/%.o: $(FF)/FF/data/%.c $(FF_HDR)
-	$(C) $(CFLAGS)  $< -o$@
+	$(C) $(FF_CFLAGS)  $< -o$@
 
 
 # data
@@ -47,6 +46,8 @@ FF_DATA_HDR := $(wildcard $(FF)/FF/data/*.h)
 FF_DATA_SRC := $(wildcard $(FF)/FF/data/*.c)
 FF_DATA_OBJ := $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_DATA_SRC)))))
 FF_ALL_OBJ += $(FF_DATA_OBJ)
+$(FF_OBJ_DIR)/%.o: $(FF)/FF/data/%.c $(FF_HDR)
+	$(C) $(FF_CFLAGS)  $< -o$@
 
 
 # net
@@ -55,7 +56,7 @@ FF_NET_SRC := $(wildcard $(FF)/FF/net/*.c)
 FF_NET_OBJ := $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_NET_SRC)))))
 FF_ALL_OBJ += $(FF_NET_OBJ)
 $(FF_OBJ_DIR)/%.o: $(FF)/FF/net/%.c $(FF_HDR) $(FF_NET_HDR)
-	$(C) $(CFLAGS)  $< -o$@
+	$(C) $(FF_CFLAGS)  $< -o$@
 
 
 # audio
@@ -64,7 +65,7 @@ FF_AUDIO_SRC := $(wildcard $(FF)/FF/audio/*.c)
 FF_AUDIO_OBJ := $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_AUDIO_SRC)))))
 FF_ALL_OBJ += $(FF_AUDIO_OBJ)
 $(FF_OBJ_DIR)/%.o: $(FF)/FF/audio/%.c $(FF_HDR) $(FF_AUDIO_HDR)
-	$(C) $(CFLAGS)  $< -o$@
+	$(C) $(FF_CFLAGS)  $< -o$@
 
 
 # GUI
@@ -74,34 +75,7 @@ FF_GUI_OBJ := \
 	$(FF_OBJ_DIR)/ffgui-winapi.o
 FF_ALL_OBJ += $(FF_GUI_OBJ)
 $(FF_OBJ_DIR)/%.o: $(FF)/FF/gui/%.c $(FF_HDR) $(FF_GUI_HDR)
-	$(C) $(CFLAGS)  $< -o$@
-
-
-# AES
-FF_AES_SRC := $(wildcard $(FF)/3pt/aes/*.c)
-FF_AES_OBJ := $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_AES_SRC)))))
-FF_ALL_OBJ += $(FF_AES_OBJ)
-$(FF_OBJ_DIR)/%.o: $(FF)/3pt/aes/%.c
-	$(C) -c -O2 -g -ffunction-sections -fdata-sections -fvisibility=hidden -fno-exceptions $< -o$@
-
-
-# SHA
-FF_SHA_SRC := $(wildcard $(FF)/3pt/sha/*.c)
-FF_SHA_OBJ := $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_SHA_SRC)))))
-FF_ALL_OBJ += $(FF_SHA_OBJ)
-$(FF_OBJ_DIR)/%.o: $(FF)/3pt/sha/%.c
-	$(C) -O2 -g $(CFLAGS) $< -o$@
-
-
-# test
-FF_TEST_HDR := $(wildcard $(FF)/test/*.h)
-FF_TEST_SRC := $(wildcard $(FF)/test/*.c)
-FF_TEST_OBJ := $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_TEST_SRC)))))
-$(FF_OBJ_DIR)/%.o: $(FF)/test/%.c $(FF_HDR) $(FF_TEST_HDR)
-	$(C) $(CFLAGS)  $< -o$@
-FF_TEST_O := $(FFOS_OBJ) $(FF_OBJ) $(FF_NET_OBJ) $(FF_DATA_OBJ) $(FF_OBJ_DIR)/fftest.o $(FF_TEST_OBJ)
-$(FF_TEST_BIN): $(FF_TEST_O)
-	$(LD) $(FF_TEST_O) $(LDFLAGS) $(LIBS) -o$@
+	$(C) $(FF_CFLAGS)  $< -o$@
 
 
 ff: $(FF_OBJ_DIR) $(FFOS_OBJ) $(FF_OBJ)

@@ -29,6 +29,7 @@ FEATURES
 	. Audio:
 		. Direct Sound playback/capture
 		. WASAPI playback/capture
+		. ALSA playback
 		. ICY
 		. PCM operations
 		. sample rate conversion (libsoxr)
