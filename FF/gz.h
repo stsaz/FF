@@ -6,7 +6,7 @@ Copyright (c) 2014 Simon Zolin
 
 #include <FFOS/mem.h>
 #include <FF/crc.h>
-#include <3pt/z/zlib.h>
+#include <z/zlib.h>
 
 
 typedef struct ffgzheader {

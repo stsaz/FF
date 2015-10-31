@@ -1452,7 +1452,7 @@ ffbstr * ffbstr_push(ffstr *buf, const char *data, size_t len)
 }
 
 
-#ifdef FFDBG_PRINT_DEF
+#ifdef _DEBUG
 #include <FFOS/atomic.h>
 #include <FFOS/file.h>
 

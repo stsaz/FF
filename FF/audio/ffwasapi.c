@@ -9,7 +9,7 @@ Copyright (c) 2015 Simon Zolin
 
 
 enum {
-	WAS_DEFNFYRATE = 10
+	WAS_DEFNFYRATE = 4,
 };
 
 
@@ -497,7 +497,8 @@ int ffwas_silence(ffwasapi *w)
 
 	if (w->excl) {
 		if (w->wpos != 0) {
-			ffmem_zero(w->wptr + w->wpos * w->frsize, (w->bufsize - w->wpos) * w->frsize);
+			nfree = w->bufsize - w->wpos;
+			ffmem_zero(w->wptr + w->wpos * w->frsize, nfree * w->frsize);
 			fflk_lock(&w->lk);
 			if (0 != (r = IAudioRenderClient_ReleaseBuffer(w->rend, w->bufsize, 0)))
 				goto done;
@@ -505,6 +506,7 @@ int ffwas_silence(ffwasapi *w)
 			w->wpos = 0;
 			w->actvbufs++;
 			fflk_unlock(&w->lk);
+			return nfree * w->frsize;
 		}
 		return 0;
 	}
@@ -540,6 +542,7 @@ void ffwas_clear(ffwasapi *w)
 
 	IAudioClient_Reset(w->cli);
 	w->nfy_next = w->capture ? w->nfy_interval : -(int)w->nfy_interval;
+	w->last = 0;
 }
 
 static FFINL int woh_add(ffwasapi *w)

@@ -98,7 +98,8 @@ static FFINL int ffwas_bufsize(ffwasapi *w)
 Return the number of bytes written. */
 FF_EXTN int ffwas_write(ffwasapi *w, const void *data, size_t len);
 
-/** Write silence into sound buffer.*/
+/** Write silence into sound buffer.
+Return the number of bytes written. */
 FF_EXTN int ffwas_silence(ffwasapi *w);
 
 /** Enter asynchronous mode - call user handler function.
