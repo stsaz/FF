@@ -4,6 +4,7 @@ Copyright (c) 2014 Simon Zolin
 
 #include <FFOS/time.h>
 #include <FFOS/file.h>
+#include <FF/data/parse.h>
 #include <FF/filemap.h>
 #include <FF/sendfile.h>
 #include <FF/timer-queue.h>
@@ -478,3 +479,60 @@ void ffdir_expclose(ffdirexp *dex)
 	ffmem_free(dex->names);
 	ffmem_safefree(dex->path_fn);
 }
+
+
+#ifdef FF_UNIX
+static FFINL const char* env_find(const char *env, size_t len)
+{
+	uint i;
+	for (i = 0;  environ[i] != NULL;  i++) {
+		if (ffsz_match(environ[i], env, len)
+			&& environ[i][len] == '=')
+			return environ[i] + len + FFSLEN("=");
+	}
+	return NULL;
+}
+
+char* ffenv_expand(char *dst, size_t cap, const char *src)
+{
+	ffsvar sv;
+	char *out = dst, *p;
+	const char *end = src + ffsz_len(src);
+	size_t n, off = 0;
+	int r;
+
+	while (src != end) {
+		n = end - src;
+		r = ffsvar_parse(&sv, src, &n);
+		src += n;
+
+		if (r == FFSVAR_S) {
+			if (NULL != (sv.val.ptr = (char*)env_find(sv.val.ptr, sv.val.len)))
+				sv.val.len = ffsz_len(sv.val.ptr);
+			else
+				sv.val.len = 0;
+		}
+
+		if (dst == NULL) {
+			cap += sv.val.len;
+			if (NULL == (p = ffmem_realloc(out, cap))) {
+				ffmem_safefree(out);
+				return NULL;
+			}
+			out = p;
+		}
+
+		off += ffs_append(out, off, cap, sv.val.ptr, sv.val.len);
+	}
+
+	if (dst == NULL) {
+		if (NULL == (p = ffmem_realloc(out, ++cap))) {
+			ffmem_safefree(out);
+			return NULL;
+		}
+		out = p;
+	}
+	ffs_copyc(out + off, out + cap, '\0');
+	return out;
+}
+#endif
