@@ -412,7 +412,7 @@ int ffwvpk_decode(ffwvpack *w)
 			w->off = w->lastoff;
 			return FFWVPK_RSEEK;
 		}
-		w->datalen = ffmin(sizeof(ffapehdr), w->datalen);
+		w->datalen = ffmin(w->total_size - w->off, w->datalen);
 		w->state = I_APE2;
 		// break
 
