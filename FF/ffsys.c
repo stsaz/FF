@@ -356,7 +356,7 @@ int ffdir_expopen(ffdirexp *dex, char *pattern, uint flags)
 	if (wildcard.len != 0
 		&& ffarr_end(&wildcard) == ffs_findof(wildcard.ptr, wildcard.len, "*?", 2)) {
 		// "/path" (without the last "/")
-		path.len = len;
+		ffstr_set(&path, pattern, len);
 		wildcard.len = 0;
 	}
 
