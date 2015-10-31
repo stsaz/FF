@@ -208,6 +208,17 @@ static int scHdlKey(ffparser_schem *ps, ffpars_ctx *ctx)
 		}
 
 		ps->curarg = &ctx->args[i];
+
+		if (FFPARS_TOBJ == (ps->curarg->flags & FFPARS_FTYPEMASK)) {
+			ps->p->ret = FFPARS_VAL;
+
+			er = ps->onval(ps, ctx->obj, NULL);
+			if (er > 0)
+				return er;
+
+			return scOpenBrace(ps);
+		}
+
 		return scHdlVal(ps, ctx);
 	}
 

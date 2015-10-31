@@ -243,6 +243,7 @@ enum FFPARS_RETHDL {
 enum FFPARS_SCHEMFLAG {
 	// internal:
 	FFPARS_SCHAVKEY = 1
+	, FFPARS_SCCTX_ANY = 2
 	, FFPARS_SCCTX = 4
 
 	, FFPARS_KEYICASE = 0x100 // case-insensitive key names

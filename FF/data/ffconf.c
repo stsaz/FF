@@ -10,7 +10,7 @@ static int unesc(char *dst, size_t cap, const char *text, size_t len);
 static int hdlQuote(ffparser *p, int *st, int *nextst, const char *data);
 
 enum CONF_IDX {
-	iKeyFirst = 16, iKey, iKeyBare
+	iKeyFirst = 16, iKey, iKeyBare, iKeySplit
 	, iValSplit, iValFirst, iVal, iValBare
 	, iNewCtx, iRmCtx
 	, iQuot, iQuotEsc
@@ -22,13 +22,17 @@ static int hdlQuote(ffparser *p, int *st, int *nextst, const char *data)
 
 	switch (*data) {
 	case '"':
-		if (*nextst == iKey)
+		if (*nextst == iKey) {
 			p->type = FFCONF_TKEY;
-		else if (p->type < FFCONF_TVALNEXT)
+			*st = iKeySplit;
+			r = FFPARS_KEY;
+			break;
+
+		} else if (p->type < FFCONF_TVALNEXT)
 			p->type++; //FFCONF_TVAL, FFCONF_TVALNEXT, ...
 
 		*st = iValSplit;
-		r = (*nextst == iKey ? FFPARS_KEY : FFPARS_VAL);
+		r = FFPARS_VAL;
 		break;
 
 	case '\\':
@@ -160,6 +164,11 @@ int ffconf_parse(ffparser *p, const char *data, size_t *len)
 			break;
 
 //KEY-VALUE
+		case iKeyFirst:
+			ffpars_cleardata(p);
+			st = iKey;
+			// break
+
 		case iKey:
 			if (ch == '"') {
 				st = iQuot;
@@ -178,6 +187,14 @@ int ffconf_parse(ffparser *p, const char *data, size_t *len)
 			break;
 
 		case iKeyBare:
+			if (ch == '.') {
+				p->type = FFCONF_TKEY;
+				r = FFPARS_KEY;
+				st = iKeyFirst;
+				break;
+			}
+			// break
+
 		case iValBare:
 			if (!ffchar_iswhitespace(ch) && ch != '/' && ch != '#')
 				r = _ffpars_addchar2(p, data);
@@ -210,6 +227,13 @@ int ffconf_parse(ffparser *p, const char *data, size_t *len)
 				again = 1;
 			}
 			break;
+
+		case iKeySplit:
+			if (ch == '.') {
+				st = iKeyFirst;
+				break;
+			}
+			// break
 
 		case iValSplit:
 			ffpars_cleardata(p);
@@ -295,6 +319,7 @@ int ffconf_scheminit(ffparser_schem *ps, ffparser *p, const ffpars_ctx *ctx)
 	if (r != FFPARS_OPEN)
 		return r;
 
+	ps->curarg = NULL;
 	return 0;
 }
 
@@ -376,11 +401,28 @@ int ffconf_schemval(ffparser_schem *ps, void *obj, void *dst)
 			s->len = v.len;
 			r = FFPARS_DONE;
 		}
-		ps->flags |= 4; //FFPARS_SCCTX
+		if (!ffsz_cmp(ps->curarg->name, "*"))
+			ps->flags |= FFPARS_SCCTX_ANY;
+		else
+			ps->flags |= FFPARS_SCCTX;
 		break;
 
 	default:
 		return FFPARS_EVALTYPE;
+	}
+
+	return r;
+}
+
+int ffconf_schemrun(ffparser_schem *ps)
+{
+	int r = ffpars_schemrun(ps, ps->p->ret);
+
+	if ((ps->flags & FFPARS_SCCTX_ANY) && r == FFPARS_VAL) {
+		//clear context after the whole line "ctx1.key value" is processed
+		ps->ctxs.len = 1;
+		ps->curarg = NULL;
+		ps->flags &= ~FFPARS_SCCTX_ANY;
 	}
 
 	return r;

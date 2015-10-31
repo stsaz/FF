@@ -2,6 +2,20 @@
 Copyright (c) 2013 Simon Zolin
 */
 
+/*
+# one-line comment
+// one-line comment
+/ * multi-line comment * /
+
+key value1 "value2"
+
+ctx "ctxname" {
+	key "value"
+}
+
+key1.key2 "value"
+*/
+
 #pragma once
 
 #include <FF/data/parse.h>
@@ -19,7 +33,8 @@ Return 0 on success. */
 FF_EXTN int ffconf_parseinit(ffparser *p);
 
 /** Parse config.
-Return enum FFPARS_E. */
+Return enum FFPARS_E.
+ @p->type: enum FFCONF_T. */
 FF_EXTN int ffconf_parse(ffparser *p, const char *data, size_t *len);
 
 /** Initialize parser and scheme.
@@ -32,3 +47,5 @@ FF_EXTN int ffconf_schemfin(ffparser_schem *ps);
 
 /** Value handler callback. */
 FF_EXTN int ffconf_schemval(ffparser_schem *ps, void *obj, void *dst);
+
+FF_EXTN int ffconf_schemrun(ffparser_schem *ps);
