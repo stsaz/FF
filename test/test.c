@@ -492,6 +492,14 @@ int main(int argc, const char **argv)
 	ffos_init();
 
 	if (argc == 1) {
+		printf("Supported tests: all ");
+		for (i = 0;  i < FFCNT(_fftests);  i++) {
+			printf("%s ", _fftests[i].nm);
+		}
+		printf("\n");
+		return 0;
+
+	} else if (!ffsz_cmp(argv[1], "all")) {
 		//run all tests
 		for (i = 0;  i < FFCNT(_fftests);  i++) {
 			FFTEST_TIMECALL(_fftests[i].func());
