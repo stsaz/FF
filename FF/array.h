@@ -68,6 +68,9 @@ do { \
 #define ffarr_isfull(ar)  ((ar)->len == (ar)->cap)
 
 /** Forward walk. */
+#define FFARR_WALKT(ar, it, T) \
+	for (it = (T*)(ar)->ptr;  it != ((T*)(ar)->ptr) + (ar)->len;  it++)
+
 #define FFARR_WALK(ar, it) \
 	for (it = (ar)->ptr;  it != (ar)->ptr + (ar)->len;  it++)
 
@@ -128,6 +131,10 @@ static FFINL void * _ffarr_copy(ffarr *ar, const void *src, size_t num, size_t e
 
 #define ffarr_copy(ar, src, num) \
 	_ffarr_copy((ffarr*)ar, src, num, sizeof(*(ar)->ptr))
+
+/** Remove elements from the left.
+Allocated buffer: move next elements to the left. */
+FF_EXTN void _ffarr_rmleft(ffarr *ar, size_t n, size_t elsz);
 
 /** Remove element from array.  Move the last element into the hole. */
 static FFINL void _ffarr_rmswap(ffarr *ar, void *el, size_t elsz) {

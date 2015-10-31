@@ -102,6 +102,28 @@ Return the mismatch byte position:
 ssize_t ffs_cmpz(const char *s1, size_t len, const char *sz2);
 ssize_t ffs_icmpz(const char *s1, size_t len, const char *sz2);
 
+
+/** Return TRUE if 'n' characters are equal in both strings.
+Useful to check whether "KEY=VALUE" starts with "KEY". */
+#define ffs_match(s, len, starts_with, n) \
+	((len) >= (n) && 0 == ffs_cmp(s, starts_with, n))
+
+#define ffs_imatch(s, len, starts_with, n) \
+	((len) >= (n) && 0 == ffs_icmp(s, starts_with, n))
+
+static FFINL ffbool ffsz_match(const char *sz, const char *starts_with, size_t n)
+{
+	ssize_t r = ffs_cmpz(starts_with, n, sz);
+	return r == 0 || (r < 0 && (size_t)(-r) - 1 == n);
+}
+
+static FFINL ffbool ffsz_imatch(const char *sz, const char *starts_with, size_t n)
+{
+	ssize_t r = ffs_icmpz(starts_with, n, sz);
+	return r == 0 || (r < 0 && (size_t)(-r) - 1 == n);
+}
+
+
 /** Search for a byte in buffer. */
 FF_EXTN void * ffmemchr(const void *d, int b, size_t len);
 
@@ -160,6 +182,10 @@ Return -1 if not found. */
 FF_EXTN ssize_t ffs_findarrz(const char *const *ar, size_t n, const char *search, size_t search_len);
 FF_EXTN ssize_t ffszarr_findsorted(const char *const *ar, size_t n, const char *search, size_t search_len);
 FF_EXTN ssize_t ffszarr_ifindsorted(const char *const *ar, size_t n, const char *search, size_t search_len);
+
+/** Search a string in char[n][m] array.
+Return -1 if not found. */
+FF_EXTN ssize_t ffcharr_findsorted(const void *ar, size_t n, size_t m, const char *search, size_t search_len);
 
 
 #define ffmemcpy  memcpy

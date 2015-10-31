@@ -314,6 +314,30 @@ ssize_t ffszarr_ifindsorted(const char *const *ar, size_t n, const char *search,
 	return -1;
 }
 
+ssize_t ffcharr_findsorted(const void *ar, size_t n, size_t m, const char *search, size_t search_len)
+{
+	size_t i, start = 0;
+	int r;
+
+	FF_ASSERT(search_len <= m);
+
+	while (start != n) {
+		i = start + (n - start) / 2;
+		r = ffs_cmp(search, (char*)ar + i * m, search_len);
+
+		if (r == 0 && search_len != m && ((char*)ar)[i * m + search_len] != '\0')
+			r = -1; //found "01" in {0,1,2}
+
+		if (r == 0)
+			return i;
+		else if (r < 0)
+			n = i;
+		else
+			start = i + 1;
+	}
+	return -1;
+}
+
 const char* ffs_split2(const char *s, size_t len, const char *at, ffstr *first, ffstr *second)
 {
 	if (at == NULL || at == s + len) {
@@ -1309,6 +1333,16 @@ void * _ffarr_append(ffarr *ar, const void *src, size_t num, size_t elsz)
 	ffmemcpy(ar->ptr + ar->len * elsz, src, num * elsz);
 	ar->len += num;
 	return ar->ptr + ar->len * elsz;
+}
+
+void _ffarr_rmleft(ffarr *ar, size_t n, size_t elsz)
+{
+	FF_ASSERT(ar->len >= n);
+	if (ar->cap == 0)
+		ar->ptr += n * elsz;
+	else
+		ffmemcpy(ar->ptr, ar->ptr + n * elsz, (ar->len - n) * elsz);
+	ar->len -= n;
 }
 
 

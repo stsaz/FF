@@ -113,9 +113,9 @@ static int test_arr()
 
 	x(ffstr_eqcz(&str, "asdf"));
 	x(!ffstr_eqcz(&str, "asdfz"));
-	x(ffstr_icmp(&str, FFSTR("ASDFZ")) < 0);
-	x(ffstr_icmp(&str, FFSTR("ASD")) > 0);
-	x(ffstr_icmp(&str, FFSTR("ASDF")) == 0);
+	x(ffstr_icmp(&str, "ASDFZ", 5) < 0);
+	x(ffstr_icmp(&str, "ASD", 3) > 0);
+	x(ffstr_icmp(&str, "ASDF", 4) == 0);
 
 	{
 		ffstr s3 = { 0 };
@@ -356,9 +356,9 @@ static int test_str_cmp()
 	x(ffs_cmpz(ptr, n, "") > 0);
 	x(ffs_cmpz(ptr, 0, "") == 0);
 	x(ffs_cmpz(ptr, n, "asdfa") == 0);
-	x(ffs_cmpz(ptr, n, "asdf") > 0);
-	x(ffs_cmpz(ptr, n, "asdff") < 0);
-	x(ffs_cmpz(ptr, n, "asdfaz") < 0);
+	x(ffs_cmpz(ptr, n, "asdf") == FFSLEN("asdf") + 1);
+	x(ffs_cmpz(ptr, n, "asdff") == -FFSLEN("asdf") - 1);
+	x(ffs_cmpz(ptr, n, "asdfaz") == -FFSLEN("asdfa") - 1);
 
 	x(ffs_icmpz(ptr, n, "ASdFA") == 0);
 	x(ffs_icmpz(ptr, n, "ASDF1") > 0);
@@ -371,6 +371,16 @@ static int test_str_cmp()
 	x(!ffs_eqcz(ptr, n, "asdfaq"));
 	x(!ffs_eqcz(ptr, n, "asdfA"));
 	x(ffs_ieqcz(ptr, n, "asdfA"));
+
+	x(ffs_match("key=val", 7, "key", 3));
+	x(ffs_match("key=val", 7, "key=val", 7));
+	x(!ffs_match("key=val", 7, "key1", 4));
+	x(!ffs_match("key=val", 7, "keykeykeykey", 12));
+
+	x(ffsz_match("key=val", "key", 3));
+	x(ffsz_match("key=val", "key=val", 7));
+	x(!ffsz_match("key=val", "key1", 4));
+	x(!ffsz_match("key=val", "keykeykeykey", 12));
 
 	return 0;
 }
