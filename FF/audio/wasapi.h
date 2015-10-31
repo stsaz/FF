@@ -70,7 +70,6 @@ typedef struct ffwasapi {
 
 		, started :1
 		, underflow :1
-		, starting :2
 		, last :1
 		;
 } ffwasapi;

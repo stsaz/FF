@@ -334,8 +334,6 @@ static void _ffwas_onplay_excl(void *udata)
 	ffwasapi *w = udata;
 
 	fflk_lock(&w->lk);
-	if (w->starting != 0 && --w->starting != 0)
-		goto done; //skip events signaled by ffwas_start()
 
 	if (w->capture) {
 		fflk_unlock(&w->lk);
@@ -505,7 +503,6 @@ int ffwas_start(ffwasapi *w)
 	if (0 != (r = woh_add(w)))
 		return r;
 
-	w->starting = 2;
 	if (0 != (r = IAudioClient_Start(w->cli)))
 		return r;
 	w->started = 1;
