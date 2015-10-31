@@ -15,7 +15,7 @@ static const char *const lame_errstr[] = {
 
 const char* ffmpg_enc_errstr(ffmpg_enc *m)
 {
-	int e;
+	uint e;
 
 	switch (m->err) {
 	case FFMPG_ESYS:
@@ -111,7 +111,7 @@ int ffmpg_encode(ffmpg_enc *m)
 
 	case I_LAMETAG:
 		r = lame_get_lametag_frame(m->lam, m->data, m->cap);
-		m->datalen = (r <= m->cap) ? r : 0;
+		m->datalen = ((uint)r <= m->cap) ? r : 0;
 		m->state = I_DONE;
 		return FFMPG_RDATA;
 

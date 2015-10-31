@@ -612,7 +612,7 @@ const char * ffpars_schemerrstr(ffparser_schem *ps, int code, char *buf, size_t 
 		return ffarr_back(&ps->ctxs).errfunc(code);
 	}
 
-	FF_ASSERT(code < FFCNT(_ffpars_serr));
+	FF_ASSERT((uint)code < FFCNT(_ffpars_serr));
 	return _ffpars_serr[code];
 }
 

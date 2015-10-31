@@ -64,7 +64,7 @@ static const char *const _ffwas_serr[] = {
 const char* ffwas_errstr(int e)
 {
 	uint code;
-	if ((e & 0xffff0000) != MAKE_HRESULT(SEVERITY_ERROR, FACILITY_AUDCLNT, 0))
+	if ((e & 0xffff0000) != (uint)MAKE_HRESULT(SEVERITY_ERROR, FACILITY_AUDCLNT, 0))
 		return fferr_strp(e);
 
 	code = e & 0xffff;
@@ -266,7 +266,7 @@ int ffwas_open(ffwasapi *w, const WCHAR *id, ffpcm *fmt, uint bufsize)
 
 	if (w->nfy_interval == 0)
 		w->nfy_interval = w->bufsize / WAS_DEFNFYRATE;
-	w->nfy_next = w->capture ? w->nfy_interval : -(int)w->nfy_interval;
+	w->nfy_next = w->capture ? (int)w->nfy_interval : -(int)w->nfy_interval;
 
 	goto done;
 
@@ -541,7 +541,7 @@ void ffwas_clear(ffwasapi *w)
 	}
 
 	IAudioClient_Reset(w->cli);
-	w->nfy_next = w->capture ? w->nfy_interval : -(int)w->nfy_interval;
+	w->nfy_next = w->capture ? (int)w->nfy_interval : -(int)w->nfy_interval;
 	w->last = 0;
 }
 

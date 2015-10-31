@@ -34,10 +34,10 @@ static const WavpackStreamReader wvpk_reader = {
 
 enum { WVPK_READ_AGAIN = -2 };
 
-static int32_t wvpk_read_bytes(void *id, void *data, int32_t bcount)
+static int32_t wvpk_read_bytes(void *id, void *data, int32_t _bcount)
 {
 	ffwvpack *w = id;
-	uint all = 0, n;
+	uint all = 0, n, bcount = _bcount;
 
 	if (bcount > w->buf.len - w->bufoff + w->datalen
 		&& !w->fin) {
@@ -331,7 +331,7 @@ static FFINL int wvpk_seek(ffwvpack *w)
 		return FFWVPK_RSEEK;
 	}
 
-	FF_ASSERT(w->seek_sample >= r);
+	FF_ASSERT(w->seek_sample >= (uint)r);
 	w->skip_samples = w->seek_sample - r;
 	return FFWVPK_RDONE;
 }
@@ -355,11 +355,11 @@ int ffwvpk_decode(ffwvpack *w)
 
 	case I_HDR:
 		datalen = w->datalen;
-		n = WavpackReadHeader(w->wp);
-		if (n == -1) {
+		r = WavpackReadHeader(w->wp);
+		if (r == -1) {
 			w->err = FFWVPK_EDECODE;
 			return FFWVPK_RERR;
-		} else if (n == WVPK_READ_AGAIN)
+		} else if (r == WVPK_READ_AGAIN)
 			goto more;
 
 		if (FFWVPK_RDONE != wvpk_hdr(w))

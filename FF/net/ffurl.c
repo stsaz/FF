@@ -373,9 +373,9 @@ static const uint uriesc_pathseg[] = {
 
 static const uint *const uri_encode_types[] = { uriesc, uriesc_pathseg };
 
-ssize_t ffuri_escape(char *dst, size_t cap, const char *s, size_t len, int type)
+ssize_t ffuri_escape(char *dst, size_t cap, const char *s, size_t len, uint type)
 {
-	ssize_t i;
+	size_t i;
 	const uint *mask;
 	const char *end = dst + cap;
 	const char *dsto = dst;
@@ -400,13 +400,13 @@ ssize_t ffuri_escape(char *dst, size_t cap, const char *s, size_t len, int type)
 
 		if (ffbit_testarr(mask, c)) {
 			if (dst == end)
-				return -i;
+				return -(ssize_t)i;
 			*dst++ = c;
 
 		} else {
 			if (dst + FFSLEN("%XX") > end) {
 				ffs_fill(dst, end, '\0', FFSLEN("%XX"));
-				return -i;
+				return -(ssize_t)i;
 			}
 
 			*dst++ = '%';

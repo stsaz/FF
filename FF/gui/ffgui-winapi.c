@@ -517,7 +517,7 @@ int ffui_view_search(ffui_view *v, size_t by)
 		ffui_view_setindex(&it, i);
 		if (0 != ffui_view_get(v, 0, &it))
 			break;
-		if (by == ffui_view_param(&it))
+		if (by == (size_t)ffui_view_param(&it))
 			return i;
 	}
 	return -1;
@@ -808,7 +808,8 @@ static FFINL void paned_resize(ffui_paned *pn, ffui_wnd *wnd)
 
 int ffui_wnd_initstyle(void)
 {
-	WNDCLASSEX cls = { sizeof(WNDCLASSEX), 0 };
+	WNDCLASSEX cls = {0};
+	cls.cbSize = sizeof(WNDCLASSEX);
 	cls.hInstance = GetModuleHandle(NULL);
 	cls.lpfnWndProc = &wnd_proc;
 	cls.lpszClassName = ctls[FFUI_UID_WINDOW].sid;
@@ -1141,7 +1142,7 @@ int ffui_wndproc(ffui_wnd *wnd, size_t *code, HWND h, uint msg, size_t w, size_t
 	case WM_USER_TRAY:
 		print("WM_USER_TRAY", h, w, l);
 
-		if (wnd->trayicon != NULL && (int)w == wnd->trayicon->nid.uID)
+		if (wnd->trayicon != NULL && w == wnd->trayicon->nid.uID)
 			tray_nfy(wnd, wnd->trayicon, l);
 		break;
 

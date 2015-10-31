@@ -82,7 +82,7 @@ static int hdlEsc(ffparser *p, int *st, int ch)
 	char buf[8];
 	int r;
 
-	if (p->esc[0] >= FFSLEN("xXX"))
+	if ((uint)p->esc[0] >= FFSLEN("xXX"))
 		return FFPARS_EESC; //too large escape sequence
 
 	p->esc[(uint)++p->esc[0]] = (char)ch;

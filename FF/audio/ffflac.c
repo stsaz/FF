@@ -133,7 +133,7 @@ static FLAC__StreamDecoderWriteStatus _ffflac_write(const FLAC__StreamDecoder *d
 	, const FLAC__Frame *frame, const FLAC__int32 *const buffer[], void *client_data)
 {
 	ffflac *f = client_data;
-	int ich;
+	uint ich;
 
 	if (frame->header.bits_per_sample != f->bpsample
 		|| frame->header.channels != f->fmt.channels

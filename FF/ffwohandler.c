@@ -111,7 +111,7 @@ static int FFTHDCALL _ffwoh_evt_handler(void *param)
 		uint count = oh->count; //oh->count may be incremented
 		DWORD i = WaitForMultipleObjects(count, oh->hdls, 0, INFINITE);
 
-		if (!(i >= WAIT_OBJECT_0 && i < WAIT_OBJECT_0 + count)) {
+		if (i >= WAIT_OBJECT_0 + count) {
 			oh->count = (uint)-1;
 			return 1;
 		}

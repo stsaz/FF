@@ -494,7 +494,7 @@ int ffmpg_decode(ffmpg *m)
 
 				if (m->stream.error == MAD_ERROR_LOSTSYNC
 					&& (m->options & FFMPG_O_ID3V1)
-					&& m->stream.bufend - m->stream.this_frame >= FFSLEN("TAG")
+					&& (size_t)(m->stream.bufend - m->stream.this_frame) >= FFSLEN("TAG")
 					&& ffid31_valid((ffid31*)m->stream.this_frame))
 					return FFMPG_RDONE;
 

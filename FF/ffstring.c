@@ -33,7 +33,7 @@ int ffs_icmp(const char *s1, const char *s2, size_t len)
 
 ssize_t ffs_cmpz(const char *s1, size_t len, const char *sz2)
 {
-	ssize_t i;
+	size_t i;
 	uint ch1, ch2;
 
 	for (i = 0;  i != len;  i++) {
@@ -44,18 +44,18 @@ ssize_t ffs_cmpz(const char *s1, size_t len, const char *sz2)
 			return i + 1; //s1 > sz2
 
 		if (ch1 != ch2)
-			return (ch1 < ch2) ? -i - 1 : i + 1;
+			return (ch1 < ch2) ? -(ssize_t)i - 1 : (ssize_t)i + 1;
 	}
 
 	if (sz2[i] != '\0')
-		return -i - 1; //s1 < sz2
+		return -(ssize_t)i - 1; //s1 < sz2
 
 	return 0; //s1 == sz2
 }
 
 ssize_t ffs_icmpz(const char *s1, size_t len, const char *sz2)
 {
-	ssize_t i;
+	size_t i;
 	uint ch1, ch2;
 
 	for (i = 0;  i != len;  i++) {
@@ -73,12 +73,12 @@ ssize_t ffs_icmpz(const char *s1, size_t len, const char *sz2)
 				ch2 = ffchar_lower(ch2);
 
 			if (ch1 != ch2)
-				return (ch1 < ch2) ? -i - 1 : i + 1;
+				return (ch1 < ch2) ? -(ssize_t)i - 1 : (ssize_t)i + 1;
 		}
 	}
 
 	if (sz2[i] != '\0')
-		return -i - 1; //s1 < sz2
+		return -(ssize_t)i - 1; //s1 < sz2
 
 	return 0; //s1 == sz2
 }
@@ -512,7 +512,7 @@ static const uint esc_nprint[] = {
 
 ssize_t ffs_escape(char *dst, size_t cap, const char *s, size_t len, int type)
 {
-	ssize_t i;
+	size_t i;
 	const uint *mask;
 	const char *end = dst + cap;
 	const char *dsto = dst;
@@ -535,13 +535,13 @@ ssize_t ffs_escape(char *dst, size_t cap, const char *s, size_t len, int type)
 
 		if (ffbit_testarr(mask, c)) {
 			if (dst == end)
-				return -i;
+				return -(ssize_t)i;
 			*dst++ = c;
 
 		} else {
 			if (dst + FFSLEN("\\xXX") > end) {
 				ffs_fill(dst, end, '\0', FFSLEN("\\xXX"));
-				return -i;
+				return -(ssize_t)i;
 			}
 
 			*dst++ = '\\';
@@ -624,7 +624,7 @@ uint ffs_toint(const char *src, size_t len, void *dst, int flags)
 	uint64 r = 0;
 	size_t i = 0;
 	ffbool minus = 0;
-	int digits = 0;
+	uint digits = 0;
 	union {
 		void *ptr;
 		uint64 *pi64;
@@ -775,7 +775,7 @@ uint ffs_tofloat(const char *s, size_t len, double *dst, int flags)
 	int exp = 0;
 	int e = 0;
 	int digits = 0;
-	int i;
+	size_t i;
 	enum {
 		iMinus, iInt, iDot, iFrac, iExpE, iExpSign, iExp
 	};

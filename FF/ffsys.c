@@ -102,7 +102,7 @@ int64 ffsf_send(ffsf *sf, ffskt sk, int flags)
 		sent = r;
 
 		if ((sf->fm.fsize != 0 || ht->trl_cnt != 0)
-			&& r != ffiov_size(ht->headers, ht->hdr_cnt))
+			&& (size_t)r != ffiov_size(ht->headers, ht->hdr_cnt))
 			goto done; //headers are not sent yet completely
 	}
 
@@ -112,7 +112,7 @@ int64 ffsf_send(ffsf *sf, ffskt sk, int flags)
 			goto err;
 
 		sent += r;
-		if (r != sf->fm.fsize)
+		if ((size_t)r != sf->fm.fsize)
 			goto done; //file is not sent yet completely
 	}
 

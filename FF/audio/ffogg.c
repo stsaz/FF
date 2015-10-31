@@ -200,7 +200,7 @@ static int _ffogg_open(ffogg *o)
 		break;
 
 	case I_COMM:
-		if (o->ncomm == o->vcmt.comments) {
+		if (o->ncomm == (uint)o->vcmt.comments) {
 			o->nhdr = 2;
 			o->state = I_HDRPKT;
 			break;
@@ -477,7 +477,7 @@ int ffogg_encode(ffogg_enc *o)
 		n = (uint)(o->pcmlen / (sizeof(float) * o->vinfo.channels));
 		fpcm = vorbis_analysis_buffer(&o->vds, n);
 		if (o->pcmlen != 0) {
-			for (i = 0;  i < o->vinfo.channels;  i++) {
+			for (i = 0;  i != (uint)o->vinfo.channels;  i++) {
 				ffmemcpy(fpcm[i], o->pcm[i], n * sizeof(float));
 			}
 		}

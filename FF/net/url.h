@@ -89,7 +89,7 @@ enum FFURI_ESCAPE {
 @type: enum FFURI_ESCAPE.
 Return the number of bytes written.
 Return <0 if there is no enough space. */
-FF_EXTN ssize_t ffuri_escape(char *dst, size_t cap, const char *s, size_t len, int type);
+FF_EXTN ssize_t ffuri_escape(char *dst, size_t cap, const char *s, size_t len, uint type);
 
 /** Get port number by scheme name.
 Return 0 if unknown. */
