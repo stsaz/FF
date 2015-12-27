@@ -15,9 +15,7 @@ fLaC INFO VORBIS_CMT [PADDING] [SEEKTABLE] (FRAME)...
 #include <FF/audio/pcm.h>
 #include <FF/array.h>
 
-#include <FLAC/stream_decoder.h>
-#include <FLAC/stream_encoder.h>
-#include <FLAC/metadata.h>
+#include <flac.h>
 
 
 typedef struct ffflac_info {
@@ -36,38 +34,54 @@ typedef struct _ffflac_seektab {
 	ffpcm_seekpt *ptr;
 } _ffflac_seektab;
 
+typedef struct ffflac_frame {
+	uint num;
+	uint samples;
+	uint rate;
+	uint channels;
+	uint bps;
+} ffflac_frame;
+
 typedef struct ffflac {
 	FLAC__StreamDecoder *dec;
 	int st;
-	int r;
 	int err;
 	ffpcm fmt;
-	uint bpsample;
-	size_t nbuf;
 	union {
 	short *out16[FLAC__MAX_CHANNELS];
 	const int *out32[FLAC__MAX_CHANNELS];
 	};
 	ffstr3 buf;
+	uint bufoff;
 	uint64 off
 		, total_size;
+	uint framesoff;
+	ffflac_frame frame;
+	uint64 seeksample;
 	uint64 frsample;
 	unsigned fin :1
+		, hdrlast :1
+		, seek_ok :1
 		, errtype :8
 		;
 
+	ffflac_info info;
+	uint blksize;
+	ffvorbtag vtag;
+
+	_ffflac_seektab sktab;
+	ffpcm_seekpt seekpt[2];
+
 	size_t datalen;
-	const byte *data;
+	const char *data;
+	uint bytes_skipped; // bytes skipped while trying to find sync
 
 	size_t pcmlen;
 	void **pcm;
-
-	ffstr tagname
-		, tagval;
-	uint idx;
 } ffflac;
 
 enum FFFLAC_R {
+	FFFLAC_RWARN = -2,
 	FFFLAC_RERR = -1
 	, FFFLAC_RDATA
 	, FFFLAC_RSEEK
@@ -89,8 +103,7 @@ FF_EXTN int ffflac_open(ffflac *f);
 FF_EXTN void ffflac_close(ffflac *f);
 
 /** Return total samples or 0 if unknown. */
-#define ffflac_totalsamples(f) \
-	FLAC__stream_decoder_get_total_samples((f)->dec)
+#define ffflac_totalsamples(f)  ((f)->info.total_samples)
 
 /** Get average bitrate.  May be called when FFFLAC_RHDRFIN is returned. */
 #define ffflac_bitrate(f) \
