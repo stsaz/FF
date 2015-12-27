@@ -75,14 +75,9 @@ FF_EXTN int ffflac_tag(const char *name, size_t len);
 #define ffflac_totalsamples(f) \
 	FLAC__stream_decoder_get_total_samples((f)->dec)
 
-static FFINL uint ffflac_bitrate(ffflac *f)
-{
-	uint64 dur_ms, ts = ffflac_totalsamples(f);
-	if (ts == 0)
-		return 0;
-	dur_ms = (uint64)ts * 1000 / f->fmt.sample_rate;
-	return (uint)(f->total_size * 8 * 1000 / dur_ms);
-}
+/** Get average bitrate.  May be called when FFFLAC_RHDRFIN is returned. */
+#define ffflac_bitrate(f) \
+	ffpcm_brate((f)->total_size - (f)->framesoff, (f)->info.total_samples, (f)->fmt.sample_rate)
 
 FF_EXTN void ffflac_seek(ffflac *f, uint64 sample);
 

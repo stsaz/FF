@@ -5,6 +5,7 @@ Copyright (c) 2015 Simon Zolin
 #pragma once
 
 #include <FFOS/types.h>
+#include <FF/number.h>
 
 #include <math.h>
 
@@ -50,7 +51,12 @@ FF_EXTN const byte ffpcm_bits[];
 #define ffpcm_bytes2time(pcm, bytes) \
 	ffpcm_time((bytes) / ffpcm_size1(pcm), (pcm)->sample_rate)
 
-#define ffpcm_bitrate(bytes, time_ms)  ((bytes) * 8 * 1000 / (time_ms))
+/** Return bits/sec. */
+#define ffpcm_brate(bytes, samples, rate) \
+	FF_SAFEDIV((uint64)(bytes) * 8 * (rate), samples)
+
+#define ffpcm_brate_ms(bytes, time_ms) \
+	FF_SAFEDIV((uint64)(bytes) * 8 * 1000, time_ms)
 
 /** Combine two streams together. */
 FF_EXTN void ffpcm_mix(const ffpcm *pcm, char *stm1, const char *stm2, size_t samples);

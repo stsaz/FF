@@ -7,6 +7,10 @@ Copyright (c) 2015 Simon Zolin
 #include <FFOS/types.h>
 
 
+#define FF_SAFEDIV(val, by) \
+	((by) != 0 ? (val) / (by) : 0)
+
+
 static FFINL ushort ffint_ltoh16(const void *p)
 {
 	return *(ushort*)p;

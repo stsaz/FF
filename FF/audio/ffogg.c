@@ -71,13 +71,9 @@ void ffogg_init(ffogg *o)
 
 uint ffogg_bitrate(ffogg *o)
 {
-	uint64 dur_ms;
-
 	if (o->total_samples == 0 || o->total_size == 0)
 		return o->vinfo.bitrate_nominal;
-
-	dur_ms = o->total_samples * 1000 / o->vinfo.rate;
-	return (uint)((o->total_size - o->off_data) * 8 * 1000 / dur_ms);
+	return ffpcm_brate(o->total_size - o->off_data, o->total_samples, o->vinfo.rate);
 }
 
 /* Find the next page. */

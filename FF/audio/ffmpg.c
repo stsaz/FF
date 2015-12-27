@@ -355,14 +355,14 @@ static FFINL int mpg_streaminfo(ffmpg *m)
 		}
 
 		if (m->total_samples != 0 && m->total_size != 0)
-			m->bitrate = ffpcm_bitrate(m->total_size, ffpcm_time(m->total_samples, m->fmt.sample_rate));
+			m->bitrate = ffpcm_brate(m->total_size, m->total_samples, m->fmt.sample_rate);
 
 		return FFMPG_RHDR;
 	}
 
 	if (m->total_len != 0) {
 		if (m->total_size != 0)
-			m->bitrate = ffpcm_bitrate(m->total_size, m->total_len);
+			m->bitrate = ffpcm_brate_ms(m->total_size, m->total_len);
 
 	} else
 		m->total_len = m->total_size * 1000 / (m->bitrate/8);
