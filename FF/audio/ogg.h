@@ -5,6 +5,7 @@ Copyright (c) 2015 Simon Zolin
 #pragma once
 
 #include <FF/audio/pcm.h>
+#include <FF/audio/vorbistag.h>
 #include <FF/array.h>
 
 #include <vorbis/codec.h>
@@ -25,6 +26,7 @@ typedef struct ffogg {
 	vorbis_comment vcmt;
 	ffstr tagname
 		, tagval;
+	int tag;
 
 	uint err;
 	union {
@@ -84,28 +86,12 @@ enum FFOGG_R {
 FF_EXTN void ffogg_close(ffogg *o);
 
 
-enum FFOGG_VORBTAG {
-	FFOGG_ALBUM
-	, FFOGG_ARTIST
-	, FFOGG_COMMENT
-	, FFOGG_DATE
-	, FFOGG_GENRE
-	, FFOGG_TITLE
-	, FFOGG_TRACKNO
-	, FFOGG_TRACKTOTAL
-};
-
-FF_EXTN const char *const ffogg_vorbtagstr[];
-
-/** Return enum FFOGG_VORBTAG or -1 of unknown tag. */
-FF_EXTN int ffogg_tag(const char *name, size_t len);
-
 /** Add vorbis tag. */
 #define ffogg_addtag(o, name, val) \
 	vorbis_comment_add_tag(&(o)->vcmt, name, val)
 
 #define ffogg_iaddtag(o, tag, val) \
-	ffogg_addtag(o, ffogg_vorbtagstr[tag], val)
+	ffogg_addtag(o, ffvorbtag_str[tag], val)
 
 
 FF_EXTN void ffogg_seek(ffogg *o, uint64 sample);

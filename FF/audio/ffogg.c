@@ -207,6 +207,7 @@ static int _ffogg_open(ffogg *o)
 		}
 		ffs_split2by(o->vcmt.user_comments[o->ncomm], o->vcmt.comment_lengths[o->ncomm], '=', &o->tagname, &o->tagval);
 		o->ncomm++;
+		o->tag = ffvorbtag_find(o->tagname.ptr, o->tagname.len);
 		return FFOGG_RTAG;
 
 	case I_HDRDONE:
@@ -283,22 +284,6 @@ void ffogg_close(ffogg *o)
 	vorbis_info_clear(&o->vinfo);
 	ogg_sync_clear(&o->osync_seek);
 	ogg_sync_clear(&o->osync);
-}
-
-const char *const ffogg_vorbtagstr[] = {
-	"ALBUM"
-	, "ARTIST"
-	, "COMMENT"
-	, "DATE"
-	, "GENRE"
-	, "TITLE"
-	, "TRACKNUMBER"
-	, "TRACKTOTAL"
-};
-
-int ffogg_tag(const char *name, size_t len)
-{
-	return ffszarr_ifindsorted(ffogg_vorbtagstr, FFCNT(ffogg_vorbtagstr), name, len);
 }
 
 void ffogg_seek(ffogg *o, uint64 sample)
