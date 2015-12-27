@@ -24,6 +24,16 @@ Copyright (c) 2013 Simon Zolin
 #define CALL FFTEST_TIMECALL
 
 
+size_t _test_readfile(const char *fn, char *buf, size_t n)
+{
+	fffd f;
+	f = fffile_open(fn, O_RDONLY);
+	x(f != FF_BADFD);
+	n = fffile_read(f, buf, n);
+	x(n != 0 && n != (size_t)-1);
+	return n;
+}
+
 static int test_crc()
 {
 	x(0x7052c01a == ffcrc32_get(FFSTR("hello, man!"), 0));

@@ -161,7 +161,7 @@ int test_json_schem(const char *testJsonFile)
 	memset(&o, 0, sizeof(obj_s));
 	ffjson_scheminit(&ps, &json, &top);
 
-	ibuf = getFileContents(testJsonFile, buf, sizeof(buf));
+	ibuf = _test_readfile(testJsonFile, buf, sizeof(buf));
 	if (ibuf == (size_t)-1)
 		return 1;
 

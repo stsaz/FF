@@ -6,6 +6,8 @@ Copyright (c) 2013 Simon Zolin
 #include <FFOS/string.h>
 
 
+FF_EXTN size_t _test_readfile(const char *fn, char *buf, size_t n);
+
 FF_EXTN int test_str();
 FF_EXTN int test_rbtlist();
 FF_EXTN int test_list();

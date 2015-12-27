@@ -23,7 +23,7 @@ static int test_conf_parse(const char *testConfFile)
 	char fbuf[1024];
 	size_t ibuf;
 
-	ibuf = getFileContents(testConfFile, fbuf, sizeof(fbuf));
+	ibuf = _test_readfile(testConfFile, fbuf, sizeof(fbuf));
 	if (ibuf == (size_t)-1)
 		return 1;
 
@@ -98,7 +98,7 @@ int test_conf_schem(const char *testConfFile)
 	memset(&o, 0, sizeof(obj_s));
 	x(0 == ffconf_scheminit(&ps, &conf, &oinf));
 
-	ibuf = getFileContents(testConfFile, buf, sizeof(buf));
+	ibuf = _test_readfile(testConfFile, buf, sizeof(buf));
 	if (ibuf == (size_t)-1)
 		return 1;
 

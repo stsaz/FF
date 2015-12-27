@@ -171,13 +171,3 @@ static int objChk(const obj_s *o)
 
 	return 0;
 }
-
-static size_t getFileContents(const char *fn, char *buf, size_t n)
-{
-	fffd f;
-	f = fffile_open(fn, O_RDONLY);
-	x(f != FF_BADFD);
-	n = fffile_read(f, buf, n);
-	x(n != 0 && n != (size_t)-1);
-	return n;
-}
