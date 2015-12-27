@@ -11,6 +11,19 @@ enum FFCRC_F {
 	FFCRC_ICASE = 1
 };
 
+FF_EXTN const byte crc8_table[];
+
+static FFINL byte ffcrc8_get(const char *p, size_t len)
+{
+	size_t i;
+	uint crc = 0;
+	for (i = 0;  i != len;  i++) {
+		crc = crc8_table[crc ^ (byte)p[i]];
+	}
+	return crc;
+}
+
+
 static FFINL uint ffcrc32_start() {
 	return 0xffffffff;
 }
