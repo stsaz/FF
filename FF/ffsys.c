@@ -316,6 +316,21 @@ void fftask_run(fftaskmgr *mgr)
 }
 
 
+int ffdir_make_path(char *fn)
+{
+	ffstr dir;
+	int r, c;
+
+	if (NULL == ffpath_split2(fn, ffsz_len(fn), &dir, NULL))
+		return 0; // no slash in filename
+
+	c = dir.ptr[dir.len];
+	dir.ptr[dir.len] = '\0';
+	r = ffdir_make(dir.ptr);
+	dir.ptr[dir.len] = c;
+	return r;
+}
+
 static int _ffdir_cmpfilename(FF_QSORT_PARAMS)
 {
 	char *n1 = *(char**)a, *n2 = *(char**)b;
