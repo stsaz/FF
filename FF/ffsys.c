@@ -316,13 +316,7 @@ void fftask_run(fftaskmgr *mgr)
 }
 
 
-#if defined FF_MSVC || defined FF_BSD
-static int _ffdir_cmpfilename(void *udata, const void *a, const void *b)
-#elif defined FF_WIN
-static int _ffdir_cmpfilename(const void *a, const void *b)
-#else
-static int _ffdir_cmpfilename(const void *a, const void *b, void *udata)
-#endif
+static int _ffdir_cmpfilename(FF_QSORT_PARAMS)
 {
 	char *n1 = *(char**)a, *n2 = *(char**)b;
 
