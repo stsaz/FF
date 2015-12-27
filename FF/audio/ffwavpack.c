@@ -237,9 +237,8 @@ static FFINL int wvpk_ape(ffwvpack *w)
 	case FFAPETAG_RNO:
 		ffapetag_parse_fin(&w->apetag);
 		w->apetag_closed = 1;
-		w->state = I_HDRFIN;
-		w->off = w->lastoff;
-		return FFWVPK_RSEEK;
+		w->state = I_TAGSFIN;
+		return 0;
 
 	case FFAPETAG_RTAG:
 		w->is_apetag = 1;
@@ -253,7 +252,7 @@ static FFINL int wvpk_ape(ffwvpack *w)
 		return FFWVPK_RMORE;
 
 	case FFAPETAG_RERR:
-		w->state = I_HDRFIN;
+		w->state = I_TAGSFIN;
 		w->err = FFWVPK_EAPE;
 		return FFWVPK_RWARN;
 
@@ -469,7 +468,7 @@ int ffwvpk_decode(ffwvpack *w)
 		else if (w->options & FFWVPK_O_APETAG)
 			w->state = I_APE2_FIRST;
 		else {
-			w->state = I_DATA;
+			w->state = I_HDRFIN;
 			continue;
 		}
 		w->off = w->total_size - ffmin(sizeof(ffid31), w->total_size);
@@ -482,9 +481,8 @@ int ffwvpk_decode(ffwvpack *w)
 
 	case I_APE2_FIRST:
 		if (!(w->options & FFWVPK_O_APETAG)) {
-			w->state = I_HDRFIN;
-			w->off = w->lastoff;
-			return FFWVPK_RSEEK;
+			w->state = I_TAGSFIN;
+			continue;
 		}
 		w->datalen = ffmin(w->total_size - w->off, w->datalen);
 		w->state = I_APE2;
