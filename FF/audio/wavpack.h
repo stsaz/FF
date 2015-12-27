@@ -2,6 +2,10 @@
 Copyright (c) 2015 Simon Zolin
 */
 
+/*
+(HDR SUB_BLOCK...)...
+*/
+
 #pragma once
 
 #include <FF/audio/pcm.h>
@@ -13,15 +17,27 @@ Copyright (c) 2015 Simon Zolin
 
 
 enum FFWVPK_E {
+	FFWVPK_EHDR,
 	FFWVPK_EFMT,
-	FFWVPK_EBIGBUF,
 	FFWVPK_ESEEK,
-	FFWVPK_ESEEKLIM,
 	FFWVPK_EAPE,
+	FFWVPK_ESYNC,
+	FFWVPK_ENOSYNC,
 
 	FFWVPK_ESYS,
 	FFWVPK_EDECODE,
 };
+
+typedef struct ffwvpk_info {
+	uint version;
+	uint block_samples;
+	uint comp_level;
+	uint total_samples;
+	byte md5[16];
+	uint lossless :1;
+} ffwvpk_info;
+
+FF_EXTN const char *const ffwvpk_comp_levelstr[];
 
 enum FFWVPK_O {
 	FFWVPK_O_ID3V1 = 1,
@@ -29,6 +45,7 @@ enum FFWVPK_O {
 };
 
 typedef struct ffwvpack {
+	ffwvpk_info info;
 	uint state;
 	WavpackContext *wp;
 	ffpcm fmt;
@@ -37,8 +54,6 @@ typedef struct ffwvpack {
 	uint64 total_size
 		, off;
 	uint64 seek_sample;
-	uint64 skip_samples;
-	uint seek_cnt;
 
 	uint lastoff;
 	ffid31ex id31tag;
@@ -47,7 +62,10 @@ typedef struct ffwvpack {
 	const void *data;
 	size_t datalen;
 	ffarr buf;
-	size_t bufoff;
+	uint blksize; // size of the current block
+	uint blk_samples; // samples in the current block
+	uint bytes_skipped; // bytes skipped while trying to find sync
+	uint64 samp_idx;
 
 	union {
 	short *pcm;
@@ -57,10 +75,14 @@ typedef struct ffwvpack {
 	uint pcmlen;
 	uint outcap; //samples
 
+	ffpcm_seekpt seektab[2];
+	ffpcm_seekpt seekpt[2];
+
 	uint options; //enum FFWVPK_O
 	uint fin :1
+		, hdr_done :1
+		, seek_ok :1
 		, is_apetag :1
-		, async :1
 		, apetag_closed :1;
 } ffwvpack;
 
@@ -87,8 +109,9 @@ FF_EXTN void ffwvpk_seek(ffwvpack *w, uint64 sample);
 /** Return enum FFWVPK_R. */
 FF_EXTN int ffwvpk_decode(ffwvpack *w);
 
-#define ffwvpk_total_samples(w)  ((int64)WavpackGetNumSamples((w)->wp))
+#define ffwvpk_total_samples(w)  ((int64)(w)->info.total_samples)
 
-#define ffwvpk_cursample(w)  ((int64)WavpackGetSampleIndex((w)->wp) - (w)->pcmlen / ffpcm_size1(&(w)->fmt))
+#define ffwvpk_cursample(w)  ((int64)(w)->samp_idx)
 
-#define ffwvpk_bitrate(w)  ((int)WavpackGetAverageBitrate((w)->wp, 0))
+#define ffwvpk_bitrate(w) \
+	ffpcm_brate((w)->total_size, (w)->info.total_samples, (w)->fmt.sample_rate)

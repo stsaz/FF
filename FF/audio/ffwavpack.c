@@ -6,106 +6,49 @@ Copyright (c) 2015 Simon Zolin
 #include <FFOS/error.h>
 
 
-enum {
-	MAX_BUF = 256 * 1024,
-	OUT_BUF = 500, //msec
-	MAX_SEEK_REQ = 20,
+enum WVPK_FLAGS {
+	WVPK_FBAD = 1 << 31,
 };
+
+struct wvpk_hdr {
+	char id[4]; // "wvpk"
+	uint size;
+
+	ushort version; // 0x04XX
+	byte unused[2];
+	uint total_samples;
+	uint index;
+	uint samples;
+	uint flags; // enum WVPK_FLAGS
+	uint crc;
+};
+
+enum {
+	MAX_NOSYNC = 1 * 1024 * 1024,
+};
+
+
+static int wvpk_parse(struct wvpk_hdr *h, const char *data, size_t len);
+static int wvpk_findblock(const char *data, size_t len, struct wvpk_hdr *h);
+
 
 static int wvpk_hdr(ffwvpack *w);
 static int wvpk_id31(ffwvpack *w);
 static int wvpk_ape(ffwvpack *w);
-static int wvpk_findpage(ffwvpack *w);
 static int wvpk_seek(ffwvpack *w);
+static int _ffwvpk_gethdr(ffwvpack *w, struct wvpk_hdr *hdr);
 
 
-static int32_t wvpk_read_bytes(void *id, void *data, int32_t bcount);
-static uint32_t wvpk_get_pos(void *id);
-static int wvpk_set_pos_abs(void *id, uint32_t pos);
-static int wvpk_push_back_byte(void *id, int c);
-static uint32_t wvpk_get_length(void *id);
-static int wvpk_can_seek(void *id);
+const char *const ffwvpk_comp_levelstr[] = { "", "fast", "high", "very high", "extra" };
 
-static const WavpackStreamReader wvpk_reader = {
-	&wvpk_read_bytes, &wvpk_get_pos, &wvpk_set_pos_abs, NULL /*set_pos_rel*/,
-	&wvpk_push_back_byte, &wvpk_get_length, &wvpk_can_seek
-};
-
-
-enum { WVPK_READ_AGAIN = -2 };
-
-static int32_t wvpk_read_bytes(void *id, void *data, int32_t _bcount)
-{
-	ffwvpack *w = id;
-	uint all = 0, n, bcount = _bcount;
-
-	if (bcount > w->buf.len - w->bufoff + w->datalen
-		&& !w->fin) {
-		w->async = 1;
-		return WVPK_READ_AGAIN;
-	}
-
-	if (w->buf.len != w->bufoff) {
-		n = ffmin(w->buf.len - w->bufoff, bcount);
-		ffmemcpy(data, w->buf.ptr + w->bufoff, n);
-		w->bufoff += n;
-		w->off += n;
-		all = n;
-	}
-
-	if (bcount != all) {
-		n = ffmin(w->datalen, bcount - all);
-		ffmemcpy(data + all, w->data, n);
-		w->data += n;
-		w->datalen -= n;
-		w->off += n;
-		all += n;
-	}
-
-	w->async = 0;
-	return all;
-}
-
-static uint32_t wvpk_get_pos(void *id)
-{
-	ffwvpack *w = id;
-	return w->off;
-}
-
-static int wvpk_set_pos_abs(void *id, uint32_t pos)
-{
-	ffwvpack *w = id;
-	w->off = pos;
-	return 0;
-}
-
-static int wvpk_push_back_byte(void *id, int c)
-{
-	ffwvpack *w = id;
-	FF_ASSERT(w->datalen != 0);
-	w->data -= 1;
-	w->datalen += 1;
-	w->off -= 1;
-	return 0;
-}
-
-static uint32_t wvpk_get_length(void *id)
-{
-	ffwvpack *w = id;
-	return (int)w->total_size;
-}
-
-static int wvpk_can_seek(void *id)
-{
-	return 0;
-}
 
 static const char *const wvpk_err[] = {
+	"invalid header",
 	"unsupported PCM format",
-	"internal buffer size limit",
 	"seek",
-	"seek request limit",
 	"bad APEv2 tag",
+	"found sync",
+	"can't find sync",
 };
 
 const char* ffwvpk_errstr(ffwvpack *w)
@@ -121,6 +64,54 @@ const char* ffwvpk_errstr(ffwvpack *w)
 	FF_ASSERT(w->err < FFCNT(wvpk_err));
 	return wvpk_err[w->err];
 }
+
+
+/** Parse header.
+Return bytes processed;  0 if more data is needed;  -FFWVPK_E* on error. */
+static int wvpk_parse(struct wvpk_hdr *hdr, const char *data, size_t len)
+{
+	const struct wvpk_hdr *h = (void*)data;
+
+	if (len < sizeof(struct wvpk_hdr))
+		return 0;
+
+	if (!ffs_eqcz(h->id, 4, "wvpk"))
+		return -FFWVPK_EHDR;
+
+	hdr->size = ffint_ltoh32(&h->size) + 8;
+	hdr->version = ffint_ltoh16(&h->version);
+	uint flags = ffint_ltoh32(&h->flags);
+
+	if ((hdr->size & 0xfff00001) || (flags & WVPK_FBAD))
+		return -FFWVPK_EHDR;
+
+	hdr->total_samples = ffint_ltoh32(&h->total_samples);
+	hdr->index = ffint_ltoh32(&h->index);
+	hdr->samples = ffint_ltoh32(&h->samples);
+	return sizeof(struct wvpk_hdr);
+}
+
+/**
+Return offset of the block;  -1 on error. */
+static int wvpk_findblock(const char *data, size_t len, struct wvpk_hdr *h)
+{
+	const char *d = data, *end = data + len;
+	int r;
+
+	while (d != end) {
+
+		if (d[0] != 'w' && NULL == (d = ffs_findc(d, end - d, 'w')))
+			break;
+
+		if (sizeof(struct wvpk_hdr) == (r = wvpk_parse(h, d, end - d)))
+			return d - data;
+
+		d++;
+	}
+
+	return -1;
+}
+
 
 static FFINL int wvpk_hdr(ffwvpack *w)
 {
@@ -149,11 +140,20 @@ static FFINL int wvpk_hdr(ffwvpack *w)
 	}
 	w->frsize = ffpcm_size1(&w->fmt);
 
-	w->outcap = ffpcm_samples(OUT_BUF, w->fmt.sample_rate);
-	if (NULL == (w->pcm = ffmem_alloc(w->outcap * sizeof(int) * w->fmt.channels))) {
-		w->err = FFWVPK_ESYS;
-		return FFWVPK_RERR;
-	}
+	if (mode & MODE_LOSSLESS)
+		w->info.lossless = 1;
+
+	if (mode & MODE_MD5)
+		WavpackGetMD5Sum(w->wp, w->info.md5);
+
+	if (mode & MODE_EXTRA)
+		w->info.comp_level = 4;
+	else if (mode & MODE_VERY_HIGH)
+		w->info.comp_level = 3;
+	else if (mode & MODE_HIGH)
+		w->info.comp_level = 2;
+	else if (mode & MODE_FAST)
+		w->info.comp_level = 1;
 
 	return FFWVPK_RDONE;
 }
@@ -171,17 +171,19 @@ void ffwvpk_close(ffwvpack *w)
 	ffarr_free(&w->buf);
 }
 
-enum { I_OPEN, I_HDR, I_HDRFIN, I_DATA, I_SEEK, I_FINDPAGE,
-	I_TAGSEEK, I_ID31, I_APE2_FIRST, I_APE2 };
+enum { I_OPEN, I_BLOCKHDR, I_BLOCK, I_HDR, I_HDRFIN, I_DATA, I_SEEK,
+	I_TAGSEEK, I_ID31, I_APE2_FIRST, I_APE2, I_TAGSFIN };
 
 void ffwvpk_seek(ffwvpack *w, uint64 sample)
 {
+	if (w->seektab[1].sample == 0)
+		return;
+
 	w->seek_sample = sample;
 	w->state = I_SEEK;
-	w->seek_cnt = 0;
-	w->skip_samples = 0;
-	w->bufoff = 0;
 	w->buf.len = 0;
+
+	ffmemcpy(w->seekpt, w->seektab, sizeof(w->seekpt));
 }
 
 static FFINL int wvpk_id31(ffwvpack *w)
@@ -262,108 +264,180 @@ static FFINL int wvpk_ape(ffwvpack *w)
 	return FFWVPK_RERR;
 }
 
-static FFINL int wvpk_findpage(ffwvpack *w)
+/**
+Return 0 on success.  If w->buf is used, w->data points to block body, otherwise it points to block header. */
+static int _ffwvpk_gethdr(ffwvpack *w, struct wvpk_hdr *hdr)
 {
-	ffstr d;
-	const char *s;
+	uint lostsync = 0;
+	int r;
 
-	for (;;) {
-		if (w->buf.len != 0)
-			ffstr_set(&d, w->buf.ptr, w->buf.len);
-		else
-			ffstr_set(&d, w->data, w->datalen);
+	if (w->buf.len != 0) {
+		uint buflen = w->buf.len;
+		r = ffmin(w->datalen, sizeof(struct wvpk_hdr) - buflen);
+		if (NULL == ffarr_append(&w->buf, w->data, r)) {
+			w->err = FFWVPK_ESYS;
+			return FFWVPK_RERR;
+		}
 
-		s = ffs_find(d.ptr, d.len, 'w');
-		w->off += s - d.ptr;
-		ffstr_shift(&d, s - d.ptr);
-
-		if (d.len < sizeof(WavpackHeader)) {
-			if (d.len != 0) {
-				if (w->buf.len == 0 && NULL == ffarr_realloc(&w->buf, sizeof(WavpackHeader))) {
-					w->err = FFWVPK_ESYS;
-					return FFWVPK_RERR;
-				}
-				w->buf.len += ffs_append(w->buf.ptr, w->buf.len, sizeof(WavpackHeader), d.ptr, d.len);
-				w->off += d.len;
+		r = wvpk_findblock(w->buf.ptr, w->buf.len, hdr);
+		if (r == -1) {
+			if (w->datalen > sizeof(struct wvpk_hdr) - buflen) {
+				w->buf.len = 0;
+				goto dfind;
 			}
+			goto more;
 
-			return FFWVPK_RMORE;
+		} else if (r != 0) {
+			lostsync = 1;
+			_ffarr_rmleft(&w->buf, r, sizeof(char));
 		}
 
-		if (w->buf.len == 0) {
-			w->data = d.ptr;
-			w->datalen = d.len;
-		}
-		if (WavpackIsHeader(d.ptr))
-			break;
-		if (w->buf.len != 0)
-			w->buf.len = 0;
-		else if (w->datalen != 0) {
-			w->data += FFSLEN("w");
-			w->datalen -= FFSLEN("w");
-			w->off += FFSLEN("w");
-		}
+		FFARR_SHIFT(w->data, w->datalen, sizeof(struct wvpk_hdr) - buflen);
+		w->off += sizeof(struct wvpk_hdr) - buflen;
+		goto done;
 	}
-	return FFWVPK_RDONE;
+
+dfind:
+	r = wvpk_findblock(w->data, w->datalen, hdr);
+	if (r == -1) {
+		uint n = ffmin(w->datalen, sizeof(struct wvpk_hdr) - 1);
+		if (NULL == ffarr_append(&w->buf, w->data + w->datalen - n, n)) {
+			w->err = FFWVPK_ESYS;
+			return FFWVPK_RERR;
+		}
+
+		goto more;
+
+	} else if (r != 0) {
+		lostsync = 1;
+		FFARR_SHIFT(w->data, w->datalen, r);
+		w->off += r;
+	}
+
+done:
+	w->blksize = hdr->size;
+
+	if (w->bytes_skipped != 0)
+		w->bytes_skipped = 0;
+
+	if (lostsync) {
+		w->err = FFWVPK_ESYNC;
+		return FFWVPK_RWARN;
+	}
+	return 0;
+
+more:
+	w->bytes_skipped += w->datalen;
+	if (w->bytes_skipped > MAX_NOSYNC) {
+		w->err = FFWVPK_ENOSYNC;
+		return FFWVPK_RERR;
+	}
+
+	w->off += w->datalen;
+	return FFWVPK_RMORE;
 }
 
 static FFINL int wvpk_seek(ffwvpack *w)
 {
-	uint64 off = w->off;
-	int r = WavpackSeekPage(w->wp, (int)w->seek_sample);
-	if (r == 0) {
-		w->err = FFWVPK_ESEEK;
-		return FFWVPK_RERR;
+	struct wvpk_hdr hdr;
+	struct ffpcm_seek sk;
+
+	sk.lastoff = w->off;
+
+	int r = _ffwvpk_gethdr(w, &hdr);
+	if (r != 0 && (r != FFWVPK_RWARN || w->err != FFWVPK_ESYNC))
+		return r;
+
+	sk.target = w->seek_sample;
+	sk.off = w->off - w->buf.len;
+	sk.pt = w->seekpt;
+	sk.fr_index = hdr.index;
+	sk.fr_samples = hdr.samples;
+	sk.avg_fr_samples = hdr.samples;
+	sk.fr_size = hdr.size;
+	sk.flags = FFPCM_SEEK_ALLOW_BINSCH;
+
+	r = ffpcm_seek(&sk);
+	if (r == 1) {
+		w->off = sk.off;
+		w->buf.len = 0;
+		return FFWVPK_RSEEK;
 
 	} else if (r == -1) {
-		if (w->seek_cnt++ == MAX_SEEK_REQ) {
-			w->err = FFWVPK_ESEEKLIM;
-			return FFWVPK_RERR;
-		}
-
-		if (off == w->off) {
-			w->err = FFWVPK_ESEEK;
-			return FFWVPK_RERR;
-		}
-
-		w->datalen = 0;
-		w->state = I_FINDPAGE;
-		return FFWVPK_RSEEK;
+		w->err = FFWVPK_ESEEK;
+		return FFWVPK_RERR;
 	}
 
-	FF_ASSERT(w->seek_sample >= (uint)r);
-	w->skip_samples = w->seek_sample - r;
+	w->blk_samples = hdr.samples;
+	w->samp_idx = hdr.index;
 	return FFWVPK_RDONE;
 }
 
 int ffwvpk_decode(ffwvpack *w)
 {
-	uint n, i, isrc;
+	int n;
+	uint i, isrc;
 	int r;
-	size_t datalen;
+	struct wvpk_hdr hdr;
 
 	for (;;) {
 	switch (w->state) {
 
 	case I_OPEN:
-		if (NULL == (w->wp = WavpackOpenFileInputEx((void*)&wvpk_reader, w, NULL, NULL, 0, 0))) {
+		w->state = I_BLOCKHDR;
+		// break
+
+	case I_BLOCKHDR:
+		if (w->off == w->total_size || (w->datalen == 0 && w->fin))
+			return FFWVPK_RDONE;
+
+		r = _ffwvpk_gethdr(w, &hdr);
+		if (r != 0 && (r != FFWVPK_RWARN || w->err != FFWVPK_ESYNC))
+			return r;
+
+		if (!w->hdr_done) {
+			w->info.total_samples = hdr.total_samples;
+			w->info.version = hdr.version;
+			w->info.block_samples = hdr.samples;
+		}
+
+		w->blk_samples = hdr.samples;
+		w->samp_idx = hdr.index;
+
+		w->state = I_BLOCK;
+		if (r != 0)
+			return r; // FFWVPK_ESYNC
+		// break
+
+	case I_BLOCK:
+		r = ffarr_append_until(&w->buf, w->data, w->datalen, w->blksize);
+		if (r == 0)
+			return FFWVPK_RMORE;
+		else if (r == -1) {
 			w->err = FFWVPK_ESYS;
 			return FFWVPK_RERR;
 		}
-		w->state = I_HDR;
-		// break
+		FFARR_SHIFT(w->data, w->datalen, r);
+		w->off += w->blksize;
+
+		w->state = (w->hdr_done) ? I_DATA : I_HDR;
+		continue;
 
 	case I_HDR:
-		datalen = w->datalen;
-		r = WavpackReadHeader(w->wp);
+		if (NULL == (w->wp = WavpackDecodeInit())) {
+			w->err = FFWVPK_ESYS;
+			return FFWVPK_RERR;
+		}
+
+		r = WavpackReadHeader(w->wp, w->buf.ptr, w->buf.len);
 		if (r == -1) {
 			w->err = FFWVPK_EDECODE;
 			return FFWVPK_RERR;
-		} else if (r == WVPK_READ_AGAIN)
-			goto more;
+		}
 
 		if (FFWVPK_RDONE != wvpk_hdr(w))
 			return FFWVPK_RERR;
+		w->hdr_done = 1;
 
 		if (w->total_size != 0) {
 			w->lastoff = w->off;
@@ -373,19 +447,19 @@ int ffwvpk_decode(ffwvpack *w)
 		return FFWVPK_RHDR;
 
 	case I_HDRFIN:
+		if (w->info.total_samples != 0 && w->total_size != 0) {
+			w->seektab[1].sample = w->info.total_samples;
+			w->seektab[1].off = w->total_size;
+		}
 		w->state = I_DATA;
 		return FFWVPK_RHDRFIN;
 
 
-	case I_FINDPAGE:
-		if (FFWVPK_RDONE != (r = wvpk_findpage(w)))
-			return r;
-		// break
-
 	case I_SEEK:
 		if (FFWVPK_RDONE != (r = wvpk_seek(w)))
 			return r;
-		w->state = I_DATA;
+		w->seek_ok = 1;
+		w->state = I_BLOCK;
 		continue;
 
 
@@ -417,67 +491,52 @@ int ffwvpk_decode(ffwvpack *w)
 		// break
 
 	case I_APE2:
-		return wvpk_ape(w);
+		if (0 != (r = wvpk_ape(w)))
+			return r;
+		continue;
+
+	case I_TAGSFIN:
+		w->off = w->lastoff;
+		w->state = I_HDRFIN;
+		return FFWVPK_RSEEK;
 
 
 	case I_DATA:
-		datalen = w->datalen;
-		n = WavpackUnpackSamples(w->wp, w->pcm32, w->outcap);
-		if (n == 0) {
-more:
-			if (w->off == w->total_size)
-				return FFWVPK_RDONE;
+		FFDBG_PRINT(10, "%s(): index:%U  block-size:%u  samples:%u\n"
+			, FF_FUNC, w->samp_idx, (int)w->buf.len, w->blk_samples);
 
-			if (!w->async) {
-				w->err = FFWVPK_EDECODE;
-				return FFWVPK_RERR;
-			}
-
-			if (w->fin)
-				return FFWVPK_RDONE;
-
-			if (datalen != 0) {
-				datalen -= w->datalen;
-				w->data -= datalen;
-				w->datalen += datalen;
-				w->off -= datalen;
-			}
-
-			if (w->buf.len + w->datalen > MAX_BUF) {
-				w->err = FFWVPK_EBIGBUF;
-				return FFWVPK_RERR;
-			}
-
-			if (w->datalen != 0 && NULL == ffarr_append(&w->buf, w->data, w->datalen)) {
+		if (w->outcap < w->blk_samples) {
+			if (NULL == (w->pcm = ffmem_saferealloc(w->pcm, w->blk_samples * sizeof(int) * w->fmt.channels))) {
 				w->err = FFWVPK_ESYS;
 				return FFWVPK_RERR;
 			}
-			w->off -= w->bufoff;
-			w->bufoff = 0;
-			w->datalen = 0;
-			return FFWVPK_RMORE;
+			w->outcap = w->blk_samples;
 		}
 
-		if (w->buf.len != 0) {
-			w->buf.len -= w->bufoff;
-			w->bufoff = 0;
-		}
-
-		isrc = 0;
-		if (w->skip_samples != 0) {
-			isrc = ffmin(w->skip_samples, n);
-			n -= isrc;
-			w->skip_samples -= isrc;
-			isrc *= w->fmt.channels;
-		}
-
-		if (n == 0)
+		n = WavpackDecode(w->wp, w->buf.ptr, w->buf.len, w->pcm32, w->outcap);
+		w->buf.len = 0;
+		if (n == -1) {
+			w->err = FFWVPK_EDECODE;
+			return FFWVPK_RERR;
+		} else if (n == 0) {
+			w->state = I_BLOCKHDR;
 			continue;
+		}
+
 		goto pcm;
 	}
 	}
 
 pcm:
+	isrc = 0;
+	if (w->seek_ok) {
+		w->seek_ok = 0;
+		isrc = w->seek_sample - w->samp_idx;
+		w->samp_idx += isrc;
+		n -= isrc;
+		isrc *= w->fmt.channels;
+	}
+
 	switch (w->fmt.format) {
 	case FFPCM_16LE:
 		//in-place conversion: int[] -> short[]
@@ -497,5 +556,7 @@ pcm:
 	}
 
 	w->pcmlen = n * w->frsize;
+
+	w->state = I_BLOCKHDR;
 	return FFWVPK_RDATA;
 }
