@@ -24,11 +24,15 @@ U+10000..U+10FFFF 11110xxx 10xxxxxx*3
 
 
 enum {
-	FFUTF8_MAXCHARLEN = 4
+	FFUTF8_MAXCHARLEN = 6
 };
 
 /** Return the number of characters in UTF-8 string. */
 FF_EXTN size_t ffutf8_len(const char *p, size_t len);
+
+/** Decode a UTF-8 number.
+Return the number of bytes parsed;  negative value if more data is needed;  0 on error. */
+FF_EXTN int ffutf8_decode1(const char *utf8, size_t len, uint *val);
 
 /** Convert one unicode character to UTF-8.
 Return bytes written. */

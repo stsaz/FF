@@ -655,8 +655,13 @@ static void test_utf(void)
 {
 	char utf8[FFUTF8_MAXCHARLEN];
 	size_t sl, r;
+	uint n;
 
 	FFTEST_FUNC;
+
+	x(3 == ffutf8_decode1("\xef\xbf\xbd\x00", 4, &n) && n == 0xfffd);
+	x(-3 == ffutf8_decode1("\xef\xbf", 2, &n));
+	x(0 == ffutf8_decode1("\xff", 1, &n));
 
 	sl = 2;
 	x(2 == (r = ffutf8_encode(NULL, 0, "\xfc\x00", &sl, FFU_UTF16LE)) && sl == 2);

@@ -6,6 +6,45 @@ Copyright (c) 2015 Simon Zolin
 #include <FF/string.h>
 
 
+int ffutf8_decode1(const char *utf8, size_t len, uint *val)
+{
+	uint i, n, r, d = (byte)utf8[0];
+
+	if ((d & 0x80) == 0) {
+		*val = d;
+		return 1;
+	} else if ((d & 0xe0) == 0xc0) {
+		n = 2;
+		r = d & ~0xe0;
+	} else if ((d & 0xf0) == 0xe0) {
+		n = 3;
+		r = d & ~0xf0;
+	} else if ((d & 0xf8) == 0xf0) {
+		n = 4;
+		r = d & ~0xf8;
+	} else if ((d & 0xfc) == 0xf8) {
+		n = 5;
+		r = d & ~0xfc;
+	} else if ((d & 0xfe) == 0xfc) {
+		n = 6;
+		r = d & ~0xfe;
+	} else
+		return 0; //invalid
+
+	if (len < n)
+		return -(int)n; //need more data
+
+	for (i = 1;  i != n;  i++) {
+		d = (byte)utf8[i];
+		if ((d & 0xc0) != 0x80)
+			return 0; //invalid
+		r = (r << 6) | (d & ~0xc0);
+	}
+
+	*val = r;
+	return n;
+}
+
 size_t ffutf8_len(const char *p, size_t len)
 {
 	size_t nchars = 0;
@@ -20,6 +59,10 @@ size_t ffutf8_len(const char *p, size_t len)
 			p += 3;
 		else if ((d & 0xf8) == 0xf0)
 			p += 4;
+		else if ((d & 0xfc) == 0xf8)
+			p += 5;
+		else if ((d & 0xfe) == 0xfc)
+			p += 6;
 		else //invalid char
 			p++;
 		nchars++;
