@@ -471,6 +471,10 @@ FF_EXTN uint ffs_tofloat(const char *s, size_t len, double *dst, int flags);
 /** Convert float to string. */
 FF_EXTN uint ffs_fromfloat(double d, char *dst, size_t cap, uint flags);
 
+/** Parse the list of numbers, e.g. "1,3,10,20".
+Return 0 on success. */
+FF_EXTN int ffs_numlist(const char *d, size_t *len, uint *dst);
+
 enum FFS_HEXSTR {
 	FFS_HEXLOW = 0,
 	FFS_HEXUP = 1,
