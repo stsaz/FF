@@ -14,7 +14,16 @@ enum FLAC_E {
 	, FLAC_EINIT
 	, FLAC_EDEC
 	, FLAC_ESTATE
-	, FLAC_EFMT
+	,
+	FLAC_EINITENC,
+	FLAC_EENC_STATE,
+
+	FLAC_EFMT,
+	FLAC_EHDR,
+	FLAC_EBIGMETA,
+	FLAC_ETAG,
+	FLAC_ESEEKTAB,
+	FLAC_ESEEK,
 };
 
 static FLAC__StreamDecoderReadStatus _ffflac_read(const FLAC__StreamDecoder *decoder
@@ -34,6 +43,15 @@ void ffflac_init(ffflac *f)
 	ffmem_tzero(f);
 }
 
+static const char *const flac_errs[] = {
+	"unsupported PCM format",
+	"invalid header",
+	"too large meta",
+	"bad tags",
+	"bad seek table",
+	"seek error",
+};
+
 const char* ffflac_errstr(ffflac *f)
 {
 	switch (f->errtype) {
@@ -49,44 +67,20 @@ const char* ffflac_errstr(ffflac *f)
 	case FLAC_ESTATE:
 		return FLAC__StreamDecoderStateString[f->err];
 
-	case FLAC_EFMT:
-		return "PCM format error";
+	case FLAC_EINITENC:
+		return FLAC__StreamEncoderInitStatusString[f->err];
+
+	case FLAC_EENC_STATE:
+		return FLAC__StreamEncoderStateString[f->err];
+	}
+
+	if (f->errtype >= FLAC_EFMT) {
+		uint e = f->errtype - FLAC_EFMT;
+		FF_ASSERT(e < FFCNT(flac_errs));
+		return flac_errs[e];
 	}
 
 	return "unknown error";
-}
-
-
-const char *const ffflac_tagstr[] = {
-	"ALBUM"
-	, "ARTIST"
-	, "COMMENT"
-	, "DATE"
-	, "GENRE"
-	, "TITLE"
-	, "TRACKNUMBER"
-	, "TRACKTOTAL"
-};
-
-int ffflac_tag(const char *name, size_t len)
-{
-	return ffszarr_ifindsorted(ffflac_tagstr, FFCNT(ffflac_tagstr), name, len);
-}
-
-int ffflac_addtag(ffflac_enc *f, const char *name, const char *val)
-{
-	FLAC__StreamMetadata_VorbisComment_Entry entry;
-
-	if (f->meta[0] == NULL
-		&& NULL == (f->meta[0] = FLAC__metadata_object_new(FLAC__METADATA_TYPE_VORBIS_COMMENT)))
-		return FFFLAC_RERR;
-
-	if (!FLAC__metadata_object_vorbiscomment_entry_from_name_value_pair(&entry, name, val)
-		|| !FLAC__metadata_object_vorbiscomment_append_comment(f->meta[0], entry, /*copy*/ 0))
-		return FFFLAC_RERR;
-
-	f->metasize += ffsz_len(name) + FFSLEN("=") + ffsz_len(val);
-	return 0;
 }
 
 
@@ -368,18 +362,10 @@ int ffflac_decode(ffflac *f)
 
 const char* ffflac_enc_errstr(ffflac_enc *f)
 {
-	switch (f->errtype) {
-	case FLAC_ESYS:
-		return fferr_strp(fferr_last());
-
-	case FLAC_EINIT:
-		return FLAC__StreamEncoderInitStatusString[f->err];
-
-	case FLAC_EFMT:
-		return "PCM format error";
-	}
-
-	return "unknown error";
+	ffflac fl;
+	fl.errtype = f->errtype;
+	fl.err = f->err;
+	return ffflac_errstr(&fl);
 }
 
 static FLAC__StreamEncoderWriteStatus _ffflac_ewrite(const FLAC__StreamEncoder *encoder
@@ -449,7 +435,7 @@ int ffflac_create(ffflac_enc *f, const ffpcm *pcm)
 
 	if (FLAC__STREAM_ENCODER_INIT_STATUS_OK != (f->err = FLAC__stream_encoder_init_stream(f->enc
 		, &_ffflac_ewrite, NULL /*seek*/, NULL /*tell*/, NULL /*meta*/, f))) {
-		f->errtype = FLAC_EINIT;
+		f->errtype = FLAC_EINITENC;
 		return -1;
 	}
 
