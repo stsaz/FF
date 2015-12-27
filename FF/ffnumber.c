@@ -3,6 +3,7 @@ Copyright (c) 2015 Simon Zolin
 */
 
 #include <FF/number.h>
+#include <FF/string.h>
 
 
 ssize_t ffint_find1(const byte *arr, size_t n, int search)
@@ -38,4 +39,17 @@ ssize_t ffint_binfind4(const uint *arr, size_t n, uint search)
 			start = i + 1;
 	}
 	return -1;
+}
+
+
+static int _ffint_sortfunc(FF_QSORT_PARAMS)
+{
+	const int *i1 = a, *i2 = b;
+	return (*i1 == *i2) ? 0
+		: ((*i1 < *i2) ? -1 : 0);
+}
+
+void ffint_sort(uint *arr, size_t n, uint flags)
+{
+	ff_qsort(arr, n, sizeof(uint), &_ffint_sortfunc, NULL);
 }

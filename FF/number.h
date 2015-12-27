@@ -84,3 +84,6 @@ FF_EXTN ssize_t ffint_find4(const uint *arr, size_t n, uint search);
 
 /** Binary search integer. */
 FF_EXTN ssize_t ffint_binfind4(const uint *arr, size_t n, uint search);
+
+
+FF_EXTN void ffint_sort(uint *arr, size_t n, uint flags);
