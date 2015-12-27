@@ -283,3 +283,59 @@ done:
 	*len = data - d;
 	return r;
 }
+
+
+ffcuetrk* ffcue_index(ffcue *c, uint type, uint val)
+{
+	switch (type) {
+	case FFCUE_FILE:
+		c->from = -1;
+		c->first = 1;
+		break;
+
+	case FFCUE_TRACKNO:
+		c->trk.from = c->trk.to = -1;
+		break;
+
+	case FFCUE_TRK_INDEX00:
+		if (c->first) {
+			if (c->options == FFCUE_GAPPREV1 || c->options == FFCUE_GAPCURR)
+				c->from = val;
+			break;
+		}
+
+		if (c->options == FFCUE_GAPSKIP)
+			c->trk.to = val;
+		else if (c->options == FFCUE_GAPCURR) {
+			c->trk.to = val;
+			c->trk.from = c->from;
+			c->from = val;
+		}
+		break;
+
+	case FFCUE_TRK_INDEX:
+		if (c->first) {
+			c->first = 0;
+			if (c->from == (uint)-1)
+				c->from = val;
+			break;
+		}
+
+		if (c->trk.from == (uint)-1) {
+			c->trk.from = c->from;
+			c->from = val;
+		}
+
+		if (c->trk.to == (uint)-1)
+			c->trk.to = val;
+
+		return &c->trk;
+
+	case FFCUE_FIN:
+		c->trk.from = c->from;
+		c->trk.to = 0;
+		return &c->trk;
+	}
+
+	return NULL;
+}

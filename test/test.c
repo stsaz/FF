@@ -471,6 +471,7 @@ static int test_direxp(void)
 
 FF_EXTN int test_regex(void);
 FF_EXTN int test_num(void);
+FF_EXTN int test_cue(void);
 
 struct test_s {
 	const char *nm;
@@ -483,7 +484,7 @@ static const struct test_s _fftests[] = {
 	, F(num), F(bits), F(list), F(rbtlist), F(htable), F(crc)
 	, F(fmap), F(time), F(timerq), F(sendfile), F(path), F(direxp)
 	, F(url), F(http), F(dns)
-	, F(json), F(conf), F(args)
+	, F(json), F(conf), F(args), F(cue)
 };
 #undef F
 
