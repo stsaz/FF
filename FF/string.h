@@ -293,6 +293,16 @@ FF_EXTN size_t ffs_lower(char *dst, const char *end, const char *src, size_t len
 FF_EXTN size_t ffs_upper(char *dst, const char *end, const char *src, size_t len);
 FF_EXTN size_t ffs_titlecase(char *dst, const char *end, const char *src, size_t len);
 
+static FFINL char* ffsz_alcopylwr(const char *src, size_t len)
+{
+	char *s = ffmem_alloc(len + 1);
+	if (s == NULL)
+		return NULL;
+	ffs_lower(s, s + len, src, len);
+	s[len] = '\0';
+	return s;
+}
+
 
 #if defined FF_UNIX
 #define ffq_copyc ffs_copyc
