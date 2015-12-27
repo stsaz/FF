@@ -51,6 +51,8 @@ static const struct ctlinfo ctls[] = {
 	{ "label",	TEXT("STATIC"), SS_NOTIFY, 0 },
 	{ "editbox",	TEXT("EDIT"), ES_AUTOHSCROLL | ES_AUTOVSCROLL | ES_NOHIDESEL/* | WS_TABSTOP*/
 		, WS_EX_CLIENTEDGE },
+	{ "text",	TEXT("EDIT"), ES_MULTILINE | ES_AUTOHSCROLL | ES_AUTOVSCROLL | ES_NOHIDESEL | WS_HSCROLL | WS_VSCROLL
+		, WS_EX_CLIENTEDGE },
 	{ "button",	TEXT("BUTTON"), 0, 0 },
 
 	{ "trackbar",	TEXT("msctls_trackbar32"), 0, 0 },
@@ -411,6 +413,37 @@ int ffui_edit_create(ffui_ctl *c, ffui_wnd *parent)
 	if (parent->font != NULL)
 		ffui_ctl_send(c, WM_SETFONT, parent->font, 0);
 
+	return 0;
+}
+
+int ffui_text_create(ffui_ctl *c, ffui_wnd *parent)
+{
+	if (0 != ctl_create(c, FFUI_UID_TEXT, parent->h))
+		return 1;
+
+	if (parent->font != NULL)
+		ffui_ctl_send(c, WM_SETFONT, parent->font, 0);
+
+	return 0;
+}
+
+void ffui_edit_addtext_q(HWND h, const wchar_t *text)
+{
+	size_t len = ffui_send(h, WM_GETTEXTLENGTH, 0, 0);
+	ffui_send(h, EM_SETSEL, len, -1);
+	ffui_send(h, EM_REPLACESEL, 0 /*can undo*/, text);
+}
+
+int ffui_edit_addtext(ffui_edit *c, const char *text, size_t len)
+{
+	ffsyschar *w, ws[255];
+	size_t n = FFCNT(ws) - 1;
+	if (NULL == (w = ffs_utow(ws, &n, text, len)))
+		return -1;
+	w[n] = '\0';
+	ffui_edit_addtext_q(c->h, w);
+	if (w != ws)
+		ffmem_free(w);
 	return 0;
 }
 

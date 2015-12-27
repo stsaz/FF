@@ -109,6 +109,7 @@ enum FFUI_UID {
 	FFUI_UID_WINDOW = 1,
 	FFUI_UID_LABEL,
 	FFUI_UID_EDITBOX,
+	FFUI_UID_TEXT,
 	FFUI_UID_BUTTON,
 
 	FFUI_UID_TRACKBAR,
@@ -192,12 +193,16 @@ typedef struct ffui_edit {
 } ffui_edit;
 
 FF_EXTN int ffui_edit_create(ffui_ctl *c, ffui_wnd *parent);
+FF_EXTN int ffui_text_create(ffui_ctl *c, ffui_wnd *parent);
 
 #define ffui_edit_password(e) \
 	ffui_ctl_send(e, EM_SETPASSWORDCHAR, (wchar_t)0x25CF, 0)
 
 #define ffui_edit_readonly(e, val) \
 	ffui_ctl_send(e, EM_SETREADONLY, val, 0)
+
+FF_EXTN void ffui_edit_addtext_q(HWND h, const wchar_t *text);
+FF_EXTN int ffui_edit_addtext(ffui_edit *c, const char *text, size_t len);
 
 
 // BUTTON

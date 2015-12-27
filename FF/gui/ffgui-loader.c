@@ -226,6 +226,7 @@ static const ffpars_arg wnd_args[] = {
 	{ "mainmenu",	FFPARS_TOBJ | FFPARS_FOBJ1, FFPARS_DST(&new_mmenu) },
 	{ "label",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&new_label) },
 	{ "editbox",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&new_editbox) },
+	{ "text",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&new_editbox) },
 	{ "button",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&new_button) },
 	{ "trackbar",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&new_trkbar) },
 	{ "progressbar",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&new_pgsbar) },
@@ -811,10 +812,7 @@ static int edit_style(ffparser_schem *ps, void *obj, const ffstr *val)
 	else if (ffstr_eqcz(val, "readonly"))
 		ffui_edit_readonly(g->ctl, 1);
 
-	else if (ffstr_eqcz(val, "multiline")) {
-		ffui_styleset(g->ctl->h, ES_MULTILINE | WS_VSCROLL);
-
-	} else
+	else
 		return FFPARS_EBADVAL;
 
 	return 0;
@@ -850,12 +848,17 @@ static int new_label(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 static int new_editbox(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 {
 	ffui_loader *g = obj;
+	int r;
 
 	g->ctl = g->getctl(g->udata, &ps->vals[0]);
 	if (g->ctl == NULL)
 		return FFPARS_EBADVAL;
 
-	if (0 != ffui_edit_create(g->ctl, g->wnd))
+	if (!ffsz_cmp(ps->curarg->name, "text"))
+		r = ffui_text_create(g->ctl, g->wnd);
+	else
+		r = ffui_edit_create(g->ctl, g->wnd);
+	if (r != 0)
 		return FFPARS_ESYS;
 
 	ffpars_setargs(ctx, g, editbox_args, FFCNT(editbox_args));
