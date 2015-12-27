@@ -1553,6 +1553,7 @@ ffbstr * ffbstr_push(ffstr *buf, const char *data, size_t len)
 #include <FFOS/file.h>
 
 static ffatomic counter;
+int ffdbg_mask = 1;
 int ffdbg_print(int t, const char *fmt, ...)
 {
 	char buf[4096];

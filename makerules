@@ -81,7 +81,7 @@ $(FF_OBJ_DIR)/%.o: $(FF)/FF/gui/%.c $(FF_HDR) $(FF_GUI_HDR)
 ff: $(FF_OBJ_DIR) $(FFOS_OBJ) $(FF_OBJ)
 
 $(FF_OBJ_DIR):
-	mkdir $(FF_OBJ_DIR)
+	mkdir -p $(FF_OBJ_DIR)
 
 ffclean:
 	rm -vfr $(FF_ALL_OBJ)

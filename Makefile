@@ -17,8 +17,11 @@ override CFLAGS += -c -g -D_DEBUG -Werror -Wall -pthread \
 
 override FF_CFLAGS += -g -D_DEBUG
 
-override LDFLAGS += -lrt -pthread
+override LDFLAGS += -pthread
 
+ifeq ($(OS),win)
+override LDFLAGS += -lws2_32
+endif
 
 all: ff $(FF_TEST_BIN)
 
