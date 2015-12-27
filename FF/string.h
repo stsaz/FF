@@ -461,21 +461,33 @@ FF_EXTN uint ffs_tofloat(const char *s, size_t len, double *dst, int flags);
 /** Convert float to string. */
 FF_EXTN uint ffs_fromfloat(double d, char *dst, size_t cap, uint flags);
 
+enum FFS_HEXSTR {
+	FFS_HEXLOW = 0,
+	FFS_HEXUP = 1,
+};
+
+/** Convert bytes to hex string.
+@flags: enum FFS_HEXSTR.
+Return the number of bytes written. */
+FF_EXTN size_t ffs_hexstr(char *dst, size_t cap, const char *src, size_t len, uint flags);
+
 /** String format.
 %[0][width] [x|X|,] d|u  int|uint
 %[0][width] [x|X|,] D|U  int64|uint64
 %[0][width] [x|X|,] I|L  ssize_t|size_t
 %[0][width][.width]F double
 
-%[*]s  [size_t,] char*
+% width|* [x|X] b    size_t, byte*
+
+% [width|*] s    [size_t,] char*
 %S     ffstr*
-%[*]q  [size_t,] ffsyschar*
+% [width|*] q    [size_t,] ffsyschar*
 %Q     ffqstr*
 
 %e     int
 %E     int
 
-%[*]c  [size_t,] int
+%[*|width]c  [size_t,] int
 %p     void*
 
 %Z     '\0'
