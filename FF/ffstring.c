@@ -1391,6 +1391,25 @@ void * _ffarr_append(ffarr *ar, const void *src, size_t num, size_t elsz)
 	return ar->ptr + ar->len * elsz;
 }
 
+ssize_t ffarr_append_until(ffarr *ar, const char *d, size_t len, size_t until)
+{
+	FF_ASSERT(ar->len <= until);
+
+	if (ar->len == 0 && len >= until) {
+		ffarr_free(ar);
+		ffstr_set(ar, d, until);
+		return until;
+	}
+
+	if (ar->cap < until
+		&& NULL == _ffarr_realloc(ar, until, sizeof(char)))
+		return -1;
+
+	len = ffmin(len, until - ar->len);
+	ffarr_append(ar, d, len);
+	return (ar->len == until) ? len : 0;
+}
+
 void _ffarr_rmleft(ffarr *ar, size_t n, size_t elsz)
 {
 	FF_ASSERT(ar->len >= n);

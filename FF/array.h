@@ -30,13 +30,15 @@ do { \
 	(ar)->cap = _cap; \
 } while(0)
 
-/** Shift buffer pointers. */
-#define ffarr_shift(ar, by) \
+#define FFARR_SHIFT(ptr, len, by) \
 do { \
-	ssize_t __shiftBy = (by); \
-	(ar)->ptr += __shiftBy; \
-	(ar)->len -= __shiftBy; \
+	ssize_t _by = (by); \
+	(ptr) += (_by); \
+	(len) -= (_by); \
 } while (0)
+
+/** Shift buffer pointers. */
+#define ffarr_shift(ar, by)  FFARR_SHIFT((ar)->ptr, (ar)->len, by)
 
 /** Set null array. */
 #define ffarr_null(ar) \
@@ -123,6 +125,11 @@ FF_EXTN void * _ffarr_append(ffarr *ar, const void *src, size_t num, size_t elsz
 
 #define ffarr_append(ar, src, num) \
 	_ffarr_append((ffarr*)ar, src, num, sizeof(*(ar)->ptr))
+
+/** Add data into array until its size reaches the specified amount.
+Don't copy any data if the required size is already available.
+Return the number of bytes processed;  0 if more data is needed;  -1 on error. */
+FF_EXTN ssize_t ffarr_append_until(ffarr *ar, const char *d, size_t len, size_t until);
 
 static FFINL void * _ffarr_copy(ffarr *ar, const void *src, size_t num, size_t elsz) {
 	ar->len = 0;
