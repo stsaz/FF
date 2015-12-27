@@ -2,9 +2,16 @@
 Copyright (c) 2015 Simon Zolin
 */
 
+/*
+fLaC (HDR STREAMINFO) [HDR BLOCK]... (FRAME_HDR SUBFRAME... FRAME_FOOTER)...
+
+ffflac_encode():
+fLaC INFO VORBIS_CMT [PADDING] [SEEKTABLE] (FRAME)...
+*/
+
 #pragma once
 
-#include <FF/audio/ogg.h>
+#include <FF/audio/vorbistag.h>
 #include <FF/audio/pcm.h>
 #include <FF/array.h>
 
@@ -12,6 +19,22 @@ Copyright (c) 2015 Simon Zolin
 #include <FLAC/stream_encoder.h>
 #include <FLAC/metadata.h>
 
+
+typedef struct ffflac_info {
+	uint bits;
+	uint channels;
+	uint sample_rate;
+
+	uint minblock, maxblock;
+	uint minframe, maxframe;
+	uint64 total_samples;
+	char md5[16];
+} ffflac_info;
+
+typedef struct _ffflac_seektab {
+	uint len;
+	ffpcm_seekpt *ptr;
+} _ffflac_seektab;
 
 typedef struct ffflac {
 	FLAC__StreamDecoder *dec;
@@ -85,29 +108,41 @@ FF_EXTN int ffflac_decode(ffflac *f);
 #define ffflac_cursample(f)  ((f)->frsample)
 
 
+enum FFFLAC_ENC_OPT {
+	FFFLAC_ENC_NOMD5 = 1, // don't generate MD5 checksum of uncompressed data
+};
+
 typedef struct ffflac_enc {
+	uint state;
 	FLAC__StreamEncoder *enc;
-	ffpcm fmt;
-	FLAC__StreamMetadata *meta[2];
-	uint metasize;
-	uint bpsample;
+	ffflac_info info;
 	uint err;
 	uint errtype;
+	ffvorbtag_cook vtag;
+	uint64 seekoff;
+	uint64 frlen;
+	uint64 metalen;
+	uint64 nsamps;
 
 	size_t datalen;
 	const byte *data;
-	ffstr3 data32; //int[]
 
 	size_t pcmlen
 		, off;
-	const void *pcmi;
-	const void **pcm;
+	const int **pcm;
 	ffstr3 outbuf;
 
 	uint64 total_samples;
-	uint min_meta;
-	uint level; //0..8
-	uint fin :1;
+	uint min_meta; // minimum size of meta data (add padding block if needed)
+	uint level; //0..8.  Default: 5.
+	uint fin :1
+		, have_padding :1;
+
+	uint seektable_int; // interval (in samples) for seek table.  Default: 1 sec.  0=disabled.
+	uint iskpt;
+	_ffflac_seektab sktab;
+
+	uint opts; //enum FFFLAC_ENC_OPT
 } ffflac_enc;
 
 FF_EXTN const char* ffflac_enc_errstr(ffflac_enc *f);
@@ -115,15 +150,22 @@ FF_EXTN const char* ffflac_enc_errstr(ffflac_enc *f);
 FF_EXTN void ffflac_enc_init(ffflac_enc *f);
 
 /** Return 0 on success. */
-FF_EXTN int ffflac_addtag(ffflac_enc *f, const char *name, const char *val);
-
-#define ffflac_iaddtag(f, tag, val) \
-	ffflac_addtag(f, ffflac_tagstr[tag], val)
-
-/** Return 0 on success. */
 FF_EXTN int ffflac_create(ffflac_enc *f, const ffpcm *format);
 
 FF_EXTN void ffflac_enc_close(ffflac_enc *f);
 
+/**
+Note: support only up to 4k data. */
+FF_EXTN int ffflac_addtag(ffflac_enc *f, const char *name, const char *val, size_t vallen);
+
+#define ffflac_iaddtag(f, tag, val, vallen) \
+	ffflac_addtag(f, ffvorbtag_str[tag], val, vallen)
+
 /** Return enum FFFLAC_R. */
 FF_EXTN int ffflac_encode(ffflac_enc *f);
+
+/** Get approximate output file size. */
+static FFINL uint64 ffflac_enc_size(ffflac_enc *f)
+{
+	return f->metalen + f->total_samples * ffpcm_size(f->info.bits, f->info.channels) * 73 / 100;
+}
