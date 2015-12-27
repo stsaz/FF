@@ -160,7 +160,6 @@ static const ffpars_arg viewcol_args[] = {
 static int view_column(ffparser_schem *ps, void *obj, ffpars_ctx *ctx);
 
 static int view_style(ffparser_schem *ps, void *obj, const ffstr *val);
-static int view_pos(ffparser_schem *ps, void *obj, const int64 *val);
 static int view_color(ffparser_schem *ps, void *obj, const ffstr *val);
 static int view_pmenu(ffparser_schem *ps, void *obj, const ffstr *val);
 static int view_chsel(ffparser_schem *ps, void *obj, const ffstr *val);
@@ -168,7 +167,7 @@ static int view_lclick(ffparser_schem *ps, void *obj, const ffstr *val);
 static int view_dblclick(ffparser_schem *ps, void *obj, const ffstr *val);
 static const ffpars_arg view_args[] = {
 	{ "style",	FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&view_style) },
-	{ "position",	FFPARS_TINT | FFPARS_FSIGN | FFPARS_FLIST, FFPARS_DST(&view_pos) },
+	{ "position",	FFPARS_TINT | FFPARS_FSIGN | FFPARS_FLIST, FFPARS_DST(&label_pos) },
 	{ "color",	FFPARS_TSTR, FFPARS_DST(&view_color) },
 	{ "bgcolor",	FFPARS_TSTR, FFPARS_DST(&view_color) },
 	{ "popupmenu",	FFPARS_TSTR, FFPARS_DST(&view_pmenu) },
@@ -772,10 +771,11 @@ static int label_pos(ffparser_schem *ps, void *obj, const int64 *val)
 {
 	ffui_loader *g = obj;
 	int *i = &g->r.x;
+	if (ps->p->type == FFCONF_TVAL)
+		g->ir = 0;
 	i[g->ir++] = (int)*val;
 	if (g->ir == 4) {
 		ffui_setposrect(g->ctl, &g->r, 0);
-		g->ir = 0;
 	}
 	return 0;
 }
@@ -946,17 +946,6 @@ static int view_style(ffparser_schem *ps, void *obj, const ffstr *val)
 	return 0;
 }
 
-static int view_pos(ffparser_schem *ps, void *obj, const int64 *val)
-{
-	ffui_loader *g = obj;
-	int *i = &g->r.x;
-	i[g->ir++] = (int)*val;
-	if (g->ir == 4) {
-		ffui_setposrect(g->ctl, &g->r, 0);
-		g->ir = 0;
-	}
-	return 0;
-}
 
 static const char *const _ffui_clrstr[] = {
 	"black",
@@ -1223,10 +1212,11 @@ static int wnd_position(ffparser_schem *ps, void *obj, const int64 *v)
 {
 	ffui_loader *g = obj;
 	int *i = &g->r.x;
+	if (ps->p->type == FFCONF_TVAL)
+		g->ir = 0;
 	i[g->ir++] = (int)*v;
 	if (g->ir == 4) {
 		ffui_setposrect(g->wnd, &g->r, 0);
-		g->ir = 0;
 	}
 	return 0;
 }
