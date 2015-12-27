@@ -56,16 +56,26 @@ void ffalsa_devdestroy(ffalsa_dev *d)
 }
 
 
-static const uint alsa_fmt[] = {
-	SND_PCM_FORMAT_S16_LE, SND_PCM_FORMAT_S32_LE, SND_PCM_FORMAT_FLOAT_LE
-};
-
 int ffalsa_open(ffalsa_buf *snd, const char *dev, ffpcm *fmt, uint bufsize)
 {
 	snd_pcm_hw_params_t *params;
 	uint rate, period;
-	int e;
-	FF_ASSERT(fmt->format < FFCNT(alsa_fmt));
+	int e, format;
+
+	switch (fmt->format) {
+	case FFPCM_16LE:
+		format = SND_PCM_FORMAT_S16_LE;
+		break;
+	case FFPCM_32LE:
+		format = SND_PCM_FORMAT_S32_LE;
+		break;
+	case FFPCM_FLOAT:
+		format = SND_PCM_FORMAT_FLOAT_LE;
+		break;
+	default:
+		FF_ASSERT(0);
+		return -EINVAL;
+	}
 
 	snd_pcm_hw_params_alloca(&params);
 
@@ -78,7 +88,7 @@ int ffalsa_open(ffalsa_buf *snd, const char *dev, ffpcm *fmt, uint bufsize)
 		goto fail;
 	if (0 != (e = snd_pcm_hw_params_set_access(snd->pcm, params, SND_PCM_ACCESS_MMAP_NONINTERLEAVED)))
 		goto fail;
-	if (0 != (e = snd_pcm_hw_params_set_format(snd->pcm, params, alsa_fmt[fmt->format])))
+	if (0 != (e = snd_pcm_hw_params_set_format(snd->pcm, params, format)))
 		goto fail;
 	if (0 != (e = snd_pcm_hw_params_set_channels(snd->pcm, params, fmt->channels)))
 		goto fail;

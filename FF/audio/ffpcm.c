@@ -7,9 +7,21 @@ Copyright (c) 2015 Simon Zolin
 #include <math.h>
 
 
-const char *const ffpcm_fmtstr[3] = { "int16", "int32", "float" };
-
-const byte ffpcm_bits[] = { 16, 32, 32 };
+const char* ffpcm_fmtstr(uint fmt)
+{
+	switch (fmt) {
+	case FFPCM_16LE:
+		return "int16";
+	case FFPCM_32LE:
+		return "int32";
+	case FFPCM_16LE_32:
+		return "int16_32";
+	case FFPCM_FLOAT:
+		return "float32";
+	}
+	FF_ASSERT(0);
+	return "";
+}
 
 
 static const char *const _ffpcm_channelstr[3] = {

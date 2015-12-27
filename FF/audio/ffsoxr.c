@@ -11,6 +11,22 @@ static const byte soxr_fmts[2][3] = {
 	{ SOXR_INT16_I, SOXR_INT32_I, SOXR_FLOAT32_I },
 };
 
+static int _ffsoxr_getfmt(int fmt, int ileaved)
+{
+	switch (fmt) {
+	case FFPCM_16LE:
+		return soxr_fmts[ileaved][0];
+	case FFPCM_32LE:
+	case FFPCM_16LE_32:
+		return soxr_fmts[ileaved][1];
+	case FFPCM_FLOAT:
+		return soxr_fmts[ileaved][2];
+	}
+
+	FF_ASSERT(0);
+	return -1;
+}
+
 int ffsoxr_create(ffsoxr *soxr, const ffpcmex *inpcm, const ffpcmex *outpcm)
 {
 	soxr_io_spec_t io;
@@ -20,8 +36,13 @@ int ffsoxr_create(ffsoxr *soxr, const ffpcmex *inpcm, const ffpcmex *outpcm)
 		|| !outpcm->ileaved)
 		return -1;
 
-	io.itype = soxr_fmts[inpcm->ileaved][inpcm->format];
-	io.otype = soxr_fmts[outpcm->ileaved][outpcm->format];
+
+	int itype = _ffsoxr_getfmt(inpcm->format, inpcm->ileaved);
+	int otype = _ffsoxr_getfmt(outpcm->format, outpcm->ileaved);
+	if (itype == -1 || otype == -1)
+		return -1;
+	io.itype = itype;
+	io.otype = otype;
 	io.scale = 1;
 	io.e = NULL;
 	io.flags = soxr->dither ? SOXR_TPDF : SOXR_NO_DITHER;

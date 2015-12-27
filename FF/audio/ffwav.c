@@ -49,19 +49,17 @@ uint ffwav_pcmfmt(const ffwav_fmt *wf)
 
 void ffwav_pcmfmtset(ffwav_fmt *wf, uint pcm_fmt)
 {
+	wf->bit_depth = ffpcm_bits(pcm_fmt);
 	switch (pcm_fmt) {
 	case FFPCM_16LE:
-		wf->bit_depth = 16;
 		wf->format = FFWAV_PCM;
 		break;
 
 	case FFPCM_32LE:
-		wf->bit_depth = 32;
 		wf->format = FFWAV_PCM;
 		break;
 
 	case FFPCM_FLOAT:
-		wf->bit_depth = 32;
 		wf->format = FFWAV_IEEE_FLOAT;
 		break;
 	}
