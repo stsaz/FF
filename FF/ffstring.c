@@ -749,7 +749,25 @@ uint ffs_fromint(uint64 i, char *dst, size_t cap, int flags)
 		while (i != 0);
 	}
 
-	{
+	if ((flags & FFINT_SEP1000) && (flags & _FFINT_WIDTH_MASK) == 0) {
+		len = (uint)(s + sizeof(s) - ps);
+		int nsep = len / 3 - ((len % 3) == 0);
+		if (nsep > 0) {
+			uint k, idst = len + nsep - 1;
+			if (idst >= end - dst)
+				return end - dst;
+
+			for (k = 1;  k != len;  k++) {
+				dst[idst--] = s[sizeof(s) - k];
+				if (!(k % 3))
+					dst[idst--] = ',';
+			}
+			dst[0] = s[sizeof(s) - len];
+			return len + nsep;
+		}
+	}
+
+	if ((flags & _FFINT_WIDTH_MASK) != 0) {
 		uint width = flags >> 24;
 		char fill = ' ';
 		if (flags & FFINT_ZEROWIDTH)
@@ -762,7 +780,7 @@ uint ffs_fromint(uint64 i, char *dst, size_t cap, int flags)
 	}
 
 	len = (uint)ffmin(end - dst, s + FFCNT(s) - ps);
-	memcpy(dst, ps, len);
+	ffmemcpy(dst, ps, len);
 	dst += len;
 	return (uint)(dst - dsto);
 }
@@ -963,6 +981,11 @@ size_t ffs_fmtv(char *buf_o, const char *end, const char *fmt, va_list va)
 			while (ffchar_isdigit(*fmt)) {
 				wfrac = wfrac * 10 + (*fmt++ - '0');
 			}
+			break;
+
+		case ',':
+			itoaFlags |= FFINT_SEP1000;
+			fmt++;
 			break;
 		}
 

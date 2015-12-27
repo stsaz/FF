@@ -192,6 +192,12 @@ int test_inttostr()
 	ss.len = ffs_fromint(0xabc1, s, FFCNT(s), FFINT_HEXLOW | FFINT_WIDTH(8));
 	x(ffstr_eqcz(&ss, "    abc1"));
 
+	ss.len = ffs_fromint(1000, s, FFCNT(s), FFINT_SEP1000);
+	x(ffstr_eqcz(&ss, "1,000"));
+
+	ss.len = ffs_fromint(999, s, FFCNT(s), FFINT_SEP1000);
+	x(ffstr_eqcz(&ss, "999"));
+
 	return 0;
 }
 
@@ -703,6 +709,7 @@ int test_str()
 	test_str_find();
 	test_strcat();
 	test_strqcat();
+	test_inttostr();
 	test_strtoint();
 	test_strtoflt();
 	test_strf();

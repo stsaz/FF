@@ -441,6 +441,7 @@ enum FFINT_TOSTR {
 	, FFINT_HEXLOW = 2
 	, FFINT_HEXUP = 4
 	, FFINT_ZEROWIDTH = 8
+	, FFINT_SEP1000 = 0x10 // use thousands separator, e.g. "1,000"
 
 	, _FFINT_WIDTH_MASK = 0xff000000
 };
@@ -461,9 +462,9 @@ FF_EXTN uint ffs_tofloat(const char *s, size_t len, double *dst, int flags);
 FF_EXTN uint ffs_fromfloat(double d, char *dst, size_t cap, uint flags);
 
 /** String format.
-%[0][width][x|X]d|u  int|uint
-%[0][width][x|X]D|U  int64|uint64
-%[0][width][x|X]I|L  ssize_t|size_t
+%[0][width] [x|X|,] d|u  int|uint
+%[0][width] [x|X|,] D|U  int64|uint64
+%[0][width] [x|X|,] I|L  ssize_t|size_t
 %[0][width][.width]F double
 
 %[*]s  [size_t,] char*
