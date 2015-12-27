@@ -77,3 +77,33 @@ FF_EXTN int ffpcm_convert(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm
 #define ffpcm_db2gain(db)  pow(10, (double)(db) / 20)
 
 FF_EXTN int ffpcm_gain(const ffpcmex *pcm, float gain, const void *in, void *out, uint samples);
+
+
+typedef struct ffpcm_seekpt {
+	uint64 sample;
+	uint64 off;
+} ffpcm_seekpt;
+
+enum FFPCM_SEEKF {
+	FFPCM_SEEK_BINSCH = 1, // force use of binary search
+	FFPCM_SEEK_ALLOW_BINSCH = 2, // allow using binary search when necessary
+};
+
+struct ffpcm_seek {
+	uint64 target;
+	struct ffpcm_seekpt *pt; // search bounds (in/out)
+	uint64 off; // absolute audio offset (in bytes) (in/out)
+	uint64 lastoff;
+	uint64 fr_index; // absolute sample index
+	uint fr_samples; // samples in frame
+	uint avg_fr_samples;
+	uint fr_size; // frame size (in bytes)
+	uint flags; // enum FFPCM_SEEKF
+};
+
+/** Find a frame containing the specified sample.
+A hybrid algorithm is used:
+. Sample-based: estimate offset using the target sample position within the given range of samples.
+. Binary search.
+Return 0 on success;  1 if file seek is needed (s->off is set to file offset);  -1 on error. */
+FF_EXTN int ffpcm_seek(struct ffpcm_seek *s);

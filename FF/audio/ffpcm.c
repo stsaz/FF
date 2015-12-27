@@ -304,3 +304,57 @@ int ffpcm_gain(const ffpcmex *pcm, float gain, const void *in, void *out, uint s
 }
 
 #undef CASE
+
+
+int ffpcm_seek(struct ffpcm_seek *s)
+{
+	uint64 size, samples, newoff;
+	uint opts = s->flags;
+	struct ffpcm_seekpt *pt = s->pt;
+
+	FF_ASSERT(s->target >= pt[0].sample && s->target < pt[1].sample);
+	FFDBG_PRINT(5, "%s(): %xU, %xU: [%xU..%xU] (%xU), %xU: [%xU..%xU] (%xU)\n"
+		, FF_FUNC, s->target, s->fr_index, pt[0].sample, pt[1].sample, pt[1].sample - pt[0].sample
+		, s->off, pt[0].off, pt[1].off, pt[1].off - pt[0].off);
+
+	if (s->fr_index >= pt[0].sample && s->fr_index < pt[1].sample
+		&& s->off >= pt[0].off && s->off < pt[1].off) {
+
+		if (s->target < s->fr_index) {
+			pt[1].sample = s->fr_index;
+			pt[1].off = s->off;
+
+		} else if (s->target < s->fr_index + s->fr_samples) {
+			return 0;
+
+		} else {
+			// s->target > s->fr_index
+			pt[0].sample = s->fr_index + s->fr_samples;
+			pt[0].off = s->off + s->fr_size;
+		}
+	} else if (s->lastoff >= pt[0].off && s->lastoff < pt[1].off) {
+		// no frame is found within range lastoff..pt[1].off
+		pt[1].off = s->lastoff;
+		opts |= FFPCM_SEEK_BINSCH;
+	}
+
+	size = pt[1].off - pt[0].off;
+	samples = pt[1].sample - pt[0].sample;
+
+	if ((opts & (FFPCM_SEEK_ALLOW_BINSCH | FFPCM_SEEK_BINSCH)) == (FFPCM_SEEK_ALLOW_BINSCH | FFPCM_SEEK_BINSCH))
+		newoff = size / 2; //binary search
+	else
+		newoff = (s->target - pt[0].sample) * size / samples; //sample-based search
+
+	uint avg_frsize = size / ffmax(samples / s->avg_fr_samples, 1); //average size per frame
+	if (newoff > avg_frsize)
+		newoff -= avg_frsize;
+	else
+		newoff = 0;
+
+	newoff += pt[0].off;
+	if (newoff == s->off)
+		return -1;
+	s->off = newoff;
+	return 1;
+}
