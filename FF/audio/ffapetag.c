@@ -21,11 +21,12 @@ int ffapetag_parse(ffapetag *a, const char *data, size_t *len)
 	ffapefld *fld;
 	uint n;
 	ffstr d;
+	ssize_t r;
 
 	if (a->buf.len != 0)
 		ffstr_set(&d, a->buf.ptr + a->nlen, a->buf.len - a->nlen);
 	else
-		ffstr_set(&d, data, *len);
+		ffstr_set(&d, data + a->nlen, *len - a->nlen);
 
 	switch (a->state) {
 
@@ -45,7 +46,6 @@ int ffapetag_parse(ffapetag *a, const char *data, size_t *len)
 		a->size = ffapetag_size(&a->ftr);
 		if (a->size > d.len) {
 			a->state = I_COPYTAG;
-			*len = n;
 			a->seekoff = -(int)a->size;
 			return FFAPETAG_RSEEK;
 		}
@@ -54,13 +54,11 @@ int ffapetag_parse(ffapetag *a, const char *data, size_t *len)
 		goto ihdr;
 
 	case I_COPYTAG:
-		n = ffmin(a->size - a->buf.len, *len);
-		if (NULL == ffarr_append(&a->buf, data, n))
+		r = ffarr_append_until(&a->buf, data, *len, a->size);
+		if (r == -1)
 			return FFAPETAG_RERR;
-
-		if (a->buf.len != a->size) {
+		else if (r == 0)
 			return FFAPETAG_RMORE;
-		}
 		ffstr_set(&d, a->buf.ptr, a->buf.len);
 
 		// a->state = I_HDR;
@@ -79,6 +77,7 @@ ihdr:
 
 	case I_FLD:
 		if (a->size == sizeof(ffapehdr)) {
+			*len = 0;
 			return FFAPETAG_RDONE;
 		}
 
@@ -96,11 +95,7 @@ ihdr:
 
 		a->size -= n;
 		a->nlen += n;
-		*len = (d.ptr - data) + n;
-
-		if (a->buf.len != 0)
-			a->buf.len = 0;
-
+		*len = 0;
 		return FFAPETAG_RTAG;
 	}
 
