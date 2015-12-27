@@ -70,10 +70,14 @@ FF_EXTN void ffui_ldr_fin(ffui_loader *g);
 /** Load GUI from file. */
 FF_EXTN int ffui_ldr_loadfile(ffui_loader *g, const char *fn);
 
+FF_EXTN void ffui_ldr_loadconf(ffui_loader *g, const char *fn);
+
 
 typedef struct ffui_loaderw {
 	ffstr3 buf;
 } ffui_loaderw;
+
+FF_EXTN void ffui_ldrw_fin(ffui_loaderw *ldr);
 
 FF_EXTN void ffui_ldr_set(ffui_loaderw *ldr, const char *name, const char *val, size_t len);
 

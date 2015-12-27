@@ -9,7 +9,6 @@ Copyright (c) 2014 Simon Zolin
 #include <FFOS/file.h>
 
 
-static void loadconf(ffui_loader *g, const char *fn);
 static uint ffui_hotkeyparse(const char *s, size_t len);
 
 // ICON
@@ -1419,11 +1418,14 @@ done:
 	ffmem_safefree(buf);
 	if (f != FF_BADFD)
 		fffile_close(f);
-
-	loadconf(g, fn);
 	return r;
 }
 
+
+void ffui_ldrw_fin(ffui_loaderw *ldr)
+{
+	ffarr_free(&ldr->buf);
+}
 
 void ffui_ldr_set(ffui_loaderw *ldr, const char *name, const char *val, size_t len)
 {
@@ -1432,32 +1434,28 @@ void ffui_ldr_set(ffui_loaderw *ldr, const char *name, const char *val, size_t l
 
 int ffui_ldr_write(ffui_loaderw *ldr, const char *fn)
 {
-	fffd f = FF_BADFD;
-	ffstr3 fnconf = {0};
+	int r = -1;
+	fffd f;
 
-	if (0 == ffstr_catfmt(&fnconf, "%s.conf%Z", fn))
-		return -1;
-	if (FF_BADFD == (f = fffile_open(fnconf.ptr, O_CREAT | O_TRUNC | O_WRONLY)))
+	if (FF_BADFD == (f = fffile_open(fn, O_CREAT | O_TRUNC | O_WRONLY)))
 		goto done;
-	fffile_write(f, ldr->buf.ptr, ldr->buf.len);
+	if (ldr->buf.len != (size_t)fffile_write(f, ldr->buf.ptr, ldr->buf.len))
+		goto done;
+	r = 0;
 
 done:
-	FF_SAFECLOSE(f, FF_BADFD, fffile_close);
-	ffarr_free(&ldr->buf);
-	ffarr_free(&fnconf);
-	return 0;
+	if (f != FF_BADFD && 0 != fffile_close(f))
+		return -1;
+	return r;
 }
 
-static void loadconf(ffui_loader *g, const char *fn)
+void ffui_ldr_loadconf(ffui_loader *g, const char *fn)
 {
-	ffstr3 buf = {0}, fnconf = {0};
+	ffstr3 buf = {0};
 	ffstr s, line, name, val;
 	fffd f = FF_BADFD;
 
-	if (0 == ffstr_catfmt(&fnconf, "%s.conf%Z", fn))
-		return;
-
-	if (FF_BADFD == (f = fffile_open(fnconf.ptr, O_RDONLY)))
+	if (FF_BADFD == (f = fffile_open(fn, O_RDONLY)))
 		goto done;
 
 	if (NULL == ffarr_alloc(&buf, fffile_size(f)))
@@ -1514,5 +1512,4 @@ static void loadconf(ffui_loader *g, const char *fn)
 done:
 	FF_SAFECLOSE(f, FF_BADFD, fffile_close);
 	ffarr_free(&buf);
-	ffarr_free(&fnconf);
 }
