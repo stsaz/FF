@@ -882,6 +882,7 @@ static int new_button(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 }
 
 enum {
+	VIEW_STYLE_EDITLABELS,
 	VIEW_STYLE_EXPLORER_THEME,
 	VIEW_STYLE_FULL_ROW_SELECT,
 	VIEW_STYLE_GRID_LINES,
@@ -893,6 +894,7 @@ enum {
 };
 
 static const char *const view_styles[] = {
+	"edit_labels",
 	"explorer_theme",
 	"full_row_select",
 	"grid_lines",
@@ -909,6 +911,10 @@ static int view_style(ffparser_schem *ps, void *obj, const ffstr *val)
 	switch (ffszarr_ifindsorted(view_styles, FFCNT(view_styles), val->ptr, val->len)) {
 	case VIEW_STYLE_VISIBLE:
 		ffui_show(g->ctl, 1);
+		break;
+
+	case VIEW_STYLE_EDITLABELS:
+		ffui_styleset(g->ctl->h, LVS_EDITLABELS);
 		break;
 
 	case VIEW_STYLE_MULTI_SELECT:

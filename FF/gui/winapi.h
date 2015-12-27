@@ -103,6 +103,7 @@ enum FFUI_MSGDLG {
 };
 
 FF_EXTN int ffui_msgdlg_show(const char *title, const char *text, size_t len, uint flags);
+#define ffui_msgdlg_showz(title, text, flags)  ffui_msgdlg_show(title, text, ffsz_len(text), flags)
 
 
 enum FFUI_UID {
@@ -203,6 +204,8 @@ FF_EXTN int ffui_text_create(ffui_ctl *c, ffui_wnd *parent);
 
 FF_EXTN void ffui_edit_addtext_q(HWND h, const wchar_t *text);
 FF_EXTN int ffui_edit_addtext(ffui_edit *c, const char *text, size_t len);
+
+#define ffui_edit_selall(e)  ffui_send((e)->h, EM_SETSEL, 0, -1)
 
 
 // BUTTON
@@ -429,9 +432,11 @@ typedef struct ffui_view {
 	int lclick_id;
 	int dblclick_id;
 	int colclick_id; //"col" is set to column #
+	int edit_id; // "text" contains the text edited by user
 
 	union {
 	int col;
+	char *text;
 	};
 } ffui_view;
 
@@ -548,6 +553,15 @@ do { \
 	(it)->item.iImage = (img_idx); \
 } while (0)
 
+#define ffui_view_gettext(it) \
+do { \
+	(it)->item.mask |= LVIF_TEXT; \
+	(it)->item.pszText = (it)->wtext; \
+	(it)->item.cchTextMax = FFCNT((it)->wtext); \
+} while (0)
+
+#define ffui_view_textq(it)  ((it)->item.pszText)
+
 #define ffui_view_settext_q(it, sz) \
 do { \
 	(it)->item.mask |= LVIF_TEXT; \
@@ -594,6 +608,10 @@ do { \
 	ffui_send((v)->h, LVM_SETBKCOLOR, 0, val); \
 	ffui_send((v)->h, LVM_SETTEXTBKCOLOR, 0, val); \
 } while (0)
+
+#define _ffui_view_edit(v, i)  ((HWND)ffui_send(v->h, LVM_EDITLABEL, i, 0))
+
+FF_EXTN void ffui_view_edit(ffui_view *v, int i, int sub);
 
 
 // TREEVIEW

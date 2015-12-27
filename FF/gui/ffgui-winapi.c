@@ -590,6 +590,22 @@ int ffui_view_hittest(HWND h, const ffui_point *pt, int item)
 	return ht.iSubItem;
 }
 
+void ffui_view_edit(ffui_view *v, int i, int sub)
+{
+	ffui_viewitem it;
+
+	ffui_view_iteminit(&it);
+	ffui_view_setindex(&it, i);
+	ffui_view_gettext(&it);
+	ffui_view_get(v, sub, &it);
+
+	ffui_edit e;
+	e.h = _ffui_view_edit(v, i);
+	ffui_settext_q(e.h, ffui_view_textq(&it));
+	ffui_view_itemreset(&it);
+	ffui_edit_selall(&e);
+}
+
 
 int ffui_tree_create(ffui_ctl *c, void *parent)
 {
@@ -1003,6 +1019,19 @@ static FFINL void wnd_nfy(ffui_wnd *wnd, NMHDR *n)
 	case LVN_COLUMNCLICK:
 		id = ctl.view->colclick_id;
 		ctl.view->col = ((NM_LISTVIEW*)n)->iSubItem;
+		break;
+
+	case LVN_ENDLABELEDIT:
+		{
+		const LVITEM *it = &((NMLVDISPINFO*)n)->item;
+		FFDBG_PRINT(10, "LVN_ENDLABELEDIT: item:%u, text:%q\n"
+			, it->iItem, (it->pszText == NULL) ? L"" : it->pszText);
+		if (it->pszText != NULL && ctl.view->edit_id != 0) {
+			ctl.view->text = ffsz_alcopyqz(it->pszText);
+			wnd->on_action(wnd, ctl.view->edit_id);
+			ffmem_free0(ctl.view->text);
+		}
+		}
 		break;
 
 	case NM_CLICK:
