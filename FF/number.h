@@ -6,6 +6,10 @@ Copyright (c) 2015 Simon Zolin
 
 #include <FFOS/types.h>
 
+#ifdef FF_64
+#include <emmintrin.h> //SSE2
+#endif
+
 
 #define FF_SAFEDIV(val, by) \
 	((by) != 0 ? (val) / (by) : 0)
@@ -86,6 +90,26 @@ static FFINL uint64 ffint_ntoh64(const void *p)
 	return ffhton64(*(uint64*)p);
 }
 
+
+static FFINL int ffint_ftoi(double d)
+{
+	int r;
+
+#ifdef FF_64
+	r = _mm_cvtsd_si32(_mm_load_sd(&d));
+
+#elif !defined FF_MSVC
+	asm volatile("fistpl %0"
+		: "=m"(r)
+		: "t"(d)
+		: "st");
+
+#else
+	r = (int)((d < 0) ? d - 0.5 : d + 0.5);
+#endif
+
+	return r;
+}
 
 
 FF_EXTN ssize_t ffint_find1(const byte *arr, size_t n, int search);

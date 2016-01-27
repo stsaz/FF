@@ -4,6 +4,7 @@ Copyright (c) 2015 Simon Zolin
 
 #include <FF/audio/pcm.h>
 #include <FF/string.h>
+#include <FF/number.h>
 #include <FFOS/mem.h>
 
 #include <math.h>
@@ -85,24 +86,11 @@ void ffpcm_mix(const ffpcm *pcm, char *stm1, const char *stm2, size_t samples)
 static FFINL short _ffpcm_flt_16le(float f)
 {
 	double d = f * max16f;
-
-#if !defined FF_MSVC
-	short r;
-
 	if (d < -max16f)
 		return -0x8000;
 	else if (d > max16f - 1)
 		return 0x7fff;
-
-	asm volatile("fistps %0"
-		: "=m"(r)
-		: "t"(d)
-		: "st");
-	return r;
-
-#else
-	return _pcm_lim_16le((int)((d < 0) ? d - 0.5 : d + 0.5));
-#endif
+	return ffint_ftoi(d);
 }
 
 union pcmdata {
