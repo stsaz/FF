@@ -4,6 +4,7 @@ Copyright (c) 2014 Simon Zolin
 
 #include <FF/gui/winapi.h>
 #include <FF/path.h>
+#include <FF/list.h>
 #include <FFOS/file.h>
 #include <FFOS/process.h>
 #include <FFOS/dir.h>
@@ -367,8 +368,16 @@ void ffui_menu_sethotkey(ffui_menuitem *mi, const char *s, size_t len)
 
 void ffui_paned_create(ffui_paned *pn, ffui_wnd *parent)
 {
-	uint i = (parent->paned[0] == NULL) ? 0 : 1;
-	parent->paned[i] = pn;
+	ffui_paned *p;
+
+	if (parent->paned_first == FFLIST_END) {
+		parent->paned_first = pn;
+		return;
+	}
+
+	for (p = parent->paned_first;  p->next != FFLIST_END;  p = p->next) {
+	}
+	p->next = pn;
 }
 
 
@@ -814,7 +823,7 @@ static FFINL void paned_resize(ffui_paned *pn, ffui_wnd *wnd)
 {
 	RECT r;
 	ffui_pos cr[2];
-	uint i, x = 0, y = 0, cx, cy, f = SWP_NOMOVE;
+	uint i, x = 0, y = 0, cx, cy, f;
 
 	GetClientRect(wnd->h, &r);
 
@@ -831,11 +840,18 @@ static FFINL void paned_resize(ffui_paned *pn, ffui_wnd *wnd)
 	for (i = 0;  i < 2;  i++) {
 		if (pn->items[i].it == NULL)
 			continue;
+		f = SWP_NOMOVE;
 
 		if (pn->items[i].cx)
 			cx = r.right - cr[i].x;
 		else
 			cx = cr[i].cx;
+
+		if (pn->items[i].x) {
+			x = r.right - cr[i].cx;
+			y = cr[i].y;
+			f = 0;
+		}
 
 		if (pn->items[i].cy)
 			cy = r.bottom - cr[i].y;
@@ -844,11 +860,6 @@ static FFINL void paned_resize(ffui_paned *pn, ffui_wnd *wnd)
 
 		if (i == 0 && pn->items[0].cx && pn->items[1].it != NULL)
 			cx = r.right -	cr[0].x - cr[1].cx;
-		else if (i == 1 && !pn->items[1].cx) {
-			x = r.right - cr[1].cx;
-			y = cr[1].y;
-			f = 0;
-		}
 
 		setpos_noscale(pn->items[i].it, x, y, cx, cy, f);
 	}
@@ -1100,8 +1111,6 @@ static void wnd_onaction(ffui_wnd *wnd, int id)
 
 int ffui_wndproc(ffui_wnd *wnd, size_t *code, HWND h, uint msg, size_t w, size_t l)
 {
-	uint i;
-
 	switch (msg) {
 
 	case WM_COMMAND:
@@ -1171,9 +1180,9 @@ int ffui_wndproc(ffui_wnd *wnd, size_t *code, HWND h, uint msg, size_t w, size_t
 		if (l == 0)
 			break; //window has been minimized
 
-		for (i = 0;  i < 2;  i++) {
-			if (wnd->paned[i] != NULL)
-				paned_resize(wnd->paned[i], wnd);
+		ffui_paned *p;
+		FFLIST_WALKNEXT(wnd->paned_first, p) {
+			paned_resize(p, wnd);
 		}
 
 		if (wnd->stbar != NULL)

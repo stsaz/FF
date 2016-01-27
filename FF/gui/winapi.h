@@ -363,13 +363,17 @@ static FFINL int ffui_tray_show(ffui_trayicon *t, uint show)
 
 
 // PANED
-typedef struct ffui_paned {
+typedef struct ffui_paned ffui_paned;
+struct ffui_paned {
 	struct {
 		ffui_ctl *it;
-		uint cx :1
+		uint x :1
+			, y :1
+			, cx :1
 			, cy :1;
 	} items[2];
-} ffui_paned;
+	ffui_paned *next;
+};
 
 FF_EXTN void ffui_paned_create(ffui_paned *pn, ffui_wnd *parent);
 
@@ -661,7 +665,7 @@ struct ffui_wnd {
 	HWND ttip;
 	HWND focused; //restore focus when the window is activated again
 	ffui_trayicon *trayicon;
-	ffui_paned *paned[2];
+	ffui_paned *paned_first;
 	ffui_ctl *stbar;
 	HACCEL acceltbl;
 

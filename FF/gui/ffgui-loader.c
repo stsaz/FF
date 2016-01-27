@@ -181,8 +181,10 @@ static int new_listview(ffparser_schem *ps, void *obj, ffpars_ctx *ctx);
 static int new_treeview(ffparser_schem *ps, void *obj, ffpars_ctx *ctx);
 
 // PANED
+static int pnchild_move(ffparser_schem *ps, void *obj, const ffstr *val);
 static int pnchild_resize(ffparser_schem *ps, void *obj, const ffstr *val);
 static const ffpars_arg paned_child_args[] = {
+	{ "move",	FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&pnchild_move) },
 	{ "resize",	FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&pnchild_resize) },
 };
 static int paned_child(ffparser_schem *ps, void *obj, ffpars_ctx *ctx);
@@ -1140,6 +1142,18 @@ static int pnchild_resize(ffparser_schem *ps, void *obj, const ffstr *val)
 		g->paned->items[g->ir - 1].cx = 1;
 	else if (ffstr_eqcz(val, "cy"))
 		g->paned->items[g->ir - 1].cy = 1;
+	else
+		return FFPARS_EBADVAL;
+	return 0;
+}
+
+static int pnchild_move(ffparser_schem *ps, void *obj, const ffstr *val)
+{
+	ffui_loader *g = obj;
+	if (ffstr_eqcz(val, "x"))
+		g->paned->items[g->ir - 1].x = 1;
+	else if (ffstr_eqcz(val, "y"))
+		g->paned->items[g->ir - 1].y = 1;
 	else
 		return FFPARS_EBADVAL;
 	return 0;
