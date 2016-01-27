@@ -2,6 +2,10 @@
 Copyright (c) 2015 Simon Zolin
 */
 
+/*
+OGG(VORB_INFO)  OGG(VORB_COMMENTS VORB_CODEBOOK)  OGG(PKT1 PKT2...)...
+*/
+
 #pragma once
 
 #include <FF/audio/pcm.h>
@@ -11,28 +15,30 @@ Copyright (c) 2015 Simon Zolin
 #include <vorbis/codec.h>
 
 
+typedef struct ffogg_page {
+	uint size;
+	uint nsegments;
+	byte segs[255];
+
+	uint serial;
+	uint number;
+} ffogg_page;
+
 typedef struct ffogg {
 	uint state;
 
-	ogg_sync_state osync;
-	ogg_sync_state osync_seek;
-	ogg_page opg;
 	ogg_stream_state ostm;
 
 	vorbis_dsp_state vds;
 	vorbis_info vinfo;
 	vorbis_block vblk;
 
-	vorbis_comment vcmt;
-	ffstr tagname
-		, tagval;
-	int tag;
+	ffvorbtag vtag;
 
 	uint err;
 	union {
 	uint nsamples;
 	uint nhdr;
-	uint ncomm;
 	};
 	uint64 off
 		, off_data //header size
@@ -42,15 +48,26 @@ typedef struct ffogg {
 		, first_sample
 		, seek_sample;
 
+	ffarr buf;
+	uint hdrsize;
+	uint pagesize;
+	uint bytes_skipped;
+	uint page_num;
+	uint64 page_gpos;
 	size_t datalen;
 	const char *data;
 
 	size_t pcmlen;
 	const float **pcm; //non-interleaved
 
+	ffpcm_seekpt seektab[2];
+	ffpcm_seekpt seekpt[2];
+
 	unsigned ostm_valid :1
 		, vblk_valid :1
 		, seekable :1 //search for eos page
+		, init_done :1
+		, page_last :1
 		;
 } ffogg;
 
@@ -79,29 +96,25 @@ enum FFOGG_R {
 	, FFOGG_RINFO //total_samples is set, ready for seeking
 };
 
-#define ffogg_granulepos(o)  ogg_page_granulepos(&(o)->opg)
+#define ffogg_granulepos(o)  ((o)->page_gpos)
 
-#define ffogg_pageno(o)  ogg_page_pageno(&(o)->opg)
+#define ffogg_pageno(o)  ((o)->page_num)
 
 FF_EXTN void ffogg_close(ffogg *o);
 
 
 /** Add vorbis tag. */
-#define ffogg_addtag(o, name, val) \
-	vorbis_comment_add_tag(&(o)->vcmt, name, val)
+#define ffogg_addtag(o, name, val, val_len) \
+	ffvorbtag_add(&(o)->vtag, name, val, val_len)
 
-#define ffogg_iaddtag(o, tag, val) \
-	ffogg_addtag(o, ffvorbtag_str[tag], val)
+#define ffogg_iaddtag(o, tag, val, val_len) \
+	ffogg_addtag(o, ffvorbtag_str[tag], val, val_len)
 
 
 FF_EXTN void ffogg_seek(ffogg *o, uint64 sample);
 
 /** Get an absolute file offset to seek. */
 #define ffogg_seekoff(o)  ((o)->off)
-
-/** No more input data.
-Return 0 if decoding can proceed. */
-FF_EXTN int ffogg_nodata(ffogg *o);
 
 /** Decode OGG stream.
 Note: decoding errors are skipped. */
@@ -114,23 +127,25 @@ FF_EXTN int ffogg_decode(ffogg *o);
 typedef struct ffogg_enc {
 	uint state;
 
-	ogg_sync_state osync;
-	ogg_page opg;
-	ogg_stream_state ostm;
-
 	vorbis_dsp_state vds;
 	vorbis_info vinfo;
 	vorbis_block vblk;
 
-	vorbis_comment vcmt;
+	ffvorbtag_cook vtag;
+	uint min_tagsize;
 
 	int err;
 	unsigned ostm_valid :1
 		, vblk_valid :1
 		, fin :1;
 
+	ffogg_page page;
+	ogg_packet opkt;
+	uint64 granpos;
+	ffarr buf;
 	size_t datalen;
 	const char *data;
+	uint max_pagesize;
 
 	size_t pcmlen;
 	const float **pcm; //non-interleaved
@@ -141,18 +156,11 @@ FF_EXTN void ffogg_enc_init(ffogg_enc *o);
 FF_EXTN void ffogg_enc_close(ffogg_enc *o);
 
 /** Prepare for encoding.
-The function uses ffrnd_get().
 @quality: -10..100.
+@serialno: stream serial number (random).
 Return 0 on success or negative number on error. */
-FF_EXTN int ffogg_create(ffogg_enc *o, ffpcm *pcm, int quality);
+FF_EXTN int ffogg_create(ffogg_enc *o, ffpcm *pcm, int quality, uint serialno);
 
 /** Encode PCM data.
 Return enum FFOGG_R. */
 FF_EXTN int ffogg_encode(ffogg_enc *o);
-
-/** Get OGG page header after ffogg_encode() returns a page. */
-static FFINL const char* ffogg_pagehdr(ffogg_enc *o, size_t *plen)
-{
-	*plen = o->opg.header_len;
-	return (void*)o->opg.header;
-}
