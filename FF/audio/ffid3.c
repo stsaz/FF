@@ -398,8 +398,10 @@ int ffid3_parse(ffid3 *p, const char *data, size_t *len)
 			goto done;
 
 		case I_TRKTOTAL:
-			p->frame = FFID3_TRACKTOTAL;
 			p->state = I_DATA;
+			if (NULL == ffs_findc(p->data.ptr, p->data.len, '/'))
+				continue;
+			p->frame = FFID3_TRACKTOTAL;
 			r = FFID3_RDATA;
 			goto done;
 
