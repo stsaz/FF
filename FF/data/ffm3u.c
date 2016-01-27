@@ -149,3 +149,57 @@ done:
 	*len = data - d;
 	return r;
 }
+
+
+int ffm3u_add(ffm3u_cook *m, uint type, const char *val, size_t len)
+{
+	enum { I_EXTM3U, I_EXTINF, I_DUR, I_ARTIST, I_TITLE, I_NAME };
+
+	switch (m->state) {
+	case I_EXTM3U:
+		if (m->options & FFM3U_LF)
+			ffstr_set(&m->crlf, "\n", 1);
+		else
+			ffstr_set(&m->crlf, "\r\n", 2);
+
+		if (0 == ffstr_catfmt(&m->buf, "#EXTM3U%S", &m->crlf))
+			goto err;
+		m->state = I_EXTINF;
+		// break
+
+	case I_EXTINF:
+		if (NULL == ffarr_append(&m->buf, "#EXTINF:", FFSLEN("#EXTINF:")))
+			goto err;
+		m->state = I_DUR;
+		// break
+
+	case I_DUR:
+		if (0 == ffstr_catfmt(&m->buf, "%*s,", len, val))
+			goto err;
+		m->state = I_ARTIST;
+		break;
+
+	case I_ARTIST:
+		if (0 == ffstr_catfmt(&m->buf, "%*s - ", len, val))
+			goto err;
+		m->state = I_TITLE;
+		break;
+
+	case I_TITLE:
+		if (0 == ffstr_catfmt(&m->buf, "%*s%S", len, val, &m->crlf))
+			goto err;
+		m->state = I_NAME;
+		break;
+
+	case I_NAME:
+		if (0 == ffstr_catfmt(&m->buf, "%*s%S", len, val, &m->crlf))
+			goto err;
+		m->state = I_EXTINF;
+		break;
+	}
+
+	return 0;
+
+err:
+	return -1;
+}
