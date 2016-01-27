@@ -32,6 +32,10 @@ typedef struct ffpcmex {
 	unsigned ileaved :1;
 } ffpcmex;
 
+enum {
+	FFPCM_CHMASK = 0x0f,
+};
+
 /** Channels as string. */
 FF_EXTN const char* ffpcm_channelstr(uint channels);
 

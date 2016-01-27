@@ -3,6 +3,8 @@ Copyright (c) 2015 Simon Zolin
 */
 
 #include <FF/audio/pcm.h>
+#include <FF/string.h>
+#include <FFOS/mem.h>
 
 #include <math.h>
 
@@ -103,139 +105,36 @@ static FFINL short _ffpcm_flt_16le(float f)
 #endif
 }
 
+union pcmdata {
+	short *sh;
+	int *in;
+	float *f;
+	short **psh;
+	int **pin;
+	float **pf;
+};
+
 #define CASE(f1, il1, f2, il2) \
 	(f1 << 16) | (il1 << 31) | (f2 & 0xffff) | (il2 << 15)
 
-/*
-non-interleaved: data[0][..] - left,  data[1][..] - right
-interleaved: data[0,2..] - left */
-int ffpcm_convert(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm, const void *in, size_t samples)
+/* L,R -> L+R */
+static int _ffpcm_mono_mix(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm, const union pcmdata from, size_t samples)
 {
 	size_t i;
-	uint ich, j;
-	union {
-		short *sh;
-		int *in;
-		float *f;
-		short **psh;
-		int **pin;
-		float **pf;
-	} from, to;
-
-	from.sh = (void*)in;
+	uint ich;
+	union pcmdata to;
 	to.sh = out;
 
-	if (inpcm->channels != outpcm->channels
-		|| inpcm->sample_rate != outpcm->sample_rate)
-		return -1;
+	switch (CASE(inpcm->format, inpcm->ileaved, 0, 0)) {
 
-	switch (CASE(inpcm->format, inpcm->ileaved, outpcm->format, outpcm->ileaved)) {
-
-	case CASE(FFPCM_16LE, 0, FFPCM_16LE, 1):
-		for (ich = 0;  ich != inpcm->channels;  ich++) {
-			j = ich;
-			for (i = 0;  i != samples;  i++) {
-				to.sh[j] = from.psh[ich][i];
-				j += outpcm->channels;
+	case CASE(FFPCM_16LE, 1, 0, 0):
+		for (i = 0;  i != samples;  i++) {
+			int v = 0;
+			for (ich = 0;  ich != inpcm->channels;  ich++) {
+				v += from.sh[ich * i];
 			}
-		}
-		break;
 
-	case CASE(FFPCM_16LE, 1, FFPCM_16LE, 0):
-		for (ich = 0;  ich != inpcm->channels;  ich++) {
-			from.sh = (short*)in + ich;
-			for (i = 0;  i != samples;  i++) {
-				to.psh[ich][i] = *from.sh;
-				from.sh += inpcm->channels;
-			}
-		}
-		break;
-
-	case CASE(FFPCM_16LE, 0, FFPCM_16LE_32, 0):
-		for (ich = 0;  ich != inpcm->channels;  ich++) {
-			for (i = 0;  i != samples;  i++) {
-				to.pin[ich][i] = from.psh[ich][i];
-			}
-		}
-		break;
-
-	case CASE(FFPCM_16LE, 1, FFPCM_16LE_32, 0):
-		for (ich = 0;  ich != inpcm->channels;  ich++) {
-			from.sh = (short*)in + ich;
-			for (i = 0;  i != samples;  i++) {
-				to.pin[ich][i] = *from.sh;
-				from.sh += inpcm->channels;
-			}
-		}
-		break;
-
-	case CASE(FFPCM_16LE, 0, FFPCM_FLOAT, 0):
-		for (ich = 0;  ich != inpcm->channels;  ich++) {
-			for (i = 0;  i != samples;  i++) {
-				to.pf[ich][i] = _ffpcm_16le_flt(from.psh[ich][i]);
-			}
-		}
-		break;
-
-	case CASE(FFPCM_16LE, 1, FFPCM_FLOAT, 1):
-		for (ich = 0;  ich != inpcm->channels;  ich++) {
-			for (i = 0;  i != samples;  i++) {
-				*to.f++ = _ffpcm_16le_flt(*from.sh++);
-			}
-		}
-		break;
-
-	case CASE(FFPCM_16LE, 1, FFPCM_FLOAT, 0):
-		for (ich = 0;  ich != inpcm->channels;  ich++) {
-			from.sh = (short*)in + ich;
-			for (i = 0;  i != samples;  i++) {
-				to.pf[ich][i] = _ffpcm_16le_flt(*from.sh);
-				from.sh += inpcm->channels;
-			}
-		}
-		break;
-
-	case CASE(FFPCM_FLOAT, 1, FFPCM_16LE, 1):
-		for (ich = 0;  ich != inpcm->channels;  ich++) {
-			for (i = 0;  i != samples;  i++) {
-				*to.sh++ = _ffpcm_flt_16le(*from.f++);
-			}
-		}
-		break;
-
-	case CASE(FFPCM_FLOAT, 0, FFPCM_16LE, 1):
-		for (ich = 0;  ich != inpcm->channels;  ich++) {
-			j = ich;
-			for (i = 0;  i != samples;  i++) {
-				to.sh[j] = _ffpcm_flt_16le(from.pf[ich][i]);
-				j += outpcm->channels;
-			}
-		}
-		break;
-
-	case CASE(FFPCM_FLOAT, 0, FFPCM_16LE, 0):
-		for (ich = 0;  ich != inpcm->channels;  ich++) {
-			for (i = 0;  i != samples;  i++) {
-				to.psh[ich][i] = _ffpcm_flt_16le(from.pf[ich][i]);
-			}
-		}
-		break;
-
-	case CASE(FFPCM_FLOAT, 0, FFPCM_16LE_32, 0):
-		for (ich = 0;  ich != inpcm->channels;  ich++) {
-			for (i = 0;  i != samples;  i++) {
-				to.pin[ich][i] = _ffpcm_flt_16le(from.pf[ich][i]);
-			}
-		}
-		break;
-
-	case CASE(FFPCM_FLOAT, 0, FFPCM_FLOAT, 1):
-		for (ich = 0;  ich != inpcm->channels;  ich++) {
-			j = ich;
-			for (i = 0;  i != samples;  i++) {
-				to.f[j] = from.pf[ich][i];
-				j += outpcm->channels;
-			}
+			to.sh[i] = _pcm_lim_16le(v / inpcm->channels);
 		}
 		break;
 
@@ -244,6 +143,202 @@ int ffpcm_convert(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm, const 
 	}
 
 	return 0;
+}
+
+/* L,R -> L */
+static int _ffpcm_mono(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm, const union pcmdata from, size_t samples)
+{
+	size_t i;
+	uint ch = ((outpcm->channels & ~FFPCM_CHMASK) >> 4) - 1;
+	union pcmdata to;
+	to.sh = out;
+
+	switch (inpcm->format) {
+
+	case FFPCM_16LE:
+		for (i = 0;  i != samples;  i++) {
+			to.sh[i] = from.sh[ch + inpcm->channels * i];
+		}
+		break;
+
+	default:
+		return -1;
+	}
+	return 0;
+}
+
+/*
+non-interleaved: data[0][..] - left,  data[1][..] - right
+interleaved: data[0,2..] - left */
+int ffpcm_convert(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm, const void *in, size_t samples)
+{
+	size_t i;
+	uint ich, j, nch = inpcm->channels, in_ileaved = inpcm->ileaved;
+	union pcmdata from, to;
+	void *tmpptr = NULL;
+	int r = -1;
+
+	from.sh = (void*)in;
+	to.sh = out;
+
+	if (inpcm->sample_rate != outpcm->sample_rate)
+		goto done;
+
+	if (inpcm->channels != outpcm->channels) {
+
+		nch = outpcm->channels & FFPCM_CHMASK;
+
+		if (nch == 1) {
+			if ((outpcm->channels & ~FFPCM_CHMASK) == 0) {
+				if (NULL == (tmpptr = ffmem_alloc(samples * ffpcm_bits(inpcm->format)/8)))
+					goto done;
+
+				if (0 != _ffpcm_mono_mix(outpcm, tmpptr, inpcm, from, samples))
+					goto done;
+				from.psh = (short**)&tmpptr;
+
+			} else if (!inpcm->ileaved) {
+				uint ch = ((outpcm->channels & ~FFPCM_CHMASK) >> 4) - 1;
+				from.psh = from.psh + ch;
+
+			} else {
+				if (NULL == (tmpptr = ffmem_alloc(samples * ffpcm_bits(inpcm->format)/8))) // note: slows down performance by ~5%
+					goto done;
+
+				if (0 != _ffpcm_mono(outpcm, tmpptr, inpcm, from, samples))
+					goto done;
+				from.psh = (short**)&tmpptr;
+			}
+
+			in_ileaved = 0;
+
+		} else
+			goto done; // this channel conversion is not supported
+	}
+
+	switch (CASE(inpcm->format, in_ileaved, outpcm->format, outpcm->ileaved)) {
+
+	case CASE(FFPCM_16LE, 0, FFPCM_16LE, 1):
+		for (ich = 0;  ich != nch;  ich++) {
+			j = ich;
+			for (i = 0;  i != samples;  i++) {
+				to.sh[j] = from.psh[ich][i];
+				j += nch;
+			}
+		}
+		break;
+
+	case CASE(FFPCM_16LE, 1, FFPCM_16LE, 0):
+		for (ich = 0;  ich != nch;  ich++) {
+			for (i = 0;  i != samples;  i++) {
+				to.psh[ich][i] = from.sh[ich + nch * i];
+			}
+		}
+		break;
+
+	case CASE(FFPCM_16LE, 0, FFPCM_16LE_32, 0):
+		for (ich = 0;  ich != nch;  ich++) {
+			for (i = 0;  i != samples;  i++) {
+				to.pin[ich][i] = from.psh[ich][i];
+			}
+		}
+		break;
+
+	case CASE(FFPCM_16LE, 1, FFPCM_16LE_32, 0):
+		for (ich = 0;  ich != nch;  ich++) {
+			for (i = 0;  i != samples;  i++) {
+				to.pin[ich][i] = from.sh[ich + nch * i];
+			}
+		}
+		break;
+
+	case CASE(FFPCM_16LE, 0, FFPCM_FLOAT, 0):
+		for (ich = 0;  ich != nch;  ich++) {
+			for (i = 0;  i != samples;  i++) {
+				to.pf[ich][i] = _ffpcm_16le_flt(from.psh[ich][i]);
+			}
+		}
+		break;
+
+	case CASE(FFPCM_16LE, 1, FFPCM_FLOAT, 1):
+		for (ich = 0;  ich != nch;  ich++) {
+			for (i = 0;  i != samples;  i++) {
+				*to.f++ = _ffpcm_16le_flt(*from.sh++);
+			}
+		}
+		break;
+
+	case CASE(FFPCM_16LE, 1, FFPCM_FLOAT, 0):
+		for (ich = 0;  ich != nch;  ich++) {
+			for (i = 0;  i != samples;  i++) {
+				to.pf[ich][i] = _ffpcm_16le_flt(from.sh[ich + nch * i]);
+			}
+		}
+		break;
+
+	case CASE(FFPCM_FLOAT, 1, FFPCM_16LE, 1):
+		for (ich = 0;  ich != nch;  ich++) {
+			for (i = 0;  i != samples;  i++) {
+				*to.sh++ = _ffpcm_flt_16le(*from.f++);
+			}
+		}
+		break;
+
+	case CASE(FFPCM_FLOAT, 0, FFPCM_16LE, 1):
+		for (ich = 0;  ich != nch;  ich++) {
+			j = ich;
+			for (i = 0;  i != samples;  i++) {
+				to.sh[j] = _ffpcm_flt_16le(from.pf[ich][i]);
+				j += nch;
+			}
+		}
+		break;
+
+	case CASE(FFPCM_FLOAT, 0, FFPCM_16LE, 0):
+		for (ich = 0;  ich != nch;  ich++) {
+			for (i = 0;  i != samples;  i++) {
+				to.psh[ich][i] = _ffpcm_flt_16le(from.pf[ich][i]);
+			}
+		}
+		break;
+
+	case CASE(FFPCM_FLOAT, 0, FFPCM_16LE_32, 0):
+		for (ich = 0;  ich != nch;  ich++) {
+			for (i = 0;  i != samples;  i++) {
+				to.pin[ich][i] = _ffpcm_flt_16le(from.pf[ich][i]);
+			}
+		}
+		break;
+
+	case CASE(FFPCM_FLOAT, 0, FFPCM_FLOAT, 1):
+		for (ich = 0;  ich != nch;  ich++) {
+			j = ich;
+			for (i = 0;  i != samples;  i++) {
+				to.f[j] = from.pf[ich][i];
+				j += nch;
+			}
+		}
+		break;
+
+	default:
+		if (inpcm->format == outpcm->format && in_ileaved == outpcm->ileaved) {
+			if (in_ileaved == 1)
+				ffmemcpy(to.sh, from.sh, samples * ffpcm_size(inpcm->format, nch));
+			else {
+				for (ich = 0;  ich != nch;  ich++) {
+					ffmemcpy(to.psh[ich], from.psh[ich], samples * ffpcm_bits(inpcm->format)/8);
+				}
+			}
+			break;
+		}
+
+		goto done;
+	}
+	r = 0;
+
+done:
+	ffmem_safefree(tmpptr);
+	return r;
 }
 
 #undef CASE
