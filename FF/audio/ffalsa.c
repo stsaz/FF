@@ -209,12 +209,12 @@ int ffalsa_async(ffalsa_buf *snd, uint enable)
 	return 0;
 }
 
-ssize_t ffalsa_write(ffalsa_buf *snd, const void *data, size_t len)
+ssize_t ffalsa_write(ffalsa_buf *snd, const void *data, size_t len, size_t dataoff)
 {
 	const snd_pcm_channel_area_t *areas;
 	snd_pcm_uframes_t off, frames;
 	snd_pcm_sframes_t wr;
-	size_t inframes, inoff = snd->dataoff / snd->channels;
+	size_t inframes, inoff = dataoff / snd->channels;
 	int e;
 	uint i;
 	void **datani = (void**)data;

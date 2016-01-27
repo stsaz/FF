@@ -59,7 +59,6 @@ typedef struct ffalsa_buf {
 	uint bufsize;
 	uint width;
 	uint channels;
-	uint dataoff; //input data offset (in bytes)
 
 	uint callback :1
 		, callback_wait :1
@@ -85,7 +84,9 @@ static FFINL size_t ffalsa_filled(ffalsa_buf *snd)
 	return snd->bufsize - n * snd->frsize;
 }
 
-FF_EXTN ssize_t ffalsa_write(ffalsa_buf *snd, const void *data, size_t len);
+/**
+@dataoff: input data offset (in bytes). */
+FF_EXTN ssize_t ffalsa_write(ffalsa_buf *snd, const void *data, size_t len, size_t dataoff);
 
 /** Write silence into sound buffer.
 Return the number of bytes written. */
