@@ -21,6 +21,11 @@ static FFINL uint ffint_ltoh32(const void *p)
 	return *(uint*)p;
 }
 
+static FFINL uint64 ffint_ltoh64(const void *p)
+{
+	return *(uint64*)p;
+}
+
 static FFINL void ffint_htol16(void *dst, ushort i)
 {
 	*((ushort*)dst) = i;
@@ -29,6 +34,11 @@ static FFINL void ffint_htol16(void *dst, ushort i)
 static FFINL void ffint_htol32(void *dst, uint i)
 {
 	*((uint*)dst) = i;
+}
+
+static FFINL void ffint_htol64(void *dst, uint64 i)
+{
+	*((uint64*)dst) = i;
 }
 
 
