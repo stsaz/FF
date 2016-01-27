@@ -166,8 +166,17 @@ static int test_arrmem()
 
 	ffarr_rmswap(&ar, ar.ptr);
 	x(ar.len == 4 && ar.ptr[0] == 1000 && !memcmp(ar.ptr + 1, ints + 1, 3 * sizeof(int)));
-
 	ffarr_free(&ar);
+
+	x(NULL != ffarr_copy(&ar, ints, FFCNT(ints)));
+	_ffarr_rmleft((ffarr*)&ar, 2, sizeof(int));
+	x(ar.len == 3 && !memcmp(ar.ptr, ints + 2, 3 * sizeof(int)));
+	ffarr_free(&ar);
+
+	ffarr_set(&ar, (int*)ints, FFCNT(ints));
+	_ffarr_rmleft((ffarr*)&ar, 2, sizeof(int));
+	x(ar.len == 3 && ar.ptr == ints + 2);
+
 	return 0;
 }
 
@@ -550,7 +559,7 @@ static int test_xml(void)
 
 static int test_bstr(void)
 {
-	ffstr s = {0}, d;
+	ffstr s = {0}, d = {0};
 	ffbstr *bs;
 	size_t off;
 	FFTEST_FUNC;

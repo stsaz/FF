@@ -1010,10 +1010,8 @@ static FFINL void wnd_nfy(ffui_wnd *wnd, NMHDR *n)
 	uint id = 0;
 	union ffui_anyctl ctl;
 
-#ifdef _DEBUG
-	// fffile_fmt(ffstdout, NULL, "WM_NOTIFY:\th: %8xL,  code: %8xL\n"
-	// 	, (void*)n->hwndFrom, (size_t)n->code);
-#endif
+	FFDBG_PRINTLN(10, "WM_NOTIFY:\th: %8xL,  code: %8xL"
+		, (void*)n->hwndFrom, (size_t)n->code);
 
 	if (NULL == (ctl.ctl = ffui_getctl(n->hwndFrom)))
 		return;

@@ -1429,7 +1429,7 @@ void _ffarr_rmleft(ffarr *ar, size_t n, size_t elsz)
 	if (ar->cap == 0)
 		ar->ptr += n * elsz;
 	else
-		ffmemcpy(ar->ptr, ar->ptr + n * elsz, (ar->len - n) * elsz);
+		memmove(ar->ptr, ar->ptr + n * elsz, (ar->len - n) * elsz);
 	ar->len -= n;
 }
 

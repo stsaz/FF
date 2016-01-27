@@ -11,11 +11,12 @@ C = gcc
 LD = gcc
 O = -o
 O_LD = -o
+OPT := -O2
 
-override CFLAGS += -c -g -D_DEBUG -Werror -Wall -pthread \
+override CFLAGS += -c -g -D_DEBUG $(OPT) -Werror -Wall -pthread \
 	-I$(FF) -I$(FF)-3pt -I$(FFOS)
 
-override FF_CFLAGS += -g -D_DEBUG
+override FF_CFLAGS += -g -D_DEBUG $(OPT)
 
 override LDFLAGS += -pthread
 
