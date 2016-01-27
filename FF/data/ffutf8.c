@@ -4,6 +4,7 @@ Copyright (c) 2015 Simon Zolin
 
 #include <FF/data/utf8.h>
 #include <FF/string.h>
+#include <FF/number.h>
 
 
 int ffutf8_decode1(const char *utf8, size_t len, uint *val)
@@ -70,6 +71,19 @@ size_t ffutf8_len(const char *p, size_t len)
 	return nchars;
 }
 
+ffbool ffutf8_valid(const char *data, size_t len)
+{
+	int r;
+	uint val;
+	const char *end = data + len;
+	for (;  data != end;  data += r) {
+		r = ffutf8_decode1(data, end - data, &val);
+		if (r <= 0)
+			return 0;
+	}
+	return 1;
+}
+
 int ffutf_bom(const void *src, size_t *len)
 {
 	const byte *s = src;
@@ -101,43 +115,78 @@ int ffutf_bom(const void *src, size_t *len)
 	return -1;
 }
 
+uint ffutf8_size(uint uch)
+{
+	uint n;
+
+	if (uch < 0x80)
+		n = 1;
+	else if (uch < 0x0800)
+		n = 2;
+	else if (uch < 0x10000)
+		n = 3;
+	else if (uch < 0x200000)
+		n = 4;
+	else if (uch < 0x04000000)
+		n = 5;
+	else if (uch < 0x80000000)
+		n = 6;
+	else
+		n = 0;
+	return n;
+}
+
 enum {
 	U_REPL = 0xFFFD //utf-8: EF BF BD
 };
 
 uint ffutf8_encode1(char *dst, size_t cap, uint uch)
 {
-	size_t r;
-	uint n;
-	if (uch < 0x0080)
-		n = 1;
-	else if (uch < 0x0800)
-		n = 2;
-	else if (uch < 0x10000)
-		n = 3;
-	else
-		n = 4;
-
-	if (dst == NULL)
-		return n;
-
+	uint n = ffutf8_size(uch);
 	if (cap < n)
 		return 0;
 
-#ifdef FF_WIN
-	r = ff_wtou(dst, cap, (wchar_t*)&uch, 1, 0);
-	if (r == 0)
-		return 0;
+	switch (n) {
+	case 1:
+		*dst++ = uch;
+		break;
 
-#else
-	mbstate_t st;
-	ffmem_tzero(&st);
-	r = wcrtomb(dst, uch, &st);
-	if (r == 0 || r == (size_t)-1)
-		return 0;
-#endif
+	case 2:
+		*dst++ = 0xc0 | (uch >> 6);
+		*dst++ = 0x80 | ((uch >> 0) & ~0xc0);
+		break;
 
-	FF_ASSERT(r == n);
+	case 3:
+		*dst++ = 0xe0 | (uch >> 12);
+		*dst++ = 0x80 | ((uch >> 6) & ~0xc0);
+		*dst++ = 0x80 | ((uch >> 0) & ~0xc0);
+		break;
+
+	case 4:
+		*dst++ = 0xf0 | (uch >> 18);
+		*dst++ = 0x80 | ((uch >> 12) & ~0xc0);
+		*dst++ = 0x80 | ((uch >> 6) & ~0xc0);
+		*dst++ = 0x80 | ((uch >> 0) & ~0xc0);
+		break;
+
+	case 5:
+		*dst++ = 0xf8 | (uch >> 24);
+		*dst++ = 0x80 | ((uch >> 18) & ~0xc0);
+		*dst++ = 0x80 | ((uch >> 12) & ~0xc0);
+		*dst++ = 0x80 | ((uch >> 6) & ~0xc0);
+		*dst++ = 0x80 | ((uch >> 0) & ~0xc0);
+		break;
+
+	case 6:
+		*dst++ = 0xfc | (uch >> 30);
+		*dst++ = 0x80 | ((uch >> 24) & ~0xc0);
+		*dst++ = 0x80 | ((uch >> 18) & ~0xc0);
+		*dst++ = 0x80 | ((uch >> 12) & ~0xc0);
+		*dst++ = 0x80 | ((uch >> 6) & ~0xc0);
+		*dst++ = 0x80 | ((uch >> 0) & ~0xc0);
+		break;
+	}
+
 	return n;
 }
 
@@ -148,7 +197,7 @@ size_t ffutf8_from_utf16le(char *dst, size_t cap, const char *src, size_t *plen,
 
 	if (dst == NULL) {
 		for (i = 0;  i < len / 2;  i++) {
-			idst += ffutf8_encode1(NULL, 0, us[i]);
+			idst += ffutf8_size(ffint_ltoh16(us + i));
 		}
 		i *= 2;
 
@@ -190,7 +239,7 @@ size_t ffutf8_from_utf16be(char *dst, size_t cap, const char *src, size_t *plen,
 
 	if (dst == NULL) {
 		for (i = 0;  i < len / 2;  i++) {
-			idst += ffutf8_encode1(NULL, 0, ffhton16(us[i]));
+			idst += ffutf8_size(ffint_ntoh16(us + i));
 		}
 		i *= 2;
 
@@ -262,7 +311,7 @@ size_t ffutf8_from_ascii(char *dst, size_t cap, const char *src, size_t *plen, u
 	if (dst == NULL) {
 		for (i = 0;  i < len;  i++) {
 			if (src[i] & 0x80)
-				idst += ffutf8_encode1(NULL, 0, cod[(byte)src[i] & 0x7f]);
+				idst += ffutf8_size(cod[(byte)src[i] & 0x7f]);
 			else
 				idst++;
 		}
