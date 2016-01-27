@@ -441,7 +441,9 @@ int ffpcm_seek(struct ffpcm_seek *s)
 	else
 		newoff = (s->target - pt[0].sample) * size / samples; //sample-based search
 
-	uint avg_frsize = size / ffmax(samples / s->avg_fr_samples, 1); //average size per frame
+	uint avg_frsize = s->fr_size; //average size per frame
+	if (s->avg_fr_samples != 0)
+		avg_frsize = size / ffmax(samples / s->avg_fr_samples, 1);
 	if (newoff > avg_frsize)
 		newoff -= avg_frsize;
 	else
