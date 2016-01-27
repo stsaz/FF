@@ -7,6 +7,21 @@ Copyright (c) 2015 Simon Zolin
 #include <FF/number.h>
 
 
+static const char *const codestr[] = {
+	"utf8",
+	"utf16le",
+	"utf16be",
+
+	"win1251",
+	"win1252",
+};
+
+int ffu_coding(const char *data, size_t len)
+{
+	return ffszarr_ifindsorted(codestr, FFCNT(codestr), data, len);
+}
+
+
 int ffutf8_decode1(const char *utf8, size_t len, uint *val)
 {
 	uint i, n, r, d = (byte)utf8[0];

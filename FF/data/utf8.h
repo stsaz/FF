@@ -47,6 +47,10 @@ enum FFU_CODING {
 	, FFU_WIN1252 //Western
 };
 
+/**
+Return enum FFU_CODING;  -1 on error. */
+FF_EXTN int ffu_coding(const char *data, size_t len);
+
 enum FFU_FLAGS {
 	FFU_FWHOLE = 1 << 31 //incomplete sequence will be replaced with a special character
 };
