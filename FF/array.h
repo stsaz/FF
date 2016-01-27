@@ -139,6 +139,14 @@ static FFINL void * _ffarr_copy(ffarr *ar, const void *src, size_t num, size_t e
 #define ffarr_copy(ar, src, num) \
 	_ffarr_copy((ffarr*)ar, src, num, sizeof(*(ar)->ptr))
 
+#define _ffarr_swap(p1, p2, n, elsize) \
+do { \
+	char tmp[n * elsize]; \
+	ffmemcpy(tmp, p1, n * elsize); \
+	memmove(p1, p2, n * elsize); \
+	ffmemcpy(p2, tmp, n * elsize); \
+} while (0)
+
 /** Remove elements from the left.
 Allocated buffer: move next elements to the left. */
 FF_EXTN void _ffarr_rmleft(ffarr *ar, size_t n, size_t elsz);
