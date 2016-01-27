@@ -433,13 +433,13 @@ int ffwvpk_decode(ffwvpack *w)
 			w->err = FFWVPK_EDECODE;
 			return FFWVPK_RERR;
 		}
+		w->buf.len = 0;
 
 		if (FFWVPK_RDONE != wvpk_hdr(w))
 			return FFWVPK_RERR;
 		w->hdr_done = 1;
 
 		if (w->total_size != 0) {
-			w->lastoff = w->off;
 			w->state = I_TAGSEEK;
 		} else
 			w->state = I_HDRFIN;
@@ -450,7 +450,7 @@ int ffwvpk_decode(ffwvpack *w)
 			w->seektab[1].sample = w->info.total_samples;
 			w->seektab[1].off = w->total_size;
 		}
-		w->state = I_DATA;
+		w->state = I_BLOCKHDR;
 		return FFWVPK_RHDRFIN;
 
 
@@ -494,7 +494,7 @@ int ffwvpk_decode(ffwvpack *w)
 		continue;
 
 	case I_TAGSFIN:
-		w->off = w->lastoff;
+		w->off = 0;
 		w->state = I_HDRFIN;
 		return FFWVPK_RSEEK;
 

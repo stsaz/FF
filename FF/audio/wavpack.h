@@ -55,7 +55,6 @@ typedef struct ffwvpack {
 		, off;
 	uint64 seek_sample;
 
-	uint lastoff;
 	ffid31ex id31tag;
 	ffapetag apetag;
 
