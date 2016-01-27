@@ -1349,6 +1349,9 @@ void * _ffarr_realloc(ffarr *ar, size_t newlen, size_t elsz)
 	if (d == NULL)
 		return NULL;
 
+	if (ar->cap == 0 && ar->len != 0)
+		ffmemcpy(d, ar->ptr, ffmin(ar->len, newlen));
+
 	ar->ptr = d;
 	ar->cap = newlen;
 	ar->len = ffmin(ar->len, newlen);
