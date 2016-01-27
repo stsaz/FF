@@ -601,6 +601,7 @@ void ffflac_seek(ffflac *f, uint64 sample)
 		return;
 	f->seekpt[0] = f->sktab.ptr[i];
 	f->seekpt[1] = f->sktab.ptr[i + 1];
+	f->skoff = 0;
 	f->seeksample = sample;
 	f->st = I_SEEK;
 }
@@ -692,14 +693,13 @@ static int _ffflac_seek(ffflac *f)
 	int r;
 	struct ffpcm_seek sk;
 
-	sk.lastoff = f->off - f->framesoff;
-
 	r = _ffflac_findhdr(f, &f->frame);
 	if (r != 0 && !(r == FFFLAC_RWARN && f->errtype == FLAC_ESYNC))
 		return r;
 
 	sk.target = f->seeksample;
 	sk.off = f->off - f->framesoff - (f->buf.len - f->bufoff);
+	sk.lastoff = f->skoff;
 	sk.pt = f->seekpt;
 	sk.fr_index = f->frame.num * f->frame.samples;
 	sk.fr_samples = f->frame.samples;
@@ -709,6 +709,7 @@ static int _ffflac_seek(ffflac *f)
 
 	r = ffpcm_seek(&sk);
 	if (r == 1) {
+		f->skoff = sk.off;
 		f->off = f->framesoff + sk.off;
 		f->datalen = 0;
 		f->buf.len = 0;

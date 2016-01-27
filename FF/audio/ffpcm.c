@@ -448,7 +448,7 @@ int ffpcm_seek(struct ffpcm_seek *s)
 		newoff = 0;
 
 	newoff += pt[0].off;
-	if (newoff == s->off)
+	if (newoff == s->lastoff)
 		return -1;
 	s->off = newoff;
 	return 1;

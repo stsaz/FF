@@ -71,6 +71,7 @@ typedef struct ffflac {
 
 	_ffflac_seektab sktab;
 	ffpcm_seekpt seekpt[2];
+	uint64 skoff;
 
 	size_t datalen;
 	const char *data;

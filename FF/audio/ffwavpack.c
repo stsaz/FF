@@ -182,6 +182,7 @@ void ffwvpk_seek(ffwvpack *w, uint64 sample)
 	w->seek_sample = sample;
 	w->state = I_SEEK;
 	w->buf.len = 0;
+	w->skoff = 0;
 
 	ffmemcpy(w->seekpt, w->seektab, sizeof(w->seekpt));
 }
@@ -341,14 +342,13 @@ static FFINL int wvpk_seek(ffwvpack *w)
 	struct wvpk_hdr hdr;
 	struct ffpcm_seek sk;
 
-	sk.lastoff = w->off;
-
 	int r = _ffwvpk_gethdr(w, &hdr);
 	if (r != 0 && (r != FFWVPK_RWARN || w->err != FFWVPK_ESYNC))
 		return r;
 
 	sk.target = w->seek_sample;
 	sk.off = w->off - w->buf.len;
+	sk.lastoff = w->skoff;
 	sk.pt = w->seekpt;
 	sk.fr_index = hdr.index;
 	sk.fr_samples = hdr.samples;
@@ -358,7 +358,7 @@ static FFINL int wvpk_seek(ffwvpack *w)
 
 	r = ffpcm_seek(&sk);
 	if (r == 1) {
-		w->off = sk.off;
+		w->off = w->skoff = sk.off;
 		w->buf.len = 0;
 		return FFWVPK_RSEEK;
 

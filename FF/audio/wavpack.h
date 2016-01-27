@@ -77,6 +77,7 @@ typedef struct ffwvpack {
 
 	ffpcm_seekpt seektab[2];
 	ffpcm_seekpt seekpt[2];
+	uint64 skoff;
 
 	uint options; //enum FFWVPK_O
 	uint fin :1
