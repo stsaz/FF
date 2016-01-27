@@ -23,13 +23,12 @@ static int hdlQuote(ffparser *p, int *st, int *nextst, const char *data)
 	switch (*data) {
 	case '"':
 		if (*nextst == iKey) {
-			p->type = FFCONF_TKEY;
 			*st = iKeySplit;
-			r = FFPARS_KEY;
 			break;
 
-		} else if (p->type < FFCONF_TVALNEXT)
-			p->type++; //FFCONF_TVAL, FFCONF_TVALNEXT, ...
+		} else
+			p->type = (p->type == FFCONF_TVAL || p->type == FFCONF_TVALNEXT)
+				? FFCONF_TVALNEXT : FFCONF_TVAL; //FFCONF_TVAL, FFCONF_TVALNEXT, ...
 
 		*st = iValSplit;
 		r = FFPARS_VAL;
@@ -188,7 +187,7 @@ int ffconf_parse(ffparser *p, const char *data, size_t *len)
 
 		case iKeyBare:
 			if (ch == '.') {
-				p->type = FFCONF_TKEY;
+				p->type = FFCONF_TKEYCTX;
 				r = FFPARS_KEY;
 				st = iKeyFirst;
 				break;
@@ -201,8 +200,9 @@ int ffconf_parse(ffparser *p, const char *data, size_t *len)
 			else {
 				if (st == iKeyBare)
 					p->type = FFCONF_TKEY;
-				else if (p->type < FFCONF_TVALNEXT)
-					p->type++; //FFCONF_TVAL, FFCONF_TVALNEXT, ...
+				else
+					p->type = (p->type == FFCONF_TVAL || p->type == FFCONF_TVALNEXT)
+						? FFCONF_TVALNEXT : FFCONF_TVAL; //FFCONF_TVAL, FFCONF_TVALNEXT, ...
 
 				r = (st == iKeyBare ? FFPARS_KEY : FFPARS_VAL);
 				st = iValSplit;
@@ -229,11 +229,17 @@ int ffconf_parse(ffparser *p, const char *data, size_t *len)
 			break;
 
 		case iKeySplit:
+			r = FFPARS_KEY;
 			if (ch == '.') {
+				p->type = FFCONF_TKEYCTX;
 				st = iKeyFirst;
 				break;
 			}
-			// break
+			data--;
+			p->ch--;
+			p->type = FFCONF_TKEY;
+			st = iValSplit;
+			break;
 
 		case iValSplit:
 			ffpars_cleardata(p);

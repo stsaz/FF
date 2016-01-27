@@ -24,6 +24,7 @@ key1.key2 "value"
 enum FFCONF_T {
 	FFCONF_TOBJ
 	, FFCONF_TKEY
+	, FFCONF_TKEYCTX // "KEY1.key2 val"
 	, FFCONF_TVAL
 	, FFCONF_TVALNEXT //"key val1 VAL2..."
 };
