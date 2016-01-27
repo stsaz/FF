@@ -13,6 +13,8 @@ ver <= 3.97: HDR  [WAV_HDR]  SEEK_TBL
 #include <FF/audio/id3.h>
 #include <FF/audio/pcm.h>
 
+#include <MAC.h>
+
 
 enum FFAPE_R {
 	FFAPE_RDATA,
@@ -34,11 +36,13 @@ enum FFAPE_O {
 typedef struct ffape_info {
 	ffpcm fmt;
 	ushort version;
+	ushort comp_level_orig;
 	byte comp_level;
 	uint seekpoints;
 	uint frame_blocks;
 	uint64 total_samples;
 	byte md5[16];
+	uint wavhdr_size;
 } ffape_info;
 
 typedef struct ffape {
@@ -47,11 +51,23 @@ typedef struct ffape {
 	uint64 off;
 	uint64 froff;
 	uint options; // enum FFAPE_O
+
+	ffarr buf;
 	const char *data;
 	size_t datalen;
-	// short *pcm;
+
+	struct ape_decoder *ap;
+	void *pcmdata;
+	void *pcm;
 	size_t pcmlen;
+	uint64 cursample;
+
+	uint64 seeksample;
+	uint *seektab;
+	uint nseekpts;
+
 	uint fin :1
+		, seekdone :1
 		, is_apetag :1;
 
 	union {
@@ -60,7 +76,7 @@ typedef struct ffape {
 	};
 
 	uint state;
-	uint err;
+	int err;
 } ffape;
 
 FF_EXTN const char ffape_comp_levelstr[][8];
@@ -77,8 +93,8 @@ FF_EXTN int ffape_decode(ffape *a);
 #define ffape_bitrate(a) \
 	ffpcm_brate((a)->total_size - (a)->froff, (a)->info.total_samples, (a)->info.fmt.sample_rate)
 
-#define ffape_seek(a, sample)
+FF_EXTN void ffape_seek(ffape *a, uint64 sample);
 
 #define ffape_totalsamples(a)  ((a)->info.total_samples)
 
-#define ffape_cursample(a)  (0)
+#define ffape_cursample(a)  ((a)->cursample)
