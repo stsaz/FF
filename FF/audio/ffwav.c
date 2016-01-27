@@ -111,7 +111,7 @@ Return enum WAV_T. */
 static int _ffwav_parse(ffwav *w)
 {
 	int r = 0;
-	size_t len2 = w->datalen;
+	size_t len2 = w->datalen, size;
 	union {
 		const struct _ffwav_ukn *ukn;
 		const ffwav_riff *wr;
@@ -122,8 +122,9 @@ static int _ffwav_parse(ffwav *w)
 
 	u.wr = (ffwav_riff*)w->data;
 
-	if (w->datalen < 4)
+	if (w->datalen < sizeof(struct _ffwav_ukn))
 		return WAV_TMORE;
+	size = sizeof(struct _ffwav_ukn) + u.ukn->size;
 
 	switch (((char*)w->data)[0]) {
 
@@ -146,7 +147,9 @@ static int _ffwav_parse(ffwav *w)
 			break;
 
 		r = WAV_TFMT;
-		if (w->datalen < sizeof(ffwav_fmt))
+		if (size < sizeof(ffwav_fmt))
+			break; // too small chunk
+		if (w->datalen < size)
 			return r | WAV_TMORE;
 
 		if (u.wf->format == 0 || u.wf->channels == 0 || u.wf->sample_rate == 0 || u.wf->bit_depth == 0)
@@ -157,39 +160,30 @@ static int _ffwav_parse(ffwav *w)
 
 			if (w->datalen < sizeof(ffwav_ext))
 				return r | WAV_TMORE;
-
-			if (u.wf->size == 40 && u.we->size == 22) {
-				w->datalen -= sizeof(ffwav_ext);
-				goto done;
-			}
-
-		} else if (u.wf->size == 16) {
-			w->datalen -= sizeof(ffwav_fmt);
-			goto done;
 		}
-		break;
+
+		w->datalen -= size;
+		goto done;
 
 	case 'd':
 		if (ffs_cmp(u.wd->data, ffwav_pcmhdr.wd.data, 4))
 			break;
 
 		r = WAV_TDATA;
-		if (w->datalen < sizeof(ffwav_data))
-			return r | WAV_TMORE;
-
 		w->datalen -= sizeof(ffwav_data);
 		goto done;
 	}
 
 	w->err = WAV_EUKN;
-	if (w->datalen < sizeof(struct _ffwav_ukn) + u.ukn->size)
+	if (w->datalen < size)
 		return WAV_TMORE;
-	w->data += sizeof(struct _ffwav_ukn) + u.ukn->size;
-	w->datalen -= sizeof(struct _ffwav_ukn) + u.ukn->size;
-
-	return r | WAV_TERR;
+	w->datalen -= size;
+	r |= WAV_TERR;
 
 done:
+	FFDBG_PRINTLN(2, "chunk \"%4s\", size:%L\n"
+		, u.ukn->id, size);
+
 	w->data += len2 - w->datalen;
 	return r;
 }
