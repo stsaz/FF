@@ -102,11 +102,11 @@ static const ffpars_arg obj_schem[] = {
 	, { "enum", FFPARS_TENUM | FFPARS_F8BIT, FFPARS_DST(&enumConf) }
 	, { "obj", FFPARS_TOBJ | FFPARS_FNULL | FFPARS_FMULTI, FFPARS_DST(&newObj) }
 	, { "arr", FFPARS_TARR, FFPARS_DST(&newArr) }
-	, { "*", FFPARS_TSTR, FFPARS_DST(&any) }
 
 	, { "list", FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&arrItem) }
 	, { "obj1", FFPARS_TOBJ | FFPARS_FOBJ1, FFPARS_DST(&newObj1) }
 
+	, { "*", FFPARS_TSTR, FFPARS_DST(&any) }
 	, { NULL, FFPARS_TCLOSE, FFPARS_DST(&objClose) }
 };
 

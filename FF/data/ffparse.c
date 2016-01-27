@@ -145,6 +145,60 @@ int ffpars_savedata(ffparser *p)
 }
 
 
+const ffpars_arg* ffpars_ctx_findarg(ffpars_ctx *ctx, const char *name, size_t len, uint flags)
+{
+	const ffpars_arg *a = NULL;
+	uint i, nargs = ctx->nargs;
+
+	FF_ASSERT(ctx->nargs != 0);
+
+	if ((ctx->args[nargs - 1].flags & FFPARS_FTYPEMASK) == FFPARS_TCLOSE)
+		nargs--;
+
+	if (flags & FFPARS_CTX_FKEYICASE) {
+		for (i = 0;  i != nargs;  i++) {
+			if (0 == ffs_icmpz(name, len, ctx->args[i].name)) {
+				a = &ctx->args[i];
+				break;
+			}
+		}
+
+	} else {
+		for (i = 0;  i != nargs;  i++) {
+			if (0 == ffs_cmpz(name, len, ctx->args[i].name)) {
+				a = &ctx->args[i];
+				break;
+			}
+		}
+	}
+
+	if (a != NULL && !ffsz_cmp(a->name, "*"))
+		a = NULL; // "*" is a reserved name
+
+	uint first = (ctx->args[0].name[0] == '\0'); //skip "" argument
+	if (a == NULL && (flags & FFPARS_CTX_FANY) && nargs != first) {
+
+		a = &ctx->args[first];
+		if (a->name[0] == '*' && a->name[1] == '\0')
+			goto done;
+
+		a = &ctx->args[nargs - 1];
+		if (a->name[0] == '*' && a->name[1] == '\0')
+			goto done;
+
+		a = NULL; // "*" must be either first or last
+
+	} else if (a != NULL && (flags & FFPARS_CTX_FDUP) && i < sizeof(ctx->used)*8
+		&& ffbit_setarr(ctx->used, i) && !(a->flags & FFPARS_FMULTI))
+		return (void*)-1;
+
+done:
+	FFDBG_PRINTLN(10, "\"%*s\" (%u/%u), object:%p"
+		, len, name, (a != NULL) ? (int)(a - ctx->args) : 0, ctx->nargs, ctx->obj);
+	return a;
+}
+
+
 static int scHdlKey(ffparser_schem *ps, ffpars_ctx *ctx);
 static int scHdlEnum(ffparser_schem *ps, void *obj);
 static void scHdlBits(size_t f, int64 i, union ffpars_val dst);
@@ -153,90 +207,27 @@ static int scHdlVal(ffparser_schem *ps, ffpars_ctx *ctx);
 static int scOpenBrace(ffparser_schem *ps);
 static int scCloseBrace(ffparser_schem *ps);
 
-static int _ffpars_schem_onval_def(ffparser_schem *ps, void *obj, void *dst)
-{
-	return FFPARS_OK;
-}
-
 void ffpars_scheminit(ffparser_schem *ps, ffparser *p, const ffpars_arg *top)
 {
 	ffmem_tzero(ps);
 	ps->p = p;
 	ps->curarg = top;
-	ps->onval = &_ffpars_schem_onval_def;
 }
 
 // search key name in the current context
 static int scHdlKey(ffparser_schem *ps, ffpars_ctx *ctx)
 {
-	int er;
-	uint i;
+	uint f = 0;
 
+	if (ps->flags & FFPARS_KEYICASE)
+		f |= FFPARS_CTX_FKEYICASE;
 	ps->curarg = NULL;
-	er = ps->onval(ps, ctx->obj, NULL);
-
-	if (er > 0)
-		return er;
-
-	else if (er == FFPARS_OK) {
-		ssize_t (*cmpz)(const char *s1, size_t len, const char *sz2);
-		cmpz = (ps->flags & FFPARS_KEYICASE) ? &ffs_icmpz : &ffs_cmpz;
-
-		for (i = 0;  i < ctx->nargs;  i++) {
-			if (ctx->args[i].name != NULL
-				&& 0 == cmpz(ps->p->val.ptr, ps->p->val.len, ctx->args[i].name)) {
-				ps->curarg = &ctx->args[i];
-				break;
-			}
-		}
-
-	} else
-		i = (uint)(ps->curarg - ctx->args);
-
-	if (ps->curarg == NULL) {
-
-		for (i = 0;  i < ctx->nargs;  i++) {
-			const ffpars_arg *a = &ctx->args[i];
-			if (a->name != NULL
-				&& a->name[0] == '*'
-				&& a->name[1] == '\0')
-				break;
-		}
-
-		if (i == ctx->nargs) {
-			return FFPARS_EUKNKEY;
-		}
-
-		ps->curarg = &ctx->args[i];
-
-		if (FFPARS_TOBJ == (ps->curarg->flags & FFPARS_FTYPEMASK)) {
-			ps->p->ret = FFPARS_VAL;
-
-			er = ps->onval(ps, ctx->obj, NULL);
-			if (er > 0)
-				return er;
-
-			return scOpenBrace(ps);
-		}
-
-		return scHdlVal(ps, ctx);
-	}
-
-	if (i < sizeof(ctx->used)*8
-		&& ffbit_setarr(ctx->used, i) && !(ps->curarg->flags & FFPARS_FMULTI))
+	const ffpars_arg *arg = ffpars_ctx_findarg(ctx, ps->p->val.ptr, ps->p->val.len, FFPARS_CTX_FDUP | f);
+	if (arg == NULL)
+		return FFPARS_EUKNKEY;
+	else if (arg == (void*)-1)
 		return FFPARS_EDUPKEY;
-
-	if (ps->curarg->flags & FFPARS_FALONE) {
-		ps->p->intval = 1;
-		ps->p->ret = FFPARS_VAL;
-		return scHdlVal(ps, ctx);
-
-	} else {
-		int t = ps->curarg->flags & FFPARS_FTYPEMASK;
-		if (t != FFPARS_TOBJ && t != FFPARS_TARR)
-			ps->flags |= FFPARS_SCHAVKEY;
-	}
-
+	ps->curarg = arg;
 	return 0;
 }
 
@@ -523,6 +514,28 @@ void ffpars_ctx_skip(ffpars_ctx *ctx)
 	ffpars_setargs(ctx, NULL, empty_args, FFCNT(empty_args));
 }
 
+int ffpars_skipctx(ffparser_schem *ps)
+{
+	if (ps->ctxs.len != 0 && ffarr_back(&ps->ctxs).args == empty_args) {
+		ffpars_ctx *ctx;
+
+		switch (ps->p->ret) {
+		case FFPARS_OPEN:
+			ctx = ffarr_push(&ps->ctxs, ffpars_ctx);
+			if (ctx == NULL)
+				return FFPARS_ESYS;
+			ffpars_ctx_skip(ctx);
+			break;
+
+		case FFPARS_CLOSE:
+			ps->ctxs.len--;
+			break;
+		}
+		return ps->p->ret;
+	}
+	return 0;
+}
+
 int ffpars_schemrun(ffparser_schem *ps, int e)
 {
 	int rc = 0;
@@ -530,53 +543,10 @@ int ffpars_schemrun(ffparser_schem *ps, int e)
 	if (e >= 0)
 		return e;
 
-	if (ps->ctxs.len != 0 && ffarr_back(&ps->ctxs).args == empty_args) {
-		ffpars_ctx *ctx;
-
-		switch (e) {
-		case FFPARS_OPEN:
-			ctx = ffarr_push(&ps->ctxs, ffpars_ctx);
-			if (ctx == NULL)
-				return FFPARS_ESYS;
-			*ctx = ps->ctxs.ptr[ps->ctxs.len - 2];
-			break;
-
-		case FFPARS_CLOSE:
-			ps->ctxs.len--;
-			break;
-		}
-		return e;
-	}
-
-	if (ps->flags & FFPARS_SCHAVKEY) {
-		if (e != FFPARS_VAL)
-			return FFPARS_EVALEMPTY; //key without a value
-
-		ps->flags &= ~FFPARS_SCHAVKEY;
-
-	} else if (ps->flags & FFPARS_SCCTX) {
-		if (e != FFPARS_OPEN)
-			return FFPARS_EVALEMPTY; //context open expected
-
-		ps->flags &= ~FFPARS_SCCTX;
-	}
-
-	if (e != FFPARS_KEY && ps->ctxs.len != 0) {
-		rc = ps->onval(ps, ffarr_back(&ps->ctxs).obj, NULL);
-		if (ffpars_iserr(rc))
-			return rc;
-		else if (rc == FFPARS_DONE)
-			return 0;
-	}
-
 	switch (e) {
 	case FFPARS_KEY:
 		if (ps->ctxs.len == 0)
 			return FFPARS_ECONF;
-
-#ifdef FFDBG_PARSE
-		ffdbg_print(0, "%s(): processing key '%S'\n", FF_FUNC, &ps->p->val);
-#endif
 
 		rc = scHdlKey(ps, &ffarr_back(&ps->ctxs));
 		break;

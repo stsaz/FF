@@ -36,6 +36,4 @@ FF_EXTN int ffpsarg_scheminit(ffparser_schem *ps, ffparser *p, const ffpars_ctx 
 Return 0 on success. */
 FF_EXTN int ffpsarg_schemfin(ffparser_schem *ps);
 
-/** Value handler callback.
-Search a short option within context. */
-FF_EXTN int ffpsarg_schemval(ffparser_schem *ps, void *obj, void *dst);
+FF_EXTN int ffpsarg_schemrun(ffparser_schem *ps);

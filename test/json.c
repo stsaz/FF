@@ -170,7 +170,7 @@ int test_json_schem(const char *testJsonFile)
 	while (js != jsend) {
 		len = jsend - js;
 		rc = ffjson_parse(ps.p, js, &len);
-		rc = ffpars_schemrun(&ps, rc);
+		rc = ffjson_schemrun(&ps);
 		if (!x(rc <= 0)) {
 			printf("error (%d) %s\n", rc, ffpars_errstr(rc));
 			break;

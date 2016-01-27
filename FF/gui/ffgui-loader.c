@@ -1397,7 +1397,7 @@ int ffui_ldr_loadfile(ffui_loader *g, const char *fn)
 			n = s.len;
 			r = ffconf_parse(&p, s.ptr, &n);
 			ffstr_shift(&s, n);
-			r = ffpars_schemrun(&ps, r);
+			r = ffconf_schemrun(&ps);
 
 			if (ffpars_iserr(r))
 				goto done;
@@ -1506,7 +1506,8 @@ void ffui_ldr_loadconf(ffui_loader *g, const char *fn)
 				n = val.len;
 				int r = ffconf_parse(&p, val.ptr, &n);
 				ffstr_shift(&val, n);
-				r = ffpars_schemrun(&ps, r);
+				r = ffconf_schemrun(&ps);
+				(void)r;
 			}
 
 			ffconf_schemfin(&ps);

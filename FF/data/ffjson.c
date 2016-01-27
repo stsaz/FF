@@ -504,27 +504,13 @@ static const byte parsTypes[] = {
 };
 
 /*
+. Check types.
+. Handle "null" type.
 . If the context is array, find a handler for a data type */
-int ffjson_schemval(ffparser_schem *ps, void *obj, void *dst)
+static int ffjson_schemval(ffparser_schem *ps, void *obj, void *dst)
 {
 	int t;
 	uint pt = ps->p->type;
-
-	if (ps->p->ret == FFPARS_KEY)
-		return FFPARS_OK;
-
-	else if (ps->p->ret == FFPARS_OPEN) {
-		if (ps->p->ctxs.len >= 2 && ffarr_back(&ps->p->ctxs) == FFJSON_TARR) {
-
-			ps->curarg = _ffjson_schem_argfind(&ffarr_back(&ps->ctxs), ps->p->type);
-			if (ps->curarg == NULL)
-				return FFPARS_EARRTYPE;
-		}
-
-		return FFPARS_OK;
-
-	} else if (ps->p->ret != FFPARS_VAL)
-		return FFPARS_OK;
 
 	if (ffarr_back(&ps->p->ctxs) == FFJSON_TARR) {
 		ps->curarg = _ffjson_schem_argfind(&ffarr_back(&ps->ctxs), ps->p->type);
@@ -542,7 +528,7 @@ int ffjson_schemval(ffparser_schem *ps, void *obj, void *dst)
 				return er;
 		}
 
-		return FFPARS_DONE;
+		return -1;
 	}
 
 	t = ps->curarg->flags & FFPARS_FTYPEMASK;
@@ -550,7 +536,7 @@ int ffjson_schemval(ffparser_schem *ps, void *obj, void *dst)
 		&& !(t == FFPARS_TSIZE && pt == FFJSON_TSTR))
 		return FFPARS_EVALTYPE;
 
-	return FFPARS_OK;
+	return 0;
 }
 
 int ffjson_schemfin(ffparser_schem *ps)
@@ -560,6 +546,61 @@ int ffjson_schemfin(ffparser_schem *ps)
 	if (ps->p->line == 1 && ps->p->ch == 0)
 		return FFPARS_ENOVAL;
 	return 0;
+}
+
+int ffjson_schemrun(ffparser_schem *ps)
+{
+	const ffpars_arg *arg;
+	ffpars_ctx *ctx = &ffarr_back(&ps->ctxs);
+	const ffstr *val = &ps->p->val;
+	uint f;
+	int r;
+
+	if (ps->p->ret >= 0)
+		return ps->p->ret;
+
+	if (0 != (r = ffpars_skipctx(ps)))
+		return r;
+
+	switch (ps->p->ret) {
+	case FFPARS_KEY:
+		f = 0;
+		if (ps->flags & FFPARS_KEYICASE)
+			f |= FFPARS_CTX_FKEYICASE;
+		arg = ffpars_ctx_findarg(ctx, val->ptr, val->len, FFPARS_CTX_FANY | FFPARS_CTX_FDUP | f);
+		if (arg == NULL)
+			return FFPARS_EUKNKEY;
+		else if (arg == (void*)-1)
+			return FFPARS_EDUPKEY;
+		ps->curarg = arg;
+
+		if (!ffsz_cmp(arg->name, "*")) {
+			ps->p->ret = FFPARS_VAL;
+			break;
+		}
+
+		return FFPARS_KEY;
+
+	case FFPARS_OPEN:
+		if (ps->p->ctxs.len >= 2 && ffarr_back(&ps->p->ctxs) == FFJSON_TARR) {
+
+			ps->curarg = _ffjson_schem_argfind(&ffarr_back(&ps->ctxs), ps->p->type);
+			if (ps->curarg == NULL)
+				return FFPARS_EARRTYPE;
+		}
+		break;
+
+	case FFPARS_VAL:
+		r = ffjson_schemval(ps, ctx->obj, NULL);
+		if (ffpars_iserr(r))
+			return r;
+		if (r != 0)
+			return FFPARS_VAL;
+		break;
+	}
+
+	r = ffpars_schemrun(ps, ps->p->ret);
+	return r;
 }
 
 

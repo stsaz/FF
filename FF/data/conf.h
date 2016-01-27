@@ -46,7 +46,4 @@ FF_EXTN int ffconf_scheminit(ffparser_schem *ps, ffparser *p, const ffpars_ctx *
 Return 0 on success. */
 FF_EXTN int ffconf_schemfin(ffparser_schem *ps);
 
-/** Value handler callback. */
-FF_EXTN int ffconf_schemval(ffparser_schem *ps, void *obj, void *dst);
-
 FF_EXTN int ffconf_schemrun(ffparser_schem *ps);

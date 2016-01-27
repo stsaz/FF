@@ -46,19 +46,15 @@ Return enum FFPARS_E. */
 FF_EXTN int ffjson_validate(ffparser *json, const char *data, size_t len);
 
 
-/** Callback function for a parser with a scheme.
-Check types.
-Handle "null" type. */
-FF_EXTN int ffjson_schemval(ffparser_schem *ps, void *obj, void *dst);
-
 /** Initialize parser and scheme. */
 static FFINL void ffjson_scheminit(ffparser_schem *ps, ffparser *p, const ffpars_arg *top) {
 	ffjson_parseinit(p);
 	ffpars_scheminit(ps, p, top);
-	ps->onval = &ffjson_schemval;
 }
 
 FF_EXTN int ffjson_schemfin(ffparser_schem *ps);
+
+FF_EXTN int ffjson_schemrun(ffparser_schem *ps);
 
 
 typedef struct ffjson_cook {

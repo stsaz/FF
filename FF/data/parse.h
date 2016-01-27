@@ -233,12 +233,18 @@ static FFINL void ffpars_setargs(ffpars_ctx *ctx, void *o, const ffpars_arg *arg
 	ctx->nargs = nargs;
 }
 
-FF_EXTN void ffpars_ctx_skip(ffpars_ctx *ctx);
-
-enum FFPARS_RETHDL {
-	FFPARS_OK = 0
-	, FFPARS_DONE = -1
+enum FFPARS_CTX_FIND {
+	FFPARS_CTX_FANY = 1, // resolve "*" special argument
+	FFPARS_CTX_FDUP = 2, // return (void*)-1 if argument was already used
+	FFPARS_CTX_FKEYICASE = 4, // case-insensitive names
 };
+
+/** Search for an argument in context.
+@flags: enum FFPARS_CTX_FIND.
+Return NULL if not found. */
+FF_EXTN const ffpars_arg* ffpars_ctx_findarg(ffpars_ctx *ctx, const char *name, size_t len, uint flags);
+
+FF_EXTN void ffpars_ctx_skip(ffpars_ctx *ctx);
 
 enum FFPARS_SCHEMFLAG {
 	// internal:
@@ -255,7 +261,6 @@ struct ffparser_schem {
 	void *udata; ///< user-defined data
 	struct { FFARR(ffpars_ctx) } ctxs;
 	const ffpars_arg *curarg;
-	int (*onval)(ffparser_schem *ps, void *obj, void *dst); ///< custom key/value handler.  Return enum FFPARS_RETHDL.
 	ffstr vals[1];
 };
 
@@ -270,6 +275,8 @@ static FFINL void ffpars_schemfree(ffparser_schem *ps) {
 /** Process the currently parsed entity according to the scheme.
 Return enum FFPARS_E. */
 FF_EXTN int ffpars_schemrun(ffparser_schem *ps, int e);
+
+FF_EXTN int ffpars_skipctx(ffparser_schem *ps);
 
 /** Get error message. */
 FF_EXTN const char * ffpars_schemerrstr(ffparser_schem *ps, int code, char *buf, size_t cap);

@@ -316,7 +316,6 @@ int ffconf_scheminit(ffparser_schem *ps, ffparser *p, const ffpars_ctx *ctx)
 	int r;
 	const ffpars_arg top = { NULL, FFPARS_TOBJ | FFPARS_FPTR, FFPARS_DST(ctx) };
 	ffpars_scheminit(ps, p, &top);
-	ps->onval = &ffconf_schemval;
 
 	if (0 != ffconf_parseinit(p))
 		return FFPARS_ESYS;
@@ -336,7 +335,7 @@ int ffconf_schemfin(ffparser_schem *ps)
 
 		ps->p->ret = FFPARS_CLOSE;
 		ps->p->type = FFCONF_TOBJ;
-		r = ffpars_schemrun(ps, FFPARS_CLOSE);
+		r = ffconf_schemrun(ps);
 		if (r != FFPARS_CLOSE)
 			return r;
 		return 0;
@@ -346,15 +345,12 @@ int ffconf_schemfin(ffparser_schem *ps)
 
 /* Convert value of type string into integer or boolean, fail if can't.
 For a named object store the last parsed value. */
-int ffconf_schemval(ffparser_schem *ps, void *obj, void *dst)
+static int ffconf_schemval(ffparser_schem *ps)
 {
 	ffparser *p = ps->p;
 	ffstr v = ps->p->val;
 	int t;
-	int r = FFPARS_OK;
-
-	if (p->ret != FFPARS_VAL)
-		return FFPARS_OK;
+	int r = 0;
 
 	if (p->type == FFCONF_TVALNEXT && !(ps->curarg->flags & FFPARS_FLIST))
 		return FFPARS_EVALUNEXP; //value has been specified already
@@ -375,6 +371,11 @@ int ffconf_schemval(ffparser_schem *ps, void *obj, void *dst)
 			{}
 		else
 			r = FFPARS_EBADINT;
+		break;
+
+	case FFPARS_TFLOAT:
+		if (v.len != ffs_tofloat(v.ptr, v.len, &p->fltval, 0))
+			r = FFPARS_EBADVAL;
 		break;
 
 	case FFPARS_TBOOL:
@@ -405,7 +406,7 @@ int ffconf_schemval(ffparser_schem *ps, void *obj, void *dst)
 
 			memcpy(s->ptr, v.ptr, v.len);
 			s->len = v.len;
-			r = FFPARS_DONE;
+			r = -1;
 		}
 		if (!ffsz_cmp(ps->curarg->name, "*"))
 			ps->flags |= FFPARS_SCCTX_ANY;
@@ -422,7 +423,73 @@ int ffconf_schemval(ffparser_schem *ps, void *obj, void *dst)
 
 int ffconf_schemrun(ffparser_schem *ps)
 {
-	int r = ffpars_schemrun(ps, ps->p->ret);
+	const ffpars_arg *arg;
+	ffpars_ctx *ctx = &ffarr_back(&ps->ctxs);
+	const ffstr *val = &ps->p->val;
+	uint f;
+	int r;
+
+	if (ps->p->ret >= 0)
+		return ps->p->ret;
+
+	if (0 != (r = ffpars_skipctx(ps)))
+		return r;
+
+	if (ps->flags & FFPARS_SCHAVKEY) {
+		ps->flags &= ~FFPARS_SCHAVKEY;
+		if (ps->p->ret != FFPARS_VAL)
+			return FFPARS_EVALEMPTY; //key without a value
+
+	} else if (ps->flags & FFPARS_SCCTX) {
+		ps->flags &= ~FFPARS_SCCTX;
+		if (ps->p->ret != FFPARS_OPEN)
+			return FFPARS_EVALEMPTY; //expecting context open
+	}
+
+	switch (ps->p->ret) {
+	case FFPARS_KEY:
+		f = 0;
+		if (ps->flags & FFPARS_KEYICASE)
+			f |= FFPARS_CTX_FKEYICASE;
+		arg = ffpars_ctx_findarg(ctx, val->ptr, val->len, FFPARS_CTX_FANY | FFPARS_CTX_FDUP | f);
+		if (arg == NULL)
+			return FFPARS_EUKNKEY;
+		else if (arg == (void*)-1)
+			return FFPARS_EDUPKEY;
+		ps->curarg = arg;
+		int t = arg->flags & FFPARS_FTYPEMASK;
+
+		if (!ffsz_cmp(arg->name, "*")) {
+
+			if (t == FFPARS_TOBJ) {
+				r = ffconf_schemval(ps);
+				if (ffpars_iserr(r))
+					return r;
+
+				ps->p->ret = FFPARS_OPEN;
+				break;
+			}
+
+			ps->p->ret = FFPARS_VAL;
+			break;
+
+		} else {
+			if (t != FFPARS_TOBJ && t != FFPARS_TARR)
+				ps->flags |= FFPARS_SCHAVKEY;
+		}
+
+		return FFPARS_KEY;
+
+	case FFPARS_VAL:
+		r = ffconf_schemval(ps);
+		if (ffpars_iserr(r))
+			return r;
+		if (r != 0)
+			return FFPARS_VAL;
+		break;
+	}
+
+	r = ffpars_schemrun(ps, ps->p->ret);
 
 	if ((ps->flags & FFPARS_SCCTX_ANY) && r == FFPARS_VAL) {
 		//clear context after the whole line "ctx1.key value" is processed
