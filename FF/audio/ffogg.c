@@ -4,6 +4,7 @@ Copyright (c) 2015 Simon Zolin
 
 #include <FF/audio/ogg.h>
 #include <FF/string.h>
+#include <FFOS/error.h>
 #include <FFOS/mem.h>
 
 #include <vorbis/vorbisenc.h>
@@ -123,6 +124,9 @@ static const char* const vorb_errstr[] = {
 
 const char* ffogg_errstr(int e)
 {
+	if (e == OGG_ESYS)
+		return fferr_strp(fferr_last());
+
 	if (e >= 0)
 		return ogg_errstr[e];
 	e = -(e - (OV_EREAD));
