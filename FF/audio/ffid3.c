@@ -26,6 +26,13 @@ static const char *const id3_genres[] = {
 	"Polka", "Retro", "Musical", "Rock & Roll", "Hard Rock", //75-79
 };
 
+const char* ffid31_genre(uint id)
+{
+	if (id >= FFCNT(id3_genres))
+		return "";
+	return id3_genres[id];
+}
+
 int ffid31_parse(ffid31ex *id31ex, const char *data, size_t *len)
 {
 	enum { I_COPYTAG, I_TITLE, I_ARTIST, I_ALBUM, I_YEAR, I_COMMENT, I_TRK, I_GENRE, I_DONE };

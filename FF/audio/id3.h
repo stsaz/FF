@@ -64,6 +64,9 @@ FF_EXTN void ffid31_init(ffid31 *id31);
 Return the number of bytes copied. */
 FF_EXTN int ffid31_add(ffid31 *id31, uint id, const char *data, size_t len);
 
+/** Return genre as text. */
+FF_EXTN const char* ffid31_genre(uint id);
+
 
 //10 bytes
 typedef struct ffid3_hdr {
