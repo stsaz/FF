@@ -122,15 +122,3 @@ int ffvorbtag_add(ffvorbtag_cook *v, const char *name, const char *val, size_t v
 	v->cnt++;
 	return 0;
 }
-
-int ffvorbtag_padding(ffvorbtag_cook *v, uint len)
-{
-	char *d = v->out + v->outlen;
-	if (v->outlen + 4 + len > v->outcap)
-		return FFVORBTAG_ERR;
-	ffint_htol32(d, len);
-	memset(d + 4, '\0', len);
-	v->outlen += 4 + len;
-	v->cnt++;
-	return 0;
-}

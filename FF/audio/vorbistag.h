@@ -70,7 +70,5 @@ FF_EXTN int ffvorbtag_add(ffvorbtag_cook *v, const char *name, const char *val, 
 #define ffvorbtag_iadd(v, tag, val, vallen) \
 	ffvorbtag_add(v, ffvorbtag_str[tag], val, vallen)
 
-FF_EXTN int ffvorbtag_padding(ffvorbtag_cook *v, uint len);
-
 /** Set the total number of entries. */
 #define ffvorbtag_fin(v)  ffvorbtag_add(v, NULL, NULL, 0)
