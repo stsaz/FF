@@ -6,6 +6,27 @@ Copyright (c) 2013 Simon Zolin
 #include <FF/data/psarg.h>
 
 
+#ifdef FF_WIN
+void ffpsarg_init(ffpsarg *a, const char **argv, uint argc)
+{
+	a->cmdln.ptr = ffsz_alcopyqz(GetCommandLine());
+	a->cmdln.cap = ffsz_len(a->cmdln.ptr);
+	a->cmdln.len = 0;
+}
+
+const char* ffpsarg_next(ffpsarg *a)
+{
+	ffstr arg;
+	if (a->cmdln.len == a->cmdln.cap)
+		return NULL;
+	size_t n = ffstr_nextval(ffarr_end(&a->cmdln), ffarr_unused(&a->cmdln), &arg, ' ' | FFSTR_NV_DBLQUOT);
+	a->cmdln.len += n;
+	arg.ptr[arg.len] = '\0';
+	return arg.ptr;
+}
+#endif
+
+
 enum ARG_IDX {
 	iArgStart, iArgVal, iArgNextShortOpt, iArgDone
 };

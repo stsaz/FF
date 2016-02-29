@@ -7,6 +7,47 @@ Copyright (c) 2013 Simon Zolin
 #include <FF/data/parse.h>
 
 
+#ifdef FF_WIN
+
+typedef struct ffpsarg {
+	ffarr cmdln;
+} ffpsarg;
+
+FF_EXTN void ffpsarg_init(ffpsarg *a, const char **argv, uint argc);
+
+FF_EXTN const char* ffpsarg_next(ffpsarg *a);
+
+static FFINL void ffpsarg_destroy(ffpsarg *a)
+{
+	ffarr_free(&a->cmdln);
+}
+
+#else //unix:
+
+typedef struct ffpsarg {
+	const char **arr;
+	uint cnt;
+} ffpsarg;
+
+static FFINL void ffpsarg_init(ffpsarg *a, const char **argv, uint argc)
+{
+	a->arr = argv;
+	a->cnt = argc;
+}
+
+static FFINL const char* ffpsarg_next(ffpsarg *a)
+{
+	if (a->cnt == 0)
+		return NULL;
+	a->cnt--;
+	return *a->arr++;
+}
+
+#define ffpsarg_destroy(a)
+
+#endif
+
+
 enum FFPSARG_TYPE {
 	FFPSARG_VAL = 1
 	, FFPSARG_KVAL //--key=VAL
