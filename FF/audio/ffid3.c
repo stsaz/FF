@@ -138,6 +138,66 @@ int ffid31_parse(ffid31ex *id31ex, const char *data, size_t *len)
 }
 
 
+void ffid31_init(ffid31 *id31)
+{
+	ffmem_tzero(id31);
+	ffmemcpy(id31->tag, "TAG", 3);
+	id31->genre = (byte)-1;
+}
+
+int ffid31_add(ffid31 *id31, uint id, const char *data, size_t len)
+{
+	char *s;
+
+	switch (id) {
+	case FFID3_TITLE:
+		s = id31->title;
+		len = ffmin(len, sizeof(id31->title));
+		break;
+
+	case FFID3_ARTIST:
+		s = id31->artist;
+		len = ffmin(len, sizeof(id31->artist));
+		break;
+
+	case FFID3_ALBUM:
+		s = id31->album;
+		len = ffmin(len, sizeof(id31->album));
+		break;
+
+	case FFID3_YEAR:
+		s = id31->year;
+		len = ffmin(len, sizeof(id31->year));
+		break;
+
+	case FFID3_COMMENT:
+		s = id31->comment;
+		len = ffmin(len, sizeof(id31->comment) - 1);
+		break;
+
+	case FFID3_TRACKNO:
+		if (len != ffs_toint(data, len, &id31->track_no, FFS_INT8))
+			return 0;
+		return len;
+
+	case FFID3_GENRE:
+		{
+		ssize_t r;
+		if (-1 == (r = ffs_ifindarrz(id3_genres, FFCNT(id3_genres), data, len)))
+			return 0;
+		id31->genre = r;
+		return len;
+		}
+
+	default:
+		return 0;
+	}
+
+	ffmemcpy(s, data, len);
+	return len;
+}
+
+
 ffbool ffid3_valid(const ffid3_hdr *h)
 {
 	const uint *hsize = (void*)h->size;

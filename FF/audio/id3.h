@@ -56,6 +56,15 @@ Return enum FFID3_R. */
 FF_EXTN int ffid31_parse(ffid31ex *id31ex, const char *data, size_t *len);
 
 
+/** Prepare ID3v1 tag. */
+FF_EXTN void ffid31_init(ffid31 *id31);
+
+/**
+@id: enum FFID3_FRAME
+Return the number of bytes copied. */
+FF_EXTN int ffid31_add(ffid31 *id31, uint id, const char *data, size_t len);
+
+
 //10 bytes
 typedef struct ffid3_hdr {
 	char id3[3]; //"ID3"
