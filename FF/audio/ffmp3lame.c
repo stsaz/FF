@@ -82,19 +82,35 @@ int ffmpg_create(ffmpg_enc *m, ffpcm *pcm, int qual)
 		return FFMPG_ESYS;
 	}
 
+	ffid31_init(&m->id31);
+
 	m->lam = lam;
 	return FFMPG_EOK;
 }
 
 void ffmpg_enc_close(ffmpg_enc *m)
 {
-	ffmem_safefree(m->data);
+	ffarr_free(&m->id3.buf);
+	ffarr_free(&m->buf);
 	lame_close(m->lam);
+}
+
+int ffmpg_addtag(ffmpg_enc *m, uint id, const char *val, size_t vallen)
+{
+	if ((m->options & FFMPG_WRITE_ID3V2)
+		&& 0 == ffid3_add(&m->id3, id, val, vallen)) {
+		m->err = FFMPG_ESYS;
+		return FFMPG_RERR;
+	}
+	if (m->options & FFMPG_WRITE_ID3V1)
+		ffid31_add(&m->id31, id, val, vallen);
+	return 0;
 }
 
 int ffmpg_encode(ffmpg_enc *m)
 {
-	enum { I_DATA, I_LAMETAG_SEEK = 1, I_LAMETAG, I_DONE };
+	enum { I_ID32, I_ID32_AFTER, I_ID31,
+		I_DATA, I_LAMETAG_SEEK, I_LAMETAG, I_DONE };
 	size_t cap, nsamples;
 	int r = 0;
 
@@ -102,16 +118,42 @@ int ffmpg_encode(ffmpg_enc *m)
 		return FFMPG_RMORE;
 
 	switch (m->state) {
+	case I_ID32:
+		if (m->options & FFMPG_WRITE_ID3V2) {
+			ffid3_fin(&m->id3);
+			m->data = m->id3.buf.ptr;
+			m->datalen = m->id3.buf.len;
+			m->off = m->datalen;
+			m->state = I_ID32_AFTER;
+			return FFMPG_RDATA;
+		}
+		// break
+
+	case I_ID32_AFTER:
+		ffarr_free(&m->id3.buf);
+		m->state = I_DATA;
+		// break
+
 	case I_DATA:
 		break;
+
+	case I_ID31:
+		m->state = I_LAMETAG_SEEK;
+		if (m->options & FFMPG_WRITE_ID3V1) {
+			m->data = &m->id31;
+			m->datalen = sizeof(m->id31);
+			return FFMPG_RDATA;
+		}
+		// break
 
 	case I_LAMETAG_SEEK:
 		m->state = I_LAMETAG;
 		return FFMPG_RSEEK;
 
 	case I_LAMETAG:
-		r = lame_get_lametag_frame(m->lam, m->data, m->cap);
-		m->datalen = ((uint)r <= m->cap) ? r : 0;
+		r = lame_get_lametag_frame(m->lam, (byte*)m->buf.ptr, m->buf.cap);
+		m->data = m->buf.ptr;
+		m->datalen = ((uint)r <= m->buf.cap) ? r : 0;
 		m->state = I_DONE;
 		return FFMPG_RDATA;
 
@@ -121,15 +163,11 @@ int ffmpg_encode(ffmpg_enc *m)
 
 	nsamples = m->pcmlen / ffpcm_size(m->fmt, lame_get_num_channels(m->lam));
 	cap = 125 * nsamples / 100 + 7200;
-	if (cap > m->cap) {
-		void *d;
-		if (NULL == (d = ffmem_realloc(m->data, cap))) {
-			m->err = FFMPG_ESYS;
-			return FFMPG_RERR;
-		}
-		m->data = d;
-		m->cap = cap;
+	if (NULL == ffarr_realloc(&m->buf, cap)) {
+		m->err = FFMPG_ESYS;
+		return FFMPG_RERR;
 	}
+	m->data = m->buf.ptr;
 
 	if (m->ileaved) {
 		// FFPCM_16LE
@@ -159,7 +197,7 @@ int ffmpg_encode(ffmpg_enc *m)
 	if (m->fin) {
 		r = lame_encode_flush(m->lam, (byte*)m->data + r, cap - r);
 		m->datalen += r;
-		m->state = I_LAMETAG_SEEK;
+		m->state = I_ID31;
 	}
 
 	return FFMPG_RDATA;
