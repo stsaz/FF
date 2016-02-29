@@ -545,7 +545,8 @@ int ffogg_decode(ffogg *o)
 
 
 	case I_PAGE:
-		o->cursample = o->page_gpos - o->first_sample;
+		if (o->page_gpos != (uint64)-1)
+			o->cursample = o->page_gpos - o->first_sample;
 		if (o->page_last)
 			return FFOGG_RDONE;
 		// break
