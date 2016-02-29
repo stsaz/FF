@@ -965,14 +965,14 @@ static FFINL void wnd_bordstick(uint stick, WINDOWPOS *ws)
 	RECT r;
 	ffui_screenarea(&r);
 
-	if (stick >= ffabs(r.left - ws->x))
+	if (stick >= (uint)ffabs(r.left - ws->x))
 		ws->x = r.left;
-	else if (stick >= ffabs(r.right - (ws->x + ws->cx)))
+	else if (stick >= (uint)ffabs(r.right - (ws->x + ws->cx)))
 		ws->x = r.right - ws->cx;
 
-	if (stick >= ffabs(r.top - ws->y))
+	if (stick >= (uint)ffabs(r.top - ws->y))
 		ws->y = r.top;
-	else if (stick >= ffabs(r.bottom - (ws->y + ws->cy)))
+	else if (stick >= (uint)ffabs(r.bottom - (ws->y + ws->cy)))
 		ws->y = r.bottom - ws->cy;
 }
 

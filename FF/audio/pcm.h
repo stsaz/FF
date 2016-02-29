@@ -67,8 +67,13 @@ FF_EXTN const char* ffpcm_channelstr(uint channels);
 /** Combine two streams together. */
 FF_EXTN void ffpcm_mix(const ffpcm *pcm, char *stm1, const char *stm2, size_t samples);
 
+
+/** Convert 16LE sample to FLOAT. */
+#define _ffpcm_16le_flt(sh)  ((float)(sh) * (1 / 32768.0))
+
 /** Convert PCM data. */
 FF_EXTN int ffpcm_convert(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm, const void *in, size_t samples);
+
 
 /** Convert volume knob position to dB value. */
 #define ffpcm_vol2db(pos, db_min) \

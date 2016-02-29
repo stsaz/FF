@@ -81,8 +81,6 @@ void ffpcm_mix(const ffpcm *pcm, char *stm1, const char *stm2, size_t samples)
 
 #define max16f  (32768.0)
 
-#define _ffpcm_16le_flt(sh)  ((float)(sh) * (1 / max16f))
-
 static FFINL short _ffpcm_flt_16le(float f)
 {
 	double d = f * max16f;
@@ -372,6 +370,7 @@ done:
 }
 
 #undef CASE
+
 
 #define CASE(f1, il1) \
 	(f1 << 16) | (il1 << 31)

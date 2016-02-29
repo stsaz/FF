@@ -82,16 +82,22 @@ static FFINL void ffui_dlg_filter(ffui_dialog *d, const char *title, size_t len)
 	d->of.lpstrFilter = ffs_utow(NULL, NULL, title, len);
 }
 
+/** Set filter index. */
+#define ffui_dlg_nfilter(d, filter_index)  ((d)->of.nFilterIndex = (filter_index) + 1)
+
 #define ffui_dlg_multisel(d)  ((d)->of.Flags |= OFN_ALLOWMULTISELECT)
 
 /**
-Return 1 on success. */
+Return file name;  NULL on error. */
 FF_EXTN char* ffui_dlg_open(ffui_dialog *d, ffui_wnd *parent);
 
+/**
+@fn: default filename */
 FF_EXTN char* ffui_dlg_save(ffui_dialog *d, ffui_wnd *parent, const char *fn, size_t fnlen);
 
 FF_EXTN void ffui_dlg_destroy(ffui_dialog *d);
 
+/** Get the next file name (for a dialog with multiselect). */
 FF_EXTN char* ffui_dlg_nextname(ffui_dialog *d);
 
 

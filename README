@@ -25,19 +25,22 @@ FEATURES
 		. configuration parser
 		. command-line arguments parser
 		. deserialization of structured data using a predefined scheme
+		. gzip (libz)
+		. MP4
 
 	. Audio:
 		. Direct Sound playback/capture
 		. WASAPI playback/capture
 		. ALSA playback
 		. ICY
-		. PCM operations
+		. PCM operations: mix, convert, gain/attenuate
 		. sample rate conversion (libsoxr)
-		. APE tag
+		. APE (libMAC), APE tag
 		. WAVE
-		. OGG Vorbis (libogg, libvorbis)
+		. OGG Vorbis (libogg, libvorbis), Vorbis comments
 		. MPEG (libmad, libmp3lame), ID3v1, ID3v2
 		. FLAC (libflac)
+		. ALAC (libalac)
 		. WavPack (libwavpack)
 
 	. GUI:
