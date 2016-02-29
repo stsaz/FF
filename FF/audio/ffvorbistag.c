@@ -13,6 +13,7 @@ const char *const ffvorbtag_str[] = {
 	"DATE",
 	"GENRE",
 	"TITLE",
+	"TOTALTRACKS", // =TRACKTOTAL
 	"TRACKNUMBER",
 	"TRACKTOTAL",
 
@@ -69,6 +70,10 @@ int ffvorbtag_parse(ffvorbtag *v)
 		FFARR_SHIFT(v->data, v->datalen, len);
 		v->cnt--;
 		v->tag = ffvorbtag_find(v->name.ptr, v->name.len);
+		if (v->tag == _FFVORBTAG_TOTALTRACKS) {
+			// "TOTALTRACKS" -> "TRACKTOTAL"
+			ffstr_setz(&v->name, ffvorbtag_str[FFVORBTAG_TRACKTOTAL]);
+		}
 		return 0;
 	}
 
