@@ -155,6 +155,36 @@ static int _ffpcm_mono(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm, c
 	return 0;
 }
 
+/* M -> M,M */
+static int _ffpcm_stereo(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm, const union pcmdata from, size_t samples)
+{
+	size_t i;
+	union pcmdata to, tmp;
+	to.sh = out;
+
+	if (samples != 0)
+		tmp.sh = (inpcm->ileaved) ? from.sh : from.psh[0];
+
+	switch (inpcm->format) {
+
+	case FFPCM_16LE:
+		for (i = 0;  i != samples;  i++) {
+			to.sh[i] = tmp.sh[i] / 2;
+		}
+		break;
+
+	case FFPCM_FLOAT:
+		for (i = 0;  i != samples;  i++) {
+			to.f[i] = tmp.f[i] * 0.5;
+		}
+		break;
+
+	default:
+		return -1;
+	}
+	return 0;
+}
+
 /*
 non-interleaved: data[0][..] - left,  data[1][..] - right
 interleaved: data[0,2..] - left */
@@ -198,6 +228,18 @@ int ffpcm_convert(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm, const 
 				from.psh = (short**)&tmpptr;
 			}
 
+			in_ileaved = 0;
+
+		} else if (nch == 2 && inpcm->channels == 1) {
+
+			if (NULL == (tmpptr = ffmem_alloc(sizeof(void*) * 2 + samples * ffpcm_bits(inpcm->format)/8)))
+				goto done;
+			void *p = ((byte*)tmpptr) + sizeof(void*) * 2;
+
+			if (0 != _ffpcm_stereo(outpcm, p, inpcm, from, samples))
+				goto done;
+			from.psh = (short**)tmpptr;
+			from.psh[0] = from.psh[1] = p;
 			in_ileaved = 0;
 
 		} else
