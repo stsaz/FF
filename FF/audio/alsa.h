@@ -60,8 +60,12 @@ typedef struct ffalsa_buf {
 	uint width;
 	uint channels;
 
+	snd_pcm_uframes_t off
+		, frames;
+
 	uint callback :1
 		, callback_wait :1
+		, capture :1
 		, silence :1
 		, autostart :1 //start automatically when the buffer is full
 		;
@@ -104,3 +108,14 @@ FF_EXTN int ffalsa_clear(ffalsa_buf *snd);
 
 /** Return 1 if stopped. */
 FF_EXTN int ffalsa_stoplazy(ffalsa_buf *snd);
+
+
+static FFINL int ffalsa_capt_open(ffalsa_buf *snd, const char *dev, ffpcm *fmt, uint bufsize_msec)
+{
+	snd->capture = 1;
+	return ffalsa_open(snd, dev, fmt, bufsize_msec);
+}
+
+#define ffalsa_capt_close  ffalsa_close
+
+FF_EXTN int ffalsa_capt_read(ffalsa_buf *snd, void **data, size_t *len);

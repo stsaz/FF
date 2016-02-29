@@ -81,7 +81,8 @@ int ffalsa_open(ffalsa_buf *snd, const char *dev, ffpcm *fmt, uint bufsize)
 
 	if (dev == NULL || *dev == '\0')
 		dev = "plughw:0,0";
-	if (0 != (e = snd_pcm_open(&snd->pcm, dev, SND_PCM_STREAM_PLAYBACK, SND_PCM_NONBLOCK)))
+	int stream = (snd->capture) ? SND_PCM_STREAM_CAPTURE : SND_PCM_STREAM_PLAYBACK;
+	if (0 != (e = snd_pcm_open(&snd->pcm, dev, stream, SND_PCM_NONBLOCK)))
 		return e;
 
 	if (0 != (e = snd_pcm_hw_params_any(snd->pcm, params)))
@@ -306,4 +307,39 @@ err:
 	}
 
 	return all * snd->frsize;
+}
+
+
+int ffalsa_capt_read(ffalsa_buf *snd, void **data, size_t *len)
+{
+	int e;
+	uint i;
+	const snd_pcm_channel_area_t *areas;
+	snd_pcm_sframes_t wr;
+
+	if (snd->frames != 0) {
+		wr = snd_pcm_mmap_commit(snd->pcm, snd->off, snd->frames);
+		if (wr >= 0 && (snd_pcm_uframes_t)wr != snd->frames)
+			wr = -EPIPE;
+		if (wr < 0)
+			return wr;
+		snd->frames = 0;
+	}
+
+	if (0 > (wr = snd_pcm_avail_update(snd->pcm))) //needed for snd_pcm_mmap_begin()
+		return wr;
+
+	snd->frames = snd->bufsize / snd->frsize;
+	if (0 != (e = snd_pcm_mmap_begin(snd->pcm, &areas, &snd->off, &snd->frames)))
+		return e;
+
+	if (snd->frames == 0)
+		return 0;
+
+	for (i = 0;  i != snd->channels;  i++) {
+		data[i] = (char*)areas[i].addr + snd->off * areas[i].step/8;
+	}
+
+	*len = snd->frames * snd->frsize;
+	return 1;
 }
