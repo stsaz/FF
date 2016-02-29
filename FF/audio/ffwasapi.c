@@ -177,6 +177,7 @@ static FFINL void _ffwas_getfmt(ffwasapi *w, ffpcm *fmt)
 	if (0 != (r = IAudioClient_GetMixFormat(w->cli, &wf)))
 		return;
 	fmt->sample_rate = wf->nSamplesPerSec;
+	fmt->channels = wf->nChannels;
 	CoTaskMemFree(wf);
 }
 
