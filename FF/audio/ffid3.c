@@ -597,3 +597,79 @@ process:
 done:
 	return r;
 }
+
+
+uint ffid3_add(ffid3_cook *id3, uint id, const char *data, size_t len)
+{
+	if (id == FFID3_TRACKNO) {
+		ffsz_copy(id3->trackno, sizeof(id3->trackno), data, len);
+		return 1;
+	} else if (id == FFID3_TRACKTOTAL) {
+		ffsz_copy(id3->tracktotal, sizeof(id3->tracktotal), data, len);
+		return 1;
+	}
+	return ffid3_addframe(id3, ffid3_frames[id], data, len, 0);
+}
+
+uint ffid3_addframe(ffid3_cook *id3, const char id[4], const char *data, size_t len, uint flags)
+{
+	if (id3->buf.len == 0) {
+		// reserve space for ID3v2 header
+		if (NULL == ffarr_alloc(&id3->buf, sizeof(ffid3_hdr)))
+			return 0;
+		id3->buf.len = sizeof(ffid3_hdr);
+	}
+
+	size_t n = sizeof(ffid3_frhdr) + 1 + len;
+	if (n > (uint)-1 || NULL == ffarr_grow(&id3->buf, n, 0))
+		return 0;
+
+	char *p = ffarr_end(&id3->buf);
+	ffid3_frhdr *fr = (void*)p;
+	ffmemcpy(fr->id, id, 4);
+	i32_i28(fr->size, 1 + (uint)len);
+	fr->flags[0] = 0; fr->flags[1] = 0;
+	p += sizeof(ffid3_frhdr);
+
+	*p++ = FFID3_UTF8;
+	ffmemcpy(p, data, len);
+
+	id3->buf.len += n;
+	return (uint)n;
+}
+
+/** Prepare TRCK frame data: "TRACKNO [/ TRACKTOTAL]" */
+static uint _ffid3_trackno(char *trackno, size_t trackno_cap, const char *tracktotal)
+{
+	char *d = trackno;
+	if (trackno[0] != '\0')
+		d = trackno + ffsz_len(trackno);
+	else
+		*d++ = '0';
+
+	if (tracktotal[0] != '\0') {
+		d = ffs_copyc(d, trackno + trackno_cap, '/');
+		d = ffs_copyz(d, trackno + trackno_cap, tracktotal);
+	}
+	return d - trackno;
+}
+
+void ffid3_fin(ffid3_cook *id3)
+{
+	if (id3->buf.len < sizeof(ffid3_hdr)) {
+		if (NULL == ffarr_alloc(&id3->buf, sizeof(ffid3_hdr)))
+			return;
+		id3->buf.len = sizeof(ffid3_hdr);
+	}
+
+	if (id3->trackno[0] != '\0' || id3->tracktotal[0] != '\0') {
+		uint n = _ffid3_trackno(id3->trackno, sizeof(id3->trackno), id3->tracktotal);
+		ffid3_addframe(id3, ffid3_frames[FFID3_TRACKNO], id3->trackno, n, 0);
+	}
+
+	ffid3_hdr *h = (void*)id3->buf.ptr;
+	h->id3[0] = 'I'; h->id3[1] = 'D'; h->id3[2] = '3';
+	h->ver[0] = 4; h->ver[1] = 0;
+	h->flags = 0;
+	i32_i28(h->size, id3->buf.len - sizeof(ffid3_hdr));
+}

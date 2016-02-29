@@ -186,3 +186,19 @@ static FFINL void ffid3_parsefin(ffid3 *p)
 @codepage: code page, 0 (default) or FFU_*.
 Return number of bytes copied. */
 FF_EXTN int ffid3_getdata(int frame, const char *data, size_t len, int txtenc, uint codepage, ffstr3 *dst);
+
+
+typedef struct ffid3_cook {
+	ffarr buf;
+	char trackno[32];
+	char tracktotal[32];
+} ffid3_cook;
+
+/** Add ID3v2 frame.
+Return the number of bytes written. */
+FF_EXTN uint ffid3_addframe(ffid3_cook *id3, const char id[4], const char *data, size_t len, uint flags);
+
+FF_EXTN uint ffid3_add(ffid3_cook *id3, uint id, const char *data, size_t len);
+
+/** Write ID3v2 header. */
+FF_EXTN void ffid3_fin(ffid3_cook *id3);
