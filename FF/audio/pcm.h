@@ -84,6 +84,10 @@ FF_EXTN int ffpcm_convert(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm
 FF_EXTN int ffpcm_gain(const ffpcmex *pcm, float gain, const void *in, void *out, uint samples);
 
 
+/** Find the highest peak value. */
+FF_EXTN int ffpcm_peak(const ffpcmex *fmt, const void *data, size_t samples, float *maxpeak);
+
+
 typedef struct ffpcm_seekpt {
 	uint64 sample;
 	uint64 off;

@@ -431,6 +431,58 @@ int ffpcm_gain(const ffpcmex *pcm, float gain, const void *in, void *out, uint s
 #undef CASE
 
 
+#define CASE(f, il) \
+	(f & 0xffff) | (il << 15)
+
+int ffpcm_peak(const ffpcmex *fmt, const void *data, size_t samples, float *maxpeak)
+{
+	float max_f = 0.0;
+	uint max_sh = 0;
+	uint ich;
+	size_t i;
+	union pcmdata d;
+	d.sh = (void*)data;
+
+	switch (CASE(fmt->format, fmt->ileaved)) {
+
+	case CASE(FFPCM_16LE, 1):
+		for (i = 0;  i != fmt->channels * samples;  i++) {
+			uint sh = ffabs(d.sh[i]);
+			if (max_sh < sh)
+				max_sh = sh;
+		}
+		max_f = _ffpcm_16le_flt(max_sh);
+		break;
+
+	case CASE(FFPCM_FLOAT, 1):
+		for (i = 0;  i != fmt->channels * samples;  i++) {
+			float f = ffabs(d.f[i]);
+			if (max_f < f)
+				max_f = f;
+		}
+		break;
+
+	case CASE(FFPCM_FLOAT, 0):
+		for (ich = 0;  ich != fmt->channels;  ich++) {
+			for (i = 0;  i != samples;  i++) {
+				float f = ffabs(d.pf[ich][i]);
+				if (max_f < f)
+					max_f = f;
+			}
+		}
+		break;
+
+	default:
+		return 1;
+	}
+
+	*maxpeak = max_f;
+	return 0;
+}
+
+#undef CASE
+
+
 int ffpcm_seek(struct ffpcm_seek *s)
 {
 	uint64 size, samples, newoff;
