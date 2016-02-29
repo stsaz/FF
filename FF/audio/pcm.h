@@ -79,6 +79,7 @@ FF_EXTN int ffpcm_convert(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm
 
 /* gain = 10 ^ (db / 20) */
 #define ffpcm_db2gain(db)  pow(10, (double)(db) / 20)
+#define ffpcm_gain2db(gain)  (log10(gain) * 20)
 
 FF_EXTN int ffpcm_gain(const ffpcmex *pcm, float gain, const void *in, void *out, uint samples);
 
