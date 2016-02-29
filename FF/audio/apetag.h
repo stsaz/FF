@@ -22,9 +22,14 @@ typedef struct ffapehdr {
 	char reserved[8];
 } ffapehdr;
 
+enum FFAPETAG_FLAGS {
+	FFAPETAG_FMASK = 6,
+	FFAPETAG_FBINARY = 1 << 1,
+};
+
 typedef struct ffapefld {
 	uint val_len;
-	uint flags;
+	uint flags; //enum FFAPETAG_FLAGS
 	char name_val[0];
 } ffapefld;
 
@@ -46,6 +51,7 @@ enum FFAPETAG_FIELD {
 	FFAPETAG_ALBUM,
 	FFAPETAG_ARTIST,
 	FFAPETAG_COMMENT,
+	FFAPETAG_COVERART,
 	FFAPETAG_GENRE,
 	FFAPETAG_TITLE,
 	FFAPETAG_TRACK,
@@ -71,6 +77,7 @@ typedef struct ffapetag {
 	int seekoff;
 	ffarr buf;
 
+	uint flags; //enum FFAPETAG_FLAGS
 	ffstr name
 		, val;
 } ffapetag;

@@ -3,12 +3,14 @@ Copyright (c) 2015 Simon Zolin
 */
 
 #include <FF/audio/apetag.h>
+#include <FF/number.h>
 
 
 const char *const ffapetag_str[_FFAPETAG_COUNT] = {
 	"album",
 	"artist",
 	"comment",
+	"cover art (front)",
 	"genre",
 	"title",
 	"track",
@@ -85,6 +87,7 @@ ihdr:
 			return FFAPETAG_RERR; //too large field
 
 		fld = (void*)d.ptr;
+		a->flags = ffint_ltoh32(&fld->flags);
 		a->name.ptr = fld->name_val;
 		n = ffsz_nlen(fld->name_val, d.len);
 		a->name.len = n;
