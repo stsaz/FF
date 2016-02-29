@@ -332,9 +332,6 @@ static FFINL int mpg_streaminfo(ffmpg *m)
 	m->fmt.channels = MAD_NCHANNELS(&m->frame.header);
 	m->fmt.sample_rate = m->frame.header.samplerate;
 
-	if (m->total_size != 0)
-		m->total_size -= m->dataoff;
-
 	len = m->stream.anc_bitlen / 8;
 	if (!(m->options & FFMPG_O_NOXING)
 		&& 0 == ffmpg_xing_parse(&m->xing, (char*)m->stream.anc_ptr.byte, &len)) {
