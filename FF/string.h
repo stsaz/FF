@@ -180,6 +180,7 @@ FF_EXTN size_t ffs_findarr(const void *s, size_t len, const void *ar, ssize_t el
 /** Search a string in array of pointers to NULL-terminated strings.
 Return -1 if not found. */
 FF_EXTN ssize_t ffs_findarrz(const char *const *ar, size_t n, const char *search, size_t search_len);
+FF_EXTN ssize_t ffs_ifindarrz(const char *const *ar, size_t n, const char *search, size_t search_len);
 FF_EXTN ssize_t ffszarr_findsorted(const char *const *ar, size_t n, const char *search, size_t search_len);
 FF_EXTN ssize_t ffszarr_ifindsorted(const char *const *ar, size_t n, const char *search, size_t search_len);
 
