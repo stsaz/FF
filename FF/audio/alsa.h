@@ -13,12 +13,10 @@ Copyright (c) 2015 Simon Zolin
 #define ffalsa_errstr  snd_strerror
 
 
-static FFINL int ffalsa_init(void)
-{
-	return 0;
-}
-
-#define ffalsa_uninit()
+/**
+@kq: (optional) kqueue for receiving SIGIO events. */
+FF_EXTN int ffalsa_init(fffd kq);
+FF_EXTN void ffalsa_uninit(fffd kq);
 
 
 typedef struct ffalsa_dev {
@@ -63,8 +61,8 @@ typedef struct ffalsa_buf {
 	snd_pcm_uframes_t off
 		, frames;
 
-	uint callback :1
-		, callback_wait :1
+	uint callback :1 //set when audio event has been received but user isn't expecting it
+		, callback_wait :1 //set while user is expecting an event from kernel
 		, capture :1
 		, silence :1
 		, autostart :1 //start automatically when the buffer is full

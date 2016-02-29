@@ -2,15 +2,125 @@
 Copyright (c) 2015 Simon Zolin
 */
 
+/*
+Event processing from ALSA, 2 approaches:
+
+1. SIGIO -> _ffalsa_callback() -> ffalsa_buf.handler() -> ffkqu_post()
+   eventfd -> ffkev_call() -> real_handler()
+
+	Signal handler may be called inside any thread, thus we could use locks in _ffalsa_callback()
+	or user must block SIGIO in all other threads.
+
+2. SIGIO via signalfd -> ffkev_call() -> _ffalsa_onsigio() -> ffalsa_buf.handler()
+
+	Signal handler is always called from the single thread which processes kernel events.
+*/
+
 #include <FF/audio/alsa.h>
-#include <FF/string.h>
+#include <FF/array.h>
 #include <FFOS/mem.h>
+#include <FFOS/sig.h>
+
+
+struct _ffalsa_sigio {
+	ffsignal sig;
+	ffarr snds; //ffalsa_buf*[]
+};
+
+static struct _ffalsa_sigio *_ffalsa_sigio;
 
 enum {
 	ALSA_NFYRATE = 4,
 };
 
 static void _ffalsa_callback(snd_async_handler_t *ahandler);
+static void _ffalsa_callback_dummy(snd_async_handler_t *ahandler);
+
+FF_EXTN int _ffalsa_call_handler(ffalsa_buf *snd, int fd);
+static void _ffalsa_onsigio(void *udata);
+static int _ffalsa_addsnd(ffalsa_buf *snd);
+static void _ffalsa_rmsnd(ffalsa_buf *snd);
+
+
+int ffalsa_init(fffd kq)
+{
+	if (kq != FF_BADFD) {
+		int sig = SIGIO;
+		if (NULL == (_ffalsa_sigio = ffmem_tcalloc1(struct _ffalsa_sigio)))
+			return -1;
+
+		ffsig_init(&_ffalsa_sigio->sig);
+		_ffalsa_sigio->sig.udata = _ffalsa_sigio;
+		if (0 != ffsig_ctl(&_ffalsa_sigio->sig, kq, &sig, 1, &_ffalsa_onsigio)) {
+			ffmem_free0(_ffalsa_sigio);
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+void ffalsa_uninit(fffd kq)
+{
+	if (_ffalsa_sigio != NULL) {
+
+		if (kq != FF_BADFD) {
+			int sig = SIGIO;
+			ffsig_ctl(&_ffalsa_sigio->sig, kq, &sig, 1, NULL);
+		}
+
+		ffarr_free(&_ffalsa_sigio->snds);
+		ffmem_free0(_ffalsa_sigio);
+	}
+}
+
+static void _ffalsa_onsigio(void *udata)
+{
+	struct _ffalsa_sigio *sgio = udata;
+	ffsiginfo si;
+	int sig, fd;
+	ffalsa_buf **a;
+
+	if (0 > (sig = ffsig_read(&sgio->sig, &si)))
+		return;
+
+	fd = ffsiginfo_fd(&si);
+
+	FFARR_WALKT(&sgio->snds, a, ffalsa_buf*) {
+
+		if ((*a)->pcm != NULL
+			&& 0 == _ffalsa_call_handler(*a, fd))
+			break;
+	}
+}
+
+/** Add to 'snds' array. */
+static int _ffalsa_addsnd(ffalsa_buf *snd)
+{
+	if (_ffalsa_sigio == NULL)
+		return 0;
+
+	ffalsa_buf **a;
+	if (NULL == (a = ffarr_push(&_ffalsa_sigio->snds, ffalsa_buf*)))
+		return -fferr_last();
+	*a = snd;
+	return 0;
+}
+
+/** Remove from 'snds' array. */
+static void _ffalsa_rmsnd(ffalsa_buf *snd)
+{
+	if (_ffalsa_sigio == NULL)
+		return;
+
+	ffalsa_buf **a;
+	FFARR_WALKT(&_ffalsa_sigio->snds, a, ffalsa_buf*) {
+		if (snd == *a) {
+			_ffarr_rmswap(&_ffalsa_sigio->snds, a, sizeof(ffalsa_buf*));
+			break;
+		}
+	}
+}
 
 
 int ffalsa_devnext(ffalsa_dev *d, uint flags)
@@ -109,13 +219,18 @@ int ffalsa_open(ffalsa_buf *snd, const char *dev, ffpcm *fmt, uint bufsize)
 	if (0 != (e = snd_pcm_hw_params(snd->pcm, params)))
 		goto fail;
 
-	if (0 != (e = snd_async_add_pcm_handler(&snd->ahandler, snd->pcm, &_ffalsa_callback, snd)))
+	snd_async_callback_t cb = (_ffalsa_sigio != NULL) ? &_ffalsa_callback_dummy : &_ffalsa_callback;
+	if (0 != (e = snd_async_add_pcm_handler(&snd->ahandler, snd->pcm, cb, snd)))
 		goto fail;
 
 	snd->frsize = ffpcm_size(fmt->format, fmt->channels);
 	snd->bufsize = ffpcm_bytes(fmt, bufsize / 1000);
 	snd->channels = fmt->channels;
 	snd->width = snd->frsize / fmt->channels;
+
+	if (0 != (e = _ffalsa_addsnd(snd)))
+		goto fail;
+
 	return 0;
 
 fail:
@@ -125,6 +240,7 @@ fail:
 
 void ffalsa_close(ffalsa_buf *snd)
 {
+	_ffalsa_rmsnd(snd);
 	FF_SAFECLOSE(snd->pcm, NULL, snd_pcm_close);
 }
 
@@ -191,6 +307,31 @@ static void _ffalsa_callback(snd_async_handler_t *ahandler)
 	}
 	snd->callback_wait = 0;
 	snd->handler(snd->udata);
+}
+
+static void _ffalsa_callback_dummy(snd_async_handler_t *ahandler)
+{
+}
+
+// /alsa-lib-1.0.29/src/pcm/pcm_local.h:
+extern int _snd_pcm_poll_descriptor(snd_pcm_t *pcm);
+#define _snd_pcm_async_descriptor _snd_pcm_poll_descriptor
+
+/** Check whether 'fd' is assigned to 'snd', call snd->handler() if needed.
+Return 0 if the event has been processed. */
+int _ffalsa_call_handler(ffalsa_buf *snd, int fd)
+{
+	if (fd != _snd_pcm_async_descriptor(snd->pcm))
+		return -1;
+
+	if (!snd->callback_wait) {
+		snd->callback = 1;
+		return 0;
+	}
+
+	snd->callback_wait = 0;
+	snd->handler(snd->udata);
+	return 0;
 }
 
 int ffalsa_async(ffalsa_buf *snd, uint enable)
