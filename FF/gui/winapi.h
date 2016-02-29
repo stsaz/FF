@@ -153,7 +153,7 @@ FF_EXTN int ffui_settext(void *c, const char *text, size_t len);
 #define ffui_text_q(h, buf, cap)  ffui_send(h, WM_GETTEXT, cap, buf)
 FF_EXTN int ffui_textstr(void *c, ffstr *dst);
 
-#define ffui_show(c, show)  ShowWindow((c)->h, (show) ? SW_SHOWNORMAL : SW_HIDE)
+#define ffui_show(c, show)  ShowWindow((c)->h, (show) ? SW_SHOW : SW_HIDE)
 
 #define ffui_redraw(c, redraw)  ffui_ctl_send(c, WM_SETREDRAW, redraw, 0)
 
