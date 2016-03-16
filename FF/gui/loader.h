@@ -79,6 +79,10 @@ typedef struct ffui_loaderw {
 
 FF_EXTN void ffui_ldrw_fin(ffui_loaderw *ldr);
 
-FF_EXTN void ffui_ldr_set(ffui_loaderw *ldr, const char *name, const char *val, size_t len);
+enum FFUI_LDR_F {
+	FFUI_LDR_FSTR = 1,
+};
+
+FF_EXTN void ffui_ldr_set(ffui_loaderw *ldr, const char *name, const char *val, size_t len, uint flags);
 
 FF_EXTN int ffui_ldr_write(ffui_loaderw *ldr, const char *fn);

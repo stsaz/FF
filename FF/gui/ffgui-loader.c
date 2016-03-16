@@ -1447,9 +1447,12 @@ void ffui_ldrw_fin(ffui_loaderw *ldr)
 	ffarr_free(&ldr->buf);
 }
 
-void ffui_ldr_set(ffui_loaderw *ldr, const char *name, const char *val, size_t len)
+void ffui_ldr_set(ffui_loaderw *ldr, const char *name, const char *val, size_t len, uint flags)
 {
-	ffstr_catfmt(&ldr->buf, "%s %*s\n", name, len, val);
+	if (flags & FFUI_LDR_FSTR)
+		ffstr_catfmt(&ldr->buf, "%s \"%*s\"\n", name, len, val);
+	else
+		ffstr_catfmt(&ldr->buf, "%s %*s\n", name, len, val);
 }
 
 int ffui_ldr_write(ffui_loaderw *ldr, const char *fn)
@@ -1505,6 +1508,10 @@ void ffui_ldr_loadconf(ffui_loader *g, const char *fn)
 			case FFUI_UID_WINDOW:
 				g->wnd = (void*)g->ctl;
 				ffpars_setargs(&ctx, g, wnd_args, FFCNT(wnd_args));
+				break;
+
+			case FFUI_UID_EDITBOX:
+				ffpars_setargs(&ctx, g, editbox_args, FFCNT(editbox_args));
 				break;
 
 			case FFUI_UID_TRACKBAR:
