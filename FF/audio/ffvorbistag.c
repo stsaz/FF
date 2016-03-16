@@ -8,10 +8,14 @@ Copyright (c) 2015 Simon Zolin
 
 const char *const ffvorbtag_str[] = {
 	"ALBUM",
+	"ALBUM ARTIST", // =ALBUMARTIST
+	"ALBUMARTIST",
 	"ARTIST",
 	"COMMENT",
+	"COMPOSER",
 	"DATE",
 	"GENRE",
+	"LYRICS",
 	"TITLE",
 	"TOTALTRACKS", // =TRACKTOTAL
 	"TRACKNUMBER",
@@ -73,6 +77,10 @@ int ffvorbtag_parse(ffvorbtag *v)
 		if (v->tag == _FFVORBTAG_TOTALTRACKS) {
 			// "TOTALTRACKS" -> "TRACKTOTAL"
 			ffstr_setz(&v->name, ffvorbtag_str[FFVORBTAG_TRACKTOTAL]);
+
+		} else if (v->tag == _FFVORBTAG_ALBUMARTIST) {
+			// "ALBUM ARTIST" -> "ALBUMARTIST"
+			ffstr_setz(&v->name, ffvorbtag_str[FFVORBTAG_ALBUMARTIST]);
 		}
 		return 0;
 	}
