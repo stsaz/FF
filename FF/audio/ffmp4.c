@@ -178,6 +178,7 @@ enum BOX {
 	TAG_GENRE,
 	TAG_GENRE_ID31,
 	TAG_TRKN,
+	TAG_WRT,
 	TAG_COVR,
 	TAG_DISK,
 	TAG_LYR,
@@ -206,9 +207,10 @@ static const byte mp4_tags[] = {
 	FFMP4_GENRE,
 	0xff,
 	0xff,
+	FFMP4_COMPOSER,
 	0xff,
 	0xff,
-	0xff,
+	FFMP4_LYRICS,
 	0xff,
 	0xff,
 	0xff,
@@ -320,6 +322,7 @@ static const struct bbox mp4_ctx_ilst[] = {
 	{"\251lyr",	TAG_LYR,	mp4_ctx_data},
 	{"\251nam",	TAG_NAM,	mp4_ctx_data},
 	{"\251too",	TAG_TOOL,	mp4_ctx_data},
+	{"\251wrt",	TAG_WRT,	mp4_ctx_data},
 	{"",0,NULL}
 };
 static const struct bbox mp4_ctx_data[] = {
