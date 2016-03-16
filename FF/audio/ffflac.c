@@ -1123,7 +1123,7 @@ int ffflac_create(ffflac_enc *f, const ffpcm *pcm)
 	f->outbuf.len += r;
 
 	f->vtag.out = ffarr_end(&f->outbuf) + sizeof(struct flac_hdr);
-	f->vtag.outcap = ffarr_unused(&f->outbuf) - sizeof(struct flac_hdr);
+	f->vtag.outcap = ffmax(4096, f->min_meta);
 	if (0 != ffvorbtag_add(&f->vtag, NULL, FLAC__VENDOR_STRING, ffsz_len(FLAC__VENDOR_STRING))) {
 		f->errtype = FLAC_EHDR;
 		return FFFLAC_RERR;
