@@ -109,7 +109,7 @@ struct ffpcm_seek {
 	uint64 off; // absolute audio offset (in bytes) (in/out)
 	uint64 lastoff;
 	uint64 fr_index; // absolute sample index
-	uint fr_samples; // samples in frame
+	uint fr_samples; // samples in frame.  Set to 0 if user doesn't have a frame.
 	uint avg_fr_samples;
 	uint fr_size; // frame size (in bytes)
 	uint flags; // enum FFPCM_SEEKF

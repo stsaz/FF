@@ -493,7 +493,9 @@ int ffpcm_seek(struct ffpcm_seek *s)
 		, FF_FUNC, s->target, s->fr_index, pt[0].sample, pt[1].sample, pt[1].sample - pt[0].sample
 		, s->off, pt[0].off, pt[1].off, pt[1].off - pt[0].off);
 
-	if (s->fr_index >= pt[0].sample && s->fr_index < pt[1].sample
+	if (s->fr_samples == 0) {
+
+	} else if (s->fr_index >= pt[0].sample && s->fr_index < pt[1].sample
 		&& s->off >= pt[0].off && s->off < pt[1].off) {
 
 		if (s->target < s->fr_index) {
