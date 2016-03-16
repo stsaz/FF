@@ -1528,7 +1528,8 @@ void ffui_ldr_loadconf(ffui_loader *g, const char *fn)
 				int r = ffconf_parse(&p, val.ptr, &n);
 				ffstr_shift(&val, n);
 				r = ffconf_schemrun(&ps);
-				(void)r;
+				if (ffpars_iserr(r))
+					break;
 			}
 
 			ffconf_schemfin(&ps);
