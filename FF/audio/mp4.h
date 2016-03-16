@@ -114,6 +114,8 @@ FF_EXTN void ffmp4_seek(ffmp4 *m, uint64 sample);
 
 #define ffmp4_totalsamples(m)  ((m)->total_samples)
 
+FF_EXTN uint ffmp4_bitrate(ffmp4 *m);
+
 /** Get an absolute sample number. */
 #define ffmp4_cursample(m)  ((m)->cursample)
 

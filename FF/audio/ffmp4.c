@@ -396,6 +396,13 @@ void ffmp4_close(ffmp4 *m)
 	ffarr_free(&m->buf);
 }
 
+uint ffmp4_bitrate(ffmp4 *m)
+{
+	if (m->total_size == 0)
+		return 0;
+	return ffpcm_brate(m->total_size, m->total_samples, m->fmt.sample_rate);
+}
+
 /** Search box in the context.
 Return -1 if not found. */
 static int mp4_box_find(const struct bbox *ctx, const char type[4], struct mp4_box *box)
