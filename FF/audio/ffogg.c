@@ -465,6 +465,8 @@ static int _ffogg_open(ffogg *o)
 				break;
 
 			o->off += o->pagesize - buflen;
+			if (o->off == o->total_size)
+				break; // no eos page
 			return FFOGG_RSEEK;
 		}
 
