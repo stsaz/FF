@@ -17,7 +17,7 @@ typedef struct ffalac {
 	char serr[32];
 
 	ffpcm fmt;
-	uint bitrate;
+	uint bitrate; // 0 if unknown
 
 	const char *data;
 	size_t datalen;
