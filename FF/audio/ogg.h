@@ -62,12 +62,14 @@ typedef struct ffogg {
 
 	ffpcm_seekpt seektab[2];
 	ffpcm_seekpt seekpt[2];
+	uint64 skoff;
 
 	unsigned ostm_valid :1
 		, vblk_valid :1
 		, seekable :1 //search for eos page
 		, init_done :1
 		, page_last :1
+		, firstseek :1
 		;
 } ffogg;
 

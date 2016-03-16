@@ -71,6 +71,7 @@ static uint ogg_tag_write(char *d, size_t vorbtag_len);
 
 static int _ffogg_gethdr(ffogg *o, ogg_hdr **h);
 static int _ffogg_open(ffogg *o);
+static int _ffogg_seek(ffogg *o);
 
 static int _ffogg_enc_hdr(ffogg_enc *o);
 
@@ -498,14 +499,124 @@ void ffogg_close(ffogg *o)
 
 void ffogg_seek(ffogg *o, uint64 sample)
 {
-	if (o->total_samples == 0 || o->total_size == 0)
+	if (sample >= o->total_samples || o->total_size == 0)
 		return;
 	o->seek_sample = sample;
 	if (o->state == I_DATA)
 		o->state = I_SEEKDATA;
-	else
+	else {
+		if (o->state == I_SEEK_EOS3)
+			o->firstseek = 1;
 		o->state = I_SEEK;
+	}
 	ffmemcpy(o->seekpt, o->seektab, sizeof(o->seekpt));
+	o->skoff = (uint64)-1;
+	o->buf.len = 0;
+}
+
+/* Seeking in OGG Vorbis:
+
+... [P1 ^P2 P3] P4 ...
+where:
+ P{N} are OGG pages
+ ^ is the target page
+ [...] are the search boundaries
+
+An OGG page is not enough to determine whether this page is our target,
+ e.g. audio position of P2 becomes known only from P1.granule_pos.
+Therefore, we need additional processing:
+
+ 0. Parse 2 consecutive pages and pass info from the 2nd page to ffpcm_seek(),
+    e.g. parse P2 and P3, then pass P3 to ffpcm_seek().
+
+ 1. If the 2nd page is out of search boundaries (P4), we must not pass it to ffpcm_seek().
+    We seek backward on a file (somewhere to [P1..P2]) and try again (cases 0 or 2).
+
+ 2. If the currently processed page is the first within search boundaries (P2 in [^P2 P3])
+    and it's proven to be the target page (its granulepos > target sample),
+    use audio position value from the lower search boundary, so we don't need the previous page.
+*/
+static int _ffogg_seek(ffogg *o)
+{
+	int r;
+	struct ffpcm_seek sk;
+	ogg_hdr *h;
+	uint64 gpos;
+
+	if (o->firstseek) {
+		// we don't have any page right now
+		o->firstseek = 0;
+		sk.fr_index = 0;
+		sk.fr_samples = 0;
+		sk.fr_size = sizeof(struct ogg_hdr);
+		goto sk;
+	}
+
+	for (;;) {
+		r = _ffogg_gethdr(o, &h);
+		if (r != FFOGG_RDONE && !(r == FFOGG_RWARN && o->err == OGG_EJUNKDATA))
+			return r;
+
+		switch (o->state) {
+		case I_SEEK:
+			gpos = ffint_ltoh64(h->granulepos);
+			o->buf.len = 0;
+			if (gpos > o->seek_sample && o->skoff == o->seekpt[0].off) {
+				sk.fr_index = o->seekpt[0].sample;
+				sk.fr_samples = gpos - o->seekpt[0].sample;
+				sk.fr_size = o->pagesize;
+				break;
+			}
+			if (h == (void*)o->data) {
+				FFARR_SHIFT(o->data, o->datalen, o->hdrsize);
+				o->off += o->hdrsize;
+			}
+			o->cursample = gpos;
+			o->state = I_SEEK2;
+			continue;
+
+		case I_SEEK2:
+			o->state = I_SEEK;
+			if (o->off - o->off_data >= o->seekpt[1].off) {
+				uint64 newoff = ffmax((int64)o->skoff - OGG_MAXPAGE, (int64)o->seekpt[0].off);
+				if (newoff == o->skoff) {
+					o->err = OGG_ESEEK;
+					return FFOGG_RERR;
+				}
+				o->skoff = newoff;
+				o->off = o->off_data + o->skoff;
+				return FFOGG_RSEEK;
+			}
+			gpos = ffint_ltoh64(h->granulepos);
+			sk.fr_index = o->cursample;
+			sk.fr_samples = gpos - o->cursample;
+			sk.fr_size = o->pagesize;
+			break;
+		}
+
+		break;
+	}
+
+sk:
+	sk.target = o->seek_sample;
+	sk.off = o->off - o->off_data;
+	sk.lastoff = o->skoff;
+	sk.pt = o->seekpt;
+	sk.avg_fr_samples = 0;
+	sk.flags = FFPCM_SEEK_ALLOW_BINSCH;
+
+	r = ffpcm_seek(&sk);
+	if (r == 1) {
+		o->skoff = sk.off;
+		o->off = o->off_data + sk.off;
+		return FFOGG_RSEEK;
+
+	} else if (r == -1) {
+		o->err = OGG_ESEEK;
+		return FFOGG_RERR;
+	}
+
+	return FFOGG_RDONE;
 }
 
 /*
@@ -528,19 +639,12 @@ int ffogg_decode(ffogg *o)
 
 	case I_SEEKDATA:
 		vorbis_synthesis_read(&o->vds, o->nsamples);
-		//o->state = I_SEEK;
+		o->state = I_SEEK;
 		//break;
 
 	case I_SEEK:
-		o->off = o->off_data + (o->total_size - o->off_data) * o->seek_sample / o->total_samples;
-		if (o->off > 16 * 1024)
-			o->off -= 16 * 1024;
-		o->state = I_SEEK2;
-		return FFOGG_RSEEK;
-
 	case I_SEEK2:
-		r = _ffogg_gethdr(o, &h);
-		if (r != FFOGG_RDONE && !(r == FFOGG_RWARN && o->err == OGG_EJUNKDATA))
+		if (FFOGG_RDONE != (r = _ffogg_seek(o)))
 			return r;
 		ogg_stream_reset(&o->ostm);
 		o->state = I_BODY;
