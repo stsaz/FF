@@ -25,6 +25,8 @@ typedef struct ffalac {
 	const void *pcm; // 16|20|24|32-bits interleaved
 	uint pcmlen; // PCM data length in bytes
 	ffarr buf;
+	uint64 cursample;
+	uint64 seek_sample;
 } ffalac;
 
 enum FFALAC_R {
@@ -43,3 +45,8 @@ FF_EXTN void ffalac_close(ffalac *a);
 /**
 Return enum FFALAC_R. */
 FF_EXTN int ffalac_decode(ffalac *a);
+
+/** Seek on decoded frame (after a target frame is found in container). */
+FF_EXTN void ffalac_seek(ffalac *a, uint64 sample);
+
+#define ffalac_cursample(a)  ((a)->cursample - (a)->pcmlen / ffpcm_size1(&(a)->fmt))

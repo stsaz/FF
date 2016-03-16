@@ -64,6 +64,11 @@ void ffalac_close(ffalac *a)
 	ffarr_free(&a->buf);
 }
 
+void ffalac_seek(ffalac *a, uint64 sample)
+{
+	a->seek_sample = sample;
+}
+
 int ffalac_decode(ffalac *a)
 {
 	int r;
@@ -81,5 +86,14 @@ int ffalac_decode(ffalac *a)
 
 	a->pcm = a->buf.ptr;
 	a->pcmlen = samps * ffpcm_size1(&a->fmt);
+
+	if (a->seek_sample != 0) {
+		FF_ASSERT(a->seek_sample < a->cursample + samps);
+		uint n = ffmin(a->seek_sample - a->cursample, samps) * ffpcm_size1(&a->fmt);
+		a->pcm = (char*)a->pcm + n;
+		a->pcmlen -= n;
+		a->seek_sample = 0;
+	}
+	a->cursample += samps;
 	return 0;
 }
