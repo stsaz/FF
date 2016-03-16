@@ -70,6 +70,7 @@ typedef struct ffogg {
 		, init_done :1
 		, page_last :1
 		, firstseek :1
+		, nodecode :1 //return whole OGG pages as-is with FFOGG_RPAGE return code
 		;
 } ffogg;
 
@@ -91,6 +92,7 @@ enum FFOGG_R {
 	, FFOGG_RDATA
 	, FFOGG_RSEEK
 	, FFOGG_RDONE
+	, FFOGG_RPAGE //returned after the whole OGG page is available
 
 	, FFOGG_RHDR
 	, FFOGG_RTAG
@@ -124,6 +126,14 @@ FF_EXTN int ffogg_decode(ffogg *o);
 
 /** Get an absolute sample number. */
 #define ffogg_cursample(o)  ((o)->cursample)
+
+/** Get page data.
+Must be called when FFOGG_RPAGE is returned. */
+static FFINL void ffogg_pagedata(ffogg *o, const char **d, size_t *size)
+{
+	*d = o->buf.ptr;
+	*size = o->pagesize;
+}
 
 
 typedef struct ffogg_enc {

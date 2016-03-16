@@ -76,7 +76,7 @@ static int _ffogg_seek(ffogg *o);
 static int _ffogg_enc_hdr(ffogg_enc *o);
 
 
-enum { I_HDR, I_BODY, I_HDRPKT, I_COMM, I_HDRDONE
+enum { I_HDR, I_BODY, I_HDRPKT, I_COMM, I_HDRDONE, I_HDRPAGE
 	, I_SEEK_EOS, I_SEEK_EOS2, I_SEEK_EOS3
 	, I_SEEK, I_SEEKDATA, I_SEEK2
 	, I_PAGE, I_PKT, I_SYNTH, I_DATA };
@@ -368,6 +368,10 @@ more:
 	return FFOGG_RMORE;
 }
 
+/*
+Return codes sequence when 'nodecode' is active:
+RHDR -> RPAGE -> RTAG... -> RHDRFIN -> RPAGE -> RINFO
+*/
 static int _ffogg_open(ffogg *o)
 {
 	int r;
@@ -378,10 +382,19 @@ static int _ffogg_open(ffogg *o)
 
 	switch (o->state) {
 
+	case I_HDRPAGE:
+		if (o->seekable && o->total_size != 0)
+			o->state = I_SEEK_EOS;
+		else
+			o->state = I_PAGE;
+		return FFOGG_RPAGE;
+
 	case I_HDRPKT:
 		r = ogg_stream_packetout(&o->ostm, &opkt);
 		if (r == 0) {
 			o->state = I_HDR;
+			if (o->nodecode)
+				return FFOGG_RPAGE;
 			return FFOGG_RDATA;
 
 		} else if (r < 0) {
@@ -437,7 +450,9 @@ static int _ffogg_open(ffogg *o)
 		}
 		o->off_data = o->off;
 
-		if (o->seekable && o->total_size != 0)
+		if (o->nodecode)
+			o->state = I_HDRPAGE;
+		else if (o->seekable && o->total_size != 0)
 			o->state = I_SEEK_EOS;
 		else
 			o->state = I_PAGE;
@@ -720,6 +735,11 @@ int ffogg_decode(ffogg *o)
 		if (!o->init_done) {
 			o->state = I_HDRPKT;
 			continue;
+		}
+
+		if (o->nodecode) {
+			o->state = I_PAGE;
+			return FFOGG_RPAGE;
 		}
 
 		o->state = I_PKT;
