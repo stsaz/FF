@@ -6,6 +6,7 @@ Copyright (c) 2013 Simon Zolin
 #include <FF/array.h>
 #include <FFOS/file.h>
 #include <FFOS/error.h>
+#include <math.h>
 
 
 int ffs_icmp(const char *s1, const char *s2, size_t len)
@@ -910,6 +911,11 @@ uint ffs_fromfloat(double d, char *dst, size_t cap, uint flags)
 	if (d < 0) {
 		buf = ffs_copyc(buf, end, '-');
 		d = -d;
+	}
+
+	if (isinf(d)) {
+		buf = ffs_copycz(buf, end, "inf");
+		return buf - dst;
 	}
 
 	num = (int64)d;
