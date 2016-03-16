@@ -76,7 +76,7 @@ static int _ffogg_seek(ffogg *o);
 static int _ffogg_enc_hdr(ffogg_enc *o);
 
 
-enum { I_HDR, I_BODY, I_HDRPKT, I_COMM, I_HDRDONE, I_HDRPAGE
+enum { I_HDR, I_BODY, I_HDRPKT, I_COMM, I_HDRDONE, I_FIRSTPAGE, I_HDRPAGE
 	, I_SEEK_EOS, I_SEEK_EOS2, I_SEEK_EOS3
 	, I_SEEK, I_SEEKDATA, I_SEEK2
 	, I_PAGE, I_PKT, I_SYNTH, I_DATA };
@@ -449,6 +449,14 @@ static int _ffogg_open(ffogg *o)
 			o->vblk_valid = 1;
 		}
 		o->off_data = o->off;
+		o->state = I_FIRSTPAGE;
+		// break
+
+	case I_FIRSTPAGE:
+		r = _ffogg_gethdr(o, &h);
+		if (r != FFOGG_RDONE)
+			return r;
+		o->first_sample = ffint_ltoh64(h->granulepos);
 
 		if (o->nodecode)
 			o->state = I_HDRPAGE;
