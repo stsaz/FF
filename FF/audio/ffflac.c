@@ -487,7 +487,7 @@ static uint flac_frame_parse(ffflac_frame *fr, const char *data, size_t len)
 		return 0; //reserved
 	fr->bps = flac_bps[f->bps];
 
-	if ((byte)*d != ffcrc8_get(data, d - data))
+	if ((byte)*d != FLAC__crc8((void*)data, d - data))
 		return 0; //header CRC mismatch
 	d++;
 	return d - data;
