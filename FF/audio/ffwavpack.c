@@ -265,62 +265,38 @@ static FFINL int wvpk_ape(ffwvpack *w)
 }
 
 /**
-Return 0 on success.  If w->buf is used, w->data points to block body, otherwise it points to block header. */
+Return 0 on success.  w->data points to block body. */
 static int _ffwvpk_gethdr(ffwvpack *w, struct wvpk_hdr *hdr)
 {
-	uint lostsync = 0;
-	int r;
+	int r, n = 0;
 
-	if (w->buf.len != 0) {
-		uint buflen = w->buf.len;
-		r = ffmin(w->datalen, sizeof(struct wvpk_hdr) - buflen);
-		if (NULL == ffarr_append(&w->buf, w->data, r)) {
+	struct ffbuf_gather d = {0};
+	ffstr_set(&d.data, w->data, w->datalen);
+	d.ctglen = sizeof(struct wvpk_hdr);
+
+	while (FFBUF_DONE != (r = ffbuf_gather(&w->buf, &d))) {
+
+		if (r == FFBUF_ERR) {
 			w->err = FFWVPK_ESYS;
 			return FFWVPK_RERR;
-		}
 
-		r = wvpk_findblock(w->buf.ptr, w->buf.len, hdr);
-		if (r == -1) {
-			if (w->datalen > sizeof(struct wvpk_hdr) - buflen) {
-				w->buf.len = 0;
-				goto dfind;
-			}
+		} else if (r == FFBUF_MORE) {
 			goto more;
-
-		} else if (r != 0) {
-			lostsync = 1;
-			_ffarr_rmleft(&w->buf, r, sizeof(char));
 		}
 
-		FFARR_SHIFT(w->data, w->datalen, sizeof(struct wvpk_hdr) - buflen);
-		w->off += sizeof(struct wvpk_hdr) - buflen;
-		goto done;
+		if (-1 != (n = wvpk_findblock(w->buf.ptr, w->buf.len, hdr)))
+			d.off = n + 1;
 	}
+	w->off += d.data.ptr - (char*)w->data;
+	w->data = d.data.ptr;
+	w->datalen = d.data.len;
 
-dfind:
-	r = wvpk_findblock(w->data, w->datalen, hdr);
-	if (r == -1) {
-		uint n = ffmin(w->datalen, sizeof(struct wvpk_hdr) - 1);
-		if (NULL == ffarr_append(&w->buf, w->data + w->datalen - n, n)) {
-			w->err = FFWVPK_ESYS;
-			return FFWVPK_RERR;
-		}
-
-		goto more;
-
-	} else if (r != 0) {
-		lostsync = 1;
-		FFARR_SHIFT(w->data, w->datalen, r);
-		w->off += r;
-	}
-
-done:
 	w->blksize = hdr->size;
 
 	if (w->bytes_skipped != 0)
 		w->bytes_skipped = 0;
 
-	if (lostsync) {
+	if (n != 0) {
 		w->err = FFWVPK_ESYNC;
 		return FFWVPK_RWARN;
 	}
@@ -410,14 +386,15 @@ int ffwvpk_decode(ffwvpack *w)
 
 	case I_BLOCK:
 		r = ffarr_append_until(&w->buf, w->data, w->datalen, w->blksize);
-		if (r == 0)
+		if (r == 0) {
+			w->off += w->datalen;
 			return FFWVPK_RMORE;
-		else if (r == -1) {
+		} else if (r == -1) {
 			w->err = FFWVPK_ESYS;
 			return FFWVPK_RERR;
 		}
 		FFARR_SHIFT(w->data, w->datalen, r);
-		w->off += w->blksize;
+		w->off += r;
 
 		w->state = (w->hdr_done) ? I_DATA : I_HDR;
 		continue;
