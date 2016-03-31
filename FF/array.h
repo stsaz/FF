@@ -164,6 +164,10 @@ static FFINL void _ffarr_rmswap(ffarr *ar, void *el, size_t elsz) {
 #define ffarr_rmswap(ar, el) \
 	_ffarr_rmswap((ffarr*)ar, (void*)el, sizeof(*(ar)->ptr))
 
+/**
+"...DATA..." -> "DATA" */
+FF_EXTN void _ffarr_crop(ffarr *ar, size_t off, size_t n, size_t elsz);
+
 
 typedef struct ffstr {
 	size_t len;

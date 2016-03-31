@@ -111,6 +111,17 @@ void _ffarr_rmleft(ffarr *ar, size_t n, size_t elsz)
 	ar->len -= n;
 }
 
+void _ffarr_crop(ffarr *ar, size_t off, size_t n, size_t elsz)
+{
+	if (off != 0) {
+		if (ar->cap != 0)
+			memmove(ar->ptr, ar->ptr + off * elsz, n * elsz);
+		else
+			ar->ptr += off + elsz;
+	}
+	ar->len = n;
+}
+
 
 size_t ffbuf_add(ffstr3 *buf, const char *src, size_t len, ffstr *dst)
 {
