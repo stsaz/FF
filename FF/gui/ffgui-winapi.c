@@ -615,6 +615,29 @@ void ffui_view_edit(ffui_view *v, int i, int sub)
 	ffui_edit_selall(&e);
 }
 
+/*
+Getting large text: call ListView_GetItem() with a larger buffer until the whole data has been received. */
+int ffui_view_get(ffui_view *v, int sub, ffui_viewitem *it)
+{
+	size_t cap = 4096;
+	it->item.iSubItem = sub;
+
+	while (ListView_GetItem(v->h, &it->item)) {
+
+		if (!(it->item.mask & LVIF_TEXT)
+			|| ffq_len(it->item.pszText) + 1 != (size_t)it->item.cchTextMax)
+			return 0;
+
+		if (NULL == (it->w = ffmem_realloc(it->w, cap * sizeof(ffsyschar))))
+			return -1;
+		it->item.pszText = it->w;
+		it->item.cchTextMax = cap;
+		cap *= 2;
+	}
+
+	return -1;
+}
+
 
 int ffui_tree_create(ffui_ctl *c, void *parent)
 {

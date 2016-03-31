@@ -588,12 +588,7 @@ FF_EXTN int ffui_view_ins(ffui_view *v, int pos, ffui_viewitem *it);
 
 FF_EXTN int ffui_view_set(ffui_view *v, int sub, ffui_viewitem *it);
 
-// note: large text isn't supported
-static FFINL int ffui_view_get(ffui_view *v, int sub, ffui_viewitem *it)
-{
-	it->item.iSubItem = sub;
-	return (ListView_GetItem(v->h, &it->item)) ? 0 : -1;
-}
+FF_EXTN int ffui_view_get(ffui_view *v, int sub, ffui_viewitem *it);
 
 #define ffui_view_param(it)  ((it)->item.lParam)
 
