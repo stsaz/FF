@@ -92,41 +92,45 @@ int ffvorbtag_parse(ffvorbtag *v)
 
 int ffvorbtag_add(ffvorbtag_cook *v, const char *name, const char *val, size_t vallen)
 {
-	char *d = v->out + v->outlen;
-	const char *end = v->out + v->outcap;
 	size_t namelen;
 	uint len;
 
-	if (v->outlen == 0) {
+	namelen = (v->cnt != 0) ? ffsz_len(name) : 0;
+	len = namelen + FFSLEN("=") + vallen;
+
+	if (!v->nogrow) {
+		if (NULL == ffarr_grow(&v->out, 4 + len, FFARR_GROWQUARTER))
+			return FFVORBTAG_ERR;
+	} else if (4 + len > ffarr_unused(&v->out))
+		return FFVORBTAG_ERR;
+
+	char *d = ffarr_end(&v->out);
+	const char *end = ffarr_edge(&v->out);
+
+	if (v->cnt == 0) {
 		//vendor
 		len = vallen;
-		if (4 + len + 4 > v->outcap)
-			return FFVORBTAG_ERR;
-
+		v->vendor_off = v->out.len;
 		ffint_htol32(d, len);
 		d += 4;
 		d = ffmem_copy(d, val, vallen) + 4;
-		v->outlen = d - v->out;
-		return 0;
+		goto done;
 	}
-
-	if (name == NULL) {
-		len = ffint_ltoh32(v->out); // get vendor string length
-		ffint_htol32(v->out + 4 + len, v->cnt);
-		return 0;
-	}
-
-	namelen = ffsz_len(name);
-	len = namelen + FFSLEN("=") + vallen;
-	if (v->outlen + 4 + len > v->outcap)
-		return FFVORBTAG_ERR;
 
 	ffint_htol32(d, len);
 	d += 4;
 	d += ffs_upper(d, end, name, namelen);
 	*d++ = '=';
 	d = ffmem_copy(d, val, vallen);
-	v->outlen = d - v->out;
+
+done:
+	v->out.len = d - v->out.ptr;
 	v->cnt++;
 	return 0;
+}
+
+void ffvorbtag_fin(ffvorbtag_cook *v)
+{
+	uint vendor_len = ffint_ltoh32(v->out.ptr + v->vendor_off);
+	ffint_htol32(v->out.ptr + v->vendor_off + 4 + vendor_len, v->cnt - 1);
 }

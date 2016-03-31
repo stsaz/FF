@@ -60,10 +60,10 @@ FF_EXTN int ffvorbtag_find(const char *name, size_t len);
 
 
 typedef struct ffvorbtag_cook {
-	uint cnt;
-	uint outlen;
-	char *out;
-	size_t outcap;
+	ffarr out; //static or dynamic buffer
+	uint cnt; //number of entries (including vendor)
+	uint vendor_off; //offset of vendor length in 'out'
+	uint nogrow :1; //don't allow ffvorbtag_add() to enlarge 'out'
 } ffvorbtag_cook;
 
 /** Add an entry.  The first one must be vendor string.
@@ -75,4 +75,10 @@ FF_EXTN int ffvorbtag_add(ffvorbtag_cook *v, const char *name, const char *val, 
 	ffvorbtag_add(v, ffvorbtag_str[tag], val, vallen)
 
 /** Set the total number of entries. */
-#define ffvorbtag_fin(v)  ffvorbtag_add(v, NULL, NULL, 0)
+FF_EXTN void ffvorbtag_fin(ffvorbtag_cook *v);
+
+static FFINL void ffvorbtag_destroy(ffvorbtag_cook *v)
+{
+	if (!v->nogrow)
+		ffarr_free(&v->out);
+}
