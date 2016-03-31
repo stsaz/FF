@@ -12,11 +12,15 @@ MPEG-HEADER  [CRC16]  ([XING-TAG  LAME-TAG]  |  FRAME-DATA...) ...
 
 
 enum FFMPG_VER {
-	FFMPG_1 = 3
+	FFMPG_1 = 3,
+	FFMPG_2 = 2,
+	FFMPG_2_5 = 0,
 };
 
 enum FFMPG_LAYER {
-	FFMPG_L3 = 1
+	FFMPG_L3 = 1,
+	FFMPG_L2,
+	FFMPG_L1,
 };
 
 enum FFMPG_CHANNEL {
@@ -28,9 +32,6 @@ enum FFMPG_CHANNEL {
 
 /** Channel as a string. */
 FF_EXTN const char ffmpg_strchannel[4][8];
-
-FF_EXTN const byte ffmpg1l3_kbyterate[16];
-FF_EXTN const ushort ffmpg1_sample_rate[4];
 
 //4 bytes
 typedef struct ffmpg_hdr {
@@ -60,16 +61,16 @@ FF_EXTN ffbool ffmpg_valid(const ffmpg_hdr *h);
 FF_EXTN uint ffmpg_framelen(const ffmpg_hdr *h);
 
 /** Get bitrate (bps). */
-#define ffmpg_bitrate(h) \
-	((uint)ffmpg1l3_kbyterate[(h)->bitrate] * 8 * 1000)
+FF_EXTN uint ffmpg_bitrate(const ffmpg_hdr *h);
 
 /** Get sample rate (Hz). */
-#define ffmpg_sample_rate(h) \
-	((uint)ffmpg1_sample_rate[(h)->sample_rate])
+FF_EXTN uint ffmpg_sample_rate(const ffmpg_hdr *h);
 
 /** Get channels. */
 #define ffmpg_channels(h) \
 	((h)->channel == FFMPG_MONO ? 1 : 2)
+
+FF_EXTN uint ffmpg_frame_samples(const ffmpg_hdr *h);
 
 
 enum FFMPG_XING_FLAGS {

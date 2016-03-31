@@ -18,16 +18,45 @@ static int mpg_mad_decode(ffmpg *m);
 #endif
 
 
-const byte ffmpg1l3_kbyterate[16] = {
-	0, 32/8, 40/8, 48/8
-	, 56/8, 64/8, 80/8, 96/8
-	, 112/8, 128/8, 160/8, 192/8
-	, 224/8, 256/8, 320/8, 0
+static const byte mpg_kbyterate[2][3][16] = {
+	{ //MPEG-1
+	{ 0,32/8,64/8,96/8,128/8,160/8,192/8,224/8,256/8,288/8,320/8,352/8,384/8,416/8,448/8,0 }, //L1
+	{ 0,32/8,48/8,56/8, 64/8, 80/8, 96/8,112/8,128/8,160/8,192/8,224/8,256/8,320/8,384/8,0 }, //L2
+	{ 0,32/8,40/8,48/8, 56/8, 64/8, 80/8, 96/8,112/8,128/8,160/8,192/8,224/8,256/8,320/8,0 }, //L3
+	},
+	{ //MPEG-2
+	{ 0,32/8,48/8,56/8,64/8,80/8,96/8,112/8,128/8,144/8,160/8,176/8,192/8,224/8,256/8,0 }, //L1
+	{ 0, 8/8,16/8,24/8,32/8,40/8,48/8, 56/8, 64/8, 80/8, 96/8,112/8,128/8,144/8,160/8,0 }, //L2
+	{ 0, 8/8,16/8,24/8,32/8,40/8,48/8, 56/8, 64/8, 80/8, 96/8,112/8,128/8,144/8,160/8,0 }, //L3
+	}
 };
 
-const ushort ffmpg1_sample_rate[4] = {
-	44100, 48000, 32000, 0
+uint ffmpg_bitrate(const ffmpg_hdr *h)
+{
+	return (uint)mpg_kbyterate[h->ver != FFMPG_1][3 - h->layer][h->bitrate] * 8 * 1000;
+}
+
+static const ushort mpg_sample_rate[4][3] = {
+	{ 44100, 48000, 32000 }, //MPEG-1
+	{ 44100/2, 48000/2, 32000/2 }, //MPEG-2
+	{ 0, 0, 0 },
+	{ 44100/4, 48000/4, 32000/4 }, //MPEG-2.5
 };
+
+uint ffmpg_sample_rate(const ffmpg_hdr *h)
+{
+	return mpg_sample_rate[3 - h->ver][h->sample_rate];
+}
+
+static const byte mpg_frsamps[2][3] = {
+	{ 384/8, 1152/8, 1152/8 }, //MPEG-1
+	{ 384/8, 1152/8, 576/8 }, //MPEG-2
+};
+
+uint ffmpg_frame_samples(const ffmpg_hdr *h)
+{
+	return mpg_frsamps[h->ver != FFMPG_1][3 - h->layer] * 8;
+}
 
 const char ffmpg_strchannel[4][8] = {
 	"stereo", "joint", "dual", "mono"
@@ -35,15 +64,17 @@ const char ffmpg_strchannel[4][8] = {
 
 ffbool ffmpg_valid(const ffmpg_hdr *h)
 {
-	return (ffint_ntoh32(h) & 0xffe00000) == 0xffe00000
-		&& h->ver == FFMPG_1 && h->layer == FFMPG_L3
+	return (ffint_ntoh16(h) & 0xffe0) == 0xffe0
+		&& h->ver != 1
+		&& h->layer != 0
 		&& h->bitrate != 0 && h->bitrate != 15
 		&& h->sample_rate != 3;
 }
 
 uint ffmpg_framelen(const ffmpg_hdr *h)
 {
-	return 144 * (ffmpg1l3_kbyterate[h->bitrate] * 8 * 1000) / ffmpg1_sample_rate[h->sample_rate] + h->padding;
+	return ffmpg_frame_samples(h)/8 * ffmpg_bitrate(h) / ffmpg_sample_rate(h)
+		+ ((h->layer != FFMPG_L1) ? h->padding : h->padding * 4);
 }
 
 
