@@ -55,7 +55,7 @@ struct _vorbis_info {
 enum {
 	OGG_MAXHDR = sizeof(ogg_hdr) + 255,
 	OGG_MAXPAGE = OGG_MAXHDR + 255 * 255,
-	MAX_NOSYNC = 256 * 1024 * 1024,
+	MAX_NOSYNC = 256 * 1024,
 };
 
 static int ogg_parse(ogg_hdr *h, const char *data, size_t len);
