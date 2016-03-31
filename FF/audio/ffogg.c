@@ -60,6 +60,7 @@ enum {
 
 static int ogg_parse(ogg_hdr *h, const char *data, size_t len);
 static uint ogg_pagesize(const ogg_hdr *h);
+static uint ogg_packets(const ogg_hdr *h);
 static int ogg_findpage(const char *data, size_t len, ogg_hdr *h);
 static int ogg_pkt_write(ffogg_page *p, char *buf, const char *pkt, uint len);
 static int ogg_page_write(ffogg_page *p, char *buf, uint64 granulepos, uint flags, ffstr *page);
@@ -70,6 +71,7 @@ static void* ogg_tag(const char *d, size_t len, size_t *vorbtag_len);
 static uint ogg_tag_write(char *d, size_t vorbtag_len);
 
 static int _ffogg_gethdr(ffogg *o, ogg_hdr **h);
+static int _ffogg_getbody(ffogg *o);
 static int _ffogg_open(ffogg *o);
 static int _ffogg_seek(ffogg *o);
 
@@ -159,6 +161,17 @@ static uint ogg_pagesize(const ogg_hdr *h)
 		r += h->segments[i];
 	}
 	return sizeof(ogg_hdr) + h->nsegments + r;
+}
+
+/** Get number of packets in page. */
+static FFINL uint ogg_packets(const ogg_hdr *h)
+{
+	uint i, n = 0;
+	for (i = 0;  i != h->nsegments;  i++) {
+		if (h->segments[i] < 255)
+			n++;
+	}
+	return n;
 }
 
 /**
@@ -323,10 +336,16 @@ static int _ffogg_gethdr(ffogg *o, ogg_hdr **h)
 	o->data = d.data.ptr;
 	o->datalen = d.data.len;
 
+	hdr = (void*)o->buf.ptr;
 	*h = (void*)o->buf.ptr;
 
 	if (o->bytes_skipped != 0)
 		o->bytes_skipped = 0;
+
+	FFDBG_PRINTLN(10, "page #%u  end-pos:%xU  packets:%u  continued:%u  size:%u  offset:%xU"
+		, ffint_ltoh32(hdr->number), ffint_ltoh64(hdr->granulepos)
+		, ogg_packets(hdr), (hdr->flags & OGG_FCONTINUED) != 0
+		, o->pagesize, o->off - o->hdrsize);
 
 	if (n != 0) {
 		o->err = OGG_EJUNKDATA;
@@ -343,6 +362,35 @@ more:
 
 	o->off += o->datalen;
 	return FFOGG_RMORE;
+}
+
+static int _ffogg_getbody(ffogg *o)
+{
+	int r = ffarr_append_until(&o->buf, o->data, o->datalen, o->pagesize);
+	if (r == 0) {
+		o->off += o->datalen;
+		return FFOGG_RMORE;
+	} else if (r == -1) {
+		o->err = OGG_ESYS;
+		return FFOGG_RERR;
+	}
+	FFARR_SHIFT(o->data, o->datalen, r);
+	o->off += r;
+	o->buf.len = 0;
+	const ogg_hdr *h = (void*)o->buf.ptr;
+
+	uint crc = ogg_checksum(o->buf.ptr, o->pagesize);
+	uint hcrc = ffint_ltoh32(h->crc);
+	if (crc != hcrc) {
+		FFDBG_PRINTLN(1, "Bad page CRC:%xu, CRC in header:%xu", crc, hcrc);
+		o->err = OGG_ECRC;
+		return FFOGG_RERR;
+	}
+
+	o->page_last = (h->flags & OGG_FLAST) != 0;
+	o->page_num = ffint_ltoh32(h->number);
+	o->page_gpos = ffint_ltoh64(h->granulepos);
+	return FFOGG_RDONE;
 }
 
 /*
@@ -673,43 +721,24 @@ int ffogg_decode(ffogg *o)
 		// break
 
 	case I_BODY:
-		r = ffarr_append_until(&o->buf, o->data, o->datalen, o->pagesize);
-		if (r == 0)
-			return FFOGG_RMORE;
-		else if (r == -1) {
-			o->err = OGG_ESYS;
-			return FFOGG_RERR;
-		}
-		FFARR_SHIFT(o->data, o->datalen, r);
-		o->off += o->pagesize;
-		o->buf.len = 0;
-		h = (void*)o->buf.ptr;
+		r = _ffogg_getbody(o);
+		if (r == FFOGG_RERR) {
+			if (!o->init_done)
+				return FFOGG_RERR;
 
-		{
-		uint crc = ogg_checksum(o->buf.ptr, o->pagesize);
-		uint hcrc = ffint_ltoh32(h->crc);
-		if (crc != hcrc) {
-			FFDBG_PRINTLN(1, "Bad page CRC:%xu, CRC in header:%xu", crc, hcrc);
-			o->err = OGG_ECRC;
 			o->state = I_HDR;
-			return (o->init_done) ? FFOGG_RWARN : FFOGG_RERR;
-		}
-		}
-		o->page_last = (h->flags & OGG_FLAST) != 0;
-		o->page_num = ffint_ltoh32(h->number);
-		o->page_gpos = ffint_ltoh64(h->granulepos);
+			return FFOGG_RWARN;
+
+		} else if (r != FFOGG_RDONE)
+			return r;
 
 		opg.header = (void*)o->buf.ptr;
 		opg.header_len = o->hdrsize;
 		opg.body = (void*)(o->buf.ptr + o->hdrsize);
 		opg.body_len = o->pagesize - o->hdrsize;
 
-		FFDBG_PRINTLN(10, "page #%u  end-pos:%xU  packets:%u  continued:%u  size:%u"
-			, o->page_num, o->page_gpos
-			, ogg_page_packets(&opg), (h->flags & OGG_FCONTINUED) != 0
-			, o->pagesize);
-
 		if (!o->ostm_valid) {
+			h = (void*)o->buf.ptr;
 			ogg_stream_init(&o->ostm, ffint_ltoh32(h->serial));
 			o->ostm_valid = 1;
 		}
