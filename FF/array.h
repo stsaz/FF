@@ -378,7 +378,30 @@ FF_EXTN size_t fffile_fmt(fffd fd, ffstr3 *buf, const char *fmt, ...);
 /** Buffered data output.
 @dst is set if an output data block is ready.
 Return the number of processed bytes. */
-size_t ffbuf_add(ffstr3 *buf, const char *src, size_t len, ffstr *dst);
+FF_EXTN size_t ffbuf_add(ffstr3 *buf, const char *src, size_t len, ffstr *dst);
+
+
+struct ffbuf_gather {
+	uint state;
+	uint buflen;
+	ffstr data; //input data
+	size_t ctglen; //length of contiguous data
+	uint off; //offset (+1) of the needed data within buffer
+};
+
+enum FFBUF_R {
+	FFBUF_MORE,
+	FFBUF_ERR,
+	FFBUF_READY,
+	FFBUF_DONE,
+};
+
+/** Gather contiguous data from separate memory buffers.
+Buffer #1: "...D"
+Buffer #2: "ATA..."
+Result: "DATA"
+Return enum FFBUF_R. */
+FF_EXTN int ffbuf_gather(ffarr *buf, struct ffbuf_gather *d);
 
 
 typedef struct ffbstr {
