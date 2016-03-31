@@ -140,6 +140,7 @@ typedef struct ffflac_enc {
 
 	size_t datalen;
 	const byte *data;
+	uint seektab_off;
 
 	size_t pcmlen
 		, off;
@@ -149,8 +150,7 @@ typedef struct ffflac_enc {
 	uint64 total_samples;
 	uint min_meta; // minimum size of meta data (add padding block if needed)
 	uint level; //0..8.  Default: 5.
-	uint fin :1
-		, have_padding :1;
+	uint fin :1;
 
 	uint seektable_int; // interval (in samples) for seek table.  Default: 1 sec.  0=disabled.
 	uint iskpt;

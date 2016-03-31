@@ -1065,6 +1065,7 @@ void ffflac_enc_init(ffflac_enc *f)
 
 void ffflac_enc_close(ffflac_enc *f)
 {
+	ffvorbtag_destroy(&f->vtag);
 	ffarr_free(&f->outbuf);
 	ffmem_safefree(f->sktab.ptr);
 	FLAC__stream_encoder_delete(f->enc);
@@ -1122,8 +1123,8 @@ int ffflac_create(ffflac_enc *f, const ffpcm *pcm)
 	}
 	f->outbuf.len += r;
 
-	f->vtag.out = ffarr_end(&f->outbuf) + sizeof(struct flac_hdr);
-	f->vtag.outcap = ffmax(4096, f->min_meta);
+	ffarr_acq(&f->vtag.out, &f->outbuf);
+	f->vtag.out.len += sizeof(struct flac_hdr);
 	if (0 != ffvorbtag_add(&f->vtag, NULL, FLAC__VENDOR_STRING, ffsz_len(FLAC__VENDOR_STRING))) {
 		f->errtype = FLAC_EHDR;
 		return FFFLAC_RERR;
@@ -1135,16 +1136,19 @@ int ffflac_create(ffflac_enc *f, const ffpcm *pcm)
 static int _ffflac_enc_hdr(ffflac_enc *f)
 {
 	ffvorbtag_fin(&f->vtag);
-	f->have_padding = (f->min_meta > f->vtag.outlen);
+	uint tagoff = f->outbuf.len;
+	uint taglen = f->vtag.out.len - sizeof(struct flac_hdr) - tagoff;
+	ffarr_acq(&f->outbuf, &f->vtag.out);
+	uint have_padding = (f->min_meta > taglen);
 
-	flac_sethdr(ffarr_end(&f->outbuf), FLAC_TTAGS, !f->have_padding && (f->sktab.len == 0), f->vtag.outlen);
-	f->outbuf.len += sizeof(struct flac_hdr) + f->vtag.outlen;
+	flac_sethdr(f->outbuf.ptr + tagoff, FLAC_TTAGS, !have_padding && (f->sktab.len == 0), taglen);
 
-	if (f->have_padding)
-		f->outbuf.len += flac_padding_write(ffarr_end(&f->outbuf), f->outbuf.cap, f->min_meta - f->vtag.outlen, f->sktab.len == 0);
+	if (have_padding)
+		f->outbuf.len += flac_padding_write(ffarr_end(&f->outbuf), f->outbuf.cap, f->min_meta - taglen, f->sktab.len == 0);
 
 	if (f->sktab.len != 0) {
 		// write header with empty body
+		f->seektab_off = f->outbuf.len;
 		uint len = sizeof(struct flac_hdr) + f->sktab.len * sizeof(struct flac_seekpoint);
 		FF_ASSERT(ffarr_unused(&f->outbuf) >= len);
 		flac_sethdr(ffarr_end(&f->outbuf), FLAC_TSEEKTABLE, 1, len - sizeof(struct flac_hdr));
@@ -1202,9 +1206,7 @@ int ffflac_encode(ffflac_enc *f)
 
 	case ENC_SEEKTAB_SEEK:
 		f->state = ENC_SEEKTAB_WRITE;
-		f->seekoff = FLAC_MINSIZE + sizeof(struct flac_hdr) + f->vtag.outlen;
-		if (f->have_padding)
-			f->seekoff += sizeof(struct flac_hdr) + f->min_meta - f->vtag.outlen;
+		f->seekoff = f->seektab_off;
 		return FFFLAC_RSEEK;
 
 	case ENC_SEEKTAB_WRITE:
