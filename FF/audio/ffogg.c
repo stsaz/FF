@@ -484,7 +484,7 @@ static int _ffogg_open(ffogg *o)
 
 	case I_SEEK_EOS3:
 		o->off = o->off_data;
-		o->state = I_PAGE;
+		o->state = I_HDR;
 		return FFOGG_RSEEK;
 	}
 	}
