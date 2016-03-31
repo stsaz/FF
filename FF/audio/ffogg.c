@@ -459,6 +459,10 @@ static int _ffogg_open(ffogg *o)
 		if (r != FFOGG_RDONE)
 			return r;
 		o->first_sample = ffint_ltoh64(h->granulepos);
+		if (ffint_ltoh32(h->number) != 2)
+			o->seektab[0].off = o->pagesize; //remove the first audio page from seek table, because we don't know the audio sample index
+		else
+			o->first_sample = 0;
 
 		if (o->nodecode)
 			o->state = I_HDRPAGE;
@@ -586,7 +590,7 @@ static int _ffogg_seek(ffogg *o)
 
 		switch (o->state) {
 		case I_SEEK:
-			gpos = ffint_ltoh64(h->granulepos);
+			gpos = ffint_ltoh64(h->granulepos) - o->first_sample;
 			o->buf.len = 0;
 			if (gpos > o->seek_sample && o->skoff == o->seekpt[0].off) {
 				sk.fr_index = o->seekpt[0].sample;
@@ -614,7 +618,7 @@ static int _ffogg_seek(ffogg *o)
 				o->off = o->off_data + o->skoff;
 				return FFOGG_RSEEK;
 			}
-			gpos = ffint_ltoh64(h->granulepos);
+			gpos = ffint_ltoh64(h->granulepos) - o->first_sample;
 			sk.fr_index = o->cursample;
 			sk.fr_samples = gpos - o->cursample;
 			sk.fr_size = o->pagesize;
