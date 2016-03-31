@@ -73,6 +73,7 @@ static int _ffogg_gethdr(ffogg *o, ogg_hdr **h);
 static int _ffogg_open(ffogg *o);
 static int _ffogg_seek(ffogg *o);
 
+static int _ffogg_pkt_vorbtag(ffogg_enc *o, ogg_packet *pkt);
 static int _ffogg_enc_hdr(ffogg_enc *o);
 
 
@@ -263,7 +264,8 @@ static void* ogg_tag(const char *d, size_t len, size_t *vorbtag_len)
 	return (char*)d + sizeof(struct vorbis_hdr);
 }
 
-/**
+/** Prepare OGG packet for Vorbis comments.
+@d: buffer for the whole packet, must have 1 byte of free space at the end
 Return packet length. */
 static uint ogg_tag_write(char *d, size_t vorbtag_len)
 {
@@ -799,16 +801,16 @@ void ffogg_enc_init(ffogg_enc *o)
 	o->max_pagesize = 8 * 1024;
 	vorbis_info_init(&o->vinfo);
 
-	if (NULL == ffarr_alloc(&o->buf, 4096))
+	if (NULL == ffarr_alloc(&o->vtag.out, 4096))
 		return;
-	o->vtag.out = o->buf.ptr + sizeof(struct vorbis_hdr);
-	o->vtag.outcap = o->buf.cap - sizeof(struct vorbis_hdr) - 1;
+	o->vtag.out.len = sizeof(struct vorbis_hdr);
 	const char *vendor = vorbis_vendor();
 	ffvorbtag_add(&o->vtag, NULL, vendor, ffsz_len(vendor));
 }
 
 void ffogg_enc_close(ffogg_enc *o)
 {
+	ffvorbtag_destroy(&o->vtag);
 	if (o->vblk_valid) {
 		vorbis_block_clear(&o->vblk);
 		vorbis_dsp_clear(&o->vds);
@@ -831,6 +833,25 @@ int ffogg_create(ffogg_enc *o, ffpcm *pcm, int quality, uint serialno)
 	return 0;
 }
 
+/** Get complete packet with Vorbis comments and padding. */
+static int _ffogg_pkt_vorbtag(ffogg_enc *o, ogg_packet *pkt)
+{
+	ffarr *v = &o->vtag.out;
+	uint taglen = v->len - sizeof(struct vorbis_hdr);
+	uint npadding = (taglen < o->min_tagsize) ? o->min_tagsize - taglen : 0;
+	if (NULL == ffarr_grow(v, 1 + npadding, 0)) { //allocate space for "framing bit" and padding
+		o->err = OGG_ESYS;
+		return OGG_ESYS;
+	}
+
+	if (npadding != 0)
+		ffmem_zero(v->ptr + v->len + 1, npadding);
+
+	pkt->packet = (void*)v->ptr;
+	pkt->bytes = ogg_tag_write(v->ptr, taglen) + npadding;
+	return 0;
+}
+
 static int _ffogg_enc_hdr(ffogg_enc *o)
 {
 	int r;
@@ -839,19 +860,9 @@ static int _ffogg_enc_hdr(ffogg_enc *o)
 	if (0 != (r = vorbis_analysis_headerout(&o->vds, NULL, &pkt[0], NULL, &pkt[2])))
 		return r;
 
-	if (0 != ffvorbtag_fin(&o->vtag))
-		return OGG_ETAG;
-
-	pkt[1].packet = (void*)o->buf.ptr;
-	pkt[1].bytes = ogg_tag_write(o->buf.ptr, o->vtag.outlen);
-
-	if (o->vtag.outlen < o->min_tagsize) {
-		uint npadding = ffmin(o->min_tagsize, o->vtag.outcap) - o->vtag.outlen;
-		ffmem_zero(pkt[1].packet + pkt[1].bytes, npadding);
-		pkt[1].bytes += npadding;
-	}
-
-	ffarr tags = o->buf;
+	ffvorbtag_fin(&o->vtag);
+	if (0 != (r = _ffogg_pkt_vorbtag(o, &pkt[1])))
+		return r;
 
 	o->max_pagesize = ffmin(o->max_pagesize, OGG_MAXPAGE - OGG_MAXHDR);
 	uint sz = ffmax(OGG_MAXHDR + o->max_pagesize, OGG_MAXHDR + (uint)pkt[0].bytes + OGG_MAXHDR + (uint)pkt[1].bytes + (uint)pkt[2].bytes);
@@ -871,7 +882,7 @@ static int _ffogg_enc_hdr(ffogg_enc *o)
 	o->err = 0;
 
 err:
-	ffarr_free(&tags);
+	ffvorbtag_destroy(&o->vtag);
 	return o->err;
 }
 
