@@ -15,7 +15,7 @@ fLaC INFO VORBIS_CMT [PADDING] [SEEKTABLE] (FRAME)...
 #include <FF/audio/pcm.h>
 #include <FF/array.h>
 
-#include <flac.h>
+#include <FLAC-ff.h>
 
 
 typedef struct ffflac_info {

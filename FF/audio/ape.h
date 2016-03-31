@@ -13,7 +13,7 @@ ver <= 3.97: HDR  [WAV_HDR]  SEEK_TBL
 #include <FF/audio/id3.h>
 #include <FF/audio/pcm.h>
 
-#include <MAC.h>
+#include <MAC-ff.h>
 
 
 enum FFAPE_R {

@@ -7,7 +7,7 @@ Copyright (c) 2016 Simon Zolin
 #include <FF/audio/pcm.h>
 #include <FF/array.h>
 
-#include <alac.h>
+#include <ALAC-ff.h>
 
 
 typedef struct ffalac {

@@ -247,6 +247,7 @@ const char ffid3_frames[][4] = {
 	"TLEN",
 	"TPE1",
 	"TPE2",
+	"TPUB",
 	"TRCK",
 	"TYER",
 };

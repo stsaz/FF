@@ -14,8 +14,10 @@ const char *const ffvorbtag_str[] = {
 	"COMMENT",
 	"COMPOSER",
 	"DATE",
+	"DISCNUMBER",
 	"GENRE",
 	"LYRICS",
+	"PUBLISHER",
 	"TITLE",
 	"TOTALTRACKS", // =TRACKTOTAL
 	"TRACKNUMBER",
