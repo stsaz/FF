@@ -1428,6 +1428,12 @@ ssize_t ffarr_append_until(ffarr *ar, const char *d, size_t len, size_t until)
 		ffarr_free(ar);
 		ffstr_set(ar, d, until);
 		return until;
+
+	} else if (ar->cap == 0 && ar->ptr + ar->len == d && ar->len + len >= until) {
+		// 'ar' and 'd' point to the same memory region
+		size_t r = until - ar->len;
+		ar->len = until;
+		return r;
 	}
 
 	if (ar->cap < until
