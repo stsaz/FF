@@ -222,6 +222,9 @@ static const char *const _ffmpg_errs[] = {
 const char* ffmpg_errstr(ffmpg *m)
 {
 	switch (m->err) {
+	case FFMPG_EMPG123:
+		return mpg123_plain_strerror(m->e);
+
 #ifdef FF_LIBMAD
 	case FFMPG_ESTREAM:
 		return mad_stream_errorstr(&m->stream);
@@ -254,6 +257,11 @@ void ffmpg_close(ffmpg *m)
 	mad_synth_finish(&m->synth);
 	mad_frame_finish(&m->frame);
 	mad_stream_finish(&m->stream);
+
+#else
+	if (m->m123 != NULL)
+		mpg123_delete(m->m123);
+	// mpg123_exit();
 #endif
 }
 
@@ -564,6 +572,11 @@ int ffmpg_decode(ffmpg *m)
 			mad_stream_init(&m->stream);
 			mad_stream_buffer(&m->stream, m->data, m->datalen);
 			m->stream.sync = 0;
+
+#else
+			if (0 != (r = _ffmpg_frame2(m, &m->buf)))
+				return r;
+			mpg123_decode(m->m123, (void*)-1, (size_t)-1, NULL, NULL); //reset bufferred data
 #endif
 			m->state = I_FR;
 			break;
@@ -623,6 +636,10 @@ int ffmpg_decode(ffmpg *m)
 		m->state = I_INIT;
 		}
 
+#ifndef FF_LIBMAD
+		m->fmt.ileaved = 1;
+#endif
+
 		//note: libmad: this frame will be skipped
 		return FFMPG_RHDR;
 
@@ -633,8 +650,42 @@ int ffmpg_decode(ffmpg *m)
 		if (r == 0x100)
 			continue;
 		return r;
-#endif
+
+#else
+	case I_INIT:
+		i = MPG123_QUIET | ((m->options & FFMPG_O_INT16) ? 0 : MPG123_FORCE_FLOAT);
+		if (MPG123_OK != (r = mpg123_open(&m->m123, i))) {
+			m->err = FFMPG_EMPG123;
+			m->e = r;
+			return FFMPG_RERR;
 		}
+		m->state = (m->seek_sample != 0) ? I_SEEK : I_FR;
+		continue;
+
+	case I_FROK:
+		m->cur_sample += m->pcmlen / ffpcm_size1(&m->fmt);
+		m->state = I_FR;
+		// break
+
+	case I_FR:
+		if (m->buf.len != 0) {
+			r = mpg123_decode(m->m123, (byte*)m->buf.ptr, m->buf.len, NULL, NULL);
+			m->buf.len = 0;
+		}
+
+		r = mpg123_decode(m->m123, m->data, m->datalen, (byte**)&m->pcmi, &m->pcmlen);
+		FFARR_SHIFT(m->data, m->datalen, m->datalen);
+		if (r == MPG123_NEED_MORE)
+			return FFMPG_RMORE;
+		else if (r != MPG123_OK) {
+			m->err = FFMPG_EMPG123;
+			m->e = r;
+			return FFMPG_RERR;
+		}
+		m->state = I_FROK;
+		return FFMPG_RDATA;
+#endif
+	}
 	}
 }
 

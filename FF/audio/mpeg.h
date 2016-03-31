@@ -128,12 +128,15 @@ FF_EXTN int ffmpg_lame_parse(ffmpg_lame *lame, const char *data, size_t *len);
 
 #ifdef FF_LIBMAD
 #include <mad.h>
+#else
+#include <mpg123-ff.h>
 #endif
 
 enum FFMPG_O {
 	FFMPG_O_NOXING = 1,
 	FFMPG_O_ID3V1 = 2,
 	FFMPG_O_ID3V2 = 4,
+	FFMPG_O_INT16 = 8, //libmpg123: produce 16-bit integer output
 };
 
 typedef struct ffmpg {
@@ -143,12 +146,15 @@ typedef struct ffmpg {
 	struct mad_stream stream;
 	struct mad_frame frame;
 	struct mad_synth synth;
+#else
+	mpg123_handle *m123;
 #endif
 
-	ffpcm fmt;
+	ffpcmex fmt;
 	uint bitrate;
 	ffmpg_hdr firsthdr;
 	uint err;
+	uint e;
 	ffstr3 buf; //holds 1 incomplete frame
 	uint dlen; //number of bytes of input data copied to 'buf'
 	uint64 seek_sample
@@ -173,7 +179,10 @@ typedef struct ffmpg {
 	uint bytes_skipped;
 
 	size_t pcmlen;
+	union {
 	float *pcm[2];
+	void *pcmi; //libmpg123: float | short
+	};
 
 	uint options; //enum FFMPG_O
 	uint is_id32tag :1
@@ -197,6 +206,7 @@ enum FFMPG_R {
 enum FFMPG_E {
 	FFMPG_EOK,
 	FFMPG_ESYS,
+	FFMPG_EMPG123,
 	FFMPG_ESTREAM,
 	FFMPG_EFMT,
 	FFMPG_ETAG,
