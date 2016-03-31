@@ -291,69 +291,44 @@ uint ffogg_bitrate(ffogg *o)
 }
 
 /** Get the whole OGG page header.
-Return 0 on success. */
+Return 0 on success. o->data points to page body. */
 static int _ffogg_gethdr(ffogg *o, ogg_hdr **h)
 {
-	uint lostsync = 0;
-	int r;
+	int r, n = 0;
+	const ogg_hdr *hdr;
 
-	if (o->buf.len != 0) {
-		uint buflen = o->buf.len;
-		r = ffmin(o->datalen, OGG_MAXHDR - buflen);
-		if (NULL == ffarr_append(&o->buf, o->data, r)) {
+	struct ffbuf_gather d = {0};
+	ffstr_set(&d.data, o->data, o->datalen);
+	d.ctglen = OGG_MAXHDR;
+
+	while (FFBUF_DONE != (r = ffbuf_gather(&o->buf, &d))) {
+
+		if (r == FFBUF_ERR) {
 			o->err = OGG_ESYS;
 			return FFOGG_RERR;
-		}
 
-		r = ogg_findpage(o->buf.ptr, o->buf.len, NULL);
-		if (r == -1) {
-			if (o->datalen > OGG_MAXHDR - buflen) {
-				o->buf.len = 0;
-				goto dfind;
-			}
+		} else if (r == FFBUF_MORE) {
 			goto more;
-
-		} else if (r != 0) {
-			lostsync = 1;
-			_ffarr_rmleft(&o->buf, r, sizeof(char));
 		}
 
-		o->hdrsize = sizeof(ogg_hdr) + ((ogg_hdr*)o->buf.ptr)->nsegments;
-		o->pagesize = ogg_pagesize((void*)o->buf.ptr);
-		o->buf.len = o->hdrsize;
-
-		FFARR_SHIFT(o->data, o->datalen, o->hdrsize - buflen);
-		o->off += o->hdrsize - buflen;
-
-		*h = (void*)o->buf.ptr;
-		goto done;
-	}
-
-dfind:
-	r = ogg_findpage(o->data, o->datalen, NULL);
-	if (r == -1) {
-		uint n = ffmin(o->datalen, OGG_MAXHDR - 1);
-		if (NULL == ffarr_append(&o->buf, o->data + o->datalen - n, n)) {
-			o->err = OGG_ESYS;
-			return FFOGG_RERR;
+		if (-1 != (n = ogg_findpage(o->buf.ptr, o->buf.len, NULL))) {
+			hdr = (void*)(o->buf.ptr + n);
+			o->hdrsize = sizeof(ogg_hdr) + hdr->nsegments;
+			o->pagesize = ogg_pagesize(hdr);
+			d.ctglen = o->hdrsize;
+			d.off = n + 1;
 		}
-
-		goto more;
-
-	} else if (r != 0) {
-		lostsync = 1;
-		FFARR_SHIFT(o->data, o->datalen, r);
-		o->off += r;
 	}
-	*h = (void*)o->data;
-	o->hdrsize = sizeof(ogg_hdr) + ((ogg_hdr*)o->data)->nsegments;
-	o->pagesize = ogg_pagesize((void*)o->data);
+	o->off += d.data.ptr - (char*)o->data;
+	o->data = d.data.ptr;
+	o->datalen = d.data.len;
 
-done:
+	*h = (void*)o->buf.ptr;
+
 	if (o->bytes_skipped != 0)
 		o->bytes_skipped = 0;
 
-	if (lostsync) {
+	if (n != 0) {
 		o->err = OGG_EJUNKDATA;
 		return FFOGG_RWARN;
 	}
@@ -572,7 +547,7 @@ static int _ffogg_seek(ffogg *o)
 	int r;
 	struct ffpcm_seek sk;
 	ogg_hdr *h;
-	uint64 gpos;
+	uint64 gpos, foff = o->off;
 
 	if (o->firstseek) {
 		// we don't have any page right now
@@ -587,33 +562,31 @@ static int _ffogg_seek(ffogg *o)
 		r = _ffogg_gethdr(o, &h);
 		if (r != FFOGG_RDONE && !(r == FFOGG_RWARN && o->err == OGG_EJUNKDATA))
 			return r;
+		foff = o->off - o->hdrsize;
 
 		switch (o->state) {
 		case I_SEEK:
 			gpos = ffint_ltoh64(h->granulepos) - o->first_sample;
-			o->buf.len = 0;
 			if (gpos > o->seek_sample && o->skoff == o->seekpt[0].off) {
 				sk.fr_index = o->seekpt[0].sample;
 				sk.fr_samples = gpos - o->seekpt[0].sample;
 				sk.fr_size = o->pagesize;
 				break;
 			}
-			if (h == (void*)o->data) {
-				FFARR_SHIFT(o->data, o->datalen, o->hdrsize);
-				o->off += o->hdrsize;
-			}
+			o->buf.len = 0;
 			o->cursample = gpos;
 			o->state = I_SEEK2;
 			continue;
 
 		case I_SEEK2:
 			o->state = I_SEEK;
-			if (o->off - o->off_data >= o->seekpt[1].off) {
+			if (foff - o->off_data >= o->seekpt[1].off) {
 				uint64 newoff = ffmax((int64)o->skoff - OGG_MAXPAGE, (int64)o->seekpt[0].off);
 				if (newoff == o->skoff) {
 					o->err = OGG_ESEEK;
 					return FFOGG_RERR;
 				}
+				o->buf.len = 0;
 				o->skoff = newoff;
 				o->off = o->off_data + o->skoff;
 				return FFOGG_RSEEK;
@@ -630,7 +603,7 @@ static int _ffogg_seek(ffogg *o)
 
 sk:
 	sk.target = o->seek_sample;
-	sk.off = o->off - o->off_data;
+	sk.off = foff - o->off_data;
 	sk.lastoff = o->skoff;
 	sk.pt = o->seekpt;
 	sk.avg_fr_samples = 0;
@@ -638,6 +611,7 @@ sk:
 
 	r = ffpcm_seek(&sk);
 	if (r == 1) {
+		o->buf.len = 0;
 		o->skoff = sk.off;
 		o->off = o->off_data + sk.off;
 		return FFOGG_RSEEK;
