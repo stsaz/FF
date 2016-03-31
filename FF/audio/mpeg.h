@@ -147,6 +147,7 @@ typedef struct ffmpg {
 
 	ffpcm fmt;
 	uint bitrate;
+	ffmpg_hdr firsthdr;
 	uint err;
 	ffstr3 buf; //holds 1 incomplete frame
 	uint dlen; //number of bytes of input data copied to 'buf'
@@ -168,12 +169,18 @@ typedef struct ffmpg {
 
 	size_t datalen;
 	const void *data;
+	ffarr buf2;
+	uint bytes_skipped;
 
 	size_t pcmlen;
 	float *pcm[2];
 
 	uint options; //enum FFMPG_O
-	uint is_id32tag :1;
+	uint is_id32tag :1
+		, fr_body :1
+		, lostsync :1
+		, frame2 :1
+		;
 } ffmpg;
 
 enum FFMPG_R {
@@ -194,6 +201,8 @@ enum FFMPG_E {
 	FFMPG_EFMT,
 	FFMPG_ETAG,
 	FFMPG_ESEEK,
+	FFMPG_ENOFRAME,
+	FFMPG_ESYNC,
 };
 
 /** Get the last error as a string. */
