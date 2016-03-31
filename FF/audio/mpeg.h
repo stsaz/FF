@@ -125,7 +125,9 @@ FF_EXTN int ffmpg_lame_parse(ffmpg_lame *lame, const char *data, size_t *len);
 #include <FF/audio/id3.h>
 #include <FF/array.h>
 
-#include <mad/mad.h>
+#ifdef FF_LIBMAD
+#include <mad.h>
+#endif
 
 enum FFMPG_O {
 	FFMPG_O_NOXING = 1,
@@ -136,9 +138,11 @@ enum FFMPG_O {
 typedef struct ffmpg {
 	uint state;
 
+#ifdef FF_LIBMAD
 	struct mad_stream stream;
 	struct mad_frame frame;
 	struct mad_synth synth;
+#endif
 
 	ffpcm fmt;
 	uint bitrate;

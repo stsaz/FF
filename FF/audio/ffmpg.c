@@ -13,6 +13,9 @@ Copyright (c) 2013 Simon Zolin
 static int mpg_id31(ffmpg *m);
 static int mpg_id32(ffmpg *m);
 static int mpg_streaminfo(ffmpg *m);
+#ifdef FF_LIBMAD
+static int mpg_mad_decode(ffmpg *m);
+#endif
 
 
 const byte ffmpg1l3_kbyterate[16] = {
@@ -150,8 +153,10 @@ static const char *const _ffmpg_errs[] = {
 const char* ffmpg_errstr(ffmpg *m)
 {
 	switch (m->err) {
+#ifdef FF_LIBMAD
 	case FFMPG_ESTREAM:
 		return mad_stream_errorstr(&m->stream);
+#endif
 
 	case FFMPG_ESYS:
 		return fferr_strp(fferr_last());
@@ -177,9 +182,12 @@ void ffmpg_close(ffmpg *m)
 	ffid3_parsefin(&m->id32tag);
 	ffid31_parse_fin(&m->id31tag);
 	ffarr_free(&m->buf);
+
+#ifdef FF_LIBMAD
 	mad_synth_finish(&m->synth);
 	mad_frame_finish(&m->frame);
 	mad_stream_finish(&m->stream);
+#endif
 }
 
 enum { I_START, I_INPUT, I_BUFINPUT, I_FR, I_FROK, I_SYNTH, I_SEEK, I_SEEK2,
@@ -369,24 +377,16 @@ static FFINL int mpg_streaminfo(ffmpg *m)
 	return FFMPG_RHDR;
 }
 
-/* stream -> frame -> synth
-
+/*
 Workflow:
  . parse ID3v2
  . parse ID3v1
  . parse Xing, LAME tags
  . decode frames...
-
-Frame decode:
-To decode a frame libmad needs data also for the following frames:
- (hdr1 data1)  (hdr2 data2)  ...
-When there's not enough contiguous data, MAD_ERROR_BUFLEN is returned.
-ffmpg.buf is used to provide libmad with contiguous data enough to decode one frame.
 */
 int ffmpg_decode(ffmpg *m)
 {
-	uint i, ich, isrc, skip;
-	size_t len;
+	int i, r;
 
 	for (;;) {
 		switch (m->state) {
@@ -402,10 +402,12 @@ int ffmpg_decode(ffmpg *m)
 			return FFMPG_RSEEK;
 
 		case I_SEEK2:
+#ifdef FF_LIBMAD
 			mad_stream_finish(&m->stream);
 			mad_stream_init(&m->stream);
 			mad_stream_buffer(&m->stream, m->data, m->datalen);
 			m->stream.sync = 0;
+#endif
 			m->state = I_FR;
 			break;
 
@@ -446,6 +448,32 @@ int ffmpg_decode(ffmpg *m)
 			}
 			m->state = I_ID31_CHECK;
 			continue;
+
+#ifdef FF_LIBMAD
+	default:
+		r = mpg_mad_decode(m);
+		return r;
+#endif
+		}
+	}
+}
+
+#ifdef FF_LIBMAD
+/* stream -> frame -> synth
+
+Frame decode:
+To decode a frame libmad needs data also for the following frames:
+ (hdr1 data1)  (hdr2 data2)  ...
+When there's not enough contiguous data, MAD_ERROR_BUFLEN is returned.
+ffmpg.buf is used to provide libmad with contiguous data enough to decode one frame.
+*/
+static int mpg_mad_decode(ffmpg *m)
+{
+	uint i, ich, isrc, skip;
+	size_t len;
+
+	for (;;) {
+		switch (m->state) {
 
 		case I_INPUT:
 			mad_stream_buffer(&m->stream, m->data, m->datalen);
@@ -578,3 +606,4 @@ ok:
 	m->state = I_FROK;
 	return FFMPG_RDATA;
 }
+#endif
