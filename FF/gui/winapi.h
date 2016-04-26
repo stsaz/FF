@@ -145,7 +145,7 @@ typedef struct ffui_ctl {
 #define ffui_post(h, msg, w, l)  PostMessage(h, msg, (size_t)(w), (size_t)(l))
 #define ffui_ctl_send(c, msg, w, l)  ffui_send((c)->h, msg, w, l)
 
-FF_EXTN void ffui_getpos(HWND h, ffui_pos *r);
+FF_EXTN void ffui_getpos(void *ctl, ffui_pos *r);
 
 FF_EXTN int ffui_setpos(void *ctl, int x, int y, int cx, int cy, int flags);
 #define ffui_setposrect(ctl, rect, flags) \

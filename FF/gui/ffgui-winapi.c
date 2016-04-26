@@ -141,15 +141,22 @@ int ffui_setpos(void *ctl, int x, int y, int cx, int cy, int flags)
 		, dpi_scale(cx), dpi_scale(cy), SWP_NOACTIVATE | flags);
 }
 
+static void ffui_pos_fromrect(ffui_pos *pos, const RECT *rect)
+{
+	pos->x = rect->left;
+	pos->y = rect->top;
+	pos->cx = rect->right - rect->left;
+	pos->cy = rect->bottom - rect->top;
+}
+
 static void getpos_noscale(HWND h, ffui_pos *r)
 {
 	HWND parent;
 	RECT rect;
 	GetWindowRect(h, &rect);
-	r->cx = rect.right - rect.left;
-	r->cy = rect.bottom - rect.top;
-	parent = GetParent(h);
+	ffui_pos_fromrect(r, &rect);
 
+	parent = GetParent(h);
 	if (parent != NULL) {
 		POINT pt;
 		pt.x = rect.left;
@@ -157,16 +164,12 @@ static void getpos_noscale(HWND h, ffui_pos *r)
 		ScreenToClient(parent, &pt);
 		r->x = pt.x;
 		r->y = pt.y;
-
-	} else {
-		r->x = rect.left;
-		r->y = rect.top;
 	}
 }
 
-void ffui_getpos(HWND h, ffui_pos *r)
+void ffui_getpos(void *ctl, ffui_pos *r)
 {
-	getpos_noscale(h, r);
+	getpos_noscale(((ffui_ctl*)ctl)->h, r);
 	r->x = dpi_descale(r->x);
 	r->y = dpi_descale(r->y);
 	r->cx = dpi_descale(r->cx);
