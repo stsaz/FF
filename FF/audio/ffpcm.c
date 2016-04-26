@@ -398,6 +398,22 @@ int ffpcm_convert(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm, const 
 		}
 		break;
 
+	case CASE(FFPCM_FLOAT, 1, FFPCM_16LE_32, 0):
+		for (ich = 0;  ich != nch;  ich++) {
+			for (i = 0;  i != samples;  i++) {
+				to.pin[ich][i] = _ffpcm_flt_16le(from.f[ich + nch * i]);
+			}
+		}
+		break;
+
+	case CASE(FFPCM_FLOAT, 1, FFPCM_FLOAT, 0):
+		for (ich = 0;  ich != nch;  ich++) {
+			for (i = 0;  i != samples;  i++) {
+				to.pf[ich][i] = from.f[ich + nch * i];
+			}
+		}
+		break;
+
 	case CASE(FFPCM_FLOAT, 0, FFPCM_FLOAT, 1):
 		for (ich = 0;  ich != nch;  ich++) {
 			j = ich;
