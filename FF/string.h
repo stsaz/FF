@@ -603,3 +603,12 @@ static FFINL void ffarrp_shift(void **ar, size_t size, size_t by)
 		ar[i] = (char*)ar[i] + by;
 	}
 }
+
+/** Set array elements to point to consecutive regions of one buffer. */
+static FFINL void ffarrp_setbuf(void **ar, size_t size, const void *buf, size_t region_len)
+{
+	size_t i;
+	for (i = 0;  i != size;  i++) {
+		ar[i] = (char*)buf + region_len * i;
+	}
+}

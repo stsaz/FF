@@ -101,13 +101,22 @@ ssize_t ffarr_append_until(ffarr *ar, const char *d, size_t len, size_t until)
 	return (ar->len == until) ? len : 0;
 }
 
-void _ffarr_rmleft(ffarr *ar, size_t n, size_t elsz)
+void _ffarr_rm(ffarr *ar, size_t off, size_t n, size_t elsz)
 {
-	FF_ASSERT(ar->len >= n);
-	if (ar->cap == 0)
+	FF_ASSERT(ar->len >= off + n);
+
+	if (off + n == ar->len) {
+		// remove from the right side
+		ar->len -= n;
+		return;
+	}
+
+	if (ar->cap == 0) {
+		if (off != 0)
+			return; //reallocation is needed
 		ar->ptr += n * elsz;
-	else
-		memmove(ar->ptr, ar->ptr + n * elsz, (ar->len - n) * elsz);
+	} else
+		memmove(ar->ptr + off * elsz, ar->ptr + (off + n) * elsz, (ar->len - off - n) * elsz);
 	ar->len -= n;
 }
 

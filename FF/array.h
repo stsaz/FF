@@ -147,9 +147,14 @@ do { \
 	ffmemcpy(p2, tmp, n * elsize); \
 } while (0)
 
-/** Remove elements from the left.
+/** Remove elements.
+Pointing buffer: shift left/right side.
+ Does nothing if the data being removed is in the middle.
 Allocated buffer: move next elements to the left. */
-FF_EXTN void _ffarr_rmleft(ffarr *ar, size_t n, size_t elsz);
+FF_EXTN void _ffarr_rm(ffarr *ar, size_t off, size_t n, size_t elsz);
+
+/** Remove elements from the left. */
+#define _ffarr_rmleft(ar, n, elsz)  _ffarr_rm(ar, 0, n, elsz)
 
 /** Remove element from array.  Move the last element into the hole. */
 static FFINL void _ffarr_rmswap(ffarr *ar, void *el, size_t elsz) {
