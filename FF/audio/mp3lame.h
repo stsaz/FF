@@ -23,6 +23,7 @@ typedef struct ffmpg_enc {
 
 	ffid3_cook id3;
 	ffid31 id31;
+	uint min_meta;
 
 	size_t pcmlen;
 	union {

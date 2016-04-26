@@ -83,6 +83,7 @@ int ffmpg_create(ffmpg_enc *m, ffpcm *pcm, int qual)
 	}
 
 	ffid31_init(&m->id31);
+	m->min_meta = 1000;
 
 	m->lam = lam;
 	return FFMPG_EOK;
@@ -120,6 +121,11 @@ int ffmpg_encode(ffmpg_enc *m)
 	switch (m->state) {
 	case I_ID32:
 		if (m->options & FFMPG_WRITE_ID3V2) {
+			if (m->min_meta > m->id3.buf.len
+				&& 0 != ffid3_padding(&m->id3, m->min_meta - m->id3.buf.len)) {
+				m->err = FFMPG_ESYS;
+				return FFMPG_RERR;
+			}
 			ffid3_fin(&m->id3);
 			m->data = m->id3.buf.ptr;
 			m->datalen = m->id3.buf.len;
