@@ -503,7 +503,7 @@ done:
 int ffid3_getdata(int frame, const char *data, size_t len, int txtenc, uint codepage, ffstr3 *dst)
 {
 	const char *end = data + len, *slash;
-	uint r, f, igenre;
+	uint f, igenre;
 	ssize_t n;
 
 	if (txtenc == -1) {
@@ -548,8 +548,7 @@ int ffid3_getdata(int frame, const char *data, size_t len, int txtenc, uint code
 	case FFID3_UTF8:
 		ffarr_free(dst);
 		ffarr_set(dst, (char*)data, len);
-		r = (int)len;
-		goto process;
+		break;
 
 	case FFID3_UTF16BOM:
 		f = ffutf_bom(data, &len);
@@ -570,20 +569,19 @@ int ffid3_getdata(int frame, const char *data, size_t len, int txtenc, uint code
 		return -1;
 	}
 
-	if (0 == (r = (int)ffutf8_strencode(dst, data, end - data, f)))
-		goto done;
+	if (txtenc != FFID3_UTF8
+		&& 0 == ffutf8_strencode(dst, data, end - data, f))
+		return 0;
 
-process:
 	switch (frame) {
 	case FFID3_TRACKNO:
 		if (NULL != (slash = ffs_findc(dst->ptr, dst->len, '/')))
-			dst->len = r = slash - dst->ptr;
+			dst->len = slash - dst->ptr;
 		break;
 
 	case FFID3_TRACKTOTAL:
 		if (NULL != (slash = ffs_findc(dst->ptr, dst->len, '/'))) {
 			_ffarr_rmleft(dst, slash + FFSLEN("/") - dst->ptr, sizeof(char));
-			r = dst->len;
 		}
 		break;
 
@@ -597,13 +595,14 @@ process:
 			}
 
 			_ffarr_rmleft(dst, n, sizeof(char));
-			r = dst->len;
 		}
 		break;
 	}
 
-done:
-	return r;
+	if (dst->len != 0 && ffarr_back(dst) == '\0')
+		dst->len--;
+
+	return dst->len;
 }
 
 
