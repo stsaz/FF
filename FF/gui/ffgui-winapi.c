@@ -2,6 +2,7 @@
 Copyright (c) 2014 Simon Zolin
 */
 
+#define COBJMACROS
 #include <FF/gui/winapi.h>
 #include <FF/path.h>
 #include <FF/list.h>
@@ -10,6 +11,9 @@ Copyright (c) 2014 Simon Zolin
 #include <FFOS/dir.h>
 
 #include <shlobj.h>
+#include <objidl.h>
+#include <shobjidl.h>
+#include <shlguid.h>
 
 
 static int _ffui_dpi;
@@ -1436,5 +1440,42 @@ int ffui_fop_del(const char *const *names, size_t cnt, uint flags)
 	r = SHFileOperation(f);
 
 	ffmem_free((void*)f->pFrom);
+	return r;
+}
+
+
+int ffui_createlink(const char *target, const char *linkname)
+{
+	HRESULT r;
+	IShellLink *sl = NULL;
+	IPersistFile *pf = NULL;
+	ffsyschar ws[255], *w = ws;
+
+	if (0 != (r = CoCreateInstance(&CLSID_ShellLink, NULL, CLSCTX_INPROC_SERVER, &IID_IShellLinkW, (void**)&sl)))
+		goto end;
+
+	size_t n = FFCNT(ws);
+	if (NULL == (w = ffs_utow(ws, &n, target, -1)))
+		goto end;
+	IShellLinkW_SetPath(sl, w);
+	if (w != ws)
+		ffmem_free(w);
+
+	if (0 != (r = IShellLinkW_QueryInterface(sl, &IID_IPersistFile, (void**)&pf)))
+		goto end;
+
+	n = FFCNT(ws);
+	if (NULL == (w = ffs_utow(ws, &n, linkname, -1)))
+		goto end;
+	if (0 != (r = IPersistFile_Save(pf, w, TRUE)))
+		goto end;
+
+end:
+	if (w != ws)
+		ffmem_free(w);
+	if (sl != NULL)
+		IShellLinkW_Release(sl);
+	if (pf != NULL)
+		IPersistFile_Release(pf);
 	return r;
 }

@@ -187,6 +187,9 @@ FF_EXTN const char* ffui_fdrop_next(ffui_fdrop *df);
 
 FF_EXTN int ffui_openfolder(const char *const *items, size_t selcnt);
 
+/** Create .lnk file. */
+FF_EXTN int ffui_createlink(const char *target, const char *linkname);
+
 
 FF_EXTN HIMAGELIST ffui_imglist_create(uint width, uint height);
 
