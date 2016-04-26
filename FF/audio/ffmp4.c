@@ -62,6 +62,41 @@ struct alac {
 	byte chlayout[0]; //optional, 24 bytes
 };
 
+enum DEC_TYPE {
+	DEC_MPEG4_AUDIO = 0x40,
+};
+
+/* ES(DECODER_CONFIG(DECODER_SPECIFIC(ASC)))
+ASC:
+ object_type :5
+ if object_type == 31
+  object_type :6
+ freq_index :4
+ channels :4 */
+struct esds {
+	byte tag[4]; //03...
+	byte size;
+	byte unused[3];
+
+	struct {
+		byte tag[4]; //04...
+		byte size;
+		byte type; //enum DEC_TYPE
+		byte unused[4];
+		byte max_brate[4];
+		byte avg_brate[4];
+
+		struct {
+			byte tag[4]; //05...
+			byte size;
+			byte data[2]; //Audio Specific Config
+		} spec;
+
+	} dec_conf;
+
+	//...
+};
+
 struct stts_ent {
 	byte sample_cnt[4];
 	byte sample_delta[4];
@@ -136,6 +171,7 @@ static int mp4_box_find(const struct bbox *ctx, const char type[4], struct mp4_b
 static int mp4_box_parse(ffmp4 *m, struct mp4_box *box, const char *data, uint len);
 static int mp4_fbox_parse(ffmp4 *m, struct mp4_box *box, const char *data);
 static int mp4_box_close(ffmp4 *m, struct mp4_box *box);
+static int mp4_esds(ffmp4 *m, const char *data, uint len);
 static int mp4_stsz(ffmp4 *m, const char *data, uint len);
 static int mp4_stts(ffmp4 *m, const char *data, uint len);
 static int mp4_stsc(ffmp4 *m, const char *data, uint len);
@@ -166,6 +202,7 @@ enum BOX {
 	BOX_ALAC,
 	BOX_ASAMP,
 	BOX_META,
+	BOX_ESDS,
 
 	_TAG_FIRST,
 	TAG_ART = _TAG_FIRST,
@@ -227,6 +264,7 @@ moov
         stbl
           stsd
             mp4a
+              esds
             alac
               alac
           stts
@@ -249,6 +287,7 @@ static const struct bbox mp4_ctx_minf[];
 static const struct bbox mp4_ctx_stbl[];
 static const struct bbox mp4_ctx_stsd[];
 static const struct bbox mp4_ctx_alac[];
+static const struct bbox mp4_ctx_mp4a[];
 
 static const struct bbox mp4_ctx_udta[];
 static const struct bbox mp4_ctx_meta[];
@@ -289,11 +328,15 @@ static const struct bbox mp4_ctx_stbl[] = {
 };
 static const struct bbox mp4_ctx_stsd[] = {
 	{"alac", BOX_ASAMP | MINSIZE(struct asamp), mp4_ctx_alac},
-	{"mp4a", BOX_ASAMP | MINSIZE(struct asamp), NULL},
+	{"mp4a", BOX_ASAMP | MINSIZE(struct asamp), mp4_ctx_mp4a},
 	{"",0,NULL}
 };
 static const struct bbox mp4_ctx_alac[] = {
 	{"alac", BOX_ALAC | F_REQ | F_WHOLE | F_FULLBOX | MINSIZE(struct alac), NULL},
+	{"",0,NULL}
+};
+static const struct bbox mp4_ctx_mp4a[] = {
+	{"esds", BOX_ESDS | F_REQ | F_WHOLE | F_FULLBOX | MINSIZE(struct esds), NULL},
 	{"",0,NULL}
 };
 
@@ -341,6 +384,7 @@ enum MP4_E {
 	MP4_ESTTS,
 	MP4_ESTSC,
 	MP4_ESTCO,
+	MP4_EESDS,
 	MP4_ELARGE,
 	MP4_ESMALL,
 	MP4_EDUPBOX,
@@ -356,6 +400,7 @@ static const char *const mp4_errs[] = {
 	"stts: invalid data",
 	"stsc: invalid data",
 	"stco: invalid data",
+	"esds: invalid data",
 	"too large box",
 	"too small box",
 	"duplicate box",
@@ -372,7 +417,7 @@ const char* ffmp4_errstr(ffmp4 *m)
 
 
 static const char* const codecs[] = {
-	"unknown codec", "ALAC",
+	"unknown codec", "ALAC", "AAC"
 };
 
 const char* ffmp4_codec(int codec)
@@ -489,6 +534,25 @@ static int mp4_box_close(ffmp4 *m, struct mp4_box *box)
 
 	m->ctxs[m->ictx] = NULL;
 	m->ictx--;
+	return 0;
+}
+
+static int mp4_esds(ffmp4 *m, const char *data, uint len)
+{
+	const struct esds *es = (void*)data;
+	if (!(es->tag[0] == 0x03 && es->size >= sizeof(*es) - 5
+		&& es->dec_conf.tag[0] == 0x04 && es->dec_conf.size >= sizeof(es->dec_conf) - 5
+		&& es->dec_conf.type == DEC_MPEG4_AUDIO
+		&& es->dec_conf.spec.tag[0] == 0x05 && es->dec_conf.spec.size >= 2)) {
+
+		FFDBG_PRINTLN(1, "size:%u  type:0x%xu  ASC:%2xb"
+			, len, (uint)es->dec_conf.type, es->dec_conf.spec.data);
+		return MP4_EESDS;
+	}
+
+	ffmemcpy(m->aac_asc, es->dec_conf.spec.data, sizeof(m->aac_asc));
+	m->aac_brate = ffint_ntoh32(es->dec_conf.avg_brate);
+	m->codec = FFMP4_AAC;
 	return 0;
 }
 
@@ -1027,6 +1091,13 @@ int ffmp4_read(ffmp4 *m)
 	case BOX_ALAC:
 		ffstr_copy(&m->alac, sbox.ptr, sbox.len);
 		m->codec = FFMP4_ALAC;
+		break;
+
+	case BOX_ESDS:
+		if (0 != (r = mp4_esds(m, sbox.ptr, sbox.len))) {
+			m->err = r;
+			return FFMP4_RERR;
+		}
 		break;
 
 	case BOX_STSZ:

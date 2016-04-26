@@ -49,6 +49,8 @@ typedef struct ffmp4 {
 	ffstr stts;
 	ffstr stsc;
 	ffstr alac; // ALAC magic cookie
+	char aac_asc[2]; // AAC Audio Specific Config
+	uint aac_brate;
 
 	const char *out;
 	size_t outlen;
@@ -70,6 +72,7 @@ typedef struct ffmp4 {
 
 enum FFMP4_CODEC {
 	FFMP4_ALAC = 1,
+	FFMP4_AAC,
 };
 
 enum FFMP4_TAG {
