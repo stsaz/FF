@@ -529,6 +529,18 @@ int ffpcm_peak(const ffpcmex *fmt, const void *data, size_t samples, float *maxp
 		max_f = _ffpcm_16le_flt(max_sh);
 		break;
 
+	case CASE(FFPCM_16LE, 0):
+		for (ich = 0;  ich != fmt->channels;  ich++) {
+			for (i = 0;  i != samples;  i++) {
+				uint sh = ffabs(d.psh[ich][i]);
+				if (max_sh < sh)
+					max_sh = sh;
+			}
+		}
+		max_f = _ffpcm_16le_flt(max_sh);
+		break;
+
+
 	case CASE(FFPCM_FLOAT, 1):
 		for (i = 0;  i != fmt->channels * samples;  i++) {
 			float f = ffabs(d.f[i]);
