@@ -662,6 +662,16 @@ static uint _ffid3_trackno(char *trackno, size_t trackno_cap, const char *trackt
 	return d - trackno;
 }
 
+int ffid3_padding(ffid3_cook *id3, size_t len)
+{
+	if (NULL == ffarr_grow(&id3->buf, len, 0))
+		return -1;
+
+	ffmem_zero(ffarr_end(&id3->buf), len);
+	id3->buf.len += len;
+	return 0;
+}
+
 void ffid3_fin(ffid3_cook *id3)
 {
 	if (id3->buf.len < sizeof(ffid3_hdr)) {
