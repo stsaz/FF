@@ -90,6 +90,11 @@ static FFINL uint64 ffint_ntoh64(const void *p)
 	return ffhton64(*(uint64*)p);
 }
 
+static FFINL int ffint_24(const void *p)
+{
+	return (((int)((char*)p)[2]) << 16) | *(ushort*)p;
+}
+
 
 static FFINL int ffint_ftoi(double d)
 {

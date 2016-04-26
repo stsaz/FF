@@ -12,6 +12,7 @@ Copyright (c) 2015 Simon Zolin
 
 enum FFPCM_FMT {
 	FFPCM_16LE = 16,
+	FFPCM_24 = 24,
 	FFPCM_32LE = 32,
 	FFPCM_16LE_32 = 0x0100 | 32,
 	FFPCM_FLOAT = 0x0200 | 32,

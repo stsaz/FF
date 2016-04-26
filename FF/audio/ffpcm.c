@@ -15,6 +15,8 @@ const char* ffpcm_fmtstr(uint fmt)
 	switch (fmt) {
 	case FFPCM_16LE:
 		return "int16";
+	case FFPCM_24:
+		return "int24";
 	case FFPCM_32LE:
 		return "int32";
 	case FFPCM_16LE_32:
@@ -92,9 +94,11 @@ static FFINL short _ffpcm_flt_16le(float f)
 }
 
 union pcmdata {
+	char *b;
 	short *sh;
 	int *in;
 	float *f;
+	char **pb;
 	short **psh;
 	int **pin;
 	float **pf;
@@ -303,6 +307,54 @@ int ffpcm_convert(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm, const 
 			}
 		}
 		break;
+
+
+	case CASE(FFPCM_24, 0, FFPCM_16LE, 0):
+		for (ich = 0;  ich != nch;  ich++) {
+			for (i = 0;  i != samples;  i++) {
+				to.psh[ich][i] = ffint_24(&from.pb[ich][i * 3]) / 256;
+			}
+		}
+		break;
+
+	case CASE(FFPCM_24, 0, FFPCM_16LE, 1):
+		for (ich = 0;  ich != nch;  ich++) {
+			uint j = ich;
+			for (i = 0;  i != samples;  i++) {
+				to.sh[j] = ffint_24(&from.pb[ich][i * 3]) / 256;
+				j += nch;
+			}
+		}
+		break;
+
+	case CASE(FFPCM_24, 0, FFPCM_24, 1):
+		for (ich = 0;  ich != nch;  ich++) {
+			uint j = ich;
+			for (i = 0;  i != samples;  i++) {
+				ffmemcpy(&to.b[j * 3], &from.pb[ich][i * 3], 3);
+				j += nch;
+			}
+		}
+		break;
+
+	case CASE(FFPCM_24, 0, FFPCM_32LE, 1):
+		for (ich = 0;  ich != nch;  ich++) {
+			uint j = ich;
+			for (i = 0;  i != samples;  i++) {
+				to.in[j] = ffint_24(&from.pb[ich][i * 3]) * 256;
+				j += nch;
+			}
+		}
+		break;
+
+	case CASE(FFPCM_24, 0, FFPCM_32LE, 0):
+		for (ich = 0;  ich != nch;  ich++) {
+			for (i = 0;  i != samples;  i++) {
+				to.pin[ich][i] = ffint_24(&from.pb[ich][i * 3]) * 256;
+			}
+		}
+		break;
+
 
 	case CASE(FFPCM_FLOAT, 1, FFPCM_16LE, 0):
 		for (ich = 0;  ich != nch;  ich++) {

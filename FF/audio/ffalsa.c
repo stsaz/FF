@@ -176,6 +176,9 @@ int ffalsa_open(ffalsa_buf *snd, const char *dev, ffpcm *fmt, uint bufsize)
 	case FFPCM_16LE:
 		format = SND_PCM_FORMAT_S16_LE;
 		break;
+	case FFPCM_24:
+		format = SND_PCM_FORMAT_S24_3LE;
+		break;
 	case FFPCM_32LE:
 		format = SND_PCM_FORMAT_S32_LE;
 		break;

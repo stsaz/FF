@@ -35,11 +35,12 @@ uint ffwav_pcmfmt(const ffwav_fmt *wf)
 		fmt = ffwav_extfmt((ffwav_ext*)wf);
 
 	if (fmt == FFWAV_PCM) {
-		if (wf->bit_depth == 16)
-			return FFPCM_16LE;
-
-		else if (wf->bit_depth == 32)
-			return FFPCM_32LE;
+		switch (wf->bit_depth) {
+		case 16:
+		case 24:
+		case 32:
+			return wf->bit_depth;
+		}
 
 	} else if (fmt == FFWAV_IEEE_FLOAT)
 		return FFPCM_FLOAT;
@@ -51,11 +52,7 @@ void ffwav_pcmfmtset(ffwav_fmt *wf, uint pcm_fmt)
 {
 	wf->bit_depth = ffpcm_bits(pcm_fmt);
 	switch (pcm_fmt) {
-	case FFPCM_16LE:
-		wf->format = FFWAV_PCM;
-		break;
-
-	case FFPCM_32LE:
+	default:
 		wf->format = FFWAV_PCM;
 		break;
 
