@@ -179,6 +179,7 @@ static int mp4_stco(ffmp4 *m, const char *data, uint len, uint type);
 static int mp4_ilst_data(ffmp4 *m, struct mp4_box *box, const char *data, uint len);
 static int mp4_seek(const struct seekpt *pts, size_t npts, uint64 sample);
 static uint64 mp4_data(ffmp4 *m, uint *pisamp, uint *data_size, uint64 *cursample, uint *audio_size);
+static int mp4_meta_closed(ffmp4 *m);
 
 
 struct bbox {
@@ -835,6 +836,29 @@ static int mp4_seek(const struct seekpt *pts, size_t npts, uint64 sample)
 	return i;
 }
 
+static int mp4_meta_closed(ffmp4 *m)
+{
+	int r;
+
+	if (m->fmt.format == 0)
+		return MP4_ENOFMT;
+
+	if (m->chunktab.len == 0)
+		return MP4_ESTCO;
+
+	if (0 != (r = mp4_stts(m, m->stts.ptr, m->stts.len))
+		|| 0 != (r = mp4_stsc(m, m->stsc.ptr, m->stsc.len)))
+		return r;
+	ffstr_free(&m->stts);
+	ffstr_free(&m->stsc);
+
+	if (m->codec == FFMP4_ALAC) {
+		m->out = m->alac.ptr;
+		m->outlen = m->alac.len;
+	}
+	return 0;
+}
+
 int ffmp4_read(ffmp4 *m)
 {
 	struct mp4_box *box;
@@ -871,29 +895,10 @@ int ffmp4_read(ffmp4 *m)
 		if (m->meta_closed) {
 			m->meta_closed = 0;
 
-			if (m->fmt.format == 0) {
-				m->err = MP4_ENOFMT;
-				return FFMP4_RERR;
-			}
-
-			if (m->chunktab.len == 0) {
-				m->err = MP4_ESTCO;
-				return FFMP4_RERR;
-			}
-
-			if (0 != (r = mp4_stts(m, m->stts.ptr, m->stts.len))
-				|| 0 != (r = mp4_stsc(m, m->stsc.ptr, m->stsc.len))) {
+			if (0 != (r = mp4_meta_closed(m))) {
 				m->err = r;
 				return FFMP4_RERR;
 			}
-			ffstr_free(&m->stts);
-			ffstr_free(&m->stsc);
-
-			if (m->codec == FFMP4_ALAC) {
-				m->out = m->alac.ptr;
-				m->outlen = m->alac.len;
-			}
-
 			m->state = I_METAFIN;
 			return FFMP4_RHDR;
 		}
