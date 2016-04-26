@@ -122,6 +122,7 @@ FF_EXTN ssize_t ffint_find1(const byte *arr, size_t n, int search);
 FF_EXTN ssize_t ffint_find4(const uint *arr, size_t n, uint search);
 
 /** Binary search integer. */
+FF_EXTN ssize_t ffint_binfind1(const byte *arr, size_t n, uint search);
 FF_EXTN ssize_t ffint_binfind4(const uint *arr, size_t n, uint search);
 
 
