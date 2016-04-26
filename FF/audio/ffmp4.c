@@ -855,6 +855,10 @@ static int mp4_meta_closed(ffmp4 *m)
 	if (m->codec == FFMP4_ALAC) {
 		m->out = m->alac.ptr;
 		m->outlen = m->alac.len;
+
+	} else if (m->codec == FFMP4_AAC) {
+		m->out = m->aac_asc;
+		m->outlen = sizeof(m->aac_asc);
 	}
 	return 0;
 }
