@@ -775,6 +775,14 @@ FF_EXTN void ffui_wnd_opacity(ffui_wnd *w, uint percent);
 
 FF_EXTN int ffui_wnd_destroy(ffui_wnd *w);
 
+FF_EXTN void ffui_wnd_pos(ffui_wnd *w, ffui_pos *pos);
+
+/** Get window placement.
+Return SW_*. */
+FF_EXTN uint ffui_wnd_placement(ffui_wnd *w, ffui_pos *pos);
+
+FF_EXTN void ffui_wnd_setplacement(ffui_wnd *w, uint showcmd, const ffui_pos *pos);
+
 FF_EXTN int ffui_wnd_tooltip(ffui_wnd *w, ffui_ctl *ctl, const char *text, size_t len);
 
 #undef FFUI_CTL

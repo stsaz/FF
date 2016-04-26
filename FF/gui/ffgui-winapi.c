@@ -959,6 +959,41 @@ int ffui_wnd_destroy(ffui_wnd *w)
 	return ffui_ctl_destroy(w);
 }
 
+void ffui_wnd_pos(ffui_wnd *w, ffui_pos *pos)
+{
+	RECT rect;
+	GetWindowRect(w->h, &rect);
+	ffui_pos_fromrect(pos, &rect);
+
+	pos->x = dpi_descale(pos->x);
+	pos->y = dpi_descale(pos->y);
+	pos->cx = dpi_descale(pos->cx);
+	pos->cy = dpi_descale(pos->cy);
+}
+
+uint ffui_wnd_placement(ffui_wnd *w, ffui_pos *pos)
+{
+	WINDOWPLACEMENT pl = {0};
+	pl.length = sizeof(WINDOWPLACEMENT);
+	GetWindowPlacement(w->h, &pl);
+	ffui_pos_fromrect(pos, &pl.rcNormalPosition);
+	if (pl.showCmd == SW_SHOWNORMAL && !IsWindowVisible(w->h))
+		pl.showCmd = SW_HIDE;
+	return pl.showCmd;
+}
+
+void ffui_wnd_setplacement(ffui_wnd *w, uint showcmd, const ffui_pos *pos)
+{
+	WINDOWPLACEMENT pl = {0};
+	pl.length = sizeof(WINDOWPLACEMENT);
+	pl.showCmd = showcmd;
+	pl.rcNormalPosition.left = pos->x;
+	pl.rcNormalPosition.top = pos->y;
+	pl.rcNormalPosition.right = pos->x + pos->cx;
+	pl.rcNormalPosition.bottom = pos->y + pos->cy;
+	SetWindowPlacement(w->h, &pl);
+}
+
 void ffui_wnd_setpopup(ffui_wnd *w)
 {
 	LONG st = GetWindowLong(w->h, GWL_STYLE) & ~WS_OVERLAPPEDWINDOW;
