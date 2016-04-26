@@ -56,6 +56,8 @@ struct ffui_loader {
 		ffui_dialog *dlg;
 		ffui_menu *menu;
 		ffui_trayicon *tray;
+
+		union ffui_anyctl actl;
 	};
 	char *errstr;
 	uint vis :1;

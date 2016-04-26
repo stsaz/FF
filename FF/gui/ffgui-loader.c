@@ -145,6 +145,16 @@ static const ffpars_arg pgsbar_args[] = {
 };
 static int new_pgsbar(ffparser_schem *ps, void *obj, ffpars_ctx *ctx);
 
+// TAB
+static int tab_onchange(ffparser_schem *ps, void *obj, const ffstr *val);
+static const ffpars_arg tab_args[] = {
+	{ "style",	FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&label_style) },
+	{ "position",	FFPARS_TINT | FFPARS_FSIGN | FFPARS_FLIST, FFPARS_DST(&label_pos) },
+	{ "font",	FFPARS_TOBJ, FFPARS_DST(&label_font) },
+	{ "onchange",	FFPARS_TSTR, FFPARS_DST(&tab_onchange) },
+};
+static int new_tab(ffparser_schem *ps, void *obj, ffpars_ctx *ctx);
+
 // VIEW
 static int viewcol_width(ffparser_schem *ps, void *obj, const int64 *val);
 static int viewcol_align(ffparser_schem *ps, void *obj, const ffstr *val);
@@ -230,6 +240,7 @@ static const ffpars_arg wnd_args[] = {
 	{ "button",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&new_button) },
 	{ "trackbar",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&new_trkbar) },
 	{ "progressbar",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&new_pgsbar) },
+	{ "tab",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&new_tab) },
 	{ "listview",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&new_listview) },
 	{ "treeview",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&new_treeview) },
 	{ "paned",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&new_paned) },
@@ -882,6 +893,31 @@ static int new_button(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 	ffpars_setargs(ctx, g, btn_args, FFCNT(btn_args));
 	return 0;
 }
+
+
+static int new_tab(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
+{
+	ffui_loader *g = obj;
+	if (NULL == (g->actl.tab = g->getctl(g->udata, &ps->vals[0])))
+		return FFPARS_EBADVAL;
+
+	if (0 != ffui_tab_create(g->actl.tab, g->wnd))
+		return FFPARS_ESYS;
+	ffpars_setargs(ctx, g, tab_args, FFCNT(tab_args));
+	return 0;
+}
+
+static int tab_onchange(ffparser_schem *ps, void *obj, const ffstr *val)
+{
+	ffui_loader *g = obj;
+	int id = g->getcmd(g->udata, val);
+	if (id == 0)
+		return FFPARS_EBADVAL;
+
+	g->actl.tab->chsel_id = id;
+	return 0;
+}
+
 
 enum {
 	VIEW_STYLE_EDITLABELS,

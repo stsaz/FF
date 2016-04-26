@@ -64,6 +64,7 @@ static const struct ctlinfo ctls[] = {
 	{ "progressbar",	TEXT("msctls_progress32"), 0, 0 },
 	{ "status_bar",	TEXT("msctls_statusbar32"), SBARS_SIZEGRIP, 0 },
 
+	{ "tab",	TEXT("SysTabControl32"), TCS_FOCUSNEVER, 0 },
 	{ "listview",	TEXT("SysListView32"), WS_BORDER | LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS
 		| LVS_AUTOARRANGE | LVS_SHAREIMAGELISTS, 0 },
 	{ "treeview",	TEXT("SysTreeView32"), WS_BORDER | TVS_SHOWSELALWAYS | TVS_INFOTIP, 0 },
@@ -501,6 +502,25 @@ int ffui_pgs_create(ffui_ctl *c, ffui_wnd *parent)
 	if (0 != ctl_create(c, FFUI_UID_PROGRESSBAR, parent->h))
 		return 1;
 	return 0;
+}
+
+
+int ffui_tab_create(ffui_tab *t, ffui_wnd *parent)
+{
+	if (0 != ctl_create((ffui_ctl*)t, FFUI_UID_TAB, parent->h))
+		return 1;
+	if (parent->font != NULL)
+		ffui_ctl_send((ffui_ctl*)t, WM_SETFONT, parent->font, 0);
+	return 0;
+}
+
+void ffui_tab_settext(ffui_tabitem *it, const char *txt, size_t len)
+{
+	size_t n = FFCNT(it->wtext) - 1;
+	if (NULL == (it->w = ffs_utow(it->wtext, &n, txt, len)))
+		return;
+	it->w[n] = '\0';
+	ffui_tab_settext_q(it, it->w);
 }
 
 
@@ -1088,6 +1108,12 @@ static FFINL void wnd_nfy(ffui_wnd *wnd, NMHDR *n)
 	case TVN_SELCHANGED:
 		id = ctl.view->chsel_id;
 		break;
+
+
+	case TCN_SELCHANGE:
+		id = ctl.tab->chsel_id;
+		break;
+
 
 	default:
 		return;

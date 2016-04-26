@@ -123,6 +123,7 @@ enum FFUI_UID {
 	FFUI_UID_PROGRESSBAR,
 	FFUI_UID_STATUSBAR,
 
+	FFUI_UID_TAB,
 	FFUI_UID_LISTVIEW,
 	FFUI_UID_TREEVIEW,
 };
@@ -436,6 +437,76 @@ FF_EXTN int ffui_pgs_create(ffui_ctl *c, ffui_wnd *parent);
 	ffui_ctl_send(p, PBM_SETRANGE, 0, MAKELPARAM(0, max))
 
 
+// TAB
+typedef struct ffui_tab {
+	FFUI_CTL;
+	HFONT font;
+	int chsel_id;
+} ffui_tab;
+
+FF_EXTN int ffui_tab_create(ffui_tab *t, ffui_wnd *parent);
+
+#define ffui_tab_active(t)  ffui_ctl_send(t, TCM_GETCURSEL, 0, 0)
+#define ffui_tab_setactive(t, idx)  ffui_ctl_send(t, TCM_SETCURSEL, idx, 0)
+
+#define ffui_tab_count(t)  ffui_ctl_send(t, TCM_GETITEMCOUNT, 0, 0)
+
+#define ffui_tab_del(t, idx)  ffui_ctl_send(t, TCM_DELETEITEM, idx, 0)
+#define ffui_tab_clear(t)  ffui_ctl_send(t, TCM_DELETEALLITEMS, 0, 0)
+
+typedef struct ffui_tabitem {
+	TCITEM item;
+	ffsyschar wtext[255];
+	ffsyschar *w;
+} ffui_tabitem;
+
+static FFINL void ffui_tab_reset(ffui_tabitem *it)
+{
+	if (it->w != it->wtext)
+		ffmem_safefree(it->w);
+	ffmem_tzero(it);
+}
+
+#define ffui_tab_settext_q(it, txt) \
+do { \
+	(it)->item.mask |= TCIF_TEXT; \
+	(it)->item.pszText = txt; \
+} while (0)
+
+#define ffui_tab_gettext(it) \
+do { \
+	(it)->item.mask |= TCIF_TEXT; \
+	(it)->item.pszText = (it)->wtext; \
+	(it)->item.cchTextMax = FFCNT((it)->wtext); \
+} while (0)
+
+FF_EXTN void ffui_tab_settext(ffui_tabitem *it, const char *txt, size_t len);
+#define ffui_tab_settextz(it, sz)  ffui_tab_settext(it, sz, ffsz_len(sz))
+
+static FFINL int ffui_tab_ins(ffui_tab *t, int idx, ffui_tabitem *it)
+{
+	int r = ffui_ctl_send(t, TCM_INSERTITEM, idx, &it->item);
+	ffui_tab_reset(it);
+	return r;
+}
+
+#define ffui_tab_append(t, it)  ffui_tab_ins(t, ffui_tab_count(t), it)
+
+static FFINL ffbool ffui_tab_set(ffui_tab *t, int idx, ffui_tabitem *it)
+{
+	int r = ffui_ctl_send(t, TCM_SETITEM, idx, &it->item);
+	ffui_tab_reset(it);
+	return r;
+}
+
+static FFINL ffbool ffui_tab_get(ffui_tab *t, int idx, ffui_tabitem *it)
+{
+	int r = ffui_ctl_send(t, TCM_GETITEM, idx, &it->item);
+	ffui_tab_reset(it);
+	return r;
+}
+
+
 // LISTVIEW
 typedef struct ffui_view {
 	FFUI_CTL;
@@ -714,6 +785,7 @@ union ffui_anyctl {
 	ffui_edit *edit;
 	ffui_paned *paned;
 	ffui_trkbar *trkbar;
+	ffui_tab *tab;
 	ffui_view *view;
 	ffui_menu *menu;
 };
