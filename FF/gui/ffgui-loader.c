@@ -9,6 +9,7 @@ Copyright (c) 2014 Simon Zolin
 #include <FFOS/file.h>
 
 
+static void* ldr_getctl(ffui_loader *g, const ffstr *name);
 static uint ffui_hotkeyparse(const char *s, size_t len);
 
 // ICON
@@ -503,7 +504,7 @@ static int new_menu(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 static int new_mmenu(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 {
 	ffui_loader *g = obj;
-	if (NULL == (g->menu = g->getctl(g->udata, &ps->vals[0])))
+	if (NULL == (g->menu = ldr_getctl(g, &ps->vals[0])))
 		return FFPARS_EBADVAL;
 
 	if (NULL == (g->menu->h = CreateMenu()))
@@ -569,7 +570,7 @@ static int trkbar_onscrolling(ffparser_schem *ps, void *obj, const ffstr *val)
 static int new_trkbar(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 {
 	ffui_loader *g = obj;
-	if (NULL == (g->trkbar = g->getctl(g->udata, &ps->vals[0])))
+	if (NULL == (g->trkbar = ldr_getctl(g, &ps->vals[0])))
 		return FFPARS_EBADVAL;
 
 	if (0 != ffui_trk_create(g->trkbar, g->wnd))
@@ -590,7 +591,7 @@ static int pgsbar_style(ffparser_schem *ps, void *obj, const ffstr *val)
 static int new_pgsbar(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 {
 	ffui_loader *g = obj;
-	if (NULL == (g->ctl = g->getctl(g->udata, &ps->vals[0])))
+	if (NULL == (g->ctl = ldr_getctl(g, &ps->vals[0])))
 		return FFPARS_EBADVAL;
 
 	if (0 != ffui_pgs_create(g->ctl, g->wnd))
@@ -629,7 +630,7 @@ static int stbar_done(ffparser_schem *ps, void *obj)
 static int new_stbar(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 {
 	ffui_loader *g = obj;
-	if (NULL == (g->ctl = g->getctl(g->udata, &ps->vals[0])))
+	if (NULL == (g->ctl = ldr_getctl(g, &ps->vals[0])))
 		return FFPARS_EBADVAL;
 
 	if (0 != ffui_stbar_create(g->ctl, g->wnd))
@@ -696,7 +697,7 @@ static int new_tray(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 {
 	ffui_loader *g = obj;
 
-	if (NULL == (g->tray = g->getctl(g->udata, &ps->vals[0])))
+	if (NULL == (g->tray = ldr_getctl(g, &ps->vals[0])))
 		return FFPARS_EBADVAL;
 
 	ffui_tray_create(g->tray, g->wnd);
@@ -846,7 +847,7 @@ static int new_label(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 {
 	ffui_loader *g = obj;
 
-	g->ctl = g->getctl(g->udata, &ps->vals[0]);
+	g->ctl = ldr_getctl(g, &ps->vals[0]);
 	if (g->ctl == NULL)
 		return FFPARS_EBADVAL;
 
@@ -862,7 +863,7 @@ static int new_editbox(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 	ffui_loader *g = obj;
 	int r;
 
-	g->ctl = g->getctl(g->udata, &ps->vals[0]);
+	g->ctl = ldr_getctl(g, &ps->vals[0]);
 	if (g->ctl == NULL)
 		return FFPARS_EBADVAL;
 
@@ -882,7 +883,7 @@ static int new_button(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 	ffui_loader *g = obj;
 	void *ctl;
 
-	ctl = g->getctl(g->udata, &ps->vals[0]);
+	ctl = ldr_getctl(g, &ps->vals[0]);
 	if (ctl == NULL)
 		return FFPARS_EBADVAL;
 	g->ctl = ctl;
@@ -898,7 +899,7 @@ static int new_button(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 static int new_tab(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 {
 	ffui_loader *g = obj;
-	if (NULL == (g->actl.tab = g->getctl(g->udata, &ps->vals[0])))
+	if (NULL == (g->actl.tab = ldr_getctl(g, &ps->vals[0])))
 		return FFPARS_EBADVAL;
 
 	if (0 != ffui_tab_create(g->actl.tab, g->wnd))
@@ -1144,7 +1145,7 @@ static int new_listview(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 {
 	ffui_loader *g = obj;
 
-	g->ctl = g->getctl(g->udata, &ps->vals[0]);
+	g->ctl = ldr_getctl(g, &ps->vals[0]);
 	if (g->ctl == NULL)
 		return FFPARS_EBADVAL;
 
@@ -1159,7 +1160,7 @@ static int new_treeview(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 {
 	ffui_loader *g = obj;
 
-	g->ctl = g->getctl(g->udata, &ps->vals[0]);
+	g->ctl = ldr_getctl(g, &ps->vals[0]);
 	if (g->ctl == NULL)
 		return FFPARS_EBADVAL;
 
@@ -1203,7 +1204,7 @@ static int paned_child(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 	if (g->ir == 2)
 		return FFPARS_EBIGVAL;
 
-	ctl = g->getctl(g->udata, &ps->vals[0]);
+	ctl = ldr_getctl(g, &ps->vals[0]);
 	if (ctl == NULL)
 		return FFPARS_EBADVAL;
 
@@ -1217,7 +1218,7 @@ static int new_paned(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 	ffui_loader *g = obj;
 	void *ctl;
 
-	ctl = g->getctl(g->udata, &ps->vals[0]);
+	ctl = ldr_getctl(g, &ps->vals[0]);
 	if (ctl == NULL)
 		return FFPARS_EBADVAL;
 	ffmem_zero(ctl, sizeof(ffui_paned));
@@ -1374,6 +1375,7 @@ static int wnd_done(ffparser_schem *ps, void *obj)
 		ffui_show(g->wnd, 1);
 	}
 
+	g->wnd = NULL;
 	return 0;
 }
 
@@ -1405,6 +1407,15 @@ void ffui_ldr_fin(ffui_loader *g)
 {
 	ffarr_free(&g->accels);
 	ffmem_safefree(g->errstr);
+}
+
+static void* ldr_getctl(ffui_loader *g, const ffstr *name)
+{
+	char buf[255], *end = buf + sizeof(buf);
+	ffstr s;
+	s.ptr = buf;
+	s.len = ffs_fmt(buf, end, "%s.%S", g->wnd->name, name);
+	return g->getctl(g->udata, &s);
 }
 
 int ffui_ldr_loadfile(ffui_loader *g, const char *fn)
@@ -1530,8 +1541,20 @@ void ffui_ldr_loadconf(ffui_loader *g, const char *fn)
 		if (line.len == 0)
 			continue;
 
-		//note: EVERY line must be terminated with \n, otherwise ffconf can't detect end of line
-		if (NULL == ffs_split2by(line.ptr, line.len + FFSLEN("\n"), '.', &name, &val))
+		ffstr_set(&name, line.ptr, 0);
+		ffstr_null(&val);
+		while (line.len != 0) {
+			const char *pos = ffs_findof(line.ptr, line.len, ". ", 2);
+			if (pos == ffarr_end(&line))
+				break;
+			if (*pos == ' ') {
+				val = line;
+				break;
+			}
+			name.len = pos - name.ptr;
+			ffstr_shift(&line, pos + 1 - line.ptr);
+		}
+		if (name.len == 0 || val.len == 0)
 			continue;
 
 		g->ctl = g->getctl(g->udata, &name);
@@ -1559,6 +1582,7 @@ void ffui_ldr_loadconf(ffui_loader *g, const char *fn)
 			}
 			ffconf_scheminit(&ps, &p, &ctx);
 
+			ffbool lf = 0;
 			while (val.len != 0) {
 				n = val.len;
 				int r = ffconf_parse(&p, val.ptr, &n);
@@ -1566,6 +1590,10 @@ void ffui_ldr_loadconf(ffui_loader *g, const char *fn)
 				r = ffconf_schemrun(&ps);
 				if (ffpars_iserr(r))
 					break;
+				if (r == FFPARS_MORE && !lf) {
+					ffstr_setcz(&val, "\n");
+					lf = 1;
+				}
 			}
 
 			ffconf_schemfin(&ps);
