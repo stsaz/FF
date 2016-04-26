@@ -273,7 +273,6 @@ int ffwas_open(ffwasapi *w, const WCHAR *id, ffpcm *fmt, uint bufsize)
 
 fail:
 	ffwas_close(w);
-	ffmem_tzero(w);
 
 done:
 	if (dev != NULL)
@@ -288,13 +287,13 @@ void ffwas_close(ffwasapi *w)
 	if (w->evt != NULL) {
 		ffwoh_rm(_ffwas_woh, w->evt);
 		CloseHandle(w->evt);
+		w->evt = NULL;
 	}
-	if (!w->capture && w->rend != NULL)
-		IAudioRenderClient_Release(w->rend);
-	else if (w->capture && w->capt != NULL)
-		IAudioCaptureClient_Release(w->capt);
-	if (w->cli != NULL)
-		IAudioClient_Release(w->cli);
+	if (!w->capture)
+		FF_SAFECLOSE(w->rend, NULL, IAudioRenderClient_Release);
+	else
+		FF_SAFECLOSE(w->capt, NULL, IAudioCaptureClient_Release);
+	FF_SAFECLOSE(w->cli, NULL, IAudioClient_Release);
 }
 
 int ffwas_filled(ffwasapi *w)
