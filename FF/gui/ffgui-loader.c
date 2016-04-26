@@ -1494,6 +1494,73 @@ void ffui_ldrw_fin(ffui_loaderw *ldr)
 	ffarr_free(&ldr->buf);
 }
 
+void ffui_ldr_setv(ffui_loaderw *ldr, const char *const *names, size_t nn, uint flags)
+{
+	char buf[128];
+	size_t n;
+	uint i, f, set;
+	ffui_ctl *c;
+	ffstr settname, ctlname, val;
+	ffarr s = {0};
+
+	for (i = 0;  i != nn;  i++) {
+		ffstr_setz(&settname, names[i]);
+		ffs_rsplit2by(settname.ptr, settname.len, '.', &ctlname, &val);
+
+		if (NULL == (c = ldr->getctl(ldr->udata, &ctlname)))
+			continue;
+
+		set = 0;
+		f = 0;
+		switch (c->uid) {
+
+		case FFUI_UID_WINDOW:
+			if (ffstr_eqcz(&val, "position")) {
+				ffui_pos pos;
+				ffui_wnd_pos((ffui_wnd*)c, &pos);
+				n = ffs_fmt(buf, buf + sizeof(buf), "%d %d %u %u", pos.x, pos.y, pos.cx, pos.cy);
+				ffstr_set(&s, buf, n);
+				set = 1;
+
+			} else if (ffstr_eqcz(&val, "placement")) {
+				ffui_pos pos;
+				uint cmd = ffui_wnd_placement((ffui_wnd*)c, &pos);
+				n = ffs_fmt(buf, buf + sizeof(buf), "%u %d %d %u %u", cmd, pos.x, pos.y, pos.cx, pos.cy);
+				ffstr_set(&s, buf, n);
+				set = 1;
+			}
+			break;
+
+		case FFUI_UID_EDITBOX:
+			if (ffstr_eqcz(&val, "text")) {
+				ffstr ss;
+				ffui_textstr(c, &ss);
+				ffarr_set3(&s, ss.ptr, ss.len, ss.len);
+				f = FFUI_LDR_FSTR;
+				set = 1;
+			}
+			break;
+
+		case FFUI_UID_TRACKBAR:
+			if (ffstr_eqcz(&val, "value")) {
+				n = ffs_fmt(buf, buf + sizeof(buf), "%u", ffui_trk_val(c));
+				ffstr_set(&s, buf, n);
+				set = 1;
+			}
+			break;
+
+		default:
+			continue;
+		}
+
+		if (!set)
+			continue;
+
+		ffui_ldr_set(ldr, settname.ptr, s.ptr, s.len, f);
+		ffarr_free(&s);
+	}
+}
+
 void ffui_ldr_set(ffui_loaderw *ldr, const char *name, const char *val, size_t len, uint flags)
 {
 	if (flags & FFUI_LDR_FSTR)

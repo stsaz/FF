@@ -76,10 +76,15 @@ FF_EXTN void ffui_ldr_loadconf(ffui_loader *g, const char *fn);
 
 
 typedef struct ffui_loaderw {
+	ffui_ldr_getctl_t getctl;
+	void *udata;
+
 	ffstr3 buf;
 } ffui_loaderw;
 
 FF_EXTN void ffui_ldrw_fin(ffui_loaderw *ldr);
+
+FF_EXTN void ffui_ldr_setv(ffui_loaderw *ldr, const char *const *names, size_t n, uint flags);
 
 enum FFUI_LDR_F {
 	FFUI_LDR_FSTR = 1,
