@@ -161,10 +161,9 @@ static int flac_info(const char *data, size_t size, ffflac_info *info, ffpcm *fm
 	uint bpsample = ((uinfo4 & 0x000001f0) >> 4) + 1;
 	switch (bpsample) {
 	case 16:
-		fmt->format = FFPCM_16LE;
-		break;
+	case 24:
 	case 32:
-		fmt->format = FFPCM_32LE;
+		fmt->format = bpsample;
 		break;
 	default:
 		return -1;
@@ -844,12 +843,6 @@ int ffflac_decode(ffflac *f)
 			return FFFLAC_RERR;
 		}
 		f->buf.len = 0;
-
-		if (f->fmt.format != FFPCM_16LE) {
-			f->errtype = FLAC_EFMT;
-			return FFFLAC_RERR;
-		}
-
 		f->off += r;
 
 		f->st = lastblk ? I_METALAST : I_META;
@@ -995,6 +988,16 @@ int ffflac_decode(ffflac *f)
 				uint j = isrc;
 				for (i = 0;  i != f->pcmlen;  i++) {
 					f->out16[ich][i] = (short)f->out32[ich][j++];
+				}
+			}
+
+		} else if (f->fmt.format == FFPCM_24) {
+			// 24/32 -> 24/24
+			char **out8 = (char**)f->out32;
+			for (ich = 0;  ich != f->fmt.channels;  ich++) {
+				uint j = isrc;
+				for (i = 0;  i != f->pcmlen;  i++) {
+					ffmemcpy(&out8[ich][i * 3], &f->out32[ich][j++], 3);
 				}
 			}
 		}
