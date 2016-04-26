@@ -1108,9 +1108,7 @@ int ffflac_create(ffflac_enc *f, const ffpcm *pcm)
 		}
 	}
 
-	if (NULL == ffarr_alloc(&f->outbuf, FLAC_MINSIZE
-		+ sizeof(struct flac_hdr) * 2 + ffmax(4096, f->min_meta)
-		+ sizeof(struct flac_hdr) + f->sktab.len * sizeof(struct flac_seekpoint))) {
+	if (NULL == ffarr_alloc(&f->outbuf, FLAC_MINSIZE + sizeof(struct flac_hdr) + 4096)) {
 		f->errtype = FLAC_ESYS;
 		return FFFLAC_RERR;
 	}
@@ -1145,6 +1143,13 @@ static int _ffflac_enc_hdr(ffflac_enc *f)
 	uint have_padding = (f->min_meta > taglen);
 
 	flac_sethdr(f->outbuf.ptr + tagoff, FLAC_TTAGS, !have_padding && (f->sktab.len == 0), taglen);
+
+	if (NULL == ffarr_realloc(&f->outbuf, FLAC_MINSIZE
+		+ sizeof(struct flac_hdr) * 2 + ffmax(taglen, f->min_meta)
+		+ sizeof(struct flac_hdr) + f->sktab.len * sizeof(struct flac_seekpoint))) {
+		f->errtype = FLAC_ESYS;
+		return FFFLAC_RERR;
+	}
 
 	if (have_padding)
 		f->outbuf.len += flac_padding_write(ffarr_end(&f->outbuf), f->outbuf.cap, f->min_meta - taglen, f->sktab.len == 0);
