@@ -21,7 +21,10 @@ typedef struct ffsoxr {
 	};
 	uint inlen;
 
+	union {
 	void *out;
+	void **outni;
+	};
 	uint outlen;
 	uint outcap;
 

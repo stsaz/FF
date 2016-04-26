@@ -3,7 +3,7 @@ Copyright (c) 2015 Simon Zolin
 */
 
 #include <FF/audio/soxr.h>
-#include <FF/string.h>
+#include <FF/array.h>
 
 
 static const byte soxr_fmts[2][3] = {
@@ -32,8 +32,7 @@ int ffsoxr_create(ffsoxr *soxr, const ffpcmex *inpcm, const ffpcmex *outpcm)
 	soxr_io_spec_t io;
 	soxr_quality_spec_t qual;
 
-	if (inpcm->channels != outpcm->channels
-		|| !outpcm->ileaved)
+	if (inpcm->channels != outpcm->channels)
 		return -1;
 
 
@@ -57,8 +56,14 @@ int ffsoxr_create(ffsoxr *soxr, const ffpcmex *inpcm, const ffpcmex *outpcm)
 	soxr->isampsize = ffpcm_size1(inpcm);
 	soxr->osampsize = ffpcm_size1(outpcm);
 	soxr->outcap = outpcm->sample_rate;
-	if (NULL == (soxr->out = ffmem_alloc(soxr->outcap * soxr->osampsize)))
+	if (NULL == (soxr->out = ffmem_alloc(sizeof(void*) * outpcm->channels + soxr->outcap * soxr->osampsize)))
 		return -1;
+	if (!outpcm->ileaved) {
+		ffstr s;
+		ffstr_set(&s, soxr->out + sizeof(void*) * outpcm->channels, soxr->outcap * ffpcm_bits(outpcm->format) / 8);
+		// soxr->outni = soxr->out;
+		ffarrp_setbuf(soxr->outni, outpcm->channels, s.ptr, s.len);
+	}
 	soxr->in_ileaved = inpcm->ileaved;
 	soxr->nchannels = inpcm->channels;
 	return 0;
