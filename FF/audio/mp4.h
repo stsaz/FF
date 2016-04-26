@@ -41,7 +41,6 @@ typedef struct ffmp4 {
 	uint64 total_size;
 	ffarr buf;
 	uint isamp; //current MP4-sample
-	uint lastsamp;
 	uint chunk_size;
 	uint chunk_audio;
 	ffarr sktab; //struct seekpt[], MP4-sample table

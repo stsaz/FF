@@ -795,15 +795,10 @@ static uint64 mp4_data(ffmp4 *m, uint *pisamp, uint *data_size, uint64 *cursampl
 		off += sk[i].size;
 	}
 
-	*data_size = 0;
-	for (i = isamp;  i != m->sktab.len - 1;  i++) {
-		if (sk[i].chunk_id != sk[isamp].chunk_id)
-			break;
-		*data_size += sk[i].size;
-	}
-	*audio_size = sk[i].audio_pos - sk[isamp].audio_pos;
-	*pisamp = i;
+	*data_size = sk[isamp].size;
+	*audio_size = sk[isamp + 1].audio_pos - sk[isamp].audio_pos;
 	*cursample = sk[isamp].audio_pos;
+	*pisamp = isamp + 1;
 	return chunks[sk[isamp].chunk_id] + off;
 }
 
@@ -1027,7 +1022,6 @@ int ffmp4_read(ffmp4 *m)
 		{
 		if (m->isamp == m->sktab.len - 1)
 			return FFMP4_RDONE;
-		m->lastsamp = m->isamp;
 		uint64 off = mp4_data(m, &m->isamp, &m->chunk_size, &m->cursample, &m->chunk_audio);
 		m->state = I_DATAREAD;
 		if (off == m->off)
@@ -1051,8 +1045,8 @@ int ffmp4_read(ffmp4 *m)
 		m->buf.len = 0;
 		m->state = I_DATAOK;
 
-		FFDBG_PRINTLN(10, "data chunk #%u (from mp4-sample #%u): %L"
-			, ((struct seekpt*)m->sktab.ptr)[m->lastsamp].chunk_id, m->lastsamp, m->outlen);
+		FFDBG_PRINTLN(10, "mp4-sample:%u  size:%L  data-chunk:%u  audio-pos:%U"
+			, m->isamp - 1, m->outlen, ((struct seekpt*)m->sktab.ptr)[m->isamp - 1].chunk_id, m->cursample);
 
 		return FFMP4_RDATA;
 	}
