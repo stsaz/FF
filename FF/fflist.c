@@ -41,6 +41,18 @@ void fflist_ins(fflist *lst, fflist_item *it)
 	lst->len++;
 }
 
+void fflist_place(fflist *lst, fflist_item *it, fflist_item *after)
+{
+	if (after == FFLIST_END)
+		fflist_ins(lst, it);
+	else {
+		fflist_link(it, after);
+		if (after == lst->last)
+			lst->last = it;
+		lst->len++;
+	}
+}
+
 void fflist_prepend(fflist *lst, fflist_item *it)
 {
 	if (lst->last != FFLIST_END) {

@@ -90,6 +90,8 @@ static FFINL ffbool fflist_exists(fflist *lst, fflist_item *it) {
 /** Add item to the end. */
 FF_EXTN void fflist_ins(fflist *lst, fflist_item *it);
 
+FF_EXTN void fflist_place(fflist *lst, fflist_item *it, fflist_item *after);
+
 /** Add item to the beginning. */
 FF_EXTN void fflist_prepend(fflist *lst, fflist_item *it);
 
