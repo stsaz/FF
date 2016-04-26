@@ -7,6 +7,38 @@ Copyright (c) 2013 Simon Zolin
 #include <FFOS/mem.h>
 #include <FF/string.h>
 
+
+typedef struct ffarr2 {
+	size_t len;
+	void *ptr;
+} ffarr2;
+
+static FFINL void* ffarr2_alloc(ffarr2 *a, size_t n, size_t elsz)
+{
+	a->len = 0;
+	return (a->ptr = ffmem_alloc(n * elsz));
+}
+
+FF_EXTN void* ffarr2_realloc(ffarr2 *a, size_t n, size_t elsz);
+
+#define ffarr2_grow(a, by, elsz)  ffarr2_realloc(a, (a)->len + by, elsz)
+
+#define ffarr2_free(a) \
+do { \
+	ffmem_safefree0((a)->ptr); \
+	(a)->len = 0; \
+} while (0)
+
+#define FFARR2_FREE_ALL(a, func, T) \
+do { \
+	T *__it; \
+	FFARR_WALKT(a, __it, T) { \
+		func(__it); \
+	} \
+	ffarr2_free(a); \
+} while (0)
+
+
 /** Declare an array. */
 #define FFARR(T) \
 	size_t len; \
@@ -278,16 +310,9 @@ static FFINL ffbool ffstr_imatch(const ffstr *s1, const char *s2, size_t n) {
 #define ffstr_imatchcz(s, csz)  ffstr_imatch(s, csz, FFSLEN(csz))
 
 
-static FFINL char * ffstr_alloc(ffstr *s, size_t cap) {
-	s->len = 0;
-	s->ptr = (char*)ffmem_alloc(cap * sizeof(char));
-	return s->ptr;
-}
+#define ffstr_alloc(s, cap)  ffarr2_alloc((ffarr2*)s, cap, sizeof(char))
 
-static FFINL void ffstr_free(ffstr *s) {
-	FF_SAFECLOSE(s->ptr, NULL, ffmem_free);
-	s->len = 0;
-}
+#define ffstr_free(s)  ffarr2_free(s)
 
 static FFINL void ffstr_cat(ffstr *s, size_t cap, const char *d, size_t len) {
 	char *p = ffs_copy(s->ptr + s->len, s->ptr + cap, d, len);

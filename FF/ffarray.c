@@ -5,6 +5,18 @@ Copyright (c) 2016 Simon Zolin
 #include <FF/array.h>
 
 
+void* ffarr2_realloc(ffarr2 *a, size_t n, size_t elsz)
+{
+	void *p;
+	if (NULL == (p = ffmem_realloc(a->ptr, n * elsz)))
+		return NULL;
+	a->ptr = p;
+	if (a->len > n)
+		a->len = n;
+	return a->ptr;
+}
+
+
 void * _ffarr_realloc(ffarr *ar, size_t newlen, size_t elsz)
 {
 	void *d = NULL;
