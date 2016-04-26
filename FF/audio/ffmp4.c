@@ -231,6 +231,7 @@ enum MP4_F {
 	F_WHOLE = 0x100, //wait until the whole box is in memory
 	F_FULLBOX = 0x200, //box inherits "struct fullbox"
 	F_REQ = 0x400, //mandatory box
+	F_MULTI = 0x800, //allow multiple occurrences
 };
 
 /** enum BOX (_TAG_FIRST..N) => enum FFMP4_TAG map */
@@ -301,7 +302,7 @@ static const struct bbox mp4_ctx_global[] = {
 	{"",0,NULL}
 };
 static const struct bbox mp4_ctx_moov[] = {
-	{"trak", BOX_ANY, mp4_ctx_trak},
+	{"trak", BOX_ANY | F_MULTI, mp4_ctx_trak},
 	{"udta", BOX_ANY, mp4_ctx_udta},
 	{"",0,NULL}
 };
@@ -489,7 +490,7 @@ static int mp4_box_parse(ffmp4 *m, struct mp4_box *box, const char *data, uint l
 		return MP4_ELARGE;
 
 	if (m->ictx != 0 && idx != -1) {
-		if (ffbit_set32(&parent->usedboxes, idx))
+		if (ffbit_set32(&parent->usedboxes, idx) && !(box->type & F_MULTI))
 			return MP4_EDUPBOX;
 	}
 
@@ -1073,13 +1074,6 @@ int ffmp4_read(ffmp4 *m)
 	switch (GET_TYPE(box->type)) {
 
 	case BOX_FTYP:
-		{
-		const struct ftyp *ftyp = (void*)sbox.ptr;
-		if (!!ffs_cmp(ftyp->major_brand, "M4A ", 4)) {
-			m->err = MP4_EFTYP;
-			return FFMP4_RERR;
-		}
-		}
 		break;
 
 	case BOX_ASAMP:
