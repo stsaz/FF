@@ -360,7 +360,7 @@ static const struct bbox mp4_ctx_ilst[] = {
 	{"trkn",	TAG_TRKN,	mp4_ctx_data},
 	{"\251alb",	TAG_ALB,	mp4_ctx_data},
 	{"\251ART",	TAG_ART,	mp4_ctx_data},
-	{"\251cmt",	TAG_CMT,	mp4_ctx_data},
+	{"\251cmt",	TAG_CMT | F_MULTI,	mp4_ctx_data},
 	{"\251day",	TAG_DAY,	mp4_ctx_data},
 	{"\251enc",	TAG_ENC,	mp4_ctx_data},
 	{"\251gen",	TAG_GENRE,	mp4_ctx_data},
@@ -480,6 +480,7 @@ static int mp4_box_parse(ffmp4 *m, struct mp4_box *box, const char *data, uint l
 		if (box->osize == 1)
 			return -1;
 	}
+	box->size = box->osize - len;
 
 	int idx = mp4_box_find(m->ctxs[m->ictx], pbox->type, box);
 
@@ -936,16 +937,22 @@ int ffmp4_read(ffmp4 *m)
 			continue;
 		}
 		r = mp4_box_parse(m, box, m->buf.ptr, sz);
-		if (r > 0) {
-			m->err = r;
-			return FFMP4_RERR;
-		} else if (r == -1) {
+		if (r == -1) {
 			m->box64 = 1;
 			continue;
 		}
 		m->box64 = 0;
 		m->buf.len = 0;
-		box->size = box->osize - sz;
+
+		if (r > 0) {
+			m->err = r;
+			if (r == MP4_EDUPBOX) {
+				m->state = I_BOXSKIP;
+				return FFMP4_RWARN;
+			}
+			return FFMP4_RERR;
+		}
+
 		m->state = I_FBOX;
 		}
 		// break
