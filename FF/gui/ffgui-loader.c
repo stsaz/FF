@@ -216,6 +216,7 @@ static int new_dlg(ffparser_schem *ps, void *obj, ffpars_ctx *ctx);
 // WINDOW
 static int wnd_title(ffparser_schem *ps, void *obj, const ffstr *val);
 static int wnd_position(ffparser_schem *ps, void *obj, const int64 *v);
+static int wnd_placement(ffparser_schem *ps, void *obj, const int64 *v);
 static int wnd_icon(ffparser_schem *ps, void *obj, ffpars_ctx *ctx);
 static int wnd_opacity(ffparser_schem *ps, void *obj, const int64 *val);
 static int wnd_borderstick(ffparser_schem *ps, void *obj, const int64 *val);
@@ -226,6 +227,7 @@ static int wnd_done(ffparser_schem *ps, void *obj);
 static const ffpars_arg wnd_args[] = {
 	{ "title",	FFPARS_TSTR, FFPARS_DST(&wnd_title) },
 	{ "position",	FFPARS_TINT | FFPARS_FSIGN | FFPARS_FLIST, FFPARS_DST(&wnd_position) },
+	{ "placement",	FFPARS_TINT | FFPARS_FSIGN | FFPARS_FLIST, FFPARS_DST(&wnd_placement) },
 	{ "opacity",	FFPARS_TINT, FFPARS_DST(&wnd_opacity) },
 	{ "borderstick",	FFPARS_TINT | FFPARS_F8BIT, FFPARS_DST(&wnd_borderstick) },
 	{ "icon",	FFPARS_TOBJ, FFPARS_DST(&wnd_icon) },
@@ -1274,6 +1276,25 @@ static int wnd_position(ffparser_schem *ps, void *obj, const int64 *v)
 	if (g->ir == 4) {
 		ffui_setposrect(g->wnd, &g->r, 0);
 	}
+	return 0;
+}
+
+static int wnd_placement(ffparser_schem *ps, void *obj, const int64 *v)
+{
+	ffui_loader *g = obj;
+
+	if (ps->p->type == FFCONF_TVAL) {
+		g->ir = 0;
+		g->showcmd = *v;
+		return 0;
+	} else if (g->ir == 4)
+		return FFPARS_EBIGVAL;
+
+	int *i = &g->r.x;
+	i[g->ir++] = (int)*v;
+
+	if (g->ir == 4)
+		ffui_wnd_setplacement(g->wnd, g->showcmd, &g->r);
 	return 0;
 }
 

@@ -60,6 +60,7 @@ struct ffui_loader {
 		union ffui_anyctl actl;
 	};
 	char *errstr;
+	uint showcmd;
 	uint vis :1;
 };
 
