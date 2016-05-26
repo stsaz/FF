@@ -1079,7 +1079,7 @@ format:
 
 		case 'p':
 			num = va_arg(va, size_t);
-			width = sizeof(void*) * 2;
+			width = (num <= (uint)-1) ? sizeof(int) * 2 : sizeof(void*) * 2;
 			itoaFlags |= FFINT_HEXLOW | FFINT_ZEROWIDTH;
 			itoa = 1;
 			break;
