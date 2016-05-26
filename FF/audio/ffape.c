@@ -532,16 +532,16 @@ int ffape_decode(ffape *a)
 		// break
 
 	case I_TAGSFIN:
-		if (0 != (r = ape_seektab_finish(a->seektab, a->nseekpts, a->total_size))) {
-			a->err = -r;
-			return FFAPE_RERR;
-		}
 		a->state = I_HDRFIN;
 		a->off = a->froff;
 		return FFAPE_RSEEK;
 
 
 	case I_HDRFIN:
+		if (0 != (r = ape_seektab_finish(a->seektab, a->nseekpts, a->total_size))) {
+			a->err = -r;
+			return FFAPE_RERR;
+		}
 		a->state = I_INIT;
 		return FFAPE_RHDRFIN;
 
