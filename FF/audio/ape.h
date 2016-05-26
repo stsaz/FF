@@ -74,6 +74,8 @@ typedef struct ffape {
 	ffid31ex id31tag;
 	ffapetag apetag;
 	};
+	int tag;
+	ffstr tagval;
 
 	uint state;
 	int err;

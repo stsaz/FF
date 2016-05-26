@@ -25,6 +25,7 @@ struct wvpk_hdr {
 
 enum {
 	MAX_NOSYNC = 1 * 1024 * 1024,
+	WVPK_FTRTAGS_CHKSIZE = 1000,
 };
 
 
@@ -160,10 +161,8 @@ static FFINL int wvpk_hdr(ffwvpack *w)
 
 void ffwvpk_close(ffwvpack *w)
 {
-	if (!w->apetag_closed)
+	if (w->is_apetag)
 		ffapetag_parse_fin(&w->apetag);
-
-	ffid31_parse_fin(&w->id31tag);
 
 	if (w->wp != NULL)
 		WavpackCloseFile(w->wp);
@@ -172,7 +171,7 @@ void ffwvpk_close(ffwvpack *w)
 }
 
 enum { I_OPEN, I_BLOCKHDR, I_BLOCK, I_HDR, I_HDRFIN, I_DATA, I_SEEK,
-	I_TAGSEEK, I_ID31, I_APE2_FIRST, I_APE2, I_TAGSFIN };
+	I_TAGSEEK, I_FTRTAGS, I_ID31, I_APE2, I_APE2_MORE, I_TAGSFIN };
 
 void ffwvpk_seek(ffwvpack *w, uint64 sample)
 {
@@ -189,67 +188,64 @@ void ffwvpk_seek(ffwvpack *w, uint64 sample)
 
 static FFINL int wvpk_id31(ffwvpack *w)
 {
-	int r;
-	size_t len;
+	if (w->buf.len < sizeof(ffid31))
+		return 0;
 
-	len = w->datalen;
-	r = ffid31_parse(&w->id31tag, w->data, &len);
-	w->data += len;
-	w->datalen -= len;
-	w->off += len;
+	int r = ffid31_parse(&w->id31tag, ffarr_end(&w->buf) - sizeof(ffid31), sizeof(ffid31));
 
 	switch (r) {
 	case FFID3_RNO:
-		w->state = I_APE2_FIRST;
-		return FFWVPK_RDONE;
+		break;
 
 	case FFID3_RDONE:
+		w->buf.len -= sizeof(ffid31);
 		w->total_size -= sizeof(ffid31);
-		w->off = w->total_size - ffmin(sizeof(ffapehdr), w->total_size);
-		w->state = I_APE2_FIRST;
-		return FFWVPK_RSEEK;
+		w->off -= sizeof(ffid31);
+		break;
 
 	case FFID3_RDATA:
+		w->tag = w->id31tag.field;
+		w->tagval = w->id31tag.val;
 		return FFWVPK_RTAG;
 
-	case FFID3_RMORE:
-		return FFWVPK_RMORE;
+	default:
+		FF_ASSERT(0);
 	}
 
-	FF_ASSERT(0);
-	return FFWVPK_RERR;
+	ffmem_tzero(&w->id31tag);
+	return 0;
 }
 
 static FFINL int wvpk_ape(ffwvpack *w)
 {
-	int r;
-	size_t len;
+	for (;;) {
 
-	len = w->datalen;
-	r = ffapetag_parse(&w->apetag, w->data, &len);
-	w->data += len;
-	w->datalen -= len;
-	w->off += len;
+	size_t len = w->buf.len;
+	int r = ffapetag_parse(&w->apetag, w->buf.ptr, &len);
 
 	switch (r) {
 	case FFAPETAG_RDONE:
-		w->total_size -= ffapetag_size(&w->apetag.ftr);
-		// break
 	case FFAPETAG_RNO:
+		w->is_apetag = 0;
 		ffapetag_parse_fin(&w->apetag);
-		w->apetag_closed = 1;
-		w->state = I_TAGSFIN;
 		return 0;
+
+	case FFAPETAG_RFOOTER:
+		w->is_apetag = 1;
+		w->total_size -= w->apetag.size;
+		continue;
 
 	case FFAPETAG_RTAG:
 		w->is_apetag = 1;
 		return FFWVPK_RTAG;
 
 	case FFAPETAG_RSEEK:
-		w->off += w->apetag.seekoff;
+		w->off -= w->apetag.size;
+		w->state = I_APE2_MORE;
 		return FFWVPK_RSEEK;
 
 	case FFAPETAG_RMORE:
+		w->state = I_APE2_MORE;
 		return FFWVPK_RMORE;
 
 	case FFAPETAG_RERR:
@@ -260,8 +256,8 @@ static FFINL int wvpk_ape(ffwvpack *w)
 	default:
 		FF_ASSERT(0);
 	}
+	}
 	//unreachable
-	return FFWVPK_RERR;
 }
 
 /**
@@ -440,37 +436,48 @@ int ffwvpk_decode(ffwvpack *w)
 
 
 	case I_TAGSEEK:
-		if (w->options & FFWVPK_O_ID3V1)
-			w->state = I_ID31;
-		else if (w->options & FFWVPK_O_APETAG)
-			w->state = I_APE2_FIRST;
-		else {
-			w->state = I_HDRFIN;
-			continue;
+		if (w->options & (FFWVPK_O_ID3V1 | FFWVPK_O_APETAG)) {
+			w->state = I_FTRTAGS;
+			w->off = w->total_size - ffmin(WVPK_FTRTAGS_CHKSIZE, w->total_size);
+			return FFWVPK_RSEEK;
 		}
-		w->off = w->total_size - ffmin(sizeof(ffid31), w->total_size);
-		return FFWVPK_RSEEK;
+		w->state = I_HDRFIN;
+		continue;
 
-	case I_ID31:
-		if (FFWVPK_RDONE != (i = wvpk_id31(w)))
-			return i;
+	case I_FTRTAGS:
+		r = ffarr_append_until(&w->buf, w->data, w->datalen, ffmin(WVPK_FTRTAGS_CHKSIZE, w->total_size));
+		if (r < 0) {
+			w->err = FFWVPK_ESYS;
+			return FFWVPK_RERR;
+		} else if (r == 0) {
+			w->off += w->datalen;
+			return FFWVPK_RMORE;
+		}
+		FFARR_SHIFT(w->data, w->datalen, r);
+		w->off += r;
+		w->state = I_ID31;
 		// break
 
-	case I_APE2_FIRST:
-		if (!(w->options & FFWVPK_O_APETAG)) {
-			w->state = I_TAGSFIN;
-			continue;
-		}
-		w->datalen = ffmin(w->total_size - w->off, w->datalen);
+	case I_ID31:
+		if ((w->options & FFWVPK_O_ID3V1) && 0 != (i = wvpk_id31(w)))
+			return i;
+		w->state = I_APE2;
+		continue;
+
+	case I_APE2_MORE:
+		ffarr_free(&w->buf);
+		ffstr_set(&w->buf, w->data, w->datalen);
 		w->state = I_APE2;
 		// break
 
 	case I_APE2:
-		if (0 != (r = wvpk_ape(w)))
+		if ((w->options & FFWVPK_O_APETAG) && 0 != (r = wvpk_ape(w)))
 			return r;
-		continue;
+		w->state = I_TAGSFIN;
+		// break
 
 	case I_TAGSFIN:
+		w->buf.len = 0;
 		w->off = 0;
 		w->state = I_HDRFIN;
 		return FFWVPK_RSEEK;

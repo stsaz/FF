@@ -55,8 +55,12 @@ typedef struct ffwvpack {
 		, off;
 	uint64 seek_sample;
 
+	union {
 	ffid31ex id31tag;
 	ffapetag apetag;
+	};
+	int tag;
+	ffstr tagval;
 
 	const void *data;
 	size_t datalen;
@@ -82,8 +86,7 @@ typedef struct ffwvpack {
 	uint fin :1
 		, hdr_done :1
 		, seek_ok :1
-		, is_apetag :1
-		, apetag_closed :1;
+		, is_apetag :1;
 } ffwvpack;
 
 enum FFWVPK_R {

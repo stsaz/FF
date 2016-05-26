@@ -62,6 +62,7 @@ struct ape_hdr_old {
 
 enum {
 	APE_MINHDR = sizeof(struct ape_desc) + sizeof(struct ape_hdr),
+	APE_FTRTAGS_CHKSIZE = 1000,
 };
 
 
@@ -112,7 +113,7 @@ const char* ffape_errstr(ffape *a)
 
 
 enum {
-	I_HDR, I_SEEKTAB, I_HDR2, I_TAGSEEK, I_ID31, I_APE2_FIRST, I_APE2, I_TAGSFIN, I_HDRFIN,
+	I_HDR, I_SEEKTAB, I_HDR2, I_TAGSEEK, I_FTRTAGS, I_ID31, I_APE2, I_APE2_MORE, I_TAGSFIN, I_HDRFIN,
 	I_INIT, I_FR, I_NEXT, I_SEEK,
 };
 
@@ -319,64 +320,65 @@ static int _ffape_hdr(ffape *a)
 
 static int _ffape_id31(ffape *a)
 {
-	int r;
-	size_t len;
+	if (a->buf.len < sizeof(ffid31))
+		return 0;
 
-	len = a->datalen;
-	r = ffid31_parse(&a->id31tag, a->data, &len);
-	FFARR_SHIFT(a->data, a->datalen, len);
-	a->off += len;
+	int r = ffid31_parse(&a->id31tag, ffarr_end(&a->buf) - sizeof(ffid31), sizeof(ffid31));
 
 	switch (r) {
 	case FFID3_RNO:
-		a->state = I_APE2_FIRST;
-		return 0;
+		break;
 
 	case FFID3_RDONE:
+		a->buf.len -= sizeof(ffid31);
 		a->total_size -= sizeof(ffid31);
-		a->off = a->total_size - ffmin(sizeof(ffapehdr), a->total_size);
-		a->state = I_APE2_FIRST;
-		return FFAPE_RSEEK;
+		a->off -= sizeof(ffid31);
+		break;
 
 	case FFID3_RDATA:
+		a->tag = a->id31tag.field;
+		a->tagval = a->id31tag.val;
 		return FFAPE_RTAG;
 
-	case FFID3_RMORE:
-		return FFAPE_RMORE;
+	default:
+		FF_ASSERT(0);
 	}
 
-	FF_ASSERT(0);
-	return FFAPE_RERR;
+	ffmem_tzero(&a->id31tag);
+	return 0;
 }
 
 static int _ffape_apetag(ffape *a)
 {
-	int r;
-	size_t len;
+	for (;;) {
 
-	len = a->datalen;
-	r = ffapetag_parse(&a->apetag, a->data, &len);
-	FFARR_SHIFT(a->data, a->datalen, len);
-	a->off += len;
+	size_t len = a->buf.len;
+	int r = ffapetag_parse(&a->apetag, a->buf.ptr, &len);
 
 	switch (r) {
 	case FFAPETAG_RDONE:
-		a->total_size -= ffapetag_size(&a->apetag.ftr);
-		// break
 	case FFAPETAG_RNO:
 		a->is_apetag = 0;
 		ffapetag_parse_fin(&a->apetag);
-		a->state = I_TAGSFIN;
 		return 0;
 
+	case FFAPETAG_RFOOTER:
+		a->is_apetag = 1;
+		a->total_size -= a->apetag.size;
+		continue;
+
 	case FFAPETAG_RTAG:
+		a->tag = a->apetag.tag;
+		a->tagval = a->apetag.val;
 		return FFAPE_RTAG;
 
 	case FFAPETAG_RSEEK:
-		a->off += a->apetag.seekoff;
+		a->off -= a->apetag.size;
+		a->state = I_APE2_MORE;
 		return FFAPE_RSEEK;
 
 	case FFAPETAG_RMORE:
+		a->state = I_APE2_MORE;
 		return FFAPE_RMORE;
 
 	case FFAPETAG_RERR:
@@ -387,8 +389,8 @@ static int _ffape_apetag(ffape *a)
 	default:
 		FF_ASSERT(0);
 	}
+	}
 	//unreachable
-	return FFAPE_RERR;
 }
 
 static uint frame_offset(ffape *a, uint frame)
@@ -500,38 +502,48 @@ int ffape_decode(ffape *a)
 
 
 	case I_TAGSEEK:
-		if (a->options & FFAPE_O_ID3V1)
-			a->state = I_ID31;
-		else if (a->options & FFAPE_O_APETAG)
-			a->state = I_APE2_FIRST;
-		else {
-			a->state = I_HDRFIN;
-			continue;
+		if (a->options & (FFAPE_O_ID3V1 | FFAPE_O_APETAG)) {
+			a->state = I_FTRTAGS;
+			a->off = a->total_size - ffmin(APE_FTRTAGS_CHKSIZE, a->total_size);
+			return FFAPE_RSEEK;
 		}
-		a->off = a->total_size - ffmin(sizeof(ffid31), a->total_size);
-		return FFAPE_RSEEK;
+		a->state = I_HDRFIN;
+		continue;
 
-	case I_ID31:
-		if (0 != (r = _ffape_id31(a)))
-			return r;
+	case I_FTRTAGS:
+		r = ffarr_append_until(&a->buf, a->data, a->datalen, ffmin(APE_FTRTAGS_CHKSIZE, a->total_size));
+		if (r < 0) {
+			a->err = APE_ESYS;
+			return FFAPE_RERR;
+		} else if (r == 0) {
+			a->off += a->datalen;
+			return FFAPE_RMORE;
+		}
+		FFARR_SHIFT(a->data, a->datalen, r);
+		a->off += r;
+		a->state = I_ID31;
 		// break
 
-	case I_APE2_FIRST:
-		if (!(a->options & FFAPE_O_APETAG)) {
-			a->state = I_TAGSFIN;
-			continue;
-		}
-		a->is_apetag = 1;
-		a->datalen = ffmin(a->total_size - a->off, a->datalen);
+	case I_ID31:
+		if ((a->options & FFAPE_O_ID3V1) && 0 != (r = _ffape_id31(a)))
+			return r;
+		a->state = I_APE2;
+		continue;
+
+	case I_APE2_MORE:
+		ffarr_free(&a->buf);
+		ffstr_set(&a->buf, a->data, a->datalen);
 		a->state = I_APE2;
 		// break
 
 	case I_APE2:
-		if (0 != (r = _ffape_apetag(a)))
+		if ((a->options & FFAPE_O_APETAG) && 0 != (r = _ffape_apetag(a)))
 			return r;
+		a->state = I_TAGSFIN;
 		// break
 
 	case I_TAGSFIN:
+		a->buf.len = 0;
 		a->state = I_HDRFIN;
 		a->off = a->froff;
 		return FFAPE_RSEEK;
