@@ -9,7 +9,8 @@ Copyright (c) 2013 Simon Zolin
 #ifdef FF_WIN
 void ffpsarg_init(ffpsarg *a, const char **argv, uint argc)
 {
-	a->cmdln.ptr = ffsz_alcopyqz(GetCommandLine());
+	if (NULL == (a->cmdln.ptr = ffsz_alcopyqz(GetCommandLine())))
+		return;
 	a->cmdln.cap = ffsz_len(a->cmdln.ptr);
 	a->cmdln.len = 0;
 }

@@ -41,21 +41,10 @@ const char * ffpars_errstr(int code)
 const char ff_escchar[] = "\"\\bfrnt";
 const char ff_escbyte[] = "\"\\\b\f\r\n\t";
 
-void * ffpars_defmemfunc(void *d, size_t sz)
-{
-	if (sz != 0) {
-		sz += sz / 4; // +25%
-		return ffmem_realloc(d, sz);
-	}
-	ffmem_free(d);
-	return NULL;
-}
-
 void ffpars_init(ffparser *p)
 {
 	ffpars_reset(p);
 	p->line = 1;
-	p->memfunc = &ffpars_defmemfunc;
 	p->ctxs.ptr = p->buf.ptr = NULL;
 	p->ctxs.cap = p->buf.cap = 0;
 }
@@ -73,8 +62,7 @@ void ffpars_reset(ffparser *p)
 
 void ffpars_free(ffparser *p)
 {
-	if (p->buf.cap != 0)
-		p->memfunc(p->buf.ptr, 0);
+	ffarr_free(&p->buf);
 	ffarr_free(&p->ctxs);
 }
 
@@ -116,22 +104,13 @@ int _ffpars_copyBuf(ffparser *p, const char *text, size_t len)
 	if (p->val.ptr != p->buf.ptr)
 		all = p->val.len + len;
 
-	if (ffarr_unused(&p->buf) < all) {
-		size_t cap = p->buf.len + all;
-		void *d = p->memfunc(p->buf.ptr, cap);
-		if (d == NULL)
-			return FFPARS_ESYS;
-		p->buf.ptr = d;
-		p->buf.cap = cap;
-	}
+	if (NULL == ffarr_grow(&p->buf, all, 64 | FFARR_GROWQUARTER))
+		return FFPARS_ESYS;
 
-	if (all != len) {
-		memcpy(ffarr_end(&p->buf), p->val.ptr, p->val.len); //the first allocation, copy what we've processed so far
-		p->buf.len += p->val.len;
-	}
+	if (all != len)
+		ffarr_append(&p->buf, p->val.ptr, p->val.len); //the first allocation, copy what we've processed so far
 
-	memcpy(ffarr_end(&p->buf), text, len);
-	p->buf.len += len;
+	ffarr_append(&p->buf, text, len);
 	ffstr_set(&p->val, p->buf.ptr, p->buf.len);
 	return 0;
 }
@@ -193,7 +172,7 @@ const ffpars_arg* ffpars_ctx_findarg(ffpars_ctx *ctx, const char *name, size_t l
 		return (void*)-1;
 
 done:
-	FFDBG_PRINTLN(10, "\"%*s\" (%u/%u), object:%p"
+	FFDBG_PRINTLN(FFDBG_PARSE | 10, "\"%*s\" (%u/%u), object:%p"
 		, len, name, (a != NULL) ? (int)(a - ctx->args) : 0, ctx->nargs, ctx->obj);
 	return a;
 }

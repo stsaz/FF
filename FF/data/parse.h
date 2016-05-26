@@ -65,7 +65,6 @@ typedef struct ffparser {
 		char esc[8]; ///< temporary buffer for unescaping
 	};
 
-	void * (*memfunc)(void *, size_t); ///< alloc/free memory function defined by user
 	ffstr3 buf; ///< temporary buffer
 	ffarr ctxs; ///< stack of contexts
 } ffparser;
@@ -115,9 +114,9 @@ static FFINL int _ffpars_addchar(ffparser *p, int ch) {
 
 static FFINL int _ffpars_addchar2(ffparser *p, const char *src)
 {
+	if (p->val.ptr == NULL)
+		p->val.ptr = (char*)src;
 	if (p->val.ptr != p->buf.ptr) {
-		if (p->val.ptr == NULL)
-			p->val.ptr = (char*)src;
 		p->val.len++;
 		return 0;
 	}
