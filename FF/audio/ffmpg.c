@@ -86,9 +86,7 @@ uint ffmpg_framelen(const ffmpg_hdr *h)
 		+ ((h->layer != FFMPG_L1) ? h->padding : h->padding * 4);
 }
 
-/** Search for a valid frame.
-@h: (optional) a newly found header must match with this one. */
-ffmpg_hdr* mpg_framefind(const char *data, size_t len, const ffmpg_hdr *h)
+ffmpg_hdr* ffmpg_framefind(const char *data, size_t len, const ffmpg_hdr *h)
 {
 	const char *d = data, *end = d + len;
 
@@ -313,6 +311,7 @@ static FFINL int mpg_id31(ffmpg *m)
 		return FFMPG_RMORE;
 
 	case FFID3_RDATA:
+		m->tag = m->id31tag.field;
 		if (m->codepage == 0) {
 			ffarr_free(&m->tagval);
 			ffarr_set(&m->tagval, m->id31tag.val.ptr, m->id31tag.val.len);
@@ -373,6 +372,7 @@ static FFINL int mpg_id32(ffmpg *m)
 		if (!(m->id32tag.flags & FFID3_FWHOLE))
 			continue;
 
+		m->tag = m->id32tag.frame;
 		if (0 > ffid3_getdata(m->id32tag.frame, m->id32tag.data.ptr, m->id32tag.data.len, m->id32tag.txtenc, m->codepage, &m->tagval)) {
 			m->err = FFMPG_ETAG;
 			return FFMPG_RWARN;
@@ -476,7 +476,7 @@ static int _ffmpg_frame(ffmpg *m, ffarr *buf)
 			return FFMPG_RMORE;
 		}
 
-		if (NULL != (h = mpg_framefind(buf->ptr, buf->len, (m->firsthdr.sync1 != 0) ? &m->firsthdr : NULL))) {
+		if (NULL != (h = ffmpg_framefind(buf->ptr, buf->len, (m->firsthdr.sync1 != 0) ? &m->firsthdr : NULL))) {
 			if ((void*)h != buf->ptr)
 				m->lostsync = 1;
 			d.off = (char*)h - buf->ptr + 1;

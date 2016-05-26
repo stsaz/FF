@@ -38,6 +38,8 @@ do { \
 	ffarr2_free(a); \
 } while (0)
 
+#define ffarr_zero(a)  ffmem_zero((a)->ptr, (a)->len)
+
 
 /** Declare an array. */
 #define FFARR(T) \
@@ -129,7 +131,7 @@ static FFINL void * _ffarr_alloc(ffarr *ar, size_t len, size_t elsz) {
 #define ffarr_alloc(ar, len) \
 	_ffarr_alloc((ffarr*)(ar), (len), sizeof(*(ar)->ptr))
 
-enum { FFARR_GROWQUARTER = -1 };
+enum { FFARR_GROWQUARTER = 0x80000000 };
 
 /** Reserve more space for an array. */
 FF_EXTN char *_ffarr_grow(ffarr *ar, size_t by, ssize_t lowat, size_t elsz);
@@ -389,6 +391,13 @@ Spaces on the edges are trimmed.
 @spl: split-character OR-ed with enum FFSTR_NEXTVAL.
 Return the number of processed bytes. */
 FF_EXTN size_t ffstr_nextval(const char *buf, size_t len, ffstr *dst, int spl);
+
+static FFINL size_t ffstr_nextval3(ffstr *src, ffstr *dst, int spl)
+{
+	size_t n = ffstr_nextval(src->ptr, src->len, dst, spl);
+	ffstr_shift(src, n);
+	return n;
+}
 
 static FFINL void ffstr3_cat(ffstr3 *s, const char *d, size_t len) {
 	ffstr_cat((ffstr*)s, s->cap, d, len);

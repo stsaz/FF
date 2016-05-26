@@ -346,6 +346,18 @@ static FFINL int ffhttp_respparsehdrs(ffhttp_response *r, const char *data, size
 	return e;
 }
 
+static FFINL int ffhttp_respparse_all(ffhttp_response *r, const char *data, size_t len, uint flags)
+{
+	int e;
+	if (r->code == 0
+		&& FFHTTP_OK != (e = ffhttp_respparse(r, data, len, flags)))
+		return e;
+
+	while (FFHTTP_OK == (e = ffhttp_respparsehdr(r, data, len))) {
+	}
+	return e;
+}
+
 /** Get response status code and message. */
 #define ffhttp_respstatus(r)  ffrang_get(&(r)->status, (r)->h.base)
 

@@ -215,6 +215,7 @@ FF_EXTN int ffui_text_create(ffui_ctl *c, ffui_wnd *parent);
 FF_EXTN void ffui_edit_addtext_q(HWND h, const wchar_t *text);
 FF_EXTN int ffui_edit_addtext(ffui_edit *c, const char *text, size_t len);
 
+#define ffui_edit_sel(e, off, n)  ffui_send((e)->h, EM_SETSEL, off, (off) + (n))
 #define ffui_edit_selall(e)  ffui_send((e)->h, EM_SETSEL, 0, -1)
 
 
@@ -689,7 +690,7 @@ do { \
 	ffui_send((v)->h, LVM_SETTEXTBKCOLOR, 0, val); \
 } while (0)
 
-#define _ffui_view_edit(v, i)  ((HWND)ffui_send(v->h, LVM_EDITLABEL, i, 0))
+#define _ffui_view_edit(v, i)  ((HWND)ffui_send((v)->h, LVM_EDITLABEL, i, 0))
 
 FF_EXTN void ffui_view_edit(ffui_view *v, int i, int sub);
 

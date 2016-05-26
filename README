@@ -28,15 +28,18 @@ FEATURES
 		. gzip (libz)
 		. MP4
 
-	. Audio:
+	. Audio I/O:
 		. Direct Sound playback/capture
 		. WASAPI playback/capture
-		. ALSA playback
+		. ALSA playback/capture
+
+	. Audio:
 		. ICY
 		. PCM operations: mix, convert, gain/attenuate
 		. sample rate conversion (libsoxr)
 		. APE (libMAC), APE tag
 		. WAVE
+		. AAC (libfdk-aac)
 		. OGG Vorbis (libogg, libvorbis), Vorbis comments
 		. MPEG (libmad, libmp3lame), ID3v1, ID3v2
 		. FLAC (libflac)
@@ -46,6 +49,9 @@ FEATURES
 	. GUI:
 		. GUI loader
 		. Windows API GUI
+
+	. Database:
+		. SQLite
 
 	. CRC32
 	. filesystem path functions

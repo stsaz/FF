@@ -48,10 +48,12 @@ char *_ffarr_grow(ffarr *ar, size_t by, ssize_t lowat, size_t elsz)
 	if (ar->cap >= newcap)
 		return ar->ptr;
 
-	if (lowat == FFARR_GROWQUARTER)
-		lowat = newcap / 4; //allocate 25% more
-	if (by < (size_t)lowat)
-		newcap = ar->len + (size_t)lowat;
+	if (lowat & FFARR_GROWQUARTER) {
+		lowat &= ~FFARR_GROWQUARTER;
+		lowat = ffmax((size_t)lowat, newcap / 4);
+	}
+
+	newcap = ar->len + ffmax((size_t)lowat, by);
 	return (char*)_ffarr_realloc(ar, newcap, elsz);
 }
 

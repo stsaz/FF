@@ -72,6 +72,10 @@ FF_EXTN uint ffmpg_sample_rate(const ffmpg_hdr *h);
 
 FF_EXTN uint ffmpg_frame_samples(const ffmpg_hdr *h);
 
+/** Search for a valid frame.
+@h: (optional) a newly found header must match with this one. */
+FF_EXTN ffmpg_hdr* ffmpg_framefind(const char *data, size_t len, const ffmpg_hdr *h);
+
 
 enum FFMPG_XING_FLAGS {
 	FFMPG_XING_FRAMES = 1,
@@ -133,7 +137,7 @@ FF_EXTN int ffmpg_lame_parse(ffmpg_lame *lame, const char *data, size_t *len);
 #endif
 
 enum FFMPG_O {
-	FFMPG_O_NOXING = 1,
+	FFMPG_O_NOXING = 1, //don't parse Xing and LAME tags
 	FFMPG_O_ID3V1 = 2,
 	FFMPG_O_ID3V2 = 4,
 	FFMPG_O_INT16 = 8, //libmpg123: produce 16-bit integer output
@@ -170,6 +174,7 @@ typedef struct ffmpg {
 
 	ffid31ex id31tag;
 	ffid3 id32tag;
+	int tag;
 	ffarr tagval;
 	uint codepage; //codepage for non-Unicode meta tags
 
