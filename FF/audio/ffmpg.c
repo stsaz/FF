@@ -527,9 +527,26 @@ static int _ffmpg_frame2(ffmpg *m, ffarr *buf)
 		if (r == FFMPG_RWARN) {
 			ffarr_free(buf);
 			ffarr_acq(buf, &m->buf2);
+			ffarr_null(&m->buf2);
 			continue;
+
+		} else if (r == FFMPG_RMORE) {
+			if (buf->cap == 0
+				&& NULL == ffarr_copy(buf, buf->ptr, buf->len)) {
+				m->err = FFMPG_ESYS;
+				return FFMPG_RERR;
+			}
+			return FFMPG_RMORE;
+
 		} else if (r != 0)
 			return r;
+
+		if ((ffint_ntoh32(buf->ptr) & MPG_HDR_CONST_MASK) != (ffint_ntoh32(m->buf2.ptr) & MPG_HDR_CONST_MASK)) {
+			ffarr_free(buf);
+			ffarr_acq(buf, &m->buf2);
+			ffarr_null(&m->buf2);
+			continue;
+		}
 
 		if (NULL == ffarr_append(buf, m->buf2.ptr, m->buf2.len)) {
 			m->err = FFMPG_ESYS;
