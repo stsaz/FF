@@ -1408,7 +1408,15 @@ size_t ffstr_nextval(const char *buf, size_t len, ffstr *dst, int spl)
 
 	if ((f & FFSTR_NV_DBLQUOT) && buf[0] == '"') {
 		buf++;
-		spl = '"';
+		pos = ffs_find(buf, end - buf, '"');
+		ffstr_set(dst, buf, pos - buf);
+		if (pos != end)
+			pos++;
+
+		if (!(f & FFS_NV_KEEPWHITE))
+			pos = ffs_skip(pos, end - pos, ' ');
+
+		return pos - (end - len);
 	}
 
 	pos = ffs_find(buf, end - buf, spl);
