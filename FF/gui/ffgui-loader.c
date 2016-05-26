@@ -1397,6 +1397,7 @@ static int wnd_done(ffparser_schem *ps, void *obj)
 	}
 
 	g->wnd = NULL;
+	ffmem_safefree0(g->wndname);
 	return 0;
 }
 
@@ -1409,6 +1410,8 @@ static int new_wnd(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 		return FFPARS_EBADVAL;
 	ffmem_zero((byte*)g + FFOFF(ffui_loader, wnd), sizeof(ffui_loader) - FFOFF(ffui_loader, wnd));
 	g->wnd = wnd;
+	if (NULL == (g->wndname = ffsz_alcopy(ps->vals[0].ptr, ps->vals[0].len)))
+		return FFPARS_ESYS;
 	g->ctl = (ffui_ctl*)wnd;
 	if (0 != ffui_wnd_create(wnd))
 		return FFPARS_ESYS;
@@ -1428,6 +1431,7 @@ void ffui_ldr_fin(ffui_loader *g)
 {
 	ffarr_free(&g->accels);
 	ffmem_safefree(g->errstr);
+	ffmem_safefree0(g->wndname);
 }
 
 static void* ldr_getctl(ffui_loader *g, const ffstr *name)
@@ -1435,7 +1439,7 @@ static void* ldr_getctl(ffui_loader *g, const ffstr *name)
 	char buf[255], *end = buf + sizeof(buf);
 	ffstr s;
 	s.ptr = buf;
-	s.len = ffs_fmt(buf, end, "%s.%S", g->wnd->name, name);
+	s.len = ffs_fmt(buf, end, "%s.%S", g->wndname, name);
 	return g->getctl(g->udata, &s);
 }
 
