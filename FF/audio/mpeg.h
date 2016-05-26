@@ -172,8 +172,10 @@ typedef struct ffmpg {
 	ffmpg_lame lame;
 	uint skip_samples;
 
+	union {
 	ffid31ex id31tag;
 	ffid3 id32tag;
+	};
 	int tag;
 	ffarr tagval;
 	uint codepage; //codepage for non-Unicode meta tags

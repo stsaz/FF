@@ -14,6 +14,7 @@ enum {
 	//bits in each MPEG header that must not change across frames within the same stream
 	MPG_HDR_CONST_MASK = 0xfffe0c00, // 1111 1111  1111 1110  0000 1100  0000 0000
 	MAX_NOSYNC = 256 * 1024,
+	MPG_FTRTAGS_CHKSIZE = 1000, //number of bytes at the end of file to check for ID3v1 and APE tag (initial check)
 };
 
 
@@ -246,8 +247,8 @@ void ffmpg_init(ffmpg *m)
 void ffmpg_close(ffmpg *m)
 {
 	ffarr_free(&m->tagval);
-	ffid3_parsefin(&m->id32tag);
-	ffid31_parse_fin(&m->id31tag);
+	if (m->is_id32tag)
+		ffid3_parsefin(&m->id32tag);
 	ffarr_free(&m->buf);
 	ffarr_free(&m->buf2);
 
@@ -264,7 +265,7 @@ void ffmpg_close(ffmpg *m)
 }
 
 enum { I_START, I_FIRST, I_INIT, I_INPUT, I_BUFINPUT, I_FR, I_FROK, I_SYNTH, I_SEEK, I_SEEK2,
-	I_ID31_CHECK, I_ID31, I_ID3V2, I_TAG_SKIP };
+	I_ID3V2, I_ID31_CHECK, I_FTRTAGS, I_ID31, I_APE2, I_APE2_MORE, I_TAG_SKIP };
 
 void ffmpg_seek(ffmpg *m, uint64 sample)
 {
@@ -290,25 +291,21 @@ static FFINL uint64 mpg_getseekoff(ffmpg *m)
 
 static FFINL int mpg_id31(ffmpg *m)
 {
-	int i;
-	size_t len;
+	if (m->buf.len < sizeof(ffid31))
+		return FFMPG_RDONE;
 
-	len = m->datalen;
-	i = ffid31_parse(&m->id31tag, m->data, &len);
-	m->data += len;
-	m->datalen -= len;
+	int i = ffid31_parse(&m->id31tag, ffarr_end(&m->buf) - sizeof(ffid31), sizeof(ffid31));
 
 	switch (i) {
 	case FFID3_RNO:
 		break;
 
 	case FFID3_RDONE:
+		m->buf.len -= sizeof(ffid31);
 		m->total_size -= sizeof(ffid31);
+		m->off -= sizeof(ffid31);
 		ffarr_free(&m->tagval);
 		break;
-
-	case FFID3_RMORE:
-		return FFMPG_RMORE;
 
 	case FFID3_RDATA:
 		m->tag = m->id31tag.field;
@@ -321,8 +318,12 @@ static FFINL int mpg_id31(ffmpg *m)
 			return FFMPG_RWARN;
 		}
 		return FFMPG_RTAG;
+
+	default:
+		FF_ASSERT(0);
 	}
 
+	ffmem_tzero(&m->id31tag);
 	return FFMPG_RDONE;
 }
 
@@ -345,6 +346,7 @@ static FFINL int mpg_id32(ffmpg *m)
 	case FFID3_RDONE:
 		m->is_id32tag = 0;
 		ffid3_parsefin(&m->id32tag);
+		ffmem_tzero(&m->id32tag);
 		ffarr_free(&m->tagval);
 		return FFMPG_RDONE;
 
@@ -388,7 +390,10 @@ static FFINL int mpg_id32(ffmpg *m)
 
 	case FFID3_RERR:
 		m->is_id32tag = 0;
-		m->state = I_TAG_SKIP;
+		ffid3_parsefin(&m->id32tag);
+		ffmem_tzero(&m->id32tag);
+		ffarr_free(&m->tagval);
+		m->state = I_ID31_CHECK;
 		m->err = FFMPG_ETAG;
 		return FFMPG_RWARN;
 
@@ -598,22 +603,35 @@ int ffmpg_decode(ffmpg *m)
 			m->state = I_FR;
 			break;
 
+
 		case I_ID31_CHECK:
-			if ((m->options & FFMPG_O_ID3V1) && m->total_size > sizeof(ffid31)) {
-				m->state = I_ID31;
-				m->off = m->total_size + m->dataoff - sizeof(ffid31);
+			if (m->options & (FFMPG_O_ID3V1 | FFMPG_O_APETAG)) {
+				m->state = I_FTRTAGS;
+				m->off = m->dataoff + m->total_size - ffmin(MPG_FTRTAGS_CHKSIZE, m->total_size);
 				return FFMPG_RSEEK;
 			}
 			m->state = I_FIRST;
 			continue;
 
-		case I_ID31:
-			if (FFMPG_RDONE != (i = mpg_id31(m)))
-				return i;
+		case I_FTRTAGS:
+			r = ffarr_append_until(&m->buf, m->data, m->datalen, ffmin(MPG_FTRTAGS_CHKSIZE, m->total_size));
+			if (r < 0) {
+				m->err = FFMPG_ESYS;
+				return FFMPG_RERR;
+			} else if (r == 0) {
+				m->off += m->datalen;
+				return FFMPG_RMORE;
+			}
+			FFARR_SHIFT(m->data, m->datalen, r);
+			m->off += r;
+			m->state = I_ID31;
+			// break
 
-			m->state = I_FIRST;
-			m->off = m->dataoff;
-			return FFMPG_RSEEK;
+		case I_ID31:
+			if ((m->options & FFMPG_O_ID3V1) && FFMPG_RDONE != (i = mpg_id31(m)))
+				return i;
+			m->state = I_APE2;
+			continue;
 
 		case I_ID3V2:
 			if (FFMPG_RDONE != (i = mpg_id32(m)))
@@ -623,6 +641,7 @@ int ffmpg_decode(ffmpg *m)
 			continue;
 
 		case I_TAG_SKIP:
+			m->buf.len = 0;
 			m->off = m->dataoff;
 			m->state = I_FIRST;
 			return FFMPG_RSEEK;
