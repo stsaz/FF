@@ -128,6 +128,11 @@ Note: v4-mapped address is not supported. */
 FF_EXTN size_t ffip6_tostr(char *dst, size_t cap, const void *addr, size_t addrlen, int port);
 
 
+/** Split "IP:PORT" address string.
+e.g.: "127.0.0.1:80", "[::1]:80", ":80".
+Return 0 on success. */
+FF_EXTN int ffaddr_split(const char *s, size_t len, ffstr *ip, ffstr *port);
+
 enum FFADDR_FLAGS {
 	FFADDR_USEPORT = 1
 };

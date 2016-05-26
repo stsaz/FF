@@ -730,6 +730,21 @@ size_t ffip6_tostr(char *dst, size_t cap, const void *addr, size_t addrlen, int 
 }
 
 
+int ffaddr_split(const char *data, size_t len, ffstr *ip, ffstr *port)
+{
+	if (NULL == ffs_rsplit2by(data, len, ':', ip, port) || port->len == 0)
+		return -1;
+
+	if (ip->len != 0 && ip->ptr[0] == '[') {
+		if (!(ip->len >= FFSLEN("[::]") && ip->ptr[ip->len - 1] == ']')
+			&& NULL == ffs_findc(ip->ptr, ip->len, '.'))
+			return -1;
+		ip->ptr += FFSLEN("[");
+		ip->len -= FFSLEN("[]");
+	}
+	return 0;
+}
+
 int ffaddr_set(ffaddr *a, const char *ip, size_t iplen, const char *port, size_t portlen)
 {
 	ushort nport;
