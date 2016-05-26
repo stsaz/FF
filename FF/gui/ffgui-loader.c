@@ -635,7 +635,7 @@ static int new_stbar(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 	if (NULL == (g->ctl = ldr_getctl(g, &ps->vals[0])))
 		return FFPARS_EBADVAL;
 
-	if (0 != ffui_stbar_create(g->ctl, g->wnd))
+	if (0 != ffui_stbar_create(g->actl.stbar, g->wnd))
 		return FFPARS_ESYS;
 	ffarr_null(&g->sb_parts);
 	ffpars_setargs(ctx, g, stbar_args, FFCNT(stbar_args));

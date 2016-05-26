@@ -389,15 +389,15 @@ void ffui_paned_create(ffui_paned *pn, ffui_wnd *parent)
 }
 
 
-int ffui_stbar_create(ffui_ctl *c, ffui_wnd *parent)
+int ffui_stbar_create(ffui_stbar *c, ffui_wnd *parent)
 {
-	if (0 != ctl_create(c, FFUI_UID_STATUSBAR, parent->h))
+	if (0 != ctl_create((void*)c, FFUI_UID_STATUSBAR, parent->h))
 		return 1;
 	parent->stbar = c;
 	return 0;
 }
 
-void ffui_stbar_settext(ffui_ctl *sb, int idx, const char *text, size_t len)
+void ffui_stbar_settext(ffui_stbar *sb, int idx, const char *text, size_t len)
 {
 	ffsyschar *w, ws[255];
 	size_t n = FFCNT(ws) - 1;

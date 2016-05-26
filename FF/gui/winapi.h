@@ -390,12 +390,16 @@ FF_EXTN void ffui_paned_create(ffui_paned *pn, ffui_wnd *parent);
 
 
 // STATUS BAR
-FF_EXTN int ffui_stbar_create(ffui_ctl *c, ffui_wnd *parent);
+typedef struct ffui_stbar {
+	FFUI_CTL;
+} ffui_stbar;
+
+FF_EXTN int ffui_stbar_create(ffui_stbar *c, ffui_wnd *parent);
 
 #define ffui_stbar_setparts(sb, n, parts)  ffui_send((sb)->h, SB_SETPARTS, n, parts)
 
 #define ffui_stbar_settext_q(h, idx, text)  ffui_send(h, SB_SETTEXT, idx, text)
-FF_EXTN void ffui_stbar_settext(ffui_ctl *sb, int idx, const char *text, size_t len);
+FF_EXTN void ffui_stbar_settext(ffui_stbar *sb, int idx, const char *text, size_t len);
 #define ffui_stbar_settextstr(sb, idx, str)  ffui_stbar_settext(sb, idx, (str)->ptr, (str)->len)
 #define ffui_stbar_settextz(sb, idx, sz)  ffui_stbar_settext(sb, idx, sz, ffsz_len(sz))
 
@@ -743,7 +747,7 @@ struct ffui_wnd {
 	HWND focused; //restore focus when the window is activated again
 	ffui_trayicon *trayicon;
 	ffui_paned *paned_first;
-	ffui_ctl *stbar;
+	ffui_stbar *stbar;
 	HACCEL acceltbl;
 
 	void (*on_create)(ffui_wnd *wnd);
@@ -794,6 +798,7 @@ union ffui_anyctl {
 	ffui_edit *edit;
 	ffui_paned *paned;
 	ffui_trkbar *trkbar;
+	ffui_stbar *stbar;
 	ffui_tab *tab;
 	ffui_view *view;
 	ffui_menu *menu;
