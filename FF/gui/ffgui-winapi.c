@@ -732,6 +732,16 @@ void ffui_dlg_destroy(ffui_dialog *d)
 	ffmem_safefree((void*)d->of.lpstrFilter);
 }
 
+void ffui_dlg_title(ffui_dialog *d, const char *title, size_t len)
+{
+	size_t n;
+	ffmem_safefree((void*)d->of.lpstrTitle);
+	if (NULL == (d->of.lpstrTitle = ffs_utow(NULL, &n, title, len)))
+		return;
+	ffsyschar *w = (void*)d->of.lpstrTitle;
+	w[n] = '\0';
+}
+
 /* multisel: "dir \0 name1 \0 name2 \0 \0"
    singlesel: "name \0" */
 char* ffui_dlg_open(ffui_dialog *d, ffui_wnd *parent)

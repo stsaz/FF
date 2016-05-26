@@ -68,11 +68,7 @@ static FFINL void ffui_dlg_init(ffui_dialog *d)
 	d->of.Flags = OFN_EXPLORER | OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT;
 }
 
-static FFINL void ffui_dlg_title(ffui_dialog *d, const char *title, size_t len)
-{
-	ffmem_safefree((void*)d->of.lpstrTitle);
-	d->of.lpstrTitle = ffs_utow(NULL, NULL, title, len);
-}
+FF_EXTN void ffui_dlg_title(ffui_dialog *d, const char *title, size_t len);
 
 #define ffui_dlg_titlez(d, sz)  ffui_dlg_title(d, sz, ffsz_len(sz))
 
