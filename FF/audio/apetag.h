@@ -47,36 +47,14 @@ static FFINL uint ffapetag_size(const ffapehdr *a)
 }
 
 
-enum FFAPETAG_FIELD {
-	FFAPETAG_ALBUM,
-	FFAPETAG_ARTIST,
-	FFAPETAG_COMMENT,
-	FFAPETAG_COVERART,
-	FFAPETAG_GENRE,
-	FFAPETAG_TITLE,
-	FFAPETAG_TRACK,
-	FFAPETAG_YEAR,
-
-	_FFAPETAG_COUNT,
-};
-
-FF_EXTN const char *const ffapetag_str[_FFAPETAG_COUNT];
-
-/** Return enum FFAPETAG_FIELD or -1 if unknown. */
-static FFINL int ffapetag_field(const char *name)
-{
-	return (int)ffszarr_ifindsorted(ffapetag_str, FFCNT(ffapetag_str), name, ffsz_len(name));
-}
-
-
 typedef struct ffapetag {
 	uint state;
-	uint size; //unprocessed bytes in tag
-	ffapehdr ftr;
+	uint size;
 	uint nlen;
-	int seekoff;
 	ffarr buf;
+	uint has_hdr :1;
 
+	int tag; // enum FFID3_FRAME or -1
 	uint flags; //enum FFAPETAG_FLAGS
 	ffstr name
 		, val;
@@ -85,6 +63,7 @@ typedef struct ffapetag {
 enum FFAPETAG_R {
 	FFAPETAG_RERR = -1,
 	FFAPETAG_RNO,
+	FFAPETAG_RFOOTER,
 	FFAPETAG_RSEEK,
 	FFAPETAG_RMORE,
 	FFAPETAG_RTAG,
