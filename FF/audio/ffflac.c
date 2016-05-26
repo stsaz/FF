@@ -105,6 +105,7 @@ static uint flac_frame_parse(ffflac_frame *fr, const char *data, size_t len);
 static uint flac_frame_find(const char *d, size_t *len, ffflac_frame *fr);
 
 
+static int _ffflac_findsync(ffflac *f);
 static int _ffflac_meta(ffflac *f);
 static int _ffflac_init(ffflac *f);
 static int _ffflac_seek(ffflac *f);
@@ -147,7 +148,7 @@ static int flac_info(const char *data, size_t size, ffflac_info *info, ffpcm *fm
 	data += FLAC_SYNCLEN;
 
 	if (FLAC_TINFO != flac_hdr(data, end - data, &len, islast))
-		return 0;
+		return -1;
 	if (len < sizeof(struct flac_streaminfo))
 		return -1;
 	data += sizeof(struct flac_hdr);
@@ -605,6 +606,51 @@ void ffflac_seek(ffflac *f, uint64 sample)
 	f->st = I_SEEK;
 }
 
+static int _ffflac_findsync(ffflac *f)
+{
+	int r;
+	uint lastblk = 0;
+
+	struct ffbuf_gather d = {0};
+	ffstr_set(&d.data, f->data, f->datalen);
+	d.ctglen = FLAC_MINSIZE;
+
+	while (FFBUF_DONE != (r = ffbuf_gather(&f->buf, &d))) {
+
+		if (r == FFBUF_ERR) {
+			f->errtype = FLAC_ESYS;
+			return FFFLAC_RERR;
+
+		} else if (r == FFBUF_MORE) {
+			f->bytes_skipped += f->datalen;
+			if (f->bytes_skipped > MAX_NOSYNC) {
+				f->errtype = FLAC_EHDR;
+				return FFFLAC_RERR;
+			}
+
+			return FFFLAC_RMORE;
+		}
+
+		ssize_t n = ffstr_find((ffstr*)&f->buf, FLAC_SYNC, FLAC_SYNCLEN);
+		if (n < 0)
+			continue;
+		r = flac_info(f->buf.ptr + n, f->buf.len - n, &f->info, &f->fmt, &lastblk);
+		if (r > 0) {
+			d.off = n + 1;
+		} else if (r == -1 || r == 0) {
+			f->errtype = FLAC_EHDR;
+			return FFFLAC_RERR;
+		}
+	}
+	f->off += f->datalen - d.data.len;
+	f->data = d.data.ptr;
+	f->datalen = d.data.len;
+	f->bytes_skipped = 0;
+	f->buf.len = 0;
+	f->st = lastblk ? I_METALAST : I_META;
+	return 0;
+}
+
 /** Process header of meta block. */
 static int _ffflac_meta(ffflac *f)
 {
@@ -820,7 +866,7 @@ static int _ffflac_getframe(ffflac *f, ffstr *sframe)
 int ffflac_decode(ffflac *f)
 {
 	int r;
-	uint isrc, lastblk, i, ich;
+	uint isrc, i, ich;
 	const int **out;
 	ffstr sframe;
 
@@ -828,24 +874,9 @@ int ffflac_decode(ffflac *f)
 	switch (f->st) {
 
 	case I_INFO:
-		r = ffarr_append_until(&f->buf, f->data, f->datalen, FLAC_MINSIZE);
-		if (r == 0)
-			return FFFLAC_RMORE;
-		else if (r == -1) {
-			f->errtype = FLAC_ESYS;
-			return FFFLAC_RERR;
-		}
-		FFARR_SHIFT(f->data, f->datalen, r);
+		if (0 != (r = _ffflac_findsync(f)))
+			return r;
 
-		r = flac_info(f->buf.ptr, f->buf.len, &f->info, &f->fmt, &lastblk);
-		if (r <= 0) {
-			f->errtype = FLAC_EHDR;
-			return FFFLAC_RERR;
-		}
-		f->buf.len = 0;
-		f->off += r;
-
-		f->st = lastblk ? I_METALAST : I_META;
 		return FFFLAC_RHDR;
 
 	case I_SKIPMETA:
