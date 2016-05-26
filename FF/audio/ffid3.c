@@ -33,38 +33,21 @@ const char* ffid31_genre(uint id)
 	return id3_genres[id];
 }
 
-int ffid31_parse(ffid31ex *id31ex, const char *data, size_t *len)
+int ffid31_parse(ffid31ex *id31ex, const char *data, size_t len)
 {
-	enum { I_COPYTAG, I_TITLE, I_ARTIST, I_ALBUM, I_YEAR, I_COMMENT, I_TRK, I_GENRE, I_DONE };
-	ffid31 *id31;
+	enum { I_HDR, I_TITLE, I_ARTIST, I_ALBUM, I_YEAR, I_COMMENT, I_TRK, I_GENRE, I_DONE };
+	ffid31 *id31 = (void*)data;
 	uint n, *state = &id31ex->state;
 	int r = FFID3_RDATA;
 	ffstr *val = &id31ex->val;
-	const char *dstart = data;
-
-	id31 = (id31ex->ntag != 0) ? &id31ex->tag : (void*)data;
 
 	switch (*state) {
 
-	case I_COPYTAG:
-		if (id31ex->ntag != 0 || *len < sizeof(ffid31)) {
-			n = ffs_append(&id31ex->tag, id31ex->ntag, sizeof(ffid31), data, *len);
-			id31ex->ntag += n;
-			if (id31ex->ntag != sizeof(ffid31))
-				return FFID3_RMORE;
-			data += n;
-			id31 = &id31ex->tag;
-
-		} else {
-			//the whole tag is in one data block
-			id31 = (void*)data;
-		}
-
-		if (!ffid31_valid(id31)) {
+	case I_HDR:
+		if (len != sizeof(ffid31) || !ffid31_valid(id31)) {
 			r = FFID3_RNO;
 			break;
 		}
-
 		*state = I_TITLE;
 		// break
 
@@ -134,13 +117,10 @@ int ffid31_parse(ffid31ex *id31ex, const char *data, size_t *len)
 		//break
 
 	case I_DONE:
-		if (id31 == (void*)data)
-			data += sizeof(ffid31);
 		r = FFID3_RDONE;
 		break;
 	}
 
-	*len = data - dstart;
 	return r;
 }
 

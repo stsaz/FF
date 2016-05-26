@@ -42,18 +42,14 @@ static FFINL ffbool ffid31_valid(const ffid31 *h)
 
 typedef struct ffid31ex {
 	uint state;
-	ffid31 tag;
-	uint ntag;
 	char trkno[sizeof("255")];
 	int field; //enum FFID3_FRAME
 	ffstr val;
 } ffid31ex;
 
-#define ffid31_parse_fin(id31ex)
-
 /** Get the next value from ID3v1 tag.
 Return enum FFID3_R. */
-FF_EXTN int ffid31_parse(ffid31ex *id31ex, const char *data, size_t *len);
+FF_EXTN int ffid31_parse(ffid31ex *id31ex, const char *data, size_t len);
 
 
 /** Prepare ID3v1 tag. */
