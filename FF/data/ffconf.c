@@ -470,8 +470,12 @@ int ffconf_schemrun(ffparser_schem *ps)
 				break;
 			}
 
-			ps->p->ret = FFPARS_VAL;
-			break;
+			/* The first word in a row is KEY, but we handle it like a value, i.e. call "ffpars_val.f_str(..., key_name)".
+			ctx {
+				KEY val val val
+			} */
+			r = ffpars_schemrun(ps, FFPARS_VAL);
+			return r;
 
 		} else {
 			if (t != FFPARS_TOBJ && t != FFPARS_TARR)
