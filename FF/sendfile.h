@@ -47,14 +47,14 @@ static FFINL int64 ffsf_send(ffsf *sf, ffskt sk, int flags) {
 	return sent;
 }
 
-/** Send file asynchronously. */
-#define ffsf_sendasync(sf, aiotask, handler)  ffaio_send(aiotask, handler, NULL, 0)
-
 #else
 
 FF_EXTN int64 ffsf_send(ffsf *sf, ffskt sk, int flags);
-FF_EXTN int ffsf_sendasync(ffsf *sf, ffaio_task *t, ffaio_handler handler);
 #endif
+
+/** Send file asynchronously.
+Return bytes sent or enum FFAIO_RET. */
+FF_EXTN int64 ffsf_sendasync(ffsf *sf, ffaio_task *t, ffaio_handler handler);
 
 /** Shift file mapping and sf_hdtr.
 Return 0 if there is no more data. */

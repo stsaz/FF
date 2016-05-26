@@ -79,6 +79,27 @@ int fffile_mapshift(fffilemap *fm, int64 by)
 }
 
 
+#ifdef FF_UNIX
+int64 ffsf_sendasync(ffsf *sf, ffaio_task *t, ffaio_handler handler)
+{
+	int64 r;
+
+	if (t->wpending) {
+		t->wpending = 0;
+		return _ffaio_result(t);
+	}
+
+	r = ffsf_send(sf, t->sk, 0);
+	if (!(r < 0 && fferr_again(fferr_last())))
+		return r;
+
+	t->whandler = handler;
+	t->wpending = 1;
+	return FFAIO_ASYNC;
+}
+#endif
+
+
 #ifdef FF_WIN
 static ssize_t fmap_send(fffilemap *fm, ffskt sk, int flags)
 {
@@ -133,9 +154,19 @@ err:
 	return -1;
 }
 
-int ffsf_sendasync(ffsf *sf, ffaio_task *t, ffaio_handler handler)
+int64 ffsf_sendasync(ffsf *sf, ffaio_task *t, ffaio_handler handler)
 {
 	const sf_hdtr *ht = &sf->ht;
+	int64 r;
+
+	if (t->wpending) {
+		t->wpending = 0;
+		return _ffaio_result(t);
+	}
+
+	r = ffsf_send(sf, t->sk, 0);
+	if (!(r < 0 && fferr_again(fferr_last())))
+		return r;
 
 	if (ht->hdr_cnt != 0)
 		return ffaio_sendv(t, handler, ht->headers, ht->hdr_cnt);
