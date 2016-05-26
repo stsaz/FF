@@ -128,6 +128,7 @@ FF_EXTN int ffmpg_lame_parse(ffmpg_lame *lame, const char *data, size_t *len);
 
 #include <FF/audio/pcm.h>
 #include <FF/audio/id3.h>
+#include <FF/audio/apetag.h>
 #include <FF/array.h>
 
 #ifdef FF_LIBMAD
@@ -141,6 +142,7 @@ enum FFMPG_O {
 	FFMPG_O_ID3V1 = 2,
 	FFMPG_O_ID3V2 = 4,
 	FFMPG_O_INT16 = 8, //libmpg123: produce 16-bit integer output
+	FFMPG_O_APETAG = 0x10,
 };
 
 typedef struct ffmpg {
@@ -175,6 +177,7 @@ typedef struct ffmpg {
 	union {
 	ffid31ex id31tag;
 	ffid3 id32tag;
+	ffapetag apetag;
 	};
 	int tag;
 	ffarr tagval;
@@ -193,6 +196,7 @@ typedef struct ffmpg {
 
 	uint options; //enum FFMPG_O
 	uint is_id32tag :1
+		, is_apetag :1
 		, fr_body :1
 		, lostsync :1
 		, frame2 :1
@@ -217,6 +221,7 @@ enum FFMPG_E {
 	FFMPG_ESTREAM,
 	FFMPG_EFMT,
 	FFMPG_ETAG,
+	FFMPG_EAPETAG,
 	FFMPG_ESEEK,
 	FFMPG_ENOFRAME,
 	FFMPG_ESYNC,

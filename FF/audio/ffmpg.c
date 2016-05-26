@@ -20,6 +20,7 @@ enum {
 
 static int mpg_id31(ffmpg *m);
 static int mpg_id32(ffmpg *m);
+static int _ffmpg_apetag(ffmpg *m, ffarr *buf);
 static int _ffmpg_streaminfo(ffmpg *m, const char *xing, uint len, uint fr_samps);
 static int _ffmpg_frame(ffmpg *m, ffarr *buf);
 static int _ffmpg_frame2(ffmpg *m, ffarr *buf);
@@ -213,6 +214,7 @@ enum {
 static const char *const _ffmpg_errs[] = {
 	"PCM format error",
 	"tags error",
+	"APE tag error",
 	"seek sample is too large",
 	"can't find a valid MPEG frame",
 	"unrecognized data before frame header",
@@ -247,6 +249,8 @@ void ffmpg_init(ffmpg *m)
 void ffmpg_close(ffmpg *m)
 {
 	ffarr_free(&m->tagval);
+	if (m->is_apetag)
+		ffapetag_parse_fin(&m->apetag);
 	if (m->is_id32tag)
 		ffid3_parsefin(&m->id32tag);
 	ffarr_free(&m->buf);
@@ -325,6 +329,51 @@ static FFINL int mpg_id31(ffmpg *m)
 
 	ffmem_tzero(&m->id31tag);
 	return FFMPG_RDONE;
+}
+
+static FFINL int _ffmpg_apetag(ffmpg *m, ffarr *buf)
+{
+	for (;;) {
+
+	size_t len = buf->len;
+	int r = ffapetag_parse(&m->apetag, buf->ptr, &len);
+
+	switch (r) {
+	case FFAPETAG_RDONE:
+	case FFAPETAG_RNO:
+		m->is_apetag = 0;
+		ffapetag_parse_fin(&m->apetag);
+		return 0;
+
+	case FFAPETAG_RFOOTER:
+		m->is_apetag = 1;
+		m->total_size -= m->apetag.size;
+		continue;
+
+	case FFAPETAG_RTAG:
+		m->tag = m->apetag.tag;
+		ffstr_set2(&m->tagval, &m->apetag.val);
+		return FFMPG_RTAG;
+
+	case FFAPETAG_RSEEK:
+		m->off -= m->apetag.size;
+		m->state = I_APE2_MORE;
+		return FFMPG_RSEEK;
+
+	case FFAPETAG_RMORE:
+		m->state = I_APE2_MORE;
+		return FFMPG_RMORE;
+
+	case FFAPETAG_RERR:
+		m->state = I_TAG_SKIP;
+		m->err = FFMPG_EAPETAG;
+		return FFMPG_RWARN;
+
+	default:
+		FF_ASSERT(0);
+	}
+	}
+	//unreachable
 }
 
 static FFINL int mpg_id32(ffmpg *m)
@@ -487,6 +536,7 @@ static int _ffmpg_frame(ffmpg *m, ffarr *buf)
 			d.off = (char*)h - buf->ptr + 1;
 		}
 	}
+	m->off += m->datalen - m->datalen;
 	m->data = d.data.ptr;
 	m->datalen = d.data.len;
 
@@ -503,6 +553,7 @@ body:
 		return FFMPG_RMORE;
 	}
 	FFARR_SHIFT(m->data, m->datalen, r);
+	m->off += r;
 	m->fr_body = 0;
 
 	if (m->lostsync) {
@@ -568,6 +619,7 @@ static int _ffmpg_frame2(ffmpg *m, ffarr *buf)
 Workflow:
  . parse ID3v2
  . parse ID3v1
+ . parse APE tag
  . parse Xing, LAME tags
  . decode frames...
 */
@@ -631,6 +683,18 @@ int ffmpg_decode(ffmpg *m)
 			if ((m->options & FFMPG_O_ID3V1) && FFMPG_RDONE != (i = mpg_id31(m)))
 				return i;
 			m->state = I_APE2;
+			continue;
+
+		case I_APE2_MORE:
+			ffarr_free(&m->buf);
+			ffstr_set(&m->buf, m->data, m->datalen);
+			m->state = I_APE2;
+			// break
+
+		case I_APE2:
+			if ((m->options & FFMPG_O_APETAG) && 0 != (r = _ffmpg_apetag(m, &m->buf)))
+				return r;
+			m->state = I_TAG_SKIP;
 			continue;
 
 		case I_ID3V2:
@@ -704,12 +768,16 @@ int ffmpg_decode(ffmpg *m)
 		// break
 
 	case I_FR:
+		if (m->off == m->dataoff + m->total_size)
+			return FFMPG_RDONE;
+		m->datalen = ffmin(m->datalen, m->dataoff + m->total_size - m->off);
 		if (m->buf.len != 0) {
 			r = mpg123_decode(m->m123, (byte*)m->buf.ptr, m->buf.len, NULL, NULL);
 			m->buf.len = 0;
 		}
 
 		r = mpg123_decode(m->m123, m->data, m->datalen, (byte**)&m->pcmi, &m->pcmlen);
+		m->off += m->datalen;
 		FFARR_SHIFT(m->data, m->datalen, m->datalen);
 		if (r == MPG123_NEED_MORE)
 			return FFMPG_RMORE;
