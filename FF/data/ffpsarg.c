@@ -18,10 +18,26 @@ void ffpsarg_init(ffpsarg *a, const char **argv, uint argc)
 const char* ffpsarg_next(ffpsarg *a)
 {
 	ffstr arg;
+	char *q, *q2, *p, *end;
 	if (a->cmdln.len == a->cmdln.cap)
 		return NULL;
 	size_t n = ffstr_nextval(ffarr_end(&a->cmdln), ffarr_unused(&a->cmdln), &arg, ' ' | FFSTR_NV_DBLQUOT);
 	a->cmdln.len += n;
+
+	if (ffarr_end(&arg) != (q = ffs_finds(arg.ptr, arg.len, "=\"", 2))) {
+		// --key="value with space" -> --key=value with space
+		p = ffarr_end(&a->cmdln);
+		end = ffarr_edge(&a->cmdln);
+
+		q += FFSLEN("=");
+		q2 = ffs_find(p, end - p, '"');
+		memmove(q, q + 1, q2 - (q + 1));
+		arg.len = q2 - 1 - arg.ptr;
+
+		q2 += (q2 != end);
+		a->cmdln.len = ffs_skip(q2, end - q2, ' ') - a->cmdln.ptr;
+	}
+
 	arg.ptr[arg.len] = '\0';
 	return arg.ptr;
 }
