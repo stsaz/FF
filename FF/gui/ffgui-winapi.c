@@ -1397,19 +1397,22 @@ int ffui_runonce(void)
 int ffui_clipbd_set(const char *s, size_t len)
 {
 	HGLOBAL glob;
-	char *buf;
+	ffsyschar *buf;
+	size_t n;
 
-	if (NULL == (glob = GlobalAlloc(GMEM_SHARE | GMEM_MOVEABLE, len + 1)))
+	n = ff_utow(NULL, 0, s, len, 0);
+
+	if (NULL == (glob = GlobalAlloc(GMEM_SHARE | GMEM_MOVEABLE, (n + 1) * sizeof(ffsyschar))))
 		return -1;
 	buf = (void*)GlobalLock(glob);
-	ffmemcpy(buf, s, len);
-	buf[len] = '\0';
+	n = ff_utow(buf, n + 1, s, len, 0);
+	buf[n] = '\0';
 	GlobalUnlock(glob);
 
 	if (!OpenClipboard(NULL))
 		goto fail;
 	EmptyClipboard();
-	if (!SetClipboardData(CF_TEXT, glob))
+	if (!SetClipboardData(CF_UNICODETEXT, glob))
 		goto fail;
 	CloseClipboard();
 
