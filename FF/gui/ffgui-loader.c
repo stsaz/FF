@@ -1694,3 +1694,29 @@ done:
 	FF_SAFECLOSE(f, FF_BADFD, fffile_close);
 	ffarr_free(&buf);
 }
+
+void* ffui_ldr_findctl(const ffui_ldr_ctl *ctx, void *ctl, const ffstr *name)
+{
+	uint i;
+	ffstr s = *name, sctl;
+
+	while (0 != ffstr_nextval3(&s, &sctl, '.' | FFS_NV_KEEPWHITE)) {
+		for (i = 0; ; i++) {
+			if (ctx[i].name == NULL)
+				return NULL;
+
+			if (ffstr_eqz(&sctl, ctx[i].name)) {
+				uint off = ctx[i].flags;
+				ctl = (char*)ctl + off;
+				if (s.len == 0)
+					return ctl;
+
+				if (ctx[i].children == NULL)
+					return NULL;
+				ctx = ctx[i].children;
+				break;
+			}
+		}
+	}
+	return NULL;
+}

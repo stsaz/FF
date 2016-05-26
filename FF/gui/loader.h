@@ -76,6 +76,24 @@ FF_EXTN int ffui_ldr_loadfile(ffui_loader *g, const char *fn);
 FF_EXTN void ffui_ldr_loadconf(ffui_loader *g, const char *fn);
 
 
+typedef struct ffui_ldr_ctl ffui_ldr_ctl;
+struct ffui_ldr_ctl {
+	const char *name;
+	uint flags; //=offset
+	const ffui_ldr_ctl *children;
+};
+
+#define FFUI_LDR_CTL(struct_name, ctl) \
+	{ #ctl, FFOFF(struct_name, ctl), NULL }
+
+#define FFUI_LDR_CTL3(struct_name, ctl, children) \
+	{ #ctl, FFOFF(struct_name, ctl), children }
+
+/** Find control by its name in structured hierarchy.
+@name: e.g. "window.control" */
+FF_EXTN void* ffui_ldr_findctl(const ffui_ldr_ctl *ctx, void *ctl, const ffstr *name);
+
+
 typedef struct ffui_loaderw {
 	ffui_ldr_getctl_t getctl;
 	void *udata;
