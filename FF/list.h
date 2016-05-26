@@ -7,6 +7,31 @@ Copyright (c) 2013 Simon Zolin
 #include <FFOS/types.h>
 
 
+typedef struct fflist1_item fflist1_item;
+struct fflist1_item {
+	fflist1_item *next;
+};
+
+typedef struct fflist1 {
+	fflist1_item *first;
+} fflist1;
+
+static FFINL void fflist1_push(fflist1 *lst, fflist1_item *it)
+{
+	it->next = lst->first;
+	lst->first = it;
+}
+
+static FFINL fflist1_item* fflist1_pop(fflist1 *lst)
+{
+	if (lst->first == NULL)
+		return NULL;
+	fflist1_item *it = lst->first;
+	lst->first = it->next;
+	return it;
+}
+
+
 #define FFLIST_END  NULL
 
 typedef struct fflist_item fflist_item;
