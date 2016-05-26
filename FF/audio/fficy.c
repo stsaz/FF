@@ -29,6 +29,7 @@ int fficy_parse(fficy *ic, const char *data, size_t *len, ffstr *dst)
 			}
 
 			ic->metasize = fficy_metasize(*d++);
+			ic->meta_len = 0;
 		}
 
 		if (ic->metasize == 0)
@@ -37,6 +38,15 @@ int fficy_parse(fficy *ic, const char *data, size_t *len, ffstr *dst)
 			ffstr_set(dst, d, ffmin(ic->metasize, end - d));
 			*len = (d + dst->len) - data;
 			ic->metasize -= (uint)dst->len;
+
+			if (ic->metasize != 0 || ic->meta_len != 0) {
+				// append the current meta chunk to "ic->meta"
+				ffmemcpy(ic->meta + ic->meta_len, dst->ptr, dst->len);
+				ic->meta_len += dst->len;
+				if (ic->metasize == 0) {
+					ffstr_set(dst, ic->meta, ic->meta_len);
+				}
+			}
 
 			if (ic->metasize == 0) {
 				ic->datasize = ic->meta_interval;
@@ -107,6 +117,18 @@ int fficy_metaparse(fficymeta *p, const char *data, size_t *len)
 	}
 
 	return FFPARS_MORE;
+}
+
+int fficy_streamtitle(const char *data, size_t len, ffstr *artist, ffstr *title)
+{
+	const char *spl;
+	if (data + len != (spl = ffs_finds(data, len, FFSTR(" - ")))) {
+		ffstr_set(artist, data, spl - data);
+		spl += FFSLEN(" - ");
+		ffstr_set(title, spl, data + len - spl);
+		return artist->len;
+	}
+	return -1;
 }
 
 

@@ -38,6 +38,9 @@ typedef struct fficy {
 	uint meta_interval; //size of media data between meta blocks (constant)
 	uint datasize
 		, metasize;
+
+	uint meta_len; //valid bytes in "meta"
+	char meta[FFICY_MAXMETA]; //full metadata gathered from partial data blocks
 } fficy;
 
 enum FFICY_R {
@@ -67,9 +70,12 @@ typedef ffparser fficymeta;
 
 #define fficy_metaparse_init(p)  ffpars_init(p)
 
-/** Parse ICY meta.
+/** Parse ICY meta.  Get next key and its value (KEY='VAL';...).
 Return enum FFPARS_E. */
 FF_EXTN int fficy_metaparse(fficymeta *p, const char *data, size_t *len);
+
+/** Get artist and title from StreamTitle tag. */
+FF_EXTN int fficy_streamtitle(const char *data, size_t len, ffstr *artist, ffstr *title);
 
 
 /** Add name-value pair into meta.
