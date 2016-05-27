@@ -390,8 +390,6 @@ static FFINL int mpg_id32(ffmpg *m)
 
 	switch (i) {
 	case FFID3_RNO:
-		return FFMPG_RDONE;
-
 	case FFID3_RDONE:
 		m->is_id32tag = 0;
 		ffid3_parsefin(&m->id32tag);
