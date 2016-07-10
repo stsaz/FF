@@ -92,7 +92,7 @@ enum APE_E {
 	APE_ESYS,
 };
 
-static const char *const ape_errstr[] = {
+static const char *const _ffape_errs[] = {
 	"",
 	"invalid header",
 	"unsupported format",
@@ -106,9 +106,9 @@ const char* ffape_errstr(ffape *a)
 	if (a->err == APE_ESYS)
 		return fferr_strp(fferr_last());
 	else if (a->err < 0)
-		return ape_decode_errstr(a->err);
+		return ape_errstr(a->err);
 
-	return ape_errstr[a->err];
+	return _ffape_errs[a->err];
 }
 
 
@@ -594,8 +594,7 @@ int ffape_decode(ffape *a)
 		FFDBG_PRINTLN(10, "frame #%u  size:%u", frame, frsize);
 
 		a->pcm = a->pcmdata;
-		a->pcmlen = frame_samples(a, frame);
-		r = ape_decode(a->ap, a->buf.ptr, a->buf.len, (void*)a->pcm, &a->pcmlen, align4);
+		r = ape_decode(a->ap, a->buf.ptr, a->buf.len, (void*)a->pcm, frame_samples(a, frame), align4);
 
 		uint off = frame_offset(a, frame);
 		uint off_next = frame_offset(a, frame + 1);
@@ -607,14 +606,13 @@ int ffape_decode(ffape *a)
 			a->buf.len = 0;
 		}
 
-		if (r != 0) {
-			a->pcmlen *= ffpcm_size1(&a->info.fmt);
+		if (r < 0) {
 			a->state = I_NEXT;
 			a->err = r;
 			return FFAPE_RWARN;
 		}
-		}
 
+		a->pcmlen = r;
 		if (a->seekdone) {
 			a->seekdone = 0;
 			uint n = a->seeksample - a->cursample;
@@ -627,6 +625,7 @@ int ffape_decode(ffape *a)
 		a->pcmlen *= ffpcm_size1(&a->info.fmt);
 		a->state = I_NEXT;
 		return FFAPE_RDATA;
+	}
 
 	case I_SEEK:
 		{
