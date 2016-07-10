@@ -328,7 +328,7 @@ static void tmrq_onfire(void *t)
 
 void fftask_run(fftaskmgr *mgr)
 {
-	while (mgr->tasks.len != 0) {
+	while (!fflist_empty(&mgr->tasks)) {
 		fftask *task = FF_GETPTR(fftask, sib, mgr->tasks.first);
 
 		if (!fflk_trylock(&mgr->lk))

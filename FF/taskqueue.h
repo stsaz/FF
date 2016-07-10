@@ -27,17 +27,17 @@ static FFINL void fftask_init(fftaskmgr *mgr) {
 }
 
 /** Return TRUE if a task is in the queue. */
-static FFINL ffbool fftask_active(fftaskmgr *mgr, fftask *task) {
-	return task->sib.next != FFLIST_END || task->sib.prev != FFLIST_END
-		|| mgr->tasks.first == &task->sib;
-}
+#define fftask_active(mgr, task)  fflist_exists(&(mgr)->tasks, &(task)->sib)
 
-/** Add item into task queue.  Thread-safe. */
-static FFINL void fftask_post(fftaskmgr *mgr, fftask *task) {
+/** Add item into task queue.  Thread-safe.
+Return the number of tasks. */
+static FFINL uint fftask_post(fftaskmgr *mgr, fftask *task) {
 	FF_ASSERT(!fftask_active(mgr, task));
 	fflk_lock(&mgr->lk);
 	fflist_ins(&mgr->tasks, &task->sib);
+	uint n = mgr->tasks.len;
 	fflk_unlock(&mgr->lk);
+	return n;
 }
 
 #define fftask_post4(mgr, task, func, _param) \
