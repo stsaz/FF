@@ -7,7 +7,7 @@ Copyright (c) 2015 Simon Zolin
 #include <FFOS/error.h>
 #include <FFOS/mem.h>
 
-#include <vorbis/vorbisenc.h>
+#include <ogg/ogg-crc.h>
 
 
 enum OGG_F {
@@ -41,7 +41,7 @@ struct vorbis_hdr {
 	char vorbis[6]; //"vorbis"
 };
 
-struct _vorbis_info {
+struct vorbis_info {
 	byte ver[4]; //0
 	byte channels;
 	byte rate[4];
@@ -58,15 +58,18 @@ enum {
 	MAX_NOSYNC = 256 * 1024,
 };
 
+static uint ogg_checksum(const char *d, size_t len);
 static int ogg_parse(ogg_hdr *h, const char *data, size_t len);
 static uint ogg_pagesize(const ogg_hdr *h);
 static uint ogg_packets(const ogg_hdr *h);
 static int ogg_findpage(const char *data, size_t len, ogg_hdr *h);
+static int ogg_pkt_next(ogg_packet *pkt, const char *buf, uint *segoff, uint *bodyoff);
 static int ogg_pkt_write(ffogg_page *p, char *buf, const char *pkt, uint len);
 static int ogg_page_write(ffogg_page *p, char *buf, uint64 granulepos, uint flags, ffstr *page);
 static int ogg_hdr_write(ffogg_page *p, char *buf, ffstr *data,
 	const ogg_packet *info, const ogg_packet *tag, const ogg_packet *codbk);
 
+static int vorb_info(const char *d, size_t len, uint *channels, uint *rate, uint *br_nominal);
 static void* ogg_tag(const char *d, size_t len, size_t *vorbtag_len);
 static uint ogg_tag_write(char *d, size_t vorbtag_len);
 
@@ -140,6 +143,21 @@ const char* ffogg_errstr(int e)
 }
 
 
+/** Get page checksum. */
+static uint ogg_checksum(const char *d, size_t len)
+{
+	uint crc = 0, i;
+
+	for (i = 0;  i != 22;  i++)
+		crc = (crc << 8) ^ ogg_crc_table[((crc >> 24) & 0xff) ^ (byte)d[i]];
+	for (;  i != 26;  i++)
+		crc = (crc << 8) ^ ogg_crc_table[((crc >> 24) & 0xff) ^ 0x00];
+	for (;  i != len;  i++)
+		crc = (crc << 8) ^ ogg_crc_table[((crc >> 24) & 0xff) ^ (byte)d[i]];
+
+	return crc;
+}
+
 /** Parse header.
 Return header length;  0 if more data is needed;  -OGG_E* on error. */
 static int ogg_parse(ogg_hdr *h, const char *data, size_t len)
@@ -192,6 +210,34 @@ static int ogg_findpage(const char *data, size_t len, ogg_hdr *h)
 	}
 
 	return -1;
+}
+
+/** Get next packet from page.
+@segoff: current offset within ogg_hdr.segments
+@bodyoff: current offset within page body
+Return packet body size;  -1 if no more packets;  -2 for an incomplete packet. */
+static int ogg_pkt_next(ogg_packet *pkt, const char *buf, uint *segoff, uint *bodyoff)
+{
+	const ogg_hdr *h = (void*)buf;
+	uint seglen, pktlen = 0, nsegs = h->nsegments, i = *segoff;
+
+	if (i == nsegs)
+		return -1;
+
+	do {
+		seglen = h->segments[i++];
+		pktlen += seglen;
+	} while (seglen == 255 && i != nsegs);
+
+	pkt->packet = (byte*)buf + sizeof(ogg_hdr) + nsegs + *bodyoff;
+	pkt->bytes = pktlen;
+	*segoff = i;
+	*bodyoff += pktlen;
+
+	pkt->b_o_s = 0;
+	pkt->e_o_s = 0;
+	pkt->granulepos = -1;
+	return (seglen == 255) ? -2 : (int)pktlen;
 }
 
 /** Add packet into page. */
@@ -251,7 +297,7 @@ static int ogg_hdr_write(ffogg_page *p, char *buf, ffstr *data,
 	p->number = 1;
 	ogg_page_write(p, d, 0, 0, &s);
 
-	if (info->bytes != sizeof(struct vorbis_hdr) + sizeof(struct _vorbis_info))
+	if (info->bytes != sizeof(struct vorbis_hdr) + sizeof(struct vorbis_info))
 		return OGG_EHDR;
 	d = s.ptr - (OGG_MAXHDR + info->bytes);
 	ogg_pkt_write(p, d, (void*)info->packet, info->bytes);
@@ -260,6 +306,25 @@ static int ogg_hdr_write(ffogg_page *p, char *buf, ffstr *data,
 	data->len += s.len;
 	p->number = 2;
 
+	return 0;
+}
+
+/** Parse Vorbis-info packet. */
+static int vorb_info(const char *d, size_t len, uint *channels, uint *rate, uint *br_nominal)
+{
+	const struct vorbis_hdr *h = (void*)d;
+	if (len < sizeof(struct vorbis_hdr) + sizeof(struct vorbis_info)
+		|| !(h->type == T_INFO && !ffs_cmp(h->vorbis, VORB_STR, FFSLEN(VORB_STR))))
+		return -1;
+
+	const struct vorbis_info *vi = (void*)(d + sizeof(struct vorbis_hdr));
+	if (0 != ffint_ltoh32(vi->ver)
+		|| 0 == (*channels = vi->channels)
+		|| 0 == (*rate = ffint_ltoh32(vi->rate))
+		|| vi->framing_bit != 1)
+		return -1;
+
+	*br_nominal = ffint_ltoh32(vi->br_nominal);
 	return 0;
 }
 
