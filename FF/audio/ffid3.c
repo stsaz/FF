@@ -636,6 +636,15 @@ static uint _ffid3_trackno(char *trackno, size_t trackno_cap, const char *trackt
 	return d - trackno;
 }
 
+uint ffid3_flush(ffid3_cook *id3)
+{
+	if (id3->trackno[0] != '\0' || id3->tracktotal[0] != '\0') {
+		uint n = _ffid3_trackno(id3->trackno, sizeof(id3->trackno), id3->tracktotal);
+		return ffid3_addframe(id3, ffid3_frames[FFID3_TRACKNO], id3->trackno, n, 0);
+	}
+	return 0;
+}
+
 int ffid3_padding(ffid3_cook *id3, size_t len)
 {
 	if (NULL == ffarr_grow(&id3->buf, len, 0))
@@ -652,11 +661,6 @@ void ffid3_fin(ffid3_cook *id3)
 		if (NULL == ffarr_alloc(&id3->buf, sizeof(ffid3_hdr)))
 			return;
 		id3->buf.len = sizeof(ffid3_hdr);
-	}
-
-	if (id3->trackno[0] != '\0' || id3->tracktotal[0] != '\0') {
-		uint n = _ffid3_trackno(id3->trackno, sizeof(id3->trackno), id3->tracktotal);
-		ffid3_addframe(id3, ffid3_frames[FFID3_TRACKNO], id3->trackno, n, 0);
 	}
 
 	ffid3_hdr *h = (void*)id3->buf.ptr;

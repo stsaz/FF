@@ -200,6 +200,8 @@ FF_EXTN uint ffid3_addframe(ffid3_cook *id3, const char id[4], const char *data,
 
 FF_EXTN uint ffid3_add(ffid3_cook *id3, uint id, const char *data, size_t len);
 
+FF_EXTN uint ffid3_flush(ffid3_cook *id3);
+
 FF_EXTN int ffid3_padding(ffid3_cook *id3, size_t len);
 
 /** Write ID3v2 header. */
