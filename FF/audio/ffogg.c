@@ -82,21 +82,23 @@ static int _ffogg_pkt_vorbtag(ffogg_enc *o, ogg_packet *pkt);
 static int _ffogg_enc_hdr(ffogg_enc *o);
 
 
-enum { I_HDR, I_BODY, I_HDRPKT, I_COMM, I_HDRDONE, I_FIRSTPAGE, I_HDRPAGE
+enum { I_HDR, I_BODY, I_HDRPKT, I_COMM_PKT, I_COMM, I_BOOK_PKT, I_FIRSTPAGE
 	, I_SEEK_EOS, I_SEEK_EOS2, I_SEEK_EOS3
-	, I_SEEK, I_SEEKDATA, I_SEEK2
-	, I_PAGE, I_PKT, I_SYNTH, I_DATA };
+	, I_SEEK, I_SEEK2, I_ASIS_SEEKHDR
+	, I_PAGE, I_PKT, I_DECODE, I_DATA };
 
 enum OGG_E {
 	OGG_EOK
-	, OGG_EBADPAGE
-	, OGG_EGAP
 	, OGG_ESEEK
 	, OGG_EHDR,
+	OGG_EVERSION,
+	OGG_ESERIAL,
+	OGG_EPAGENUM,
 	OGG_EJUNKDATA,
 	OGG_ECRC,
 	OGG_ETAG,
 	OGG_ENOSYNC,
+	OGG_EPKT,
 	OGG_EBIGPKT,
 
 	OGG_ESYS,
@@ -104,29 +106,17 @@ enum OGG_E {
 
 static const char* const ogg_errstr[] = {
 	""
-	, "the serial number of the page did not match the serial number of the bitstream, the page version was incorrect, or an internal error occurred"
-	, "out of sync and there is a gap in the data"
 	, "seek error"
 	, "bad OGG header",
+	"unsupported page version",
+	"the serial number of the page did not match the serial number of the bitstream",
+	"out of order OGG page",
 	"unrecognized data before OGG page",
 	"CRC mismatch",
 	"invalid tags",
 	"couldn't find OGG page",
+	"bad packet",
 	"too large packet",
-};
-
-static const char* const vorb_errstr[] = {
-	"" /*OV_EREAD*/
-	, "internal error; indicates a bug or memory corruption" /*OV_EFAULT*/
-	, "unimplemented; not supported by this version of the library" /*OV_EIMPL*/
-	, "invalid parameter" /*OV_EINVAL*/
-	, "the packet is not a Vorbis header packet" /*OV_ENOTVORBIS*/
-	, "error interpreting the packet" /*OV_EBADHEADER*/
-	, "" /*OV_EVERSION*/
-	, "the packet is not an audio packet" /*OV_ENOTAUDIO*/
-	, "there was an error in the packet" /*OV_EBADPACKET*/
-	, "" /*OV_EBADLINK*/
-	, "" /*OV_ENOSEEK*/
 };
 
 const char* ffogg_errstr(int e)
@@ -136,11 +126,11 @@ const char* ffogg_errstr(int e)
 
 	if (e >= 0)
 		return ogg_errstr[e];
-	e = -(e - (OV_EREAD));
-	if ((uint)e < FFCNT(vorb_errstr))
-		return vorb_errstr[e];
-	return "";
+	return vorbis_errstr(e);
 }
+
+#define ERR(o, n) \
+	(o)->err = n, FFOGG_RERR
 
 
 /** Get page checksum. */
@@ -358,7 +348,7 @@ static uint ogg_tag_write(char *d, size_t vorbtag_len)
 void ffogg_init(ffogg *o)
 {
 	ffmem_tzero(o);
-	vorbis_info_init(&o->vinfo);
+	o->nxstate = I_HDRPKT;
 }
 
 uint ffogg_bitrate(ffogg *o)
@@ -452,71 +442,51 @@ static int _ffogg_getbody(ffogg *o)
 		return FFOGG_RERR;
 	}
 
+	if (h->version != 0)
+		return ERR(o, OGG_EVERSION);
+
+	uint serial = ffint_ltoh32(h->serial);
+	if (!o->init_done)
+		o->serial = serial;
+	else if (serial != o->serial)
+		return ERR(o, OGG_ESERIAL);
+
 	o->page_last = (h->flags & OGG_FLAST) != 0;
-	o->page_num = ffint_ltoh32(h->number);
+
+	uint pagenum = ffint_ltoh32(h->number);
+	if (o->page_num != 0 && pagenum != o->page_num + 1)
+		o->pagenum_err = 1;
+	o->page_num = pagenum;
+
 	o->page_gpos = ffint_ltoh64(h->granulepos);
+	o->segoff = 0;
+	o->bodyoff = 0;
 	return FFOGG_RDONE;
 }
 
-/*
-Return codes sequence when 'nodecode' is active:
-RHDR -> RPAGE -> RTAG... -> RHDRFIN -> RPAGE -> RINFO
-*/
 static int _ffogg_open(ffogg *o)
 {
 	int r;
-	ogg_packet opkt;
 	ogg_hdr *h;
 
 	for (;;) {
-
 	switch (o->state) {
 
-	case I_HDRPAGE:
-		if (o->seekable && o->total_size != 0)
-			o->state = I_SEEK_EOS;
-		else
-			o->state = I_PAGE;
-		return FFOGG_RPAGE;
-
 	case I_HDRPKT:
-		r = ogg_stream_packetout(&o->ostm, &opkt);
-		if (r == 0) {
-			o->state = I_HDR;
-			if (o->nodecode)
-				return FFOGG_RPAGE;
-			return FFOGG_RDATA;
+		if (0 != vorb_info((void*)o->opkt.packet, o->opkt.bytes, &o->vinfo.channels, &o->vinfo.rate, &o->vinfo.bitrate_nominal))
+			return ERR(o, OGG_EPKT);
 
-		} else if (r < 0) {
-			o->err = OGG_EGAP;
-			return FFOGG_RERR;
-		}
+		if (0 != (r = vorbis_decode_init(&o->vctx, &o->opkt)))
+			return ERR(o, r);
 
-		if (o->nhdr == 1) {
-			o->nhdr++;
-			if (NULL == (o->vtag.data = ogg_tag((void*)opkt.packet, opkt.bytes, &o->vtag.datalen))) {
-				o->err = OGG_ETAG;
-				return FFOGG_RERR;
-			}
-			o->state = I_COMM;
-			break;
-		}
+		o->state = I_PKT, o->nxstate = I_COMM_PKT;
+		return FFOGG_RHDR;
 
-		r = vorbis_synthesis_headerin(&o->vinfo, NULL, &opkt);
-		if (r != 0) {
-			o->err = r;
-			return FFOGG_RERR;
-		}
-
-		switch (++o->nhdr) {
-		case 1:
-			return FFOGG_RHDR;
-
-		case 3:
-			o->state = I_HDRDONE;
-			break;
-		}
-		break;
+	case I_COMM_PKT:
+		if (NULL == (o->vtag.data = ogg_tag((void*)o->opkt.packet, o->opkt.bytes, &o->vtag.datalen)))
+			return ERR(o, OGG_ETAG);
+		o->state = I_COMM;
+		// break
 
 	case I_COMM:
 		r = ffvorbtag_parse(&o->vtag);
@@ -528,37 +498,36 @@ static int _ffogg_open(ffogg *o)
 				o->err = OGG_ETAG;
 				return FFOGG_RERR;
 			}
-			o->state = I_HDRPKT;
-			break;
+			o->state = I_PKT, o->nxstate = I_BOOK_PKT;
+			return FFOGG_RDATA;
 		}
 		return FFOGG_RTAG;
 
-	case I_HDRDONE:
-		if (0 == vorbis_synthesis_init(&o->vds, &o->vinfo)) {
-			vorbis_block_init(&o->vds, &o->vblk);
-			o->vblk_valid = 1;
-		}
+	case I_BOOK_PKT:
+		if (0 != (r = vorbis_decode_init(&o->vctx, &o->opkt)))
+			return ERR(o, r);
+
 		o->off_data = o->off;
 		o->state = I_FIRSTPAGE;
-		// break
+		break;
 
 	case I_FIRSTPAGE:
 		r = _ffogg_gethdr(o, &h);
 		if (r != FFOGG_RDONE)
 			return r;
-		o->first_sample = ffint_ltoh64(h->granulepos);
-		if (ffint_ltoh32(h->number) != 2)
+		uint pagenum = ffint_ltoh32(h->number);
+		if (pagenum != 2) {
 			o->seektab[0].off = o->pagesize; //remove the first audio page from seek table, because we don't know the audio sample index
-		else
-			o->first_sample = 0;
+			o->first_sample = ffint_ltoh64(h->granulepos);
+		}
+		o->page_num = pagenum - 1;
 
-		if (o->nodecode)
-			o->state = I_HDRPAGE;
-		else if (o->seekable && o->total_size != 0)
+		if (o->seekable && o->total_size != 0)
 			o->state = I_SEEK_EOS;
 		else
 			o->state = I_PAGE;
 		o->init_done = 1;
+		o->nxstate = I_DECODE;
 		return FFOGG_RHDRFIN;
 
 	case I_SEEK_EOS:
@@ -606,14 +575,8 @@ static int _ffogg_open(ffogg *o)
 
 void ffogg_close(ffogg *o)
 {
-	if (o->vblk_valid) {
-		vorbis_block_clear(&o->vblk);
-		vorbis_dsp_clear(&o->vds);
-	}
-	if (o->ostm_valid)
-		ogg_stream_clear(&o->ostm);
-	vorbis_info_clear(&o->vinfo);
 	ffarr_free(&o->buf);
+	FF_SAFECLOSE(o->vctx, NULL, vorbis_decode_free);
 }
 
 void ffogg_seek(ffogg *o, uint64 sample)
@@ -621,13 +584,9 @@ void ffogg_seek(ffogg *o, uint64 sample)
 	if (sample >= o->total_samples || o->total_size == 0)
 		return;
 	o->seek_sample = sample;
-	if (o->state == I_DATA)
-		o->state = I_SEEKDATA;
-	else {
-		if (o->state == I_SEEK_EOS3)
-			o->firstseek = 1;
-		o->state = I_SEEK;
-	}
+	if (o->state == I_SEEK_EOS3)
+		o->firstseek = 1;
+	o->state = I_SEEK;
 	ffmemcpy(o->seekpt, o->seektab, sizeof(o->seekpt));
 	o->skoff = (uint64)-1;
 	o->buf.len = 0;
@@ -734,18 +693,14 @@ sk:
 		return FFOGG_RERR;
 	}
 
+	o->page_num = 0;
 	return FFOGG_RDONE;
 }
 
-/*
-ogg_sync_state -> ogg_page -> ogg_stream_state -> ogg_packet -> vorbis_block -> vorbis_dsp_state
-*/
 int ffogg_decode(ffogg *o)
 {
 	int r;
-	ogg_packet opkt;
 	ogg_hdr *h;
-	ogg_page opg;
 
 	for (;;) {
 
@@ -755,25 +710,19 @@ int ffogg_decode(ffogg *o)
 			return r;
 		continue;
 
-	case I_SEEKDATA:
-		vorbis_synthesis_read(&o->vds, o->nsamples);
-		o->state = I_SEEK;
-		//break;
-
 	case I_SEEK:
 	case I_SEEK2:
 		if (FFOGG_RDONE != (r = _ffogg_seek(o)))
 			return r;
-		ogg_stream_reset(&o->ostm);
 		o->state = I_BODY;
 		continue;
-
 
 	case I_PAGE:
 		if (o->page_gpos != (uint64)-1)
 			o->cursample = o->page_gpos - o->first_sample;
 		if (o->page_last)
 			return FFOGG_RDONE;
+		o->state = I_HDR;
 		// break
 
 	case I_HDR:
@@ -797,72 +746,110 @@ int ffogg_decode(ffogg *o)
 		} else if (r != FFOGG_RDONE)
 			return r;
 
-		opg.header = (void*)o->buf.ptr;
-		opg.header_len = o->hdrsize;
-		opg.body = (void*)(o->buf.ptr + o->hdrsize);
-		opg.body_len = o->pagesize - o->hdrsize;
-
-		if (!o->ostm_valid) {
-			h = (void*)o->buf.ptr;
-			ogg_stream_init(&o->ostm, ffint_ltoh32(h->serial));
-			o->ostm_valid = 1;
-		}
-
-		if (0 > ogg_stream_pagein(&o->ostm, &opg)) {
-			o->err = OGG_EBADPAGE;
-			o->state = I_HDR;
-			return (o->init_done) ? FFOGG_RWARN : FFOGG_RERR;
-		}
-
-		if (!o->init_done) {
-			o->state = I_HDRPKT;
-			continue;
-		}
-
-		if (o->nodecode) {
-			o->state = I_PAGE;
-			return FFOGG_RPAGE;
-		}
-
 		o->state = I_PKT;
+
+		if (o->pagenum_err) {
+			o->pagenum_err = 0;
+			o->err = OGG_EPAGENUM;
+			return FFOGG_RWARN;
+		}
 		// break;
 
 	case I_PKT:
-		r = ogg_stream_packetout(&o->ostm, &opkt);
-		if (r == 0) {
+		r = ogg_pkt_next(&o->opkt, o->buf.ptr, &o->segoff, &o->bodyoff);
+		if (r == -1) {
 			o->state = I_PAGE;
-			break;
-		} else if (r < 0) {
-			o->err = OGG_EGAP;
-			return FFOGG_RWARN;
-		}
+			continue;
+		} else if (r == -2)
+			return ERR(o, OGG_EBIGPKT);
 
-		if (0 != (r = vorbis_synthesis(&o->vblk, &opkt))) {
+		FFDBG_PRINTLN(10, "packet #%u, size: %u", o->pktno, (int)o->opkt.bytes);
+
+		o->opkt.packetno = o->pktno++;
+		o->state = o->nxstate;
+		continue;
+
+	case I_DECODE:
+		r = vorbis_decode(o->vctx, &o->opkt, &o->pcm);
+		if (r < 0) {
+			o->state = I_PKT;
 			o->err = r;
 			return FFOGG_RWARN;
 		}
-
-		vorbis_synthesis_blockin(&o->vds, &o->vblk);
-		// o->state = I_SYNTH;
-		// break;
-
-	case I_SYNTH:
-		if (0 != (o->nsamples = vorbis_synthesis_pcmout(&o->vds, (float***)&o->pcm))) {
-			o->pcmlen = o->nsamples * sizeof(float) * o->vinfo.channels;
-			o->state = I_DATA;
-			return FFOGG_RDATA;
-		}
-		o->state = I_PKT;
-		break;
+		o->nsamples = r;
+		o->pcmlen = o->nsamples * sizeof(float) * o->vinfo.channels;
+		o->state = I_DATA;
+		return FFOGG_RDATA;
 
 	case I_DATA:
-		vorbis_synthesis_read(&o->vds, o->nsamples);
 		o->cursample += o->nsamples;
-		o->state = I_SYNTH;
+		o->state = I_PKT;
 		break;
 	}
 	}
 	//unreachable
+}
+
+void ffogg_set_asis(ffogg *o, uint64 from_sample)
+{
+	o->seek_sample = (uint64)-1;
+	if (from_sample != (uint64)-1)
+		ffogg_seek(o, from_sample);
+	o->state = I_ASIS_SEEKHDR;
+}
+
+int ffogg_readasis(ffogg *o)
+{
+	int r;
+
+	for (;;) {
+	switch (o->state) {
+
+	case I_ASIS_SEEKHDR:
+		o->state = I_HDR;
+		o->off = 0;
+		return FFOGG_RSEEK;
+
+	case I_PAGE:
+		if (o->page_gpos != (uint64)-1)
+			o->cursample = o->page_gpos - o->first_sample;
+		if (o->page_last)
+			return FFOGG_RDONE;
+		o->state = I_HDR;
+		// break
+
+	case I_HDR: {
+		ogg_hdr *h;
+		r = _ffogg_gethdr(o, &h);
+		if (r != FFOGG_RDONE)
+			return r;
+		o->state = I_BODY;
+		// break
+	}
+
+	case I_BODY:
+		r = _ffogg_getbody(o);
+		if (r == FFOGG_RERR) {
+			o->state = I_HDR;
+			return FFOGG_RWARN;
+
+		} else if (r != FFOGG_RDONE)
+			return r;
+
+		o->state = I_PAGE;
+		if (o->off == o->off_data && o->seek_sample != (uint64)-1) {
+			o->state = I_SEEK;
+		}
+		return FFOGG_RPAGE;
+
+	case I_SEEK:
+	case I_SEEK2:
+		if (FFOGG_RDONE != (r = _ffogg_seek(o)))
+			return r;
+		o->state = I_BODY;
+		continue;
+	}
+	}
 }
 
 
@@ -871,7 +858,6 @@ void ffogg_enc_init(ffogg_enc *o)
 	ffmem_tzero(o);
 	o->min_tagsize = 1000;
 	o->max_pagesize = 8 * 1024;
-	vorbis_info_init(&o->vinfo);
 
 	if (NULL == ffarr_alloc(&o->vtag.out, 4096))
 		return;
@@ -883,24 +869,15 @@ void ffogg_enc_init(ffogg_enc *o)
 void ffogg_enc_close(ffogg_enc *o)
 {
 	ffvorbtag_destroy(&o->vtag);
-	if (o->vblk_valid) {
-		vorbis_block_clear(&o->vblk);
-		vorbis_dsp_clear(&o->vds);
-	}
-	vorbis_info_clear(&o->vinfo);
 	ffarr_free(&o->buf);
+	FF_SAFECLOSE(o->vctx, NULL, vorbis_encode_free);
 }
 
 int ffogg_create(ffogg_enc *o, ffpcm *pcm, int quality, uint serialno)
 {
-	int r;
-
-	if (0 != (r = vorbis_encode_init_vbr(&o->vinfo, pcm->channels, pcm->sample_rate, (float)quality / 100)))
-		return r;
-
-	vorbis_analysis_init(&o->vds, &o->vinfo);
-	vorbis_block_init(&o->vds, &o->vblk);
-	o->vblk_valid = 1;
+	o->vinfo.channels = pcm->channels;
+	o->vinfo.rate = pcm->sample_rate;
+	o->vinfo.quality = quality;
 	o->page.serial = serialno;
 	return 0;
 }
@@ -929,7 +906,11 @@ static int _ffogg_enc_hdr(ffogg_enc *o)
 	int r;
 	ogg_packet pkt[3];
 
-	if (0 != (r = vorbis_analysis_headerout(&o->vds, NULL, &pkt[0], NULL, &pkt[2])))
+	vorbis_encode_params params = {0};
+	params.channels = o->vinfo.channels;
+	params.rate = o->vinfo.rate;
+	params.quality = (float)o->vinfo.quality / 100;
+	if (0 != (r = vorbis_encode_create(&o->vctx, &params, &pkt[0], &pkt[2])))
 		return r;
 
 	ffvorbtag_fin(&o->vtag);
@@ -961,9 +942,7 @@ err:
 int ffogg_encode(ffogg_enc *o)
 {
 	enum { I_HDRFLUSH, I_INPUT, I_ENCODE, ENC_PKT, ENC_DONE };
-	int r;
-	uint i, n;
-	float **fpcm;
+	int r, n = 0;
 
 	for (;;) {
 
@@ -975,34 +954,23 @@ int ffogg_encode(ffogg_enc *o)
 		return FFOGG_RDATA;
 
 	case I_INPUT:
-		if (o->pcmlen == 0 && !o->fin)
-			return FFOGG_RMORE;
-
 		n = (uint)(o->pcmlen / (sizeof(float) * o->vinfo.channels));
-		fpcm = vorbis_analysis_buffer(&o->vds, n);
-		if (o->pcmlen != 0) {
-			for (i = 0;  i != (uint)o->vinfo.channels;  i++) {
-				ffmemcpy(fpcm[i], o->pcm[i], n * sizeof(float));
-			}
-		}
-		vorbis_analysis_wrote(&o->vds, n);
 		o->pcmlen = 0;
 		o->state = I_ENCODE;
-		//break;
+		// break
 
 	case I_ENCODE:
-		r = vorbis_analysis_blockout(&o->vds, &o->vblk);
+		r = vorbis_encode(o->vctx, o->pcm, n, &o->opkt);
 		if (r < 0) {
 			o->err = r;
 			return FFOGG_RERR;
-		} else if (r != 1) {
-			o->state = I_INPUT;
-			break;
-		}
-
-		if (0 != (r = vorbis_analysis(&o->vblk, &o->opkt))) {
-			o->err = r;
-			return FFOGG_RERR;
+		} else if (r == 0) {
+			if (!o->fin) {
+				o->state = I_INPUT;
+				return FFOGG_RMORE;
+			}
+			n = -1;
+			continue;
 		}
 
 		if (o->page.size + o->opkt.bytes > o->max_pagesize) {
@@ -1032,6 +1000,7 @@ int ffogg_encode(ffogg_enc *o)
 			return FFOGG_RDATA;
 		}
 		o->state = I_ENCODE;
+		n = 0;
 		continue;
 
 	case ENC_DONE:

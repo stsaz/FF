@@ -12,7 +12,7 @@ OGG(VORB_INFO)  OGG(VORB_COMMENTS VORB_CODEBOOK)  OGG(PKT1 PKT2...)...
 #include <FF/audio/vorbistag.h>
 #include <FF/array.h>
 
-#include <vorbis/codec.h>
+#include <vorbis/vorbis-ff.h>
 
 
 typedef struct ffogg_page {
@@ -26,20 +26,20 @@ typedef struct ffogg_page {
 
 typedef struct ffogg {
 	uint state;
+	uint nxstate;
 
-	ogg_stream_state ostm;
-
-	vorbis_dsp_state vds;
-	vorbis_info vinfo;
-	vorbis_block vblk;
+	vorbis_ctx *vctx;
+	struct {
+		uint channels;
+		uint rate;
+		uint bitrate_nominal;
+	} vinfo;
 
 	ffvorbtag vtag;
 
 	uint err;
-	union {
+	uint serial;
 	uint nsamples;
-	uint nhdr;
-	};
 	uint64 off
 		, off_data //header size
 		, total_size;
@@ -54,6 +54,10 @@ typedef struct ffogg {
 	uint bytes_skipped;
 	uint page_num;
 	uint64 page_gpos;
+	ogg_packet opkt;
+	uint pktno;
+	uint segoff;
+	uint bodyoff;
 	size_t datalen;
 	const char *data;
 
@@ -64,13 +68,11 @@ typedef struct ffogg {
 	ffpcm_seekpt seekpt[2];
 	uint64 skoff;
 
-	unsigned ostm_valid :1
-		, vblk_valid :1
-		, seekable :1 //search for eos page
+	uint seekable :1 //search for eos page
 		, init_done :1
 		, page_last :1
 		, firstseek :1
-		, nodecode :1 //return whole OGG pages as-is with FFOGG_RPAGE return code
+		, pagenum_err :1
 		;
 } ffogg;
 
@@ -121,11 +123,17 @@ FF_EXTN void ffogg_seek(ffogg *o, uint64 sample);
 #define ffogg_seekoff(o)  ((o)->off)
 
 /** Decode OGG stream.
-Note: decoding errors are skipped. */
+Return enum FFOGG_R. */
 FF_EXTN int ffogg_decode(ffogg *o);
 
 /** Get an absolute sample number. */
 #define ffogg_cursample(o)  ((o)->cursample)
+
+FF_EXTN void ffogg_set_asis(ffogg *o, uint64 from_sample);
+
+/**
+Return the whole OGG pages as-is (FFOGG_RPAGE). */
+FF_EXTN int ffogg_readasis(ffogg *o);
 
 /** Get page data.
 Must be called when FFOGG_RPAGE is returned. */
@@ -139,17 +147,18 @@ static FFINL void ffogg_pagedata(ffogg *o, const char **d, size_t *size)
 typedef struct ffogg_enc {
 	uint state;
 
-	vorbis_dsp_state vds;
-	vorbis_info vinfo;
-	vorbis_block vblk;
+	vorbis_ctx *vctx;
+	struct {
+		uint channels;
+		uint rate;
+		uint quality;
+	} vinfo;
 
 	ffvorbtag_cook vtag;
 	uint min_tagsize;
 
 	int err;
-	unsigned ostm_valid :1
-		, vblk_valid :1
-		, fin :1;
+	uint fin :1;
 
 	ffogg_page page;
 	ogg_packet opkt;
