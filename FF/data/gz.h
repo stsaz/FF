@@ -2,11 +2,15 @@
 Copyright (c) 2014 Simon Zolin
 */
 
+/*
+(HDR DATA TRL)...
+*/
+
 #pragma once
 
-#include <FFOS/mem.h>
-
-#include <zlib-ff.h>
+#include <FF/array.h>
+#include <FF/number.h>
+#include <zlib/zlib-ff.h>
 
 
 typedef struct ffgzheader {
@@ -24,7 +28,7 @@ typedef struct ffgzheader {
 				, reserved : 3;
 		};
 	};
-	uint mtime;
+	byte mtime[4];
 	byte exflags
 		, fstype; //0=fat, 3=unix, 11=ntfs, 255=unknown
 	// fextra=1: len_lo, len_hi, data[]
@@ -34,124 +38,111 @@ typedef struct ffgzheader {
 } ffgzheader;
 
 typedef struct ffgztrailer {
-	uint crc32 //CRC of uncompressed data
-		, isize; //size of uncompressed data
+	byte crc32[4]; //CRC of uncompressed data
+	byte isize[4]; //size of uncompressed data
 } ffgztrailer;
 
-typedef z_stream fflz;
 
-enum FFLZ_R {
-	FFLZ_DATA = Z_OK,
-	FFLZ_MORE = Z_BUF_ERROR,
-	FFLZ_DONE = Z_STREAM_END,
+enum FFGZ_E {
+	FFGZ_ESYS = 1,
+	FFGZ_ELZ,
+
+	FFGZ_ENOTREADY,
+	FFGZ_ELZINIT,
+	FFGZ_EHDR,
+	FFGZ_ESMALLSIZE,
+	FFGZ_ESIZE,
+	FFGZ_ECRC,
 };
 
-/** Get last error string. */
-static FFINL const char * fflz_errstr(const fflz *gz)
+FF_EXTN const char* ffgz_errstr(const void *gz);
+
+
+typedef struct ffgz {
+	uint state;
+	int err;
+	uint nxstate;
+	z_ctx *lz;
+
+	ffstr in;
+	uint hsize;
+	ffarr buf;
+	uint nameoff;
+	union {
+	uint64 inoff;
+	uint64 insize;
+	};
+
+	ffstr out;
+	uint crc;
+	uint64 outsize;
+} ffgz;
+
+typedef struct ffgz_cook {
+	uint state;
+	int err;
+	z_ctx *lz;
+
+	ffstr in;
+	uint crc;
+	uint64 insize;
+
+	ffstr out;
+	ffarr2 buf;
+	uint64 outsize;
+
+	uint flush;
+} ffgz_cook;
+
+enum FFGZ_R {
+	FFGZ_ERR = -1,
+	FFGZ_DATA,
+	FFGZ_DONE,
+	FFGZ_MORE,
+	FFGZ_INFO,
+	FFGZ_SEEK,
+};
+
+FF_EXTN void ffgz_close(ffgz *gz);
+
+/**
+@total_size: -1: gzip file size is unknown (no seeking) */
+FF_EXTN void ffgz_init(ffgz *gz, int64 total_size);
+
+/**
+Return enum FFGZ_R. */
+FF_EXTN int ffgz_read(ffgz *gz, char *dst, size_t cap);
+
+static FFINL const char* ffgz_fname(ffgz *gz)
 {
-	return (gz->msg != NULL ? gz->msg : "");
+	return (gz->nameoff != 0) ? gz->buf.ptr + gz->nameoff : NULL;
 }
 
-/** Get window bits number for fflz_deflateinit().
-@window: 512-128k */
-static FFINL int fflz_wbits(int window)
+static FFINL uint ffgz_mtime(ffgz *gz)
 {
-	int i = ffbit_ffs32(window) - 1;
-	//window = 1 << (windowBits+2)
-	if ((window & ~(1 << i)) || window < 512 || i > MAX_WBITS + 2)
-		return -1;
-	return i - 2;
+	const ffgzheader *h = (void*)gz->buf.ptr;
+	return ffint_ltoh32(h->mtime);
 }
 
-/** Get memory level number for fflz_deflateinit().
-@mem: 512-256k. */
-static FFINL int fflz_memlevel(int mem)
-{
-	int i = ffbit_ffs32(mem) - 1;
-	//mem = 1 << (memLevel+9)
-	if ((mem & ~(1 << i)) || mem < 512 || i > MAX_MEM_LEVEL + 9)
-		return -1;
-	return i - 9;
-}
+#define ffgz_size(gz)  ((gz)->outsize)
 
-static FFINL void * _ff_zalloc(void *opaque, uint items, uint size)
-{
-	size_t n = items * size;
-	return ffmem_alloc(n);
-}
-
-static FFINL void _ff_zfree(void *opaque, void *address) {
-	ffmem_free(address);
-}
-
-/** Initialize gzip compression.
-@level: 1-9
-@wbits: add 16 to auto-write gzip header and trailer.
-  if negative: don't auto-write zlib header+trailer. */
-static FFINL int fflz_deflateinit(fflz *gz, int level, int wbits, int memlev)
-{
-	gz->zalloc = &_ff_zalloc;
-	gz->zfree = &_ff_zfree;
-	return deflateInit2(gz, level, Z_DEFLATED, wbits, memlev, Z_DEFAULT_STRATEGY);
-}
-
-/** Initialize deflate compression with default parameters (level=6, memory=128k+128k). */
-#define fflz_deflateinit1(z)  fflz_deflateinit(z, 6, -15, 8)
-
-/** Finish gzip compression. */
-#define fflz_deflatefin  deflateEnd
-
-/** Set input. */
-static FFINL void fflz_setin(fflz *gz, const void *in, size_t len)
-{
-	gz->next_in = (void*)in;
-	gz->avail_in = FF_TOINT(len);
-}
-
-/** Set output. */
-static FFINL void fflz_setout(fflz *gz, void *out, size_t cap)
-{
-	gz->next_out = out;
-	gz->avail_out = FF_TOINT(cap);
-}
-
-/** Compress data.
-Return enum FFLZ_R. */
-static FFINL int fflz_deflate(fflz *gz, int flush, size_t *rd, size_t *wr)
-{
-	int r;
-	size_t nin = gz->avail_in;
-	size_t nout = gz->avail_out;
-
-	r = deflate(gz, flush);
-	if (rd != NULL)
-		*rd = nin - gz->avail_in;
-	if (wr != NULL)
-		*wr = nout - gz->avail_out;
-	return r;
-}
+#define ffgz_offset(gz)  ((gz)->inoff)
 
 
-static FFINL int fflz_inflateinit(fflz *z, int wbits)
-{
-	z->zalloc = &_ff_zalloc;
-	z->zfree = &_ff_zfree;
-	return inflateInit2(z, wbits);
-}
+FF_EXTN void ffgz_wclose(ffgz_cook *gz);
 
-#define fflz_inflatefin(z)  inflateEnd(z)
+/** Initialize deflate compression.
+Return 0 on success. */
+FF_EXTN int ffgz_winit(ffgz_cook *gz, uint level, uint mem);
 
-/** Decompress data.
-Return enum FFLZ_R. */
-static FFINL int fflz_inflate(fflz *z, int flush, size_t *rd, size_t *wr)
-{
-	int r;
-	size_t nin = z->avail_in, nout = z->avail_out;
+/**
+@name: optional.
+Return 0 on success. */
+FF_EXTN int ffgz_wfile(ffgz_cook *gz, const char *name, uint mtime);
 
-	r = inflate(z, flush);
-	if (rd != NULL)
-		*rd = nin - z->avail_in;
-	if (wr != NULL)
-		*wr = nout - z->avail_out;
-	return r;
-}
+/**
+Return enum FFGZ_R. */
+FF_EXTN int ffgz_write(ffgz_cook *gz, char *dst, size_t cap);
+
+#define ffgz_wfinish(gz)  ((gz)->flush = Z_FINISH)
+#define ffgz_wflush(gz)  ((gz)->flush = Z_SYNC_FLUSH)
