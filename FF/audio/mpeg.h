@@ -132,9 +132,9 @@ FF_EXTN int ffmpg_lame_parse(ffmpg_lame *lame, const char *data, size_t *len);
 #include <FF/array.h>
 
 #ifdef FF_LIBMAD
-#include <mad.h>
+#include <mad/mad.h>
 #else
-#include <mpg123-ff.h>
+#include <mpg123/mpg123-ff.h>
 #endif
 
 enum FFMPG_O {
@@ -153,7 +153,7 @@ typedef struct ffmpg {
 	struct mad_frame frame;
 	struct mad_synth synth;
 #else
-	mpg123_handle *m123;
+	mpg123 *m123;
 #endif
 
 	ffpcmex fmt;

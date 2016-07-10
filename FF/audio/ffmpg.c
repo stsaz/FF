@@ -224,7 +224,7 @@ const char* ffmpg_errstr(ffmpg *m)
 {
 	switch (m->err) {
 	case FFMPG_EMPG123:
-		return mpg123_plain_strerror(m->e);
+		return mpg123_errstr(m->e);
 
 #ifdef FF_LIBMAD
 	case FFMPG_ESTREAM:
@@ -263,8 +263,7 @@ void ffmpg_close(ffmpg *m)
 
 #else
 	if (m->m123 != NULL)
-		mpg123_delete(m->m123);
-	// mpg123_exit();
+		mpg123_free(m->m123);
 #endif
 }
 
@@ -648,7 +647,7 @@ int ffmpg_decode(ffmpg *m)
 #else
 			if (0 != (r = _ffmpg_frame2(m, &m->buf)))
 				return r;
-			mpg123_decode(m->m123, (void*)-1, (size_t)-1, NULL, NULL); //reset bufferred data
+			mpg123_decode(m->m123, (void*)-1, (size_t)-1, NULL); //reset bufferred data
 #endif
 			m->state = I_FR;
 			break;
@@ -751,8 +750,8 @@ int ffmpg_decode(ffmpg *m)
 
 #else
 	case I_INIT:
-		i = MPG123_QUIET | ((m->options & FFMPG_O_INT16) ? 0 : MPG123_FORCE_FLOAT);
-		if (MPG123_OK != (r = mpg123_open(&m->m123, i))) {
+		i = (m->options & FFMPG_O_INT16) ? 0 : MPG123_FORCE_FLOAT;
+		if (0 != (r = mpg123_init(&m->m123, i))) {
 			m->err = FFMPG_EMPG123;
 			m->e = r;
 			return FFMPG_RERR;
@@ -770,20 +769,22 @@ int ffmpg_decode(ffmpg *m)
 			return FFMPG_RDONE;
 		m->datalen = ffmin(m->datalen, m->dataoff + m->total_size - m->off);
 		if (m->buf.len != 0) {
-			r = mpg123_decode(m->m123, (byte*)m->buf.ptr, m->buf.len, NULL, NULL);
+			r = mpg123_decode(m->m123, m->buf.ptr, m->buf.len, NULL);
 			m->buf.len = 0;
 		}
 
-		r = mpg123_decode(m->m123, m->data, m->datalen, (byte**)&m->pcmi, &m->pcmlen);
+		r = mpg123_decode(m->m123, m->data, m->datalen, (byte**)&m->pcmi);
 		m->off += m->datalen;
 		FFARR_SHIFT(m->data, m->datalen, m->datalen);
-		if (r == MPG123_NEED_MORE)
+		if (r == 0) {
 			return FFMPG_RMORE;
-		else if (r != MPG123_OK) {
+
+		} else if (r < 0) {
 			m->err = FFMPG_EMPG123;
 			m->e = r;
 			return FFMPG_RERR;
 		}
+		m->pcmlen = r;
 		m->state = I_FROK;
 		return FFMPG_RDATA;
 #endif
