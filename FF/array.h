@@ -38,6 +38,19 @@ do { \
 	ffarr2_free(a); \
 } while (0)
 
+/** Append data to an array. */
+static FFINL size_t ffarr2_addf(ffarr2 *a, const void *src, size_t n, size_t elsz)
+{
+	if ((char*)a->ptr + a->len * elsz != src)
+		ffmemcpy((char*)a->ptr + a->len * elsz, src, n * elsz);
+	a->len += n;
+	return n;
+}
+
+#define ffarr2_add(a, cap, src, n, elsz) \
+	ffarr2_addf(a, src, ffmin(n, (cap) - (a)->len), elsz)
+
+
 #define ffarr_zero(a)  ffmem_zero((a)->ptr, (a)->len)
 
 
@@ -152,6 +165,9 @@ FF_EXTN void * _ffarr_push(ffarr *ar, size_t elsz);
 #define ffarr_push(ar, T) \
 	(T*)_ffarr_push((ffarr*)ar, sizeof(T))
 
+#define ffarr_add(a, src, n, elsz) \
+	ffarr2_add(a, (a)->cap, src, n, elsz)
+
 /** Add items into array.  Reallocate memory, if needed.
 Return the tail.
 Return NULL on error. */
@@ -197,7 +213,7 @@ static FFINL void _ffarr_rmswap(ffarr *ar, void *el, size_t elsz) {
 	ar->len--;
 	last = ar->ptr + ar->len * elsz;
 	if (el != last)
-		memcpy(el, last, elsz);
+		memmove(el, last, elsz);
 }
 
 #define ffarr_rmswap(ar, el) \
@@ -316,9 +332,8 @@ static FFINL ffbool ffstr_imatch(const ffstr *s1, const char *s2, size_t n) {
 
 #define ffstr_free(s)  ffarr2_free(s)
 
-static FFINL void ffstr_cat(ffstr *s, size_t cap, const char *d, size_t len) {
-	char *p = ffs_copy(s->ptr + s->len, s->ptr + cap, d, len);
-	s->len = p - s->ptr;
+static FFINL size_t ffstr_cat(ffstr *s, size_t cap, const char *d, size_t len) {
+	return ffarr2_add((ffarr2*)s, cap, d, len, sizeof(char));
 }
 
 static FFINL char * ffstr_copy(ffstr *s, const char *d, size_t len) {
@@ -433,8 +448,8 @@ struct ffbuf_gather {
 };
 
 enum FFBUF_R {
+	FFBUF_ERR = -1,
 	FFBUF_MORE,
-	FFBUF_ERR,
 	FFBUF_READY,
 	FFBUF_DONE,
 };

@@ -18,7 +18,54 @@ static void tmrq_onfire(void *t);
 static void tree_instimer(fftree_node *nod, fftree_node **root, void *sentl);
 
 
-#define ff_align_floor(n, bound)  ((n) & ~((bound) - 1))
+#ifdef _DEBUG
+#include <FFOS/atomic.h>
+
+static ffatomic counter;
+int ffdbg_mask = 1;
+int ffdbg_print(int t, const char *fmt, ...)
+{
+	char buf[4096];
+	size_t n;
+	va_list va;
+	va_start(va, fmt);
+
+	n = ffs_fmt(buf, buf + FFCNT(buf), "%p#%L "
+		, &counter, (size_t)ffatom_incret(&counter));
+
+	n += ffs_fmtv(buf + n, buf + FFCNT(buf), fmt, va);
+	fffile_write(ffstdout, buf, n);
+
+	va_end(va);
+	return 0;
+}
+#endif
+
+
+size_t fffile_fmt(fffd fd, ffarr *buf, const char *fmt, ...)
+{
+	size_t r;
+	va_list args;
+	ffarr dst = {0};
+
+	if (buf == NULL) {
+		if (NULL == ffarr_realloc(&dst, 1024))
+			return 0;
+		buf = &dst;
+	}
+	else
+		buf->len = 0;
+
+	va_start(args, fmt);
+	r = ffstr_catfmtv(buf, fmt, args);
+	va_end(args);
+
+	if (r != 0)
+		r = fffile_write(fd, buf->ptr, r);
+
+	ffarr_free(&dst);
+	return r;
+}
 
 void fffile_mapclose(fffilemap *fm)
 {

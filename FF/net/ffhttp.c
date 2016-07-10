@@ -144,6 +144,17 @@ static const uint hdrHashes[] = {
 	, 2063623452U /*Status*/
 };
 
+#if 0
+void _ffhttp_print_hdr_hashes(void)
+{
+	for (uint i = 0;  i != FFCNT(ffhttp_shdr);  i++) {
+		fffile_fmt(ffstdout, NULL, "%10uU, /*%S*/\n"
+			, ffcrc32_iget(FFSTR2(ffhttp_shdr[i])), &ffhttp_shdr[i]
+		);
+	}
+}
+#endif
+
 static ffhstab ht_known_hdrs;
 
 static int ht_knhdr_cmpkey(void *val, const char *key, size_t keylen, void *param)

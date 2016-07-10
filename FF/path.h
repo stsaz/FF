@@ -27,6 +27,8 @@ FF_EXTN size_t ffpath_norm(char *dst, size_t dstcap, const char *path, size_t le
 FF_EXTN size_t ffpath_makefn(char *dst, size_t dstcap, const char *src, size_t len, int repl_with);
 
 #if defined FF_UNIX
+#define ffpath_findslash(path, len)  ffs_find(path, len, '/')
+
 /** Find the last slash in path. */
 #define ffpath_rfindslash(path, len)  ffs_rfind(path, len, '/')
 
@@ -34,6 +36,7 @@ FF_EXTN size_t ffpath_makefn(char *dst, size_t dstcap, const char *src, size_t l
 #define ffpath_isvalidfn(fn, len)  ((fn) + (len) == ffs_findof(fn, len, "/\0", 2))
 
 #else
+#define ffpath_findslash(path, len)  ffs_findof(path, len, "/\\", 2)
 #define ffpath_rfindslash(path, len)  ffs_rfindof(path, len, "/\\", 2)
 #define ffpath_isvalidfn(fn, len)  ((fn) + (len) == ffs_findof(fn, len, "/\\\0", 3))
 #endif

@@ -501,7 +501,7 @@ static const struct test_s _fftests[] = {
 int main(int argc, const char **argv)
 {
 	size_t i, iarg;
-	ffos_init();
+	ffmem_init();
 
 	if (argc == 1) {
 		printf("Supported tests: all ");

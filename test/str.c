@@ -307,11 +307,7 @@ static int test_strf()
 	ffqstr qs1;
 
 	x(0 != ffstr_catfmt(&s, "%03D %03xI %3d 0x%p", (int64)-9, (size_t)-0x543fe, (int)-5, (void*)0xab1234));
-#if defined FF_64
-	x(ffstr_eqcz(&s, "-009 -543fe -  5 0x0000000000ab1234"));
-#else
 	x(ffstr_eqcz(&s, "-009 -543fe -  5 0x00ab1234"));
-#endif
 
 	s.len = 0;
 	ffstr_setcz(&s1, "hello");

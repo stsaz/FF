@@ -4,7 +4,6 @@ Copyright (c) 2013 Simon Zolin
 
 #include <FF/string.h>
 #include <FF/array.h>
-#include <FFOS/file.h>
 #include <FFOS/error.h>
 #include <math.h>
 
@@ -226,6 +225,14 @@ char * ffs_skip(const char *buf, size_t len, int ch)
 	const char *end = buf + len;
 	while (buf != end && *buf == ch)
 		++buf;
+	return (char*)buf;
+}
+
+char * ffs_skipof(const char *buf, size_t len, const char *anyof, size_t cnt)
+{
+	const char *end = buf + len;
+	while (buf != end && NULL != ffs_findc(anyof, cnt, *buf))
+		buf++;
 	return (char*)buf;
 }
 
@@ -1262,31 +1269,6 @@ size_t ffstr_catfmtv(ffstr3 *s, const char *fmt, va_list args)
 	return r;
 }
 
-size_t fffile_fmt(fffd fd, ffstr3 *buf, const char *fmt, ...)
-{
-	size_t r;
-	va_list args;
-	ffstr3 dst = { 0 };
-
-	if (buf == NULL) {
-		if (NULL == ffarr_realloc(&dst, 1024))
-			return 0;
-		buf = &dst;
-	}
-	else
-		buf->len = 0;
-
-	va_start(args, fmt);
-	r = ffstr_catfmtv(buf, fmt, args);
-	va_end(args);
-
-	if (r != 0)
-		r = fffile_write(fd, buf->ptr, r);
-
-	ffarr_free(&dst);
-	return r;
-}
-
 size_t ffs_fmatchv(const char *s, size_t len, const char *fmt, va_list va)
 {
 	const char *s_o = s, *s_end = s + len;
@@ -1464,28 +1446,3 @@ ffbstr * ffbstr_push(ffstr *buf, const char *data, size_t len)
 	buf->len += sizeof(ffbstr) + len;
 	return bs;
 }
-
-
-#ifdef _DEBUG
-#include <FFOS/atomic.h>
-#include <FFOS/file.h>
-
-static ffatomic counter;
-int ffdbg_mask = 1;
-int ffdbg_print(int t, const char *fmt, ...)
-{
-	char buf[4096];
-	size_t n;
-	va_list va;
-	va_start(va, fmt);
-
-	n = ffs_fmt(buf, buf + FFCNT(buf), "%p#%L "
-		, &counter, (size_t)ffatom_incret(&counter));
-
-	n += ffs_fmtv(buf + n, buf + FFCNT(buf), fmt, va);
-	fffile_write(ffstdout, buf, n);
-
-	va_end(va);
-	return 0;
-}
-#endif

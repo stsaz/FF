@@ -168,6 +168,8 @@ FF_EXTN char * ffs_rfindof(const char *buf, size_t len, const char *anyof, size_
 /** Skip characters at the beginning of the string. */
 FF_EXTN char * ffs_skip(const char *buf, size_t len, int ch);
 
+FF_EXTN char * ffs_skipof(const char *buf, size_t len, const char *anyof, size_t cnt);
+
 /** Skip characters at the end of the string. */
 FF_EXTN char * ffs_rskip(const char *buf, size_t len, int ch);
 
