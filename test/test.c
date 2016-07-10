@@ -36,8 +36,8 @@ size_t _test_readfile(const char *fn, char *buf, size_t n)
 
 static int test_crc()
 {
-	x(0x7052c01a == ffcrc32_get(FFSTR("hello, man!"), 0));
-	x(0x7052c01a == ffcrc32_get(FFSTR("HELLO, MAN!"), 1));
+	x(0x7052c01a == ffcrc32_get("hello, man!", FFSLEN("hello, man!")));
+	x(0x7052c01a == ffcrc32_iget(FFSTR("HELLO, MAN!")));
 	return 0;
 }
 

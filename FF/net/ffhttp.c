@@ -523,7 +523,7 @@ static int ht_headr_cmpkey(void *val, const char *key, size_t keylen, void *para
 
 int ffhttp_findhdr(const ffhttp_headers *h, const char *name, size_t namelen, ffstr *dst)
 {
-	uint hash = ffcrc32_get(name, namelen, 1);
+	uint hash = ffcrc32_iget(name, namelen);
 	const _ffhttp_headr *hh = ffhst_find(&h->htheaders, hash, name, namelen, (void*)h);
 	if (hh == NULL)
 		return 0;

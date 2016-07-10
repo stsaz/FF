@@ -7,9 +7,10 @@ Copyright (c) 2013 Simon Zolin
 #include <FFOS/types.h>
 #include <FF/string.h>
 
-enum FFCRC_F {
-	FFCRC_ICASE = 1
-};
+
+/** Fast CRC32 implementation using 8k table. */
+FF_EXTN uint crc32(const byte *buf, size_t size, uint crc);
+
 
 static FFINL uint ffcrc32_start() {
 	return 0xffffffff;
@@ -37,16 +38,21 @@ static FFINL void ffcrc32_finish(uint *crc) {
 	*crc ^= 0xffffffff;
 }
 
-static FFINL uint ffcrc32_get(const char *p, size_t len, int case_insens) {
+static FFINL uint ffcrc32_get(const char *p, size_t len)
+{
 	uint crc = ffcrc32_start();
-	if (case_insens) {
-		size_t i;
-		for (i = 0;  i != len;  i++) {
-			ffcrc32_iupdate(&crc, (byte)p[i]);
-		}
+	for (size_t i = 0;  i != len;  i++) {
+		ffcrc32_update(&crc, (byte)p[i]);
+	}
+	ffcrc32_finish(&crc);
+	return crc;
+}
 
-	} else {
-		ffcrc32_updatestr(&crc, p, len);
+static FFINL uint ffcrc32_iget(const char *p, size_t len)
+{
+	uint crc = ffcrc32_start();
+	for (size_t i = 0;  i != len;  i++) {
+		ffcrc32_iupdate(&crc, (byte)p[i]);
 	}
 	ffcrc32_finish(&crc);
 	return crc;

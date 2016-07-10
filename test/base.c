@@ -213,13 +213,13 @@ int test_htable()
 
 	for (i = 0;  i < FFCNT(svc_table);  i++) {
 		const svc_table_t *t = &svc_table[i];
-		uint hash = ffcrc32_get(t->svc, strlen(t->svc), 0);
+		uint hash = ffcrc32_get(t->svc, strlen(t->svc));
 		x(ffhst_ins(&ht, hash, (void*)t) >= 0);
 	}
 
 	for (i = 0;  i < FFCNT(svc_table);  i++) {
 		const svc_table_t *t = &svc_table[i];
-		uint hash = ffcrc32_get(t->svc, strlen(t->svc), 0);
+		uint hash = ffcrc32_get(t->svc, strlen(t->svc));
 		t = ffhst_find(&ht, hash, t->svc, strlen(t->svc), NULL);
 		x(t == &svc_table[i]);
 	}
