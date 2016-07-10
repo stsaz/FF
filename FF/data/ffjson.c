@@ -788,7 +788,7 @@ int ffjson_add(ffjson_cook *c, int f, const void *src)
 int ffjson_addvv(ffjson_cook *js, const int *types, size_t ntypes, va_list va)
 {
 	size_t i;
-	int r = FFJSON_OK;
+	int r, ret = FFJSON_OK;
 	int64 v;
 	void *ptr;
 
@@ -800,12 +800,17 @@ int ffjson_addvv(ffjson_cook *js, const int *types, size_t ntypes, va_list va)
 		} else
 			ptr = va_arg(va, void*);
 
-		ffjson_add(js, types[i], ptr);
+		r = ffjson_add(js, types[i], ptr);
+		if (r == FFJSON_OK) {
+		} else if (r < 0)
+			ret += r;
+		else
+			return r;
 	}
 
 	FF_ASSERT(NULL == va_arg(va, void*));
 
-	return r;
+	return ret;
 }
 
 int ffjson_bufadd(ffjson_cook *js, int f, const void *src)
@@ -835,42 +840,21 @@ int ffjson_bufaddv(ffjson_cook *js, const int *types, size_t ntypes, ...)
 {
 	va_list va;
 	size_t len = 0;
-	size_t i;
 	int r = FFJSON_OK;
-	int64 v;
-	void *ptr;
 	ffjson_cook tmp;
 
 	// get overall length of data being inserted
 	tmp = *js;
 	ffarr_null(&js->buf);
 	va_start(va, ntypes);
-
-	for (i = 0;  i < ntypes;  i++) {
-
-		if ((types[i] & FFJSON_FINTVAL) == FFJSON_FINTVAL) {
-			v = (types[i] & FFJSON_F32BIT) ? va_arg(va, int) : va_arg(va, int64);
-			ptr = &v;
-		} else
-			ptr = va_arg(va, void*);
-
-		r = ffjson_add(js, types[i], ptr);
-
-		if (r >= 0) {
-			va_end(va);
-			js->buf = tmp.buf;
-			js->st = tmp.st;
-			js->ctxs.len = tmp.ctxs.len;
-			return r;
-		}
-
-		len += -r;
-	}
-
+	r = ffjson_addvv(js, types, ntypes, va);
 	va_end(va);
 	js->buf = tmp.buf;
 	js->st = tmp.st;
 	js->ctxs.len = tmp.ctxs.len;
+	if (r >= 0)
+		return r;
+	len = -r;
 
 	if (NULL == ffarr_grow(&js->buf, len + 1, 0))
 		return FFJSON_ERR;
