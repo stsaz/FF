@@ -6,7 +6,7 @@ Copyright (c) 2015 Simon Zolin
 
 #include <FF/audio/mpeg.h>
 
-#include <lame.h>
+#include <mp3lame/lame-ff.h>
 
 
 enum FFMPG_ENC_OPT {
@@ -17,7 +17,7 @@ enum FFMPG_ENC_OPT {
 typedef struct ffmpg_enc {
 	uint state;
 	int err;
-	lame_global_flags *lam;
+	lame *lam;
 	uint fmt;
 	uint channels;
 
@@ -31,6 +31,7 @@ typedef struct ffmpg_enc {
 	const float **pcmf;
 	const short *pcmi;
 	};
+	size_t pcmoff;
 
 	ffarr buf;
 	size_t datalen;

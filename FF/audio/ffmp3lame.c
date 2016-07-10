@@ -6,17 +6,8 @@ Copyright (c) 2015 Simon Zolin
 #include <FFOS/error.h>
 
 
-static const char *const lame_errstr[] = {
-	"mp3buf was too small", //-1
-	"malloc() problem", //-2
-	"", //-3
-	"psycho acoustic problems", //-4
-};
-
 const char* ffmpg_enc_errstr(ffmpg_enc *m)
 {
-	uint e;
-
 	switch (m->err) {
 	case FFMPG_ESYS:
 		return fferr_strp(fferr_last());
@@ -25,19 +16,12 @@ const char* ffmpg_enc_errstr(ffmpg_enc *m)
 		return "PCM format error";
 	}
 
-	e = -m->err - 1;
-	if (e >= FFCNT(lame_errstr))
-		return "";
-	return lame_errstr[e];
-}
-
-static void lame_err(const char *format, va_list ap)
-{
+	return lame_errstr(m->err);
 }
 
 int ffmpg_create(ffmpg_enc *m, ffpcm *pcm, int qual)
 {
-	lame_global_flags *lam;
+	int r;
 
 	switch (pcm->format) {
 	case FFPCM_16LE:
@@ -53,39 +37,28 @@ int ffmpg_create(ffmpg_enc *m, ffpcm *pcm, int qual)
 		return FFMPG_EFMT;
 	}
 
-	if (NULL == (lam = lame_init())) {
+	lame_params conf = {0};
+	conf.format = ffpcm_bits(pcm->format);
+	conf.interleaved = m->ileaved;
+	conf.channels = pcm->channels;
+	conf.rate = pcm->sample_rate;
+	conf.rate = pcm->sample_rate;
+	conf.quality = qual;
+	if (0 != (r = lame_create(&m->lam, &conf))) {
+		m->err = r;
+		return FFMPG_EFMT;
+	}
+
+	if (NULL == ffarr_realloc(&m->buf, 125 * (8 * 1152) / 100 + 7200)) {
 		m->err = FFMPG_ESYS;
 		return FFMPG_ESYS;
 	}
 
-	lame_set_errorf(lam, &lame_err);
-	lame_set_debugf(lam, &lame_err);
-	lame_set_msgf(lam, &lame_err);
-
-	lame_set_num_channels(lam, pcm->channels);
 	m->channels = pcm->channels;
 	m->fmt = pcm->format;
-	lame_set_in_samplerate(lam, pcm->sample_rate);
-	lame_set_quality(lam, 2);
-
-	if (qual < 10) {
-		lame_set_VBR(lam, vbr_default);
-		lame_set_VBR_q(lam, qual);
-	} else {
-		lame_set_preset(lam, qual);
-		lame_set_VBR(lam, vbr_off);
-	}
-
-	if (-1 == lame_init_params(lam)) {
-		lame_close(lam);
-		m->err = FFMPG_ESYS;
-		return FFMPG_ESYS;
-	}
 
 	ffid31_init(&m->id31);
 	m->min_meta = 1000;
-
-	m->lam = lam;
 	return FFMPG_EOK;
 }
 
@@ -93,7 +66,7 @@ void ffmpg_enc_close(ffmpg_enc *m)
 {
 	ffarr_free(&m->id3.buf);
 	ffarr_free(&m->buf);
-	lame_close(m->lam);
+	FF_SAFECLOSE(m->lam, NULL, lame_free);
 }
 
 int ffmpg_addtag(ffmpg_enc *m, uint id, const char *val, size_t vallen)
@@ -112,12 +85,10 @@ int ffmpg_encode(ffmpg_enc *m)
 {
 	enum { I_ID32, I_ID32_AFTER, I_ID31,
 		I_DATA, I_LAMETAG_SEEK, I_LAMETAG, I_DONE };
-	size_t cap, nsamples;
+	size_t nsamples;
 	int r = 0;
 
-	if (m->pcmlen == 0 && !m->fin)
-		return FFMPG_RMORE;
-
+	for (;;) {
 	switch (m->state) {
 	case I_ID32:
 		if (m->options & FFMPG_WRITE_ID3V2) {
@@ -157,7 +128,7 @@ int ffmpg_encode(ffmpg_enc *m)
 		return FFMPG_RSEEK;
 
 	case I_LAMETAG:
-		r = lame_get_lametag_frame(m->lam, (byte*)m->buf.ptr, m->buf.cap);
+		r = lame_lametag(m->lam, m->buf.ptr, m->buf.cap);
 		m->data = m->buf.ptr;
 		m->datalen = ((uint)r <= m->buf.cap) ? r : 0;
 		m->state = I_DONE;
@@ -167,44 +138,47 @@ int ffmpg_encode(ffmpg_enc *m)
 		return FFMPG_RDONE;
 	}
 
-	nsamples = m->pcmlen / ffpcm_size(m->fmt, lame_get_num_channels(m->lam));
-	cap = 125 * nsamples / 100 + 7200;
-	if (NULL == ffarr_realloc(&m->buf, cap)) {
-		m->err = FFMPG_ESYS;
-		return FFMPG_RERR;
-	}
-	m->data = m->buf.ptr;
+	nsamples = m->pcmlen / ffpcm_size(m->fmt, m->channels);
+	nsamples = ffmin(nsamples, 8 * 1152);
 
-	if (m->ileaved) {
-		// FFPCM_16LE
-		r = lame_encode_buffer_interleaved(m->lam, (void*)m->pcmi, nsamples, m->data, cap);
-
-	} else if (m->pcmlen != 0) {
-		const void *ch2 = (m->channels == 1) ? NULL : m->pcm[1];
-
-		switch (m->fmt) {
-		case FFPCM_16LE:
-			r = lame_encode_buffer(m->lam, m->pcm[0], ch2, nsamples, m->data, cap);
-			break;
-
-		case FFPCM_FLOAT:
-			r = lame_encode_buffer_ieee_float(m->lam, m->pcmf[0], ch2, nsamples, m->data, cap);
-			break;
+	r = 0;
+	if (nsamples != 0) {
+		const void *pcm[2];
+		if (m->ileaved)
+			pcm[0] = (char*)m->pcmi + m->pcmoff * m->channels;
+		else {
+			for (uint i = 0;  i != m->channels;  i++) {
+				pcm[i] = (char*)m->pcm[i] + m->pcmoff;
+			}
 		}
+		r = lame_encode(m->lam, pcm, nsamples, m->buf.ptr, m->buf.cap);
+		if (r < 0) {
+			m->err = r;
+			return FFMPG_RERR;
+		}
+		m->pcmoff += nsamples * ffpcm_bits(m->fmt)/8;
+		m->pcmlen -= nsamples * ffpcm_size(m->fmt, m->channels);
 	}
 
-	if (r < 0) {
-		m->err = r;
-		return FFMPG_RERR;
-	}
-	m->pcmlen = 0;
-	m->datalen = r;
+	if (r == 0) {
+		if (m->pcmlen != 0)
+			continue;
 
-	if (m->fin) {
-		r = lame_encode_flush(m->lam, (byte*)m->data + r, cap - r);
-		m->datalen += r;
+		if (!m->fin) {
+			m->pcmoff = 0;
+			return FFMPG_RMORE;
+		}
+
+		r = lame_encode(m->lam, NULL, 0, (char*)m->buf.ptr, m->buf.cap);
+		if (r < 0) {
+			m->err = r;
+			return FFMPG_RERR;
+		}
 		m->state = I_ID31;
 	}
 
+	m->data = m->buf.ptr;
+	m->datalen = r;
 	return FFMPG_RDATA;
+	}
 }
