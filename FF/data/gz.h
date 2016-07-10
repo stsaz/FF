@@ -33,8 +33,6 @@ typedef struct ffgzheader {
 	// fhcrc=1: crc16
 } ffgzheader;
 
-// static const byte ffgz_defaulthdr[10] = { 0x1f, 0x8b, 8, 0, 0,0,0,0, 0, 255 };
-
 typedef struct ffgztrailer {
 	uint crc32 //CRC of uncompressed data
 		, isize; //size of uncompressed data
