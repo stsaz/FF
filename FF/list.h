@@ -5,6 +5,7 @@ Copyright (c) 2013 Simon Zolin
 #pragma once
 
 #include <FFOS/types.h>
+#include <FF/chain.h>
 
 
 typedef struct fflist1_item fflist1_item;
@@ -32,58 +33,38 @@ static FFINL fflist1_item* fflist1_pop(fflist1 *lst)
 }
 
 
-#define FFLIST_END  NULL
+typedef ffchain_item fflist_item;
 
-typedef struct fflist_item fflist_item;
-struct fflist_item {
-	fflist_item *next
-		, *prev;
-};
-
-#define fflist_sentl(lst)  FFLIST_END
-
-/** Insert a new item into the chain. */
-FF_EXTN void fflist_link(fflist_item *it, fflist_item *after);
-
-/** Remove item from the chain. */
-FF_EXTN void fflist_unlink(fflist_item *it);
-
-/** Walk through a chain. */
-#define FFLIST_WALKNEXT(begin, li) \
-	for (li = (begin);  li != FFLIST_END;  li = li->next)
-
-/** Walk through a chain safely. */
-#define FFLIST_WALKNEXTSAFE(begin, li, nextitem) \
-	for (li = (begin) \
-		; li != FFLIST_END && ((nextitem = li->next) || 1) \
-		; li = nextitem)
-
+#define fflist_sentl(lst)  ((fflist_item*)ffchain_sentl(lst))
 
 typedef struct fflist {
-	size_t len;
 	fflist_item *first
 		, *last;
+	size_t len;
 } fflist;
 
 /** Initialize container. */
 static FFINL void fflist_init(fflist *ls) {
 	ls->len = 0;
-	ls->first = ls->last = FFLIST_END;
+	ls->first = ls->last = fflist_sentl(ls);
 }
 
 #define fflist_empty(lst)  ((lst)->first == fflist_sentl(lst))
+
+#define FFLIST_FOREACH(lst, it) \
+	for (it = (lst)->first;  it != fflist_sentl(lst);  it = it->next)
 
 /** Traverse a list.
 @p: pointer to a structure containing @member_name. */
 #define FFLIST_WALK(lst, p, member_name) \
 	for (p = (void*)(lst)->first \
-		; p != fflist_sentl(lst) \
+		; p != (void*)fflist_sentl(lst) \
 			&& ((p = (void*)((size_t)p - ((size_t)&p->member_name - (size_t)p))) || 1) \
 		; p = (void*)p->member_name.next)
 
 #define FFLIST_WALKSAFE(lst, p, li, nextitem) \
 	for (p = (void*)(lst)->first \
-		; p != fflist_sentl(lst) \
+		; p != (void*)fflist_sentl(lst) \
 			&& ((nextitem = ((fflist_item*)p)->next) || 1) \
 			&& ((p = (void*)((size_t)p - ((size_t)&p->li - (size_t)p))) || 1) \
 		; p = (void*)nextitem)
@@ -99,29 +80,41 @@ struct mystruct_t {
 FFLIST_ENUMSAFE(&mylist, ffmem_free, struct mystruct_t, sibling); */
 #define FFLIST_ENUMSAFE(lst, func, struct_name, member_name) \
 do { \
-	fflist_item *iter, *li; \
-	FFLIST_WALKNEXTSAFE((lst)->first, li, iter) { \
-		func(FF_GETPTR(struct_name, member_name, li)); \
+	fflist_item *li; \
+	for (li = (lst)->first;  li != fflist_sentl(lst); ) { \
+		void *p = FF_GETPTR(struct_name, member_name, li); \
+		li = li->next; \
+		func(p); \
 	} \
 } while (0)
 
 
 /** Return TRUE if the item is added into the list. */
 static FFINL ffbool fflist_exists(fflist *lst, fflist_item *it) {
-	return it->next != FFLIST_END || it->prev != FFLIST_END
-		|| lst->first == it;
+	return it->next != NULL;
 }
 
 /** Add item to the end. */
-FF_EXTN void fflist_ins(fflist *lst, fflist_item *it);
-
-FF_EXTN void fflist_place(fflist *lst, fflist_item *it, fflist_item *after);
+#define fflist_ins(lst, it) \
+do { \
+	ffchain_append(it, (lst)->last); \
+	(lst)->len++; \
+} while (0)
 
 /** Add item to the beginning. */
-FF_EXTN void fflist_prepend(fflist *lst, fflist_item *it);
+#define fflist_prepend(lst, it) \
+do { \
+	ffchain_prepend(it, (lst)->first); \
+	(lst)->len++; \
+} while (0)
 
 /** Remove item. */
-FF_EXTN void fflist_rm(fflist *lst, fflist_item *it);
+static FFINL void fflist_rm(fflist *lst, fflist_item *it)
+{
+	FF_ASSERT(lst->len != 0);
+	ffchain_unlink(it);
+	lst->len--;
+}
 
 /** Move the item to the beginning. */
 static FFINL void fflist_movetofront(fflist *lst, fflist_item *it) {
@@ -158,6 +151,5 @@ enum FFLIST_CUR {
 
 /** Shift cursor.
 @cmd: enum FFLIST_CUR
-@sentl: note: only NULL is supported
 Return enum FFLIST_CUR. */
 FF_EXTN uint fflist_curshift(fflist_cursor *cur, uint cmd, void *sentl);

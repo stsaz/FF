@@ -363,7 +363,7 @@ void ffrbtl_insert(ffrbtree *tr, ffrbtl_node *k)
 	if (found == NULL)
 		ffrbtl_insert3(tr, k, n);
 	else {
-		fflist_link(&k->sib, &found->sib);
+		ffchain_append(&k->sib, &found->sib);
 		tr->len++;
 	}
 }
@@ -390,7 +390,7 @@ void ffrbtl_rm(ffrbtree *tr, ffrbtl_node *k)
 	}
 
 	next = (ffrbt_node*)ffrbtl_nodebylist(k->sib.next);
-	fflist_unlink(&k->sib);
+	ffchain_unlink(&k->sib);
 
 	if (k->parent == NULL) {
 		// the node is just a list item
@@ -423,13 +423,13 @@ int ffrbtl_enumsafe(ffrbtree *tr, fftree_on_item_t on_item, void *udata, uint of
 
 	FFTREE_WALKSAFE(tr, nod, next) {
 
-		FFLIST_WALKNEXTSAFE(((ffrbtl_node*)nod)->sib.next, li, nextli) {
-			if (li == &((ffrbtl_node*)nod)->sib)
-				break; //reached the beginning of chain
+		for (li = ((ffrbtl_node*)nod)->sib.next;  li != &((ffrbtl_node*)nod)->sib; ) {
 
+			nextli = li->next;
 			rc = on_item((byte*)ffrbtl_nodebylist(li) - off, udata);
 			if (rc != 0)
 				return rc;
+			li = nextli;
 		}
 
 		rc = on_item((byte*)nod - off, udata);

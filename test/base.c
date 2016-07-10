@@ -144,12 +144,12 @@ int test_list()
 	fflist_moveback(&ls, &i2);
 	x(ls.first == &i1 && ls.last == &i2);
 
-	fflist_link(&i3, &i1);
+	ffchain_append(&i3, &i1);
 	// i1 -> i3 -> i2
 	x(i1.next == &i3 && i3.prev == &i1 && i3.next == &i2);
 
 	n = 0;
-	FFLIST_WALKNEXT(&i1, li) {
+	for (li = &i1;  li != fflist_sentl(&ls);  li = li->next) {
 		switch (n++) {
 		case 0:
 			x(li == &i1);
@@ -163,7 +163,7 @@ int test_list()
 		}
 	}
 
-	fflist_unlink(&i3);
+	ffchain_unlink(&i3);
 	x(i1.next == &i2 && i2.prev == &i1);
 
 	return 0;

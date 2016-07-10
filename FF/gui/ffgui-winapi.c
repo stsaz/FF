@@ -378,12 +378,12 @@ void ffui_paned_create(ffui_paned *pn, ffui_wnd *parent)
 {
 	ffui_paned *p;
 
-	if (parent->paned_first == FFLIST_END) {
+	if (parent->paned_first == NULL) {
 		parent->paned_first = pn;
 		return;
 	}
 
-	for (p = parent->paned_first;  p->next != FFLIST_END;  p = p->next) {
+	for (p = parent->paned_first;  p->next != NULL;  p = p->next) {
 	}
 	p->next = pn;
 }
@@ -1280,7 +1280,7 @@ int ffui_wndproc(ffui_wnd *wnd, size_t *code, HWND h, uint msg, size_t w, size_t
 			break; //window has been minimized
 
 		ffui_paned *p;
-		FFLIST_WALKNEXT(wnd->paned_first, p) {
+		for (p = wnd->paned_first;  p != NULL;  p = p->next) {
 			paned_resize(p, wnd);
 		}
 
