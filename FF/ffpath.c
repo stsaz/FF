@@ -8,82 +8,107 @@ Copyright (c) 2013 Simon Zolin
 
 size_t ffpath_norm(char *dst, size_t dstcap, const char *path, size_t len, int flags)
 {
-	enum { iNorm, iSlash, iDot, iDot2 };
-	ffbool strictBounds = (flags & FFPATH_STRICT_BOUNDS);
-	int idx = iNorm;
-	size_t i;
-	const char *dsto = dst;
-	const char *dstend = dst + dstcap;
-	char *r;
+	ffstr name;
+	const char *p = path, *path_end = path + len, *dstend = dst + dstcap;
+	char *dsto = dst, *slash, *prev_slash;
+	int lev = 0, abs = 0, abs_win, root;
 
-	if (!ffpath_abs(path, len))
-		return 0;
+	if (flags == 0)
+		flags = FFPATH_MERGESLASH | FFPATH_MERGEDOTS;
 
-	for (i = 0; i < len; ++i) {
-		int ch = path[i];
+#ifdef FF_WIN
+	flags |= FFPATH_WINDOWS;
+#endif
 
-		if (dst == dstend
-			|| ch == '\0')
-			return 0;
+	if (p[0] == '/')
+		abs = 1;
+	else if (flags & FFPATH_WINDOWS) {
+		abs_win = (len >= FFSLEN("c:") && p[1] == ':' && ffchar_isletter(p[0]));
+		if (abs_win || p[0] == '\\')
+			abs = 1;
+	}
+	root = abs;
 
-		switch (idx) {
-		case iNorm:
-			if (ffpath_slash(ch)) {
-				*dst++ = '/';
-				idx = iSlash;
+	for (;  p < path_end;  p = slash + 1) {
+
+		if (flags & FFPATH_WINDOWS)
+			slash = ffs_findof(p, path_end - p, "/\\", 2);
+		else
+			slash = ffs_find(p, path_end - p, '/');
+		ffstr_set(&name, p, slash - p);
+
+		if ((flags & FFPATH_MERGESLASH) && name.len == 0 && slash != path)
+			continue;
+
+		else if (name.len == 1 && name.ptr[0] == '.') {
+			if (flags & _FFPATH_MERGEDOTS)
+				continue;
+
+		} else if (name.len == 2 && name.ptr[0] == '.' && name.ptr[1] == '.') {
+			lev--;
+
+			if ((flags & _FFPATH_STRICT_BOUNDS) && lev < 0) {
+				return 0;
+
+			} else if (flags & FFPATH_TOREL) {
+				dst = dsto;
+				continue;
+
+			} else if (flags & _FFPATH_MERGEDOTS) {
+				if (lev < 0) {
+					if (abs) {
+						lev = 0;
+						continue; // "/.." -> "/"
+					}
+
+					// relative path: add ".." as is
+
+				} else {
+					if (dst != dsto)
+						dst -= FFSLEN("/");
+
+					if (flags & FFPATH_WINDOWS)
+						prev_slash = ffs_rfindof(dsto, dst - dsto, "/\\", 2);
+					else
+						prev_slash = ffs_rfind(dsto, dst - dsto, '/');
+
+					if (prev_slash == dst)
+						dst = dsto; // "abc/.." -> ""
+					else
+						dst = prev_slash + 1;
+					continue;
+				}
 			}
-			else {
-				*dst++ = ch;
-				if (ch == '.')
-					idx = iDot;
-			}
-			break;
 
-		case iSlash:
-			if (!ffpath_slash(ch)) { // "//"
-				i--;
-				idx = iNorm;
-			}
-			break;
+		} else if (root) {
+			root = 0;
 
-		case iDot:
-			if (ffpath_slash(ch)) { // "/./"
-				dst -= FFSLEN(".");
-				idx = iSlash;
-			}
-			else {
-				*dst++ = ch;
-				idx = ch == '.' ? iDot2 : iNorm;
-			}
-			break;
-
-		case iDot2:
-			if (ffpath_slash(ch)) { // "/../"
-				dst -= FFSLEN("/..");
-				r = ffs_rfind(dsto, dst - dsto, '/');
-				if (r == dst && strictBounds)
+		} else {
+			if (flags & FFPATH_WINDOWS) {
+				if (ffarr_end(&name) != ffs_findof(name.ptr, name.len, "*?:\"\0", 5))
 					return 0;
-				dst = r + 1;
-				idx = iSlash;
+			} else {
+				if (ffarr_end(&name) != ffs_find(name.ptr, name.len, '\0'))
+					return 0;
 			}
-			else {
-				*dst++ = ch;
-				idx = iNorm;
-			}
-			break;
+
+			lev++;
+		}
+
+		if (dst + name.len + (slash != path_end) > dstend)
+			return 0;
+		memmove(dst, name.ptr, name.len);
+		dst += name.len;
+		if (slash != path_end) {
+			if (flags & (FFPATH_FORCESLASH | FFPATH_FORCEBKSLASH))
+				*dst++ = "/\\"[(flags & FFPATH_FORCEBKSLASH) != 0];
+			else
+				*dst++ = *slash;
 		}
 	}
 
-	if (idx == iDot)
-		dst -= FFSLEN(".");
-
-	if (idx == iDot2) {
-		dst -= FFSLEN("/..");
-		r = ffs_rfind(dsto, dst - dsto, '/');
-		if (r == dst && strictBounds)
-			return 0;
-		dst = r + 1;
-	}
+	if (dst == dsto && len != 0)
+		*dst++ = '.';
 
 	return dst - dsto;
 }

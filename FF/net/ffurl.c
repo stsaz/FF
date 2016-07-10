@@ -332,7 +332,7 @@ size_t ffuri_decode(char *dst, size_t dstcap, const char *d, size_t len)
 		goto fail; // incomplete quoted sequence, e.g. "%2"
 
 done:
-	idst = ffpath_norm(dst, dstcap, dst, idst, FFPATH_STRICT_BOUNDS);
+	idst = ffpath_norm(dst, dstcap, dst, idst, FFPATH_MERGEDOTS | FFPATH_STRICT_BOUNDS | FFPATH_WINDOWS | FFPATH_FORCESLASH);
 	if (idst == 0)
 		goto fail;
 	return idst;

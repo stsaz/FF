@@ -8,19 +8,45 @@ Copyright (c) 2013 Simon Zolin
 
 
 enum FFPATH_FLAGS {
-	FFPATH_STRICT_BOUNDS = 1
+	/** Merge duplicate slashes.
+	 "/1///2" -> "/1/2" */
+	FFPATH_MERGESLASH = 1,
+
+	/** Handle "." and ".." in path.
+	 "./1/./2/3" -> "1/2/3"
+	 "/../1/../2/3" -> "/2/3"
+	Note: ".." in relative paths such as below aren't merged:
+	 "../1/../2/3" -> "../1/../2/3" */
+	_FFPATH_MERGEDOTS = 2,
+	FFPATH_MERGEDOTS = _FFPATH_MERGEDOTS | FFPATH_MERGESLASH,
+
+	/** Fail if path is out of bounds.
+	 "/../1" or "../1" -> ERROR */
+	_FFPATH_STRICT_BOUNDS = 4,
+	FFPATH_STRICT_BOUNDS = _FFPATH_STRICT_BOUNDS | FFPATH_MERGESLASH,
+
+	/** Support "\" backslash and Windows disk drives "x:".  Always enabled on Windows.
+	Fail if found a character prohibited to use in filename on Windows: *?:" */
+	FFPATH_WINDOWS = 0x10,
+
+	/** Convert all "\" slashes to "/".
+	 "c:\1\2" -> "c:/1/2" */
+	FFPATH_FORCESLASH = 0x20,
+
+	/** Convert all "/" slashes to "\".
+	 "c:/1/2" -> "c:\1\2" */
+	FFPATH_FORCEBKSLASH = 0x40,
+
+	/** Convert path to relative.
+	 "/path" -> "path"
+	 "../1/2" -> "1/2"
+	 "c:/path" -> "path" (with FFPATH_WINDOWS) */
+	FFPATH_TOREL = 0x100,
 };
 
-/** Parse and process an absolute path.
-- Merge slashes //
-- Handle . and ..
-Windows: all "\" slashes are translated into "/".
-Return the number of bytes written in dst.
-Return 0 on error:
-	- not an absolute path.
-	- path contains invalid characters: \0.
-	- not enough space.
-	- ".." is out of bounds and FFPATH_STRICT_BOUNDS flag is set. */
+/** Process an absolute or relative path.
+@flags: enum FFPATH_FLAGS;  default: FFPATH_MERGESLASH | FFPATH_MERGEDOTS.
+Return the number of bytes written in 'dst';  0 on error. */
 FF_EXTN size_t ffpath_norm(char *dst, size_t dstcap, const char *path, size_t len, int flags);
 
 /** Replace characters that can not be used in a filename. */

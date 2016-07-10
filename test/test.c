@@ -46,6 +46,7 @@ static int test_path()
 	ffstr s;
 	char buf[60];
 	size_t n;
+	s.ptr = buf;
 
 	n = ffpath_norm(buf, FFCNT(buf), FFSTR("/path/file"), 0);
 	buf[n] = '\0';
@@ -59,25 +60,58 @@ static int test_path()
 	buf[n] = '\0';
 	x(0 == strcmp(buf, "/path2/file/"));
 
-#ifdef FF_WIN
-	n = ffpath_norm(buf, FFCNT(buf), FFSTR("c:\\path\\\\..//..\\path2//./file//./"), 0);
+	s.len = ffpath_norm(buf, FFCNT(buf), FFSTR("/."), 0);
+	x(ffstr_eqcz(&s, "/"));
+
+	s.len = ffpath_norm(buf, FFCNT(buf), FFSTR("/.."), 0);
+	x(ffstr_eqcz(&s, "/"));
+
+	s.len = ffpath_norm(buf, FFCNT(buf), FFSTR("./1"), 0);
+	x(ffstr_eqcz(&s, "1"));
+
+	s.len = ffpath_norm(buf, FFCNT(buf), FFSTR("../1"), 0);
+	x(ffstr_eqcz(&s, "../1"));
+
+	s.len = ffpath_norm(buf, FFCNT(buf), FFSTR("./1/./2"), 0);
+	x(ffstr_eqcz(&s, "1/2"));
+
+	s.len = ffpath_norm(buf, FFCNT(buf), FFSTR("./1/.."), 0);
+	x(ffstr_eqcz(&s, "."));
+
+	s.len = ffpath_norm(buf, FFCNT(buf), FFSTR("../../2"), 0);
+	x(ffstr_eqcz(&s, "../../2"));
+
+	s.len = ffpath_norm(buf, FFCNT(buf), FFSTR("../1/../2/./3"), FFPATH_MERGEDOTS | FFPATH_TOREL);
+	x(ffstr_eqcz(&s, "2/3"));
+
+	s.len = ffpath_norm(buf, FFCNT(buf), FFSTR("/../1/../2"), FFPATH_TOREL);
+	x(ffstr_eqcz(&s, "2"));
+
+	s.len = ffpath_norm(buf, FFCNT(buf), FFSTR("c:/../1/../2"), FFPATH_WINDOWS | FFPATH_TOREL);
+	x(ffstr_eqcz(&s, "2"));
+
+	n = ffpath_norm(buf, FFCNT(buf), FFSTR("c:\\path\\\\..//..\\path2//./file//./"), FFPATH_MERGEDOTS | FFPATH_FORCESLASH | FFPATH_WINDOWS);
 	buf[n] = '\0';
 	x(0 == strcmp(buf, "c:/path2/file/"));
-#endif
+
+	s.len = ffpath_norm(buf, FFCNT(buf), FFSTR("c:\\path/file/"), FFPATH_MERGEDOTS | FFPATH_FORCEBKSLASH | FFPATH_WINDOWS);
+	x(ffstr_eqcz(&s, "c:\\path\\file\\"));
+
+	x(0 == ffpath_norm(buf, FFCNT(buf), FFSTR("c:\\path\\file*"), FFPATH_WINDOWS));
 
 	n = ffpath_norm(buf, FFCNT(buf), FFSTR("//path/../.././file/./"), 0);
 	buf[n] = '\0';
 	x(0 == strcmp(buf, "/file/"));
 
-	n = ffpath_norm(buf, FFCNT(buf), FFSTR("/path/.."), FFPATH_STRICT_BOUNDS);
+	n = ffpath_norm(buf, FFCNT(buf), FFSTR("/path/.."), FFPATH_MERGEDOTS | FFPATH_STRICT_BOUNDS);
 	buf[n] = '\0';
 	x(0 == strcmp(buf, "/"));
 
-	n = ffpath_norm(buf, FFCNT(buf), FFSTR("/path/."), FFPATH_STRICT_BOUNDS);
+	n = ffpath_norm(buf, FFCNT(buf), FFSTR("/path/."), FFPATH_MERGEDOTS | FFPATH_STRICT_BOUNDS);
 	buf[n] = '\0';
 	x(0 == strcmp(buf, "/path/"));
 
-	n = ffpath_norm(buf, FFCNT(buf), FFSTR("/../a/../..//...///path/a/../path2/a/b//../.."), FFPATH_STRICT_BOUNDS);
+	n = ffpath_norm(buf, FFCNT(buf), FFSTR("/../a/../..//...///path/a/../path2/a/b//../.."), FFPATH_MERGEDOTS | FFPATH_STRICT_BOUNDS);
 	x(0 == ffs_eqcz(buf, n, "/.../path/path2/"));
 
 	x(0 == ffpath_norm(buf, FFCNT(buf), FFSTR("/path/../../file/./"), FFPATH_STRICT_BOUNDS));
