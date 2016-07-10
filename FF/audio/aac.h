@@ -6,7 +6,7 @@ Copyright (c) 2016 Simon Zolin
 
 #include <FF/audio/pcm.h>
 
-#include <fdk-aac-ff.h>
+#include <fdk-aac/fdk-aac-ff.h>
 
 
 typedef struct ffaac {

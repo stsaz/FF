@@ -57,7 +57,7 @@ void ffaac_seek(ffaac *a, uint64 sample)
 int ffaac_decode(ffaac *a)
 {
 	int r;
-	r = fdkaac_decode(a->dec, a->data, a->datalen, a->pcmbuf, &a->frsamples);
+	r = fdkaac_decode(a->dec, a->data, a->datalen, a->pcmbuf);
 	if (r == 0)
 		return FFAAC_RMORE;
 	else if (r < 0) {
@@ -65,7 +65,8 @@ int ffaac_decode(ffaac *a)
 		return FFAAC_RERR;
 	}
 
-	FFARR_SHIFT(a->data, a->datalen, r);
+	a->frsamples = r;
+	a->datalen = 0;
 	a->pcm = a->pcmbuf;
 
 	if (a->skip_samples != 0) {
