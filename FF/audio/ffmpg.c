@@ -765,8 +765,6 @@ int ffmpg_decode(ffmpg *m)
 		// break
 
 	case I_FR:
-		if (m->off == m->dataoff + m->total_size)
-			return FFMPG_RDONE;
 		m->datalen = ffmin(m->datalen, m->dataoff + m->total_size - m->off);
 		if (m->buf.len != 0) {
 			r = mpg123_decode(m->m123, m->buf.ptr, m->buf.len, NULL);
@@ -777,6 +775,8 @@ int ffmpg_decode(ffmpg *m)
 		m->off += m->datalen;
 		FFARR_SHIFT(m->data, m->datalen, m->datalen);
 		if (r == 0) {
+			if (m->off == m->dataoff + m->total_size)
+				return FFMPG_RDONE;
 			return FFMPG_RMORE;
 
 		} else if (r < 0) {
