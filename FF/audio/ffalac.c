@@ -74,16 +74,15 @@ int ffalac_decode(ffalac *a)
 	int r;
 	uint samps;
 
-	r = alac_decode(a->al, a->data, a->datalen, a->buf.ptr, &samps);
+	r = alac_decode(a->al, a->data, a->datalen, a->buf.ptr);
 	if (r < 0) {
 		a->err = r;
 		return FFALAC_RERR;
-	}
-
-	FFARR_SHIFT(a->data, a->datalen, r);
-	if (samps == 0)
+	} else if (r == 0)
 		return FFALAC_RMORE;
 
+	a->datalen = 0;
+	samps = r;
 	a->pcm = a->buf.ptr;
 	a->pcmlen = samps * ffpcm_size1(&a->fmt);
 
