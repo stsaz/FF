@@ -436,6 +436,7 @@ enum FFS_INT {
 
 	, FFS_INTSIGN = 0x10
 	, FFS_INTHEX = 0x20
+	, FFS_INTOCTAL = 0x40
 };
 
 /** Convert string to integer.
@@ -451,6 +452,7 @@ enum FFINT_TOSTR {
 	FFINT_SIGNED = 1
 	, FFINT_HEXLOW = 2
 	, FFINT_HEXUP = 4
+	, FFINT_OCTAL = 0x20
 	, FFINT_ZEROWIDTH = 8
 	, FFINT_SEP1000 = 0x10 // use thousands separator, e.g. "1,000"
 

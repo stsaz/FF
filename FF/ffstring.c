@@ -649,7 +649,19 @@ uint ffs_toint(const char *src, size_t len, void *dst, int flags)
 		&& ((minus = (src[0] == '-')) || src[0] == '+'))
 		i++;
 
-	if (!(flags & FFS_INTHEX)) {
+	if (flags & FFS_INTOCTAL) {
+		for (;  i != len;  i++) {
+			uint b = ffchar_tonum(src[i]);
+			if (b >= 8)
+				break;
+			r = r * 8 + b;
+			digits++;
+		}
+
+		if (digits > FFSLEN("1777777777777777777777"))
+			goto fail;
+
+	} else if (!(flags & FFS_INTHEX)) {
 		//dec
 		for (; i < len; ++i) {
 			byte b = src[i] - '0';
@@ -723,7 +735,7 @@ uint ffs_fromint(uint64 i, char *dst, size_t cap, int flags)
 	const char *end = dst + cap;
 	const char *dsto = dst;
 	uint len;
-	char s[FFINT_MAXCHARS];
+	char s[64];
 	char *ps = s + FFCNT(s);
 
 	if ((flags & FFINT_SIGNED) && (int64)i < 0) {
@@ -732,7 +744,13 @@ uint ffs_fromint(uint64 i, char *dst, size_t cap, int flags)
 		i = -(int64)i;
 	}
 
-	if ((flags & (FFINT_HEXUP | FFINT_HEXLOW)) == 0) {
+	if (flags & FFINT_OCTAL) {
+		do {
+			*(--ps) = (byte)(i % 8 + '0');
+			i /= 8;
+		} while (i != 0);
+
+	} else if ((flags & (FFINT_HEXUP | FFINT_HEXLOW)) == 0) {
 		//decimal
 		if (i <= 0xffffffff) {
 			uint i4 = (uint)i;
