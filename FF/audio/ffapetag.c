@@ -53,7 +53,7 @@ int ffapetag_parse(ffapetag *a, const char *data, size_t *len)
 	if (a->buf.len != 0)
 		ffstr_set(&d, a->buf.ptr, a->buf.len);
 	else
-		ffstr_set(&d, data, *len);
+		ffstr_set(&d, data + *len - a->size, a->size);
 	ffstr_shift(&d, a->nlen);
 
 	switch (a->state) {
