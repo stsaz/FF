@@ -33,7 +33,7 @@ static int wvpk_parse(struct wvpk_hdr *h, const char *data, size_t len);
 static int wvpk_findblock(const char *data, size_t len, struct wvpk_hdr *h);
 
 
-static int wvpk_hdr(ffwvpack *w);
+static int wvpk_hdrinfo(ffwvpack *w, const wavpack_info *inf);
 static int wvpk_id31(ffwvpack *w);
 static int wvpk_ape(ffwvpack *w);
 static int wvpk_seek(ffwvpack *w);
@@ -59,7 +59,7 @@ const char* ffwvpk_errstr(ffwvpack *w)
 		return fferr_strp(fferr_last());
 
 	case FFWVPK_EDECODE:
-		return WavpackGetErrorMessage(w->wp);
+		return wavpack_errstr(w->wp);
 	}
 
 	FF_ASSERT(w->err < FFCNT(wvpk_err));
@@ -114,16 +114,13 @@ static int wvpk_findblock(const char *data, size_t len, struct wvpk_hdr *h)
 }
 
 
-static FFINL int wvpk_hdr(ffwvpack *w)
+static FFINL int wvpk_hdrinfo(ffwvpack *w, const wavpack_info *inf)
 {
-	int mode;
+	int mode = inf->mode;
+	w->fmt.channels = inf->channels;
+	w->fmt.sample_rate = inf->rate;
 
-	mode = WavpackGetMode(w->wp);
-
-	w->fmt.channels = WavpackGetNumChannels(w->wp);
-	w->fmt.sample_rate = WavpackGetSampleRate(w->wp);
-
-	switch (WavpackGetBitsPerSample(w->wp)) {
+	switch (inf->bps) {
 	case 16:
 		w->fmt.format = FFPCM_16LE;
 		break;
@@ -145,7 +142,7 @@ static FFINL int wvpk_hdr(ffwvpack *w)
 		w->info.lossless = 1;
 
 	if (mode & MODE_MD5)
-		WavpackGetMD5Sum(w->wp, w->info.md5);
+		ffmemcpy(w->info.md5, inf->md5, sizeof(w->info.md5));
 
 	if (mode & MODE_EXTRA)
 		w->info.comp_level = 4;
@@ -165,7 +162,7 @@ void ffwvpk_close(ffwvpack *w)
 		ffapetag_parse_fin(&w->apetag);
 
 	if (w->wp != NULL)
-		WavpackCloseFile(w->wp);
+		wavpack_decode_free(w->wp);
 	ffmem_safefree(w->pcm);
 	ffarr_free(&w->buf);
 }
@@ -396,19 +393,20 @@ int ffwvpk_decode(ffwvpack *w)
 		continue;
 
 	case I_HDR:
-		if (NULL == (w->wp = WavpackDecodeInit())) {
+		if (NULL == (w->wp = wavpack_decode_init())) {
 			w->err = FFWVPK_ESYS;
 			return FFWVPK_RERR;
 		}
 
-		r = WavpackReadHeader(w->wp, w->buf.ptr, w->buf.len);
+		wavpack_info info = {0};
+		r = wavpack_read_header(w->wp, w->buf.ptr, w->buf.len, &info);
 		if (r == -1) {
 			w->err = FFWVPK_EDECODE;
 			return FFWVPK_RERR;
 		}
 		w->buf.len = 0;
 
-		if (FFWVPK_RDONE != wvpk_hdr(w))
+		if (FFWVPK_RDONE != wvpk_hdrinfo(w, &info))
 			return FFWVPK_RERR;
 		w->hdr_done = 1;
 
@@ -495,7 +493,7 @@ int ffwvpk_decode(ffwvpack *w)
 			w->outcap = w->blk_samples;
 		}
 
-		n = WavpackDecode(w->wp, w->buf.ptr, w->buf.len, w->pcm32, w->outcap);
+		n = wavpack_decode(w->wp, w->buf.ptr, w->buf.len, w->pcm32, w->outcap);
 		w->buf.len = 0;
 		if (n == -1) {
 			w->err = FFWVPK_EDECODE;

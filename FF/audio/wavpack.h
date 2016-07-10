@@ -13,7 +13,7 @@ Copyright (c) 2015 Simon Zolin
 #include <FF/audio/id3.h>
 #include <FF/array.h>
 
-#include <wavpack.h>
+#include <wavpack/wavpack-ff.h>
 
 
 enum FFWVPK_E {
@@ -47,7 +47,7 @@ enum FFWVPK_O {
 typedef struct ffwvpack {
 	ffwvpk_info info;
 	uint state;
-	WavpackContext *wp;
+	wavpack_ctx *wp;
 	ffpcm fmt;
 	uint frsize;
 	uint err;
