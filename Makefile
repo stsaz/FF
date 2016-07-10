@@ -1,28 +1,17 @@
 # FF v1.3 makefile for GNU make and GCC
 
 FF_TEST_BIN = fftest
-OSTYPE = unix
-OS = linux
+ROOT := ..
+FFOS = $(ROOT)/ffos
+FF = $(ROOT)/ff
+DEBUG := 1
+OPT := LTO
 
-FFOS = ../ffos
-FF = .
+include $(FFOS)/makeconf
 
-C = gcc
-LD = gcc
-O = -o
-O_LD = -o
-OPT := -O2
-
-override CFLAGS += -c -g -D_DEBUG $(OPT) -Werror -Wall -pthread \
+FF_CFLAGS := $(CFLAGS)
+CFLAGS += -Werror -Wall \
 	-I$(FF) -I$(FF)-3pt -I$(FFOS)
-
-override FF_CFLAGS += -g -D_DEBUG $(OPT)
-
-override LDFLAGS += -pthread
-
-ifeq ($(OS),win)
-override LDFLAGS += -lws2_32
-endif
 
 all: ff $(FF_TEST_BIN)
 
@@ -46,7 +35,14 @@ $(FF_OBJ_DIR)/%.o: $(FF)/test/%.c $(FF_HDR) $(FF_TEST_HDR)
 
 FF_TEST_O := $(FFOS_OBJ) $(FF_OBJ) \
 	$(FF_OBJ_DIR)/ffhttp.o $(FF_OBJ_DIR)/ffurl.o $(FF_OBJ_DIR)/ffdns.o \
-	$(FF_DATA_OBJ) $(FF_OBJ_DIR)/fftest.o $(FF_TEST_OBJ)
+	$(FF_OBJ_DIR)/ffconf.o \
+	$(FF_OBJ_DIR)/ffjson.o \
+	$(FF_OBJ_DIR)/ffparse.o \
+	$(FF_OBJ_DIR)/ffpsarg.o \
+	$(FF_OBJ_DIR)/ffutf8.o \
+	$(FF_OBJ_DIR)/ffcue.o \
+	$(FF_OBJ_DIR)/ffxml.o \
+	$(FF_OBJ_DIR)/fftest.o $(FF_TEST_OBJ)
 
 $(FF_TEST_BIN): $(FF_TEST_O)
-	$(LD) $(FF_TEST_O) $(LDFLAGS) $(LIBS) -o$@
+	$(LD) $(FF_TEST_O) $(LDFLAGS) $(LIBS) $(LD_LWS2_32) $(LD_LPTHREAD) -o$@

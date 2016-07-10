@@ -2,18 +2,23 @@
 
 # FF := .
 FF_OBJ_DIR := ./ff-obj
-override FF_CFLAGS += -c -Werror -Wall -Wextra -Wno-unused-parameter -pthread \
+FF_CFLAGS ?= -c
+FF_CFLAGS += -Werror -Wall -Wextra -Wno-unused-parameter \
 	-I$(FF) -I$(FF)-3pt -I$(FFOS)
 
 
 # FFOS
 FFOS_HDR := $(wildcard $(FFOS)/*.h) $(wildcard $(FFOS)/unix/*.h) $(wildcard $(FFOS)/win/*.h)
 FFOS_OBJ := $(FF_OBJ_DIR)/ffos.o \
-	$(FF_OBJ_DIR)/ff$(OSTYPE).o \
 	$(FF_OBJ_DIR)/ff$(OS).o
+
+ifneq ($(OS),win)
+FFOS_OBJ += $(FF_OBJ_DIR)/ffunix.o
+endif
+
 FF_ALL_OBJ := $(FFOS_OBJ)
 $(FF_OBJ_DIR)/%.o: $(FFOS)/FFOS/%.c $(FFOS_HDR)
-	$(C) $(FF_CFLAGS)  $< -o$@
+	$(C) $(FF_CFLAGS) -pthread  $< -o$@
 
 
 FF_SRC := $(FF)/FF/ffcrc.c \
@@ -27,10 +32,6 @@ FF_SRC := $(FF)/FF/ffcrc.c \
 	$(FF)/FF/ffstring.c \
 	$(FF)/FF/ffsys.c \
 	$(FF)/FF/fftime.c
-
-ifeq ($(OS),win)
-FF_SRC += $(FF)/FF/ffwohandler.c
-endif
 
 FF_HDR := $(FFOS_HDR) $(wildcard $(FF)/FF/*.h)
 
@@ -69,6 +70,15 @@ $(FF_OBJ_DIR)/%.o: $(FF)/FF/audio/%.c $(FF_HDR) $(FF_AUDIO_HDR)
 	$(C) $(FF_CFLAGS)  $< -o$@
 
 
+# DB
+FF_DB_HDR := $(wildcard $(FF)/FF/db/*.h)
+FF_DB_SRC := $(wildcard $(FF)/FF/db/*.c)
+FF_DB_OBJ := $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_DB_SRC)))))
+FF_ALL_OBJ += $(FF_DB_OBJ)
+$(FF_OBJ_DIR)/%.o: $(FF)/FF/db/%.c $(FF_HDR) $(FF_DB_HDR)
+	$(C) $(FF_CFLAGS)  $< -o$@
+
+
 # GUI
 FF_GUI_HDR := $(wildcard $(FF)/FF/gui/*.h)
 FF_GUI_OBJ := \
@@ -77,6 +87,11 @@ FF_GUI_OBJ := \
 FF_ALL_OBJ += $(FF_GUI_OBJ)
 $(FF_OBJ_DIR)/%.o: $(FF)/FF/gui/%.c $(FF_HDR) $(FF_GUI_HDR)
 	$(C) $(FF_CFLAGS)  $< -o$@
+
+
+ifeq ($(OS),win)
+FF_ALL_OBJ += $(FF_OBJ_DIR)/ffwohandler.o
+endif
 
 
 ff: $(FF_OBJ_DIR) $(FFOS_OBJ) $(FF_OBJ)

@@ -26,6 +26,9 @@ FEATURES
 		. command-line arguments parser
 		. deserialization of structured data using a predefined scheme
 		. gzip (libz)
+		. xz (liblzma)
+		. zip (libz)
+		. tar
 		. MP4
 
 	. Audio I/O:
@@ -40,7 +43,7 @@ FEATURES
 		. APE (libMAC), APE tag
 		. WAVE
 		. AAC (libfdk-aac)
-		. OGG Vorbis (libogg, libvorbis), Vorbis comments
+		. OGG Vorbis (libvorbis), Vorbis comments
 		. MPEG (libmad, libmp3lame), ID3v1, ID3v2
 		. FLAC (libflac)
 		. ALAC (libalac)

@@ -19,7 +19,7 @@ DBG = /D "NDEBUG"
 override CFLAGS += $(DBG) /Oi /GL /D "WIN32" /D "_CONSOLE" /D "_UNICODE" /D "UNICODE" /FD /MT /Gy /Fd".\vc90.pdb" /W3 /WX /nologo /c /Zi /errorReport:prompt \
 	/I$(FF) /I$(FFOS) /GF /GR- /TC
 
-override LDFLAGS += /INCREMENTAL:NO /NOLOGO /MANIFEST /MANIFESTFILE:".\fftest.exe.intermediate.manifest" /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /DEBUG /PDB:".\fftest.pdb" /SUBSYSTEM:CONSOLE /OPT:REF /OPT:ICF /LTCG /DYNAMICBASE /NXCOMPAT /ERRORREPORT:PROMPT \
+override LDFLAGS += /MACHINE:X64 /INCREMENTAL:NO /NOLOGO /MANIFEST /MANIFESTFILE:".\fftest.exe.intermediate.manifest" /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /DEBUG /PDB:".\fftest.pdb" /SUBSYSTEM:CONSOLE /OPT:REF /OPT:ICF /LTCG /DYNAMICBASE /NXCOMPAT /ERRORREPORT:PROMPT \
 	kernel32.lib user32.lib gdi32.lib comdlg32.lib advapi32.lib shell32.lib ws2_32.lib
 
 all: $(FFOS_OBJ_DIR) $(FF_TEST_BIN)
