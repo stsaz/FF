@@ -329,18 +329,23 @@ static void tmrq_onfire(void *t)
 void fftask_run(fftaskmgr *mgr)
 {
 	while (!fflist_empty(&mgr->tasks)) {
-		fftask *task = FF_GETPTR(fftask, sib, mgr->tasks.first);
 
 		if (!fflk_trylock(&mgr->lk))
 			return;
 
-#ifdef FFDBG_TASKS
-		ffdbg_print(0, "%s(): [%L] %p handler=%p, param=%p\n"
-			, FF_FUNC, mgr->tasks.len, task, task->handler, task->param);
-#endif
+		if (fflist_empty(&mgr->tasks)) {
+			fflk_unlock(&mgr->lk);
+			return;
+		}
 
+		fftask *task = FF_GETPTR(fftask, sib, mgr->tasks.first);
 		fflist_rm(&mgr->tasks, &task->sib);
+		uint ntasks = mgr->tasks.len;
 		fflk_unlock(&mgr->lk);
+
+		(void)ntasks;
+		FFDBG_PRINTLN(10, "[%L] %p handler=%p, param=%p"
+			, ntasks + 1, task, task->handler, task->param);
 
 		task->handler(task->param);
 	}
