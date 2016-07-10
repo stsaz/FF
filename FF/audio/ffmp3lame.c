@@ -92,6 +92,7 @@ int ffmpg_encode(ffmpg_enc *m)
 	switch (m->state) {
 	case I_ID32:
 		if (m->options & FFMPG_WRITE_ID3V2) {
+			ffid3_flush(&m->id3);
 			if (m->min_meta > m->id3.buf.len
 				&& 0 != ffid3_padding(&m->id3, m->min_meta - m->id3.buf.len)) {
 				m->err = FFMPG_ESYS;
