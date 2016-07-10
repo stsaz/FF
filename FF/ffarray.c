@@ -158,7 +158,8 @@ size_t ffbuf_add(ffstr3 *buf, const char *src, size_t len, ffstr *dst)
 	}
 
 	sz = ffmin(len, ffarr_unused(buf));
-	ffmemcpy(buf->ptr + buf->len, src, sz);
+	if (ffarr_end(buf) != src)
+		ffmemcpy(buf->ptr + buf->len, src, sz);
 	buf->len += sz;
 
 	if (buf->cap != buf->len) {
