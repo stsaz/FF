@@ -181,7 +181,7 @@ void ffwvpk_seek(ffwvpack *w, uint64 sample)
 	w->seek_sample = sample;
 	w->state = I_SEEK;
 	w->buf.len = 0;
-	w->skoff = 0;
+	w->skoff = -1;
 
 	ffmemcpy(w->seekpt, w->seektab, sizeof(w->seekpt));
 }

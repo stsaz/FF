@@ -587,7 +587,7 @@ void ffflac_seek(ffflac *f, uint64 sample)
 		return;
 	f->seekpt[0] = f->sktab.ptr[i];
 	f->seekpt[1] = f->sktab.ptr[i + 1];
-	f->skoff = 0;
+	f->skoff = -1;
 	f->seeksample = sample;
 	f->st = I_SEEK;
 }
