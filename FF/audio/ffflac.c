@@ -70,12 +70,8 @@ enum {
 enum FLAC_E {
 	FLAC_EUKN
 	, FLAC_ESYS
-	, FLAC_EINIT
-	, FLAC_EDEC
-	, FLAC_ESTATE
 	,
-	FLAC_EINITENC,
-	FLAC_EENC_STATE,
+	FLAC_ELIB,
 
 	FLAC_EFMT,
 	FLAC_EHDR,
@@ -86,6 +82,7 @@ enum FLAC_E {
 	FLAC_ESYNC,
 	FLAC_ENOSYNC,
 	FLAC_EHDRSAMPLES,
+	FLAC_EBIGHDRSAMPLES,
 };
 
 
@@ -182,7 +179,7 @@ static int flac_info(const char *data, size_t size, ffflac_info *info, ffpcm *fm
 }
 
 /** Add sync-word and STREAMINFO block.
-Return bytes written;  0 on error. */
+Return bytes written;  <0 on error. */
 static int flac_info_write(char *out, size_t cap, const ffflac_info *info)
 {
 	struct flac_streaminfo *sinfo;
@@ -209,7 +206,7 @@ static int flac_info_write(char *out, size_t cap, const ffflac_info *info)
 	sinfo->info[3] = (byte)(((info->bits - 1) << 4) & 0xf0);
 
 	if ((info->total_samples >> 32) & ~0x0000000f)
-		return 0; //too large value
+		return -FLAC_EBIGHDRSAMPLES;
 	// 0x544332211 -> "?5 44 33 22 11"
 	sinfo->info[3] |= (byte)((info->total_samples >> 32) & 0x0f);
 	ffint_hton32(sinfo->info + 4, (uint)info->total_samples);
@@ -487,7 +484,7 @@ static uint flac_frame_parse(ffflac_frame *fr, const char *data, size_t len)
 		return 0; //reserved
 	fr->bps = flac_bps[f->bps];
 
-	if ((byte)*d != FLAC__crc8((void*)data, d - data))
+	if ((byte)*d != flac_crc8(data, d - data))
 		return 0; //header CRC mismatch
 	d++;
 	return d - data;
@@ -538,6 +535,7 @@ static const char *const flac_errs[] = {
 	"unrecognized data before frame header",
 	"can't find sync",
 	"invalid total samples value in FLAC header",
+	"too large total samples value in FLAC header",
 };
 
 const char* ffflac_errstr(ffflac *f)
@@ -546,20 +544,8 @@ const char* ffflac_errstr(ffflac *f)
 	case FLAC_ESYS:
 		return fferr_strp(fferr_last());
 
-	case FLAC_EINIT:
-		return FLAC__StreamDecoderInitStatusString[f->err];
-
-	case FLAC_EDEC:
-		return FLAC__StreamDecoderErrorStatusString[f->err];
-
-	case FLAC_ESTATE:
-		return FLAC__StreamDecoderStateString[f->err];
-
-	case FLAC_EINITENC:
-		return FLAC__StreamEncoderInitStatusString[f->err];
-
-	case FLAC_EENC_STATE:
-		return FLAC__StreamEncoderStateString[f->err];
+	case FLAC_ELIB:
+		return flac_errstr(f->err);
 	}
 
 	if (f->errtype >= FLAC_EFMT) {
@@ -576,7 +562,7 @@ void ffflac_close(ffflac *f)
 	ffarr_free(&f->buf);
 	ffmem_safefree(f->sktab.ptr);
 	if (f->dec != NULL)
-		FLAC__stream_decoder_delete(f->dec);
+		flac_decode_free(f->dec);
 }
 
 enum {
@@ -704,14 +690,14 @@ static int _ffflac_meta(ffflac *f)
 static int _ffflac_init(ffflac *f)
 {
 	int r;
-	FLAC__StreamMetadata_StreamInfo si = {0};
+	flac_conf si = {0};
 	si.min_blocksize = f->info.minblock;
 	si.max_blocksize = f->info.maxblock;
-	si.sample_rate = f->fmt.sample_rate;
+	si.rate = f->fmt.sample_rate;
 	si.channels = f->fmt.channels;
-	si.bits_per_sample = ffpcm_bits(f->fmt.format);
-	if (0 != (r = FLAC__decode_init(&f->dec, &si))) {
-		f->errtype = FLAC_EINIT;
+	si.bps = ffpcm_bits(f->fmt.format);
+	if (0 != (r = flac_decode_init(&f->dec, &si))) {
+		f->errtype = FLAC_ELIB;
 		f->err = r;
 		return FFFLAC_RERR;
 	}
@@ -983,15 +969,10 @@ int ffflac_decode(ffflac *f)
 		FFDBG_PRINT(10, "%s(): frame #%u: size:%L, samples:%u\n"
 			, FF_FUNC, f->frame.num, sframe.len, f->frame.samples);
 
-		r = FLAC__decode(f->dec, sframe.ptr, sframe.len, &out);
+		r = flac_decode(f->dec, sframe.ptr, sframe.len, &out);
 		if (r != 0) {
-			if (r < 0) {
-				f->errtype = FLAC_ESTATE;
-				f->err = -r;
-			} else {
-				f->errtype = FLAC_EDEC;
-				f->err = r;
-			}
+			f->errtype = FLAC_ELIB;
+			f->err = r;
 			f->st = I_FROK;
 			return FFFLAC_RWARN;
 		}
@@ -1102,7 +1083,7 @@ void ffflac_enc_close(ffflac_enc *f)
 	ffvorbtag_destroy(&f->vtag);
 	ffarr_free(&f->outbuf);
 	ffmem_safefree(f->sktab.ptr);
-	FLAC__stream_encoder_delete(f->enc);
+	FF_SAFECLOSE(f->enc, NULL, flac_encode_free);
 }
 
 int ffflac_create(ffflac_enc *f, const ffpcm *pcm)
@@ -1113,21 +1094,16 @@ int ffflac_create(ffflac_enc *f, const ffpcm *pcm)
 		return -1;
 	}
 
-	FLAC__StreamEncoderConf conf;
+	flac_conf conf = {0};
 	conf.bps = ffpcm_bits(pcm->format);
 	conf.channels = pcm->channels;
 	conf.rate = pcm->sample_rate;
 	conf.level = f->level;
 	conf.nomd5 = !!(f->opts & FFFLAC_ENC_NOMD5);
 
-	if (0 != (r = FLAC__encode_init(&f->enc, &conf))) {
-		if (r > 0) {
-			f->err = r;
-			f->errtype = FLAC_EINITENC;
-		} else {
-			f->err = -r;
-			f->errtype = FLAC_EENC_STATE;
-		}
+	if (0 != (r = flac_encode_init(&f->enc, &conf))) {
+		f->errtype = FLAC_ELIB;
+		f->err = r;
 		return FFFLAC_RERR;
 	}
 
@@ -1144,20 +1120,24 @@ int ffflac_create(ffflac_enc *f, const ffpcm *pcm)
 		return FFFLAC_RERR;
 	}
 
-	f->info.minblock = f->enc->info->min_blocksize;
-	f->info.maxblock = f->enc->info->max_blocksize;
+	flac_conf info;
+	flac_encode_info(f->enc, &info);
+	f->info.minblock = info.min_blocksize;
+	f->info.maxblock = info.max_blocksize;
 	f->info.channels = pcm->channels;
 	f->info.sample_rate = pcm->sample_rate;
 	f->info.bits = ffpcm_bits(pcm->format);
-	if (0 == (r = flac_info_write(f->outbuf.ptr, f->outbuf.cap, &f->info))) {
-		f->errtype = FLAC_EHDR;
+	r = flac_info_write(f->outbuf.ptr, f->outbuf.cap, &f->info);
+	if (r < 0) {
+		f->errtype = -r;
 		return FFFLAC_RERR;
 	}
 	f->outbuf.len += r;
 
 	ffarr_acq(&f->vtag.out, &f->outbuf);
 	f->vtag.out.len += sizeof(struct flac_hdr);
-	if (0 != ffvorbtag_add(&f->vtag, NULL, FLAC__VENDOR_STRING, ffsz_len(FLAC__VENDOR_STRING))) {
+	const char *vendor = flac_vendor();
+	if (0 != ffvorbtag_add(&f->vtag, NULL, vendor, ffsz_len(vendor))) {
 		f->errtype = FLAC_EHDR;
 		return FFFLAC_RERR;
 	}
@@ -1201,7 +1181,7 @@ static int _ffflac_enc_hdr(ffflac_enc *f)
 
 int ffflac_encode(ffflac_enc *f)
 {
-	uint samples, sampsize;
+	uint samples, sampsize, blksize;
 	int r;
 
 	switch (f->state) {
@@ -1224,13 +1204,15 @@ int ffflac_encode(ffflac_enc *f)
 		f->seekoff = 0;
 		return FFFLAC_RSEEK;
 
-	case ENC_INFO_WRITE:
-		f->info.minblock = f->enc->info->min_blocksize;
-		f->info.maxblock = f->enc->info->max_blocksize;
-		f->info.minframe = f->enc->info->min_framesize;
-		f->info.maxframe = f->enc->info->max_framesize;
+	case ENC_INFO_WRITE: {
+		flac_conf info = {0};
+		flac_encode_info(f->enc, &info);
+		f->info.minblock = info.min_blocksize;
+		f->info.maxblock = info.max_blocksize;
+		f->info.minframe = info.min_framesize;
+		f->info.maxframe = info.max_framesize;
 		f->info.total_samples = f->nsamps;
-		ffmemcpy(f->info.md5, f->enc->info->md5sum, sizeof(f->info.md5));
+		ffmemcpy(f->info.md5, info.md5, sizeof(f->info.md5));
 		r = flac_info_write(f->outbuf.ptr, f->outbuf.cap, &f->info);
 		if (r < 0) {
 			f->errtype = -r;
@@ -1242,6 +1224,7 @@ int ffflac_encode(ffflac_enc *f)
 			return FFFLAC_RDONE;
 		f->state = ENC_SEEKTAB_SEEK;
 		return FFFLAC_RDATA;
+	}
 
 	case ENC_SEEKTAB_SEEK:
 		f->state = ENC_SEEKTAB_WRITE;
@@ -1249,7 +1232,7 @@ int ffflac_encode(ffflac_enc *f)
 		return FFFLAC_RSEEK;
 
 	case ENC_SEEKTAB_WRITE:
-		r = flac_seektab_write(f->outbuf.ptr, f->outbuf.cap, f->sktab.ptr, f->sktab.len, f->enc->info->min_blocksize);
+		r = flac_seektab_write(f->outbuf.ptr, f->outbuf.cap, f->sktab.ptr, f->sktab.len, f->info.minblock);
 		f->data = (void*)f->outbuf.ptr;
 		f->datalen = r;
 		return FFFLAC_RDONE;
@@ -1259,34 +1242,37 @@ int ffflac_encode(ffflac_enc *f)
 	for (;;) {
 		samples = f->pcmlen / sampsize - f->off;
 
-		f->datalen = 0;
-		if (samples != 0 || f->fin) {
+		r = 0;
+		if (samples != 0) {
 			const int *src[FLAC__MAX_CHANNELS];
 			uint i;
 			for (i = 0;  i != f->info.channels;  i++) {
 				src[i] = f->pcm[i] + f->off;
 			}
-			r = FLAC__encode(f->enc, src, samples, (char**)&f->data, &f->datalen);
-			if (r < 0) {
-				f->err = -r;
-				f->errtype = FLAC_EENC_STATE;
-				return FFFLAC_RERR;
-			}
-			f->off += r;
+			r = flac_encode(f->enc, src, &samples, (char**)&f->data);
+			f->off += samples;
+			blksize = f->info.minblock;
 		}
 
-		if (f->datalen == 0) {
-			if (f->fin && samples != 0)
-				continue;
-			f->off = 0;
-			return FFFLAC_RMORE;
+		if (r == 0) {
+			if (!f->fin) {
+				f->off = 0;
+				return FFFLAC_RMORE;
+			}
+
+			samples = 0;
+			r = flac_encode(f->enc, NULL, &samples, (char**)&f->data);
+			blksize = samples;
+			f->state = ENC_SEEK0;
 		}
+
+		if (r < 0) {
+			f->errtype = FLAC_ELIB, f->err = r;
+			return FFFLAC_RERR;
+		}
+		f->datalen = r;
 		break;
 	}
-
-	uint blksize = f->enc->info->min_blocksize;
-	if (samples == 0 && f->fin)
-		blksize = r;
 
 	while (f->iskpt != f->sktab.len) {
 		ffpcm_seekpt *sp = &f->sktab.ptr[f->iskpt];
@@ -1299,11 +1285,5 @@ int ffflac_encode(ffflac_enc *f)
 	f->frlen += f->datalen;
 
 	f->nsamps += blksize;
-
-	if (samples == 0 && f->fin) {
-		f->state = ENC_SEEK0;
-		return FFFLAC_RDATA;
-	}
-
 	return FFFLAC_RDATA;
 }

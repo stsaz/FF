@@ -15,7 +15,7 @@ fLaC INFO VORBIS_CMT [PADDING] [SEEKTABLE] (FRAME)...
 #include <FF/audio/pcm.h>
 #include <FF/array.h>
 
-#include <FLAC-ff.h>
+#include <flac/FLAC-ff.h>
 
 
 typedef struct ffflac_info {
@@ -43,7 +43,7 @@ typedef struct ffflac_frame {
 } ffflac_frame;
 
 typedef struct ffflac {
-	FLAC__StreamDecoder *dec;
+	flac_decoder *dec;
 	int st;
 	int err;
 	ffpcm fmt;
@@ -128,7 +128,7 @@ enum FFFLAC_ENC_OPT {
 
 typedef struct ffflac_enc {
 	uint state;
-	FLAC__StreamEncoder *enc;
+	flac_encoder *enc;
 	ffflac_info info;
 	uint err;
 	uint errtype;
