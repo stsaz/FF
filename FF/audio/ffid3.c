@@ -507,11 +507,6 @@ int ffid3_getdata(int frame, const char *data, size_t len, int txtenc, uint code
 				break;
 
 			case FFID3_UTF16BOM:
-				data += 2;
-				if (data > end)
-					return -1; //no space for BOM
-				// break
-
 			case FFID3_UTF16BE:
 				if (end == (data = ffs_finds(data, end - data, "\0", 2)))
 					return -1; //no end of short description
