@@ -426,6 +426,8 @@ int ffpcm_convert(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm, const 
 
 	default:
 		if (inpcm->format == outpcm->format && in_ileaved == outpcm->ileaved) {
+			if (samples == 0)
+				break;
 			if (in_ileaved == 1)
 				ffmemcpy(to.sh, from.sh, samples * ffpcm_size(inpcm->format, nch));
 			else {
