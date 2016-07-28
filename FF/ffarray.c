@@ -146,6 +146,36 @@ void _ffarr_crop(ffarr *ar, size_t off, size_t n, size_t elsz)
 }
 
 
+size_t ffstr_catfmtv(ffstr3 *s, const char *fmt, va_list args)
+{
+	ssize_t r;
+	va_list va;
+
+	va_copy(va, args);
+	r = ffs_fmtv2(ffarr_end(s), ffarr_unused(s), fmt, va);
+	va_end(va);
+	if (r > 0)
+		goto done;
+	else if (r < 0)
+		r = -r;
+
+	if (r == 0 || NULL == ffarr_grow(s, r, 0))
+		return 0;
+
+	va_copy(va, args);
+	r = ffs_fmtv2(ffarr_end(s), ffarr_unused(s), fmt, va);
+	va_end(va);
+	if (r < 0) {
+		s->len = s->cap;
+		return 0;
+	}
+
+done:
+	s->len += r;
+	return r;
+}
+
+
 size_t ffbuf_add(ffstr3 *buf, const char *src, size_t len, ffstr *dst)
 {
 	size_t sz;

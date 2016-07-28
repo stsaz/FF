@@ -306,8 +306,21 @@ static int test_strf()
 	ffstr s1;
 	ffqstr qs1;
 
+	char ss[128];
+	x(-((2+2)*2 + 5+5 + 1+5 + 1+1 + 1) == ffs_fmt2(NULL, 0, "%2b%*b" "%5s%*s" "%c%*c" "%%%Z"
+		, "12", (size_t)2, "12"
+		, "Strin", (size_t)5, "Strin"
+		, 'C', (size_t)5, 'c'));
+	x(((2+2)*2 + 5+5 + 1+5 + 1+1) == ffs_fmt2(ss, sizeof(ss), "%2b%*b" "%5s%*s" "%c%*c" "%%%Z"
+		, "12", (size_t)2, "12"
+		, "Strin", (size_t)5, "Strin"
+		, 'C', (size_t)5, 'c')
+			&& !ffsz_cmp(ss, "31323132StrinStrinCccccc%"));
+
 	x(0 != ffstr_catfmt(&s, "%03D %03xI %3d 0x%p", (int64)-9, (size_t)-0x543fe, (int)-5, (void*)0xab1234));
-	x(ffstr_eqcz(&s, "-009 -543fe -  5 0x00ab1234"));
+	x(ffstr_eqcz(&s, "-009 -543fe -  5 0x00ab1234")),  s.len = 0;
+
+	x(0 != ffstr_catfmt(&s, "%06.5F", (double)12345.6789) && ffstr_eqcz(&s, "012345.67890")),  s.len = 0;
 
 	s.len = 0;
 	ffstr_setcz(&s1, "hello");

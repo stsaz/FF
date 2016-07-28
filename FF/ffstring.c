@@ -931,7 +931,10 @@ uint ffs_fromfloat(double d, char *dst, size_t cap, uint flags)
 	const char *end = dst + cap;
 	char *buf = dst;
 	uint64 num, frac = 0;
-	uint width = (byte)(flags >> 24), wfrac = (byte)(flags >> 16), n, scale;
+	uint width = ((flags & _FFINT_WIDTH_MASK) >> 24), wfrac = ((flags & _FFS_FLT_FRAC_WIDTH_MASK) >> 16), n, scale;
+
+	if (cap == 0)
+		return 0;
 
 	if (d < 0) {
 		buf = ffs_copyc(buf, end, '-');
@@ -997,30 +1000,35 @@ size_t ffs_hexstr(char *dst, size_t cap, const char *src, size_t len, uint flags
 	return d - dst;
 }
 
-size_t ffs_fmtv(char *buf_o, const char *end, const char *fmt, va_list va)
+static uint _ffs_read_int(const char **ps)
+{
+	const char *s;
+	uint r = 0;
+	for (s = *ps;  ffchar_isdigit(*s);  s++) {
+		r = r * 10 + ffchar_tonum(*s);
+	}
+	*ps = s;
+	return r;
+}
+
+ssize_t ffs_fmtv2(char *buf_o, size_t cap, const char *fmt, va_list va)
 {
 	size_t swidth, len = 0;
 	uint width, wfrac;
 	int64 num = 0;
 	double d;
-	uint itoaFlags = 0, hexstr_flags = 0;
-	ffbool itoa = 0;
-	char *buf = buf_o;
-	const void *rend = (buf != NULL) ? end : (void*)-1;
+	uint itoaFlags = 0, hexstr_flags = 0, float_flags;
+	char *buf = buf_o, *end = buf + cap, *p;
 
-	for (;  *fmt && buf != rend;  ++fmt) {
+	for (;  *fmt;  ++fmt) {
 		if (*fmt != '%') {
-			if (buf != NULL)
-				*buf++ = *fmt;
-			else
-				len++;
+			buf = ffs_copyc(buf, end, *fmt);
+			len++;
 			continue;
 		}
-
 		fmt++; //skip %
 
-		swidth = (size_t)-1;
-		width = wfrac = 0;
+		wfrac = 0;
 		itoaFlags = 0;
 		hexstr_flags = 0;
 
@@ -1029,46 +1037,39 @@ size_t ffs_fmtv(char *buf_o, const char *end, const char *fmt, va_list va)
 			fmt++;
 		}
 
-		while (ffchar_isdigit(*fmt)) {
-			width = width * 10 + (*fmt++ - '0');
-		}
-		if (width != 0)
-			swidth = width;
+		width = _ffs_read_int(&fmt);
+		swidth = (width != 0) ? width : (size_t)-1;
 
 		for (;;) {
 		switch (*fmt) {
 		case '*':
 			swidth = va_arg(va, size_t);
-			fmt++;
 			break;
 
 		case 'x':
 			itoaFlags |= FFINT_HEXLOW;
 			hexstr_flags |= FFS_HEXLOW;
-			fmt++;
 			break;
 
 		case 'X':
 			itoaFlags |= FFINT_HEXUP;
 			hexstr_flags |= FFS_HEXUP;
-			fmt++;
 			break;
 
 		case '.':
 			fmt++;
-			while (ffchar_isdigit(*fmt)) {
-				wfrac = wfrac * 10 + (*fmt++ - '0');
-			}
-			break;
+			wfrac = _ffs_read_int(&fmt);
+			continue;
 
 		case ',':
 			itoaFlags |= FFINT_SEP1000;
-			fmt++;
 			break;
 
 		default:
 			goto format;
 		}
+
+		fmt++;
 		}
 
 format:
@@ -1079,41 +1080,39 @@ format:
 			//break;
 		case 'U':
 			num = va_arg(va, int64);
-			itoa = 1;
-			break;
+			goto from_int;
 
 		case 'd':
 			itoaFlags |= FFINT_SIGNED;
 			num = va_arg(va, int);
-			itoa = 1;
-			break;
+			goto from_int;
 		case 'u':
 			num = va_arg(va, uint);
-			itoa = 1;
-			break;
+			goto from_int;
 
 		case 'I':
 			itoaFlags |= FFINT_SIGNED;
 			num = va_arg(va, ssize_t);
-			itoa = 1;
-			break;
+			goto from_int;
 		case 'L':
 			num = va_arg(va, size_t);
-			itoa = 1;
-			break;
+			goto from_int;
 
 		case 'p':
 			num = va_arg(va, size_t);
 			width = (num <= (uint)-1) ? sizeof(int) * 2 : sizeof(void*) * 2;
 			itoaFlags |= FFINT_HEXLOW | FFINT_ZEROWIDTH;
-			itoa = 1;
-			break;
+			goto from_int;
 
 		case 'F':
 			d = va_arg(va, double);
-			itoaFlags |= FFINT_WIDTH(width) | (wfrac << 16);
-			buf += ffs_fromfloat(d, buf, end - buf, itoaFlags);
-			len += width + FFINT_MAXCHARS + FFSLEN(".") + wfrac + FFINT_MAXCHARS;
+			width = ffmin(width, 255);
+			wfrac = ffmin(wfrac, 255);
+			float_flags = (itoaFlags & FFINT_ZEROWIDTH) | FFINT_WIDTH(width) | FFS_INT_WFRAC(wfrac);
+			uint n = ffs_fromfloat(d, buf, end - buf, float_flags);
+			buf += n;
+			len += (buf != end) ? n
+				: ffmax(width, FFINT_MAXCHARS) + FFSLEN(".") + ffmin(wfrac, FFINT_MAXCHARS);
 			break;
 
 #ifdef FF_UNIX
@@ -1122,16 +1121,16 @@ format:
 		case 's': {
 			const char *s = va_arg(va, char *);
 			if (swidth == (size_t)-1) {
+				p = buf;
 				buf = ffs_copyz(buf, end, s);
-				if (buf == NULL)
-					len += strlen(s);
+				len += (buf != end) ? (size_t)(buf - p) : ffsz_len(s);
 
 			} else {
 				buf = ffs_copy(buf, end, s, swidth);
 				len += swidth;
 			}
-			}
 			break;
+		}
 
 #ifdef FF_UNIX
 		case 'Q':
@@ -1140,27 +1139,27 @@ format:
 			ffstr *s = va_arg(va, ffstr *);
 			buf = ffs_copy(buf, end, s->ptr, s->len);
 			len += s->len;
-			}
 			break;
+		}
 
 #ifdef FF_WIN
 		case 'q': {
 			ffsyschar *s = va_arg(va, ffsyschar *);
 			if (swidth == (size_t)-1)
 				swidth = ffq_len(s);
+			p = buf;
 			buf = ffs_copyq(buf, end, s, swidth);
-			if (buf == NULL)
-				len += ffq_lenq(s, swidth);
-			}
+			len += (buf != end) ? (size_t)(buf - p) : ffq_lenq(s, swidth);
 			break;
+		}
 
 		case 'Q': {
 			ffqstr *s = va_arg(va, ffqstr *);
+			p = buf;
 			buf = ffs_copyq(buf, end, s->ptr, s->len);
-			if (buf == NULL)
-				len += ffq_lenq(s->ptr, s->len);
-			}
+			len += (buf != end) ? (size_t)(buf - p) : ffq_lenq(s->ptr, s->len);
 			break;
+		}
 #endif
 
 		case 'b': {
@@ -1168,105 +1167,84 @@ format:
 				return 0; //width must be specified
 			const char *s = va_arg(va, char*);
 			ssize_t r = ffs_hexstr(buf, end - buf, s, swidth, hexstr_flags);
-			len += r;
-			if (buf != NULL)
+			len += swidth * 2;
+			if (buf != end)
 				buf += r;
-			}
 			break;
+		}
 
 		case 'e': {
 			int e = va_arg(va, int);
 			const char *se = fferr_opstr((enum FFERR)e);
+			p = buf;
 			buf = ffs_copyz(buf, end, se);
-			if (buf == NULL)
-				len += strlen(se);
-			}
+			len += (buf != end) ? (size_t)(buf - p) : ffsz_len(se);
 			break;
+		}
 
 		case 'E': {
 			int e = va_arg(va, int);
-			size_t r = ffs_fmt(buf, end, "(%u) ", e);
-			if (buf != NULL) {
+			ssize_t r = ffs_fmt2(buf, end - buf, "(%u) ", e);
+			if (r < 0) {
+				buf = end;
+				r = -r;
+			}
+
+			if (buf != end) {
 				buf += r;
 				fferr_str(e, buf, end - buf);
-				buf += ffsz_len(buf);
+				uint n = ffsz_len(buf);
+				buf += n;
+				len += r + n;
 
 			} else {
 				char tmp[256];
 				fferr_str(e, tmp, sizeof(tmp));
 				len += r + ffsz_len(tmp);
 			}
-			}
 			break;
+		}
 
 		case 'c': {
 			uint ch = va_arg(va, int);
-			if (swidth == (size_t)-1)
-				swidth = 1;
-
-			if (buf != NULL) {
-				while (swidth-- != 0) {
-					*buf++ = (char)ch;
-				}
-			} else
+			if (swidth == (size_t)-1) {
+				buf = ffs_copyc(buf, end, ch);
+				len++;
+			} else {
+				buf += ffs_fill(buf, end, ch, swidth);
 				len += swidth;
 			}
 			break;
+		}
 
 		case 'Z':
-			if (buf != NULL)
-				*buf++ = '\0';
-			else
-				len++;
+			buf = ffs_copyc(buf, end, '\0');
+			len++;
 			break;
 
 		case '%':
-			if (buf != NULL)
-				*buf++ = '%';
-			else
-				len++;
+			buf = ffs_copyc(buf, end, '%');
+			len++;
 			break;
 
 		default:
 			return 0;
 		}
 
-		if (itoa) {
-			if (width != 0) {
-				if (width > 255)
-					width = 255;
-				itoaFlags |= FFINT_WIDTH(width);
-			}
-			buf += ffs_fromint(num, buf, end - buf, itoaFlags);
-			len += width + FFINT_MAXCHARS;
-			itoa = 0;
+		if (0) {
+from_int:
+			width = ffmin(width, 255);
+			itoaFlags |= FFINT_WIDTH(width);
+			uint n = ffs_fromint(num, buf, end - buf, itoaFlags);
+			buf += n;
+			len += (buf != end) ? n : ffmax(width, FFINT_MAXCHARS);
 		}
 	}
 
-	if (buf == NULL)
-		return len;
+	if (buf == end)
+		return -(ssize_t)(len + 1); //+1 byte to pass (buf!=end) check next time
 
 	return buf - buf_o;
-}
-
-size_t ffstr_catfmtv(ffstr3 *s, const char *fmt, va_list args)
-{
-	size_t r;
-	va_list va;
-
-	va_copy(va, args);
-	r = ffs_fmtv(NULL, NULL, fmt, va);
-	va_end(va);
-
-	if (r == 0 || NULL == ffarr_grow(s, r, 0))
-		return 0;
-
-	va_copy(va, args);
-	r = ffs_fmtv(ffarr_end(s), s->ptr + s->cap, fmt, va);
-	va_end(va);
-
-	s->len += r;
-	return r;
 }
 
 size_t ffs_fmatchv(const char *s, size_t len, const char *fmt, va_list va)

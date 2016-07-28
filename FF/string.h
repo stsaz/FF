@@ -474,9 +474,11 @@ enum FFINT_TOSTR {
 	, FFINT_SEP1000 = 0x10 // use thousands separator, e.g. "1,000"
 
 	, _FFINT_WIDTH_MASK = 0xff000000
+	, _FFS_FLT_FRAC_WIDTH_MASK = 0x00ff0000
 };
 
 #define FFINT_WIDTH(width) ((width) << 24)
+#define FFS_INT_WFRAC(width) ((width) << 16)
 
 /** Convert integer to string.
 'flags': enum FFINT_TOSTR
@@ -488,7 +490,9 @@ Return the number of chars processed.
 Return 0 on error. */
 FF_EXTN uint ffs_tofloat(const char *s, size_t len, double *dst, int flags);
 
-/** Convert float to string. */
+/** Convert float to string.
+@flags: enum FFINT_TOSTR
+Return bytes written. */
 FF_EXTN uint ffs_fromfloat(double d, char *dst, size_t cap, uint flags);
 
 /** Parse the list of numbers, e.g. "1,3,10,20".
@@ -505,39 +509,69 @@ enum FFS_HEXSTR {
 Return the number of bytes written. */
 FF_EXTN size_t ffs_hexstr(char *dst, size_t cap, const char *src, size_t len, uint flags);
 
-/** String format.
+/** Formatted output into string.
+Integer:
 %[0][width] [x|X|,] d|u  int|uint
 %[0][width] [x|X|,] D|U  int64|uint64
 %[0][width] [x|X|,] I|L  ssize_t|size_t
-%[0][width][.width]F double
 
-% width|* [x|X] b    size_t, byte*
+Floating-point:
+% [0][width][.width] F  double
 
+Binary data:
+% width|* x|X b  [size_t,] byte*
+ e.g. ("%2xb", "AB")  =>  "4142"
+      ("%*xb", (size_t)2, "AB")  =>  "4142"
+
+String:
 % [width|*] s    [size_t,] char*
 %S     ffstr*
 % [width|*] q    [size_t,] ffsyschar*
 %Q     ffqstr*
 
-%e     int
-%E     int
+% [width|*] c  [size_t,] int  (Char)
 
-%[*|width]c  [size_t,] int
-%p     void*
+%p  void*  (Pointer)
+%Z  '\0'  (NULL byte)
+%%  '%'  (Percent sign)
 
-%Z     '\0'
-%%     '%'
+%e  int(enum FFERR)  (System function name)
+%E  int  (System error message)
+
+Return bytes written;  0 on error (bad format string);
+ <0 if not enough space: 'cap' bytes were written into 'buf' and "-RESULT" is the total number of bytes needed. */
+FF_EXTN ssize_t ffs_fmtv2(char *buf, size_t cap, const char *fmt, va_list va);
+
+static FFINL ssize_t ffs_fmt2(char *buf, size_t cap, const char *fmt, ...)
+{
+	ssize_t r;
+	va_list args;
+	va_start(args, fmt);
+	r = ffs_fmtv2(buf, cap, fmt, args);
+	va_end(args);
+	return r;
+}
+
+/**
 Return the number of chars written.
 Return 0 on error.
 If 'buf' and 'end' are NULL, return the minimum buffer size required. */
-FF_EXTN size_t ffs_fmtv(char *buf, const char *end, const char *fmt, va_list va);
+static FFINL size_t ffs_fmtv(char *buf, const char *end, const char *fmt, va_list args)
+{
+	va_list va;
+	va_copy(va, args);
+	ssize_t r = ffs_fmtv2(buf, end - buf, fmt, va);
+	va_end(va);
+	return (r >= 0) ? r : 0;
+}
 
 static FFINL size_t ffs_fmt(char *buf, const char *end, const char *fmt, ...) {
-	size_t r;
+	ssize_t r;
 	va_list args;
 	va_start(args, fmt);
-	r = ffs_fmtv(buf, end, fmt, args);
+	r = ffs_fmtv2(buf, end - buf, fmt, args);
 	va_end(args);
-	return r;
+	return (r >= 0) ? r : 0;
 }
 
 /** Match string by format:
