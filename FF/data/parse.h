@@ -67,6 +67,7 @@ typedef struct ffparser {
 
 	ffstr3 buf; ///< temporary buffer
 	ffarr ctxs; ///< stack of contexts
+	ffstr tmp;
 } ffparser;
 
 /** Prepare the parser. */

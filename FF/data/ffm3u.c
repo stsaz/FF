@@ -5,148 +5,100 @@ Copyright (c) 2015 Simon Zolin
 #include <FF/data/m3u.h>
 
 
+enum { M3U_LINE, M3U_HDR, M3U_EXTINF, M3U_TITLE, M3U_ARTIST, M3U_URL };
+
+void ffm3u_init(ffparser *p)
+{
+	ffpars_init(p);
+	p->nextst = M3U_HDR;
+	p->line = 0;
+}
+
 int ffm3u_parse(ffparser *p, const char *data, size_t *len)
 {
-	enum { I_BOM, I_BOM2, I_BOM3, I_START, I_CMT, I_CR
-		, I_SHARP, I_DUR, I_ARTIST_1, I_ARTIST, I_TITLE_1, I_TITLE, I_NAME };
-	int r = FFPARS_MORE, st = p->state, st2, ch;
-	const char *d = data, *end = data + *len;
+	ssize_t r;
+	const char *pos, *d = data, *end = data + *len;
+	ffstr s = p->tmp;
 
-	while (data != end) {
-		ch = *data;
+	for (;;) {
+	switch (p->state) {
 
-		if (ch == '\n' || ch == '\r') {
-			st2 = st;
-			if (ch == '\n') {
-				st = I_START;
-				p->line++;
-			} else
-				st = I_CR;
-			data++;
+	case M3U_LINE:
+		pos = ffs_find(d, end - d, '\n');
+		r = ffarr_append_until(&p->buf, d, end - d, p->buf.len + pos - d + 1);
+		if (r == 0)
+			return FFPARS_MORE;
+		else if (r < 0)
+			return -FFPARS_ESYS;
 
-			switch (st2) {
-			case I_CR:
-				if (ch == '\r')
-					p->line++;
-				break;
+		d += r;
+		ffstr_set2(&s, &p->buf);
+		p->buf.len = 0;
+		pos = ffs_rskipof(s.ptr, s.len, "\r\n", 2);
+		s.len = pos - s.ptr;
+		p->line++;
+		p->state = p->nextst;
+		continue;
 
-			case I_TITLE:
-				p->type = FFM3U_TITLE;
-				r = FFPARS_VAL;
-				goto done;
-
-			case I_NAME:
-				p->type = FFM3U_NAME;
-				r = FFPARS_VAL;
-				goto done;
-			}
-
+	case M3U_HDR:
+		if (ffs_matchz(s.ptr, s.len, "\xef\xbb\xbf"))
+			ffstr_shift(&s, 3);
+		if (!ffstr_ieqcz(&s, "#EXTM3U")) {
+			p->state = M3U_EXTINF;
 			continue;
 		}
+		p->state = M3U_LINE,  p->nextst = M3U_EXTINF;
+		continue;
 
-		switch (st) {
-		case I_BOM:
-			if (ch == 0xef) {
-				st = I_BOM2;
-				break;
-			}
-			// st = I_START;
-			goto start;
-
-		case I_BOM2:
-			st = I_BOM3;
-			break;
-
-		case I_BOM3:
-			st = I_START;
-			break;
-
-		case I_START:
-start:
-			ffpars_cleardata(p);
-			if (ch == '#') {
-				st = I_SHARP;
-				break;
-			}
-			st = I_NAME;
-			goto addchar;
-
-		case I_CR:
-			ffpars_cleardata(p);
-			p->line++;
-			st = I_START;
+	case M3U_EXTINF: {
+		if (!ffs_imatchz(s.ptr, s.len, "#EXTINF:")) {
+			p->state = M3U_URL;
 			continue;
-
-		case I_CMT:
-			break;
-
-		case I_SHARP:
-			if (p->val.len == FFSLEN("EXTINF:")) {
-				if (ffstr_eqcz(&p->val, "EXTINF:")) {
-					ffpars_cleardata(p);
-					st = I_DUR;
-					goto addchar;
-				} else {
-					ffpars_cleardata(p);
-					st = I_CMT;
-				}
-			} else
-				goto addchar;
-			break;
-
-		case I_DUR:
-			if (ch != ',')
-				goto addchar;
-			if (p->val.len != ffs_toint(p->val.ptr, p->val.len, &p->intval, FFS_INT64 | FFS_INTSIGN)) {
-				st = I_CMT;
-				break;
-			}
-			r = FFPARS_VAL;
-			p->type = FFM3U_DUR;
-			st = I_ARTIST_1;
-			break;
-
-		case I_ARTIST_1:
-			ffpars_cleardata(p);
-			st = I_ARTIST;
-			// break
-
-		case I_ARTIST:
-			if (ch == ' '
-				&& p->val.len >= FFSLEN(" -")
-				&& p->val.ptr[p->val.len - 1] == '-'
-				&& p->val.ptr[p->val.len - 2] == ' ') {
-				p->val.len -= FFSLEN(" -");
-				r = FFPARS_VAL;
-				p->type = FFM3U_ARTIST;
-				st = I_TITLE_1;
-				break;
-			}
-			goto addchar;
-
-		case I_TITLE_1:
-			ffpars_cleardata(p);
-			st = I_TITLE;
-			// break
-
-		case I_NAME:
-		case I_TITLE:
-addchar:
-			r = _ffpars_addchar2(p, data);
-			break;
 		}
+		ffstr_shift(&s, FFSLEN("#EXTINF:"));
 
-		data++;
-		if (r != 0)
-			break;
+		uint n = ffs_toint(s.ptr, s.len, &p->intval, FFS_INT64 | FFS_INTSIGN);
+		ffstr_shift(&s, n);
+		if (s.len == 0 || s.ptr[0] != ',') {
+			p->state = M3U_LINE,  p->nextst = M3U_URL;
+			continue;
+		}
+		ffstr_shift(&s, FFSLEN(","));
+		p->state = M3U_ARTIST;
+		if (n == 0)
+			continue;
+		r = FFM3U_DUR;
+		goto done;
 	}
 
-	if (r == FFPARS_MORE)
-		r = ffpars_savedata(p);
+	case M3U_ARTIST:
+		pos = ffs_finds(s.ptr, s.len, " - ", 3);
+		if (pos == s.ptr + s.len) {
+			p->state = M3U_TITLE;
+			continue;
+		}
+		ffstr_set(&p->val, s.ptr, pos - s.ptr);
+		ffstr_shift(&s, pos - s.ptr + FFSLEN(" - "));
+		r = FFM3U_ARTIST;
+		goto done;
+
+	case M3U_TITLE:
+		ffstr_set2(&p->val, &s);
+		p->state = M3U_LINE,  p->nextst = M3U_URL;
+		r = FFM3U_TITLE;
+		goto done;
+
+	case M3U_URL:
+		ffstr_set2(&p->val, &s);
+		p->state = M3U_LINE,  p->nextst = M3U_EXTINF;
+		r = FFM3U_URL;
+		goto done;
+	}
+	}
 
 done:
-	p->state = st;
-	*len = data - d;
+	*len = d - data;
+	p->tmp = s;
 	return r;
 }
 

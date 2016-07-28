@@ -14,14 +14,16 @@ Copyright (c) 2015 Simon Zolin
 
 
 enum FFM3U_T {
-	FFM3U_NAME,
+	FFM3U_URL = 1,
 	FFM3U_DUR,
 	FFM3U_ARTIST,
 	FFM3U_TITLE,
 };
 
+FF_EXTN void ffm3u_init(ffparser *p);
+
 /**
-Return enum FFPARS_E. */
+Return enum FFM3U_T;  <0 on error (enum FFPARS_E). */
 FF_EXTN int ffm3u_parse(ffparser *p, const char *data, size_t *len);
 
 
