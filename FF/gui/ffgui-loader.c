@@ -334,6 +334,12 @@ static int mi_action(ffparser_schem *ps, void *obj, const ffstr *val)
 }
 
 static const byte ikeys[] = {
+	VK_OEM_7,
+	VK_OEM_2,
+	VK_OEM_4,
+	VK_OEM_5,
+	VK_OEM_6,
+	VK_OEM_3,
 	VK_PAUSE,
 	VK_DELETE,
 	VK_DOWN,
@@ -360,6 +366,12 @@ static const byte ikeys[] = {
 };
 
 static const char *const skeys[] = {
+	"'",
+	"/",
+	"[",
+	"\\",
+	"]",
+	"`",
 	"break",
 	"delete",
 	"down",
@@ -423,12 +435,10 @@ static uint ffui_hotkeyparse(const char *s, size_t len)
 		r |= f;
 	}
 
-	if (v.len == 1) {
-		if (!ffchar_isletter(v.ptr[0]) && !ffchar_isdigit(v.ptr[0]))
-			goto fail;
+	if (v.len == 1 && (ffchar_isletter(v.ptr[0]) || ffchar_isdigit(v.ptr[0])))
 		r |= v.ptr[0];
 
-	} else {
+	else {
 		ssize_t ikey = ffszarr_ifindsorted(skeys, FFCNT(skeys), v.ptr, v.len);
 		if (ikey == -1)
 			goto fail; //unknown key

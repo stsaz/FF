@@ -66,6 +66,17 @@ static FFINL int ffchar_tohex(int ch) {
 FF_EXTN uint ffchar_sizesfx(int suffix);
 
 
+#define ffsz_len(sz)  strlen(sz)
+#define ffsz_findof(sz, accept)  strpbrk(sz, accept)
+#define ffsz_cmp(sz1, sz2)  strcmp(sz1, sz2)
+
+#ifndef FF_MSVC
+#define ffsz_icmp(sz1, sz2)  strcasecmp(sz1, sz2)
+#else
+#define ffsz_icmp(sz1, sz2)  _stricmp(sz1, sz2)
+#endif
+
+
 /** Compare two ANSI strings.  Case-insensitive.
 Return -1 if s1 < s2. */
 FF_EXTN int ffs_icmp(const char *s1, const char *s2, size_t len);
@@ -110,6 +121,20 @@ Useful to check whether "KEY=VALUE" starts with "KEY". */
 
 #define ffs_imatch(s, len, starts_with, n) \
 	((len) >= (n) && 0 == ffs_icmp(s, starts_with, n))
+
+static FFINL int ffs_matchz(const char *s, size_t len, const char *starts_with)
+{
+	uint n = ffsz_len(starts_with);
+	return len >= n
+		&& 0 == ffs_cmp(s, starts_with, n);
+}
+
+static FFINL int ffs_imatchz(const char *s, size_t len, const char *starts_with)
+{
+	uint n = ffsz_len(starts_with);
+	return len >= n
+		&& 0 == ffs_icmp(s, starts_with, n);
+}
 
 static FFINL ffbool ffsz_match(const char *sz, const char *starts_with, size_t n)
 {
@@ -243,16 +268,6 @@ static FFINL void ffs_max(const void *s1, size_t len1, const void *s2, size_t le
 	}
 }
 
-
-#define ffsz_len  strlen
-#define ffsz_findof strpbrk
-#define ffsz_cmp  strcmp
-
-#ifndef FF_MSVC
-#define ffsz_icmp  strcasecmp
-#else
-#define ffsz_icmp  _stricmp
-#endif
 
 /** Search the end of string limited by @maxlen. */
 static FFINL size_t ffsz_nlen(const char *s, size_t maxlen)

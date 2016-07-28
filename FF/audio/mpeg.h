@@ -244,3 +244,8 @@ FF_EXTN int ffmpg_decode(ffmpg *m);
 
 /** Get an absolute sample number. */
 #define ffmpg_cursample(m)  ((m)->cur_sample)
+
+static FFINL int ffmpg_isvbr(ffmpg *m)
+{
+	return !ffs_cmp(m->xing.id, "Xing", 4);
+}
