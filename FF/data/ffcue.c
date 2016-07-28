@@ -23,264 +23,152 @@ static const char *const _ffcue_dict[] = {
 	"TRACK",
 };
 
+enum {
+	CUE_LINE, CUE_KEY, CUE_VAL,
+	CUE_GLOB, CUE_GLOB_NXLINE, CUE_REM_VAL,
+	CUE_FILE, CUE_FILE_NXLINE, CUE_FILETYPE,
+	CUE_FILE_TRACK, CUE_FILE_TRACK_NXLINE,
+};
+
+void ffcue_init(ffparser *p)
+{
+	ffpars_init(p);
+	p->line = 0;
+	p->state = CUE_LINE,  p->nextst = CUE_GLOB;
+}
+
 int ffcue_parse(ffparser *p, const char *data, size_t *len)
 {
-	int ch, st = p->state, st2, r = FFPARS_MORE;
-	const char *d = data, *end = data + *len;
-	enum { I_WSPACE, I_CMD, I_SKIPLINE, I_CR
-		, I_VAL, I_VAL_BARE, I_VAL_QUOT
-		, I_REM, I_REM_VAL
-		, I_FILE, I_FILE_QUOT, I_FILE_QUOT_AFTER, I_FILE_TYPE
-		, I_TRACK, I_TRACKNO, I_TRK_TYPE_START, I_TRK_TYPE, I_TRK_CMD, I_TRK_INDEX
-	};
+	ssize_t r;
+	int cmd = 0;
+	ffstr s = p->tmp;
+	const char *d = data, *end = data + *len, *pos;
 
-	while (data != end) {
-		ch = *data;
+	for (;;) {
+	switch (p->state) {
 
-		if (ch == '\n' || ch == '\r') {
-			st2 = st;
-			if (ch == '\n') {
-				st = I_WSPACE;
-				p->line++;
-				ffpars_cleardata(p);
-			} else
-				st = I_CR;
-			data++;
+	case CUE_LINE:
+		pos = ffs_find(d, end - d, '\n');
+		r = ffarr_append_until(&p->buf, d, end - d, p->buf.len + pos - d + 1);
+		if (r == 0)
+			return FFPARS_MORE;
+		else if (r < 0)
+			return -FFPARS_ESYS;
 
-			switch (st2) {
-			case I_VAL_BARE:
-			case I_FILE_TYPE:
-				r = FFPARS_VAL;
-				goto done;
+		d += r;
+		ffstr_set2(&s, &p->buf);
+		p->buf.len = 0;
+		pos = ffs_rskipof(s.ptr, s.len, "\r\n", 2);
+		s.len = pos - s.ptr;
+		p->line++;
+		p->state = CUE_KEY;
+		continue;
 
-			case I_CR:
-				if (ch == '\r')
-					p->line++;
-				break;
+	case CUE_KEY:
+		pos = ffs_skipof(s.ptr, s.len, " \t", 2);
+		ffstr_shift(&s, pos - s.ptr);
+		ffstr_nextval3(&s, &p->val, ' ');
+		cmd = ffszarr_ifindsorted(_ffcue_dict, FFCNT(_ffcue_dict), p->val.ptr, p->val.len);
+		p->state = p->nextst;
+		continue;
 
-			case I_WSPACE:
-			case I_SKIPLINE:
-			case I_TRK_TYPE:
-				break;
+	case CUE_VAL:
+		ffstr_nextval3(&s, &p->val, ' ' | FFSTR_NV_DBLQUOT);
+		p->state = p->nextst;
+		r = p->ret;
+		goto done;
 
-			default:
-				r = FFPARS_ENOVAL; //incomplete line
-				goto done;
-			}
 
+	case CUE_GLOB:
+		switch (cmd) {
+		case CMD_REM:
+			p->state = CUE_VAL,  p->nextst = CUE_REM_VAL;
+			p->ret = FFCUE_REM_NAME;
+			continue;
+
+		case CMD_PERFORMER:
+		case CMD_TITLE:
+			p->ret = (cmd == CMD_PERFORMER) ? FFCUE_PERFORMER : FFCUE_TITLE;
+			p->state = CUE_VAL,  p->nextst = CUE_GLOB_NXLINE;
+			continue;
+
+		case CMD_FILE:
+			p->state = CUE_VAL,  p->nextst = CUE_FILETYPE;
+			p->ret = FFCUE_FILE;
 			continue;
 		}
+		// break
 
-		switch (st) {
-		case I_WSPACE:
-			if (ch == ' ' || ch == '\t')
-				break;
-			if (p->nextst != 0) {
-				st = p->nextst;
-				p->nextst = 0;
-				continue;
-			}
-			p->val.ptr = (char*)data;
-			st = I_CMD;
-			// break
+	case CUE_GLOB_NXLINE:
+		p->state = CUE_LINE,  p->nextst = CUE_GLOB;
+		continue;
 
-		case I_CMD:
-			if (ch != ' ')
-				goto addchar;
-			switch (ffszarr_ifindsorted(_ffcue_dict, FFCNT(_ffcue_dict), p->val.ptr, p->val.len)) {
-			case CMD_REM:
-				st = I_REM;
-				break;
-			case CMD_PERFORMER:
-				p->type = FFCUE_PERFORMER;
-				st = I_VAL;
-				break;
-			case CMD_TITLE:
-				p->type = FFCUE_TITLE;
-				st = I_VAL;
-				break;
-			case CMD_FILE:
-				st = I_FILE;
-				break;
-			default:
-				st = I_SKIPLINE;
-			}
-			ffpars_cleardata(p);
-			break;
+	case CUE_REM_VAL:
+		p->state = CUE_VAL,  p->nextst = CUE_GLOB_NXLINE;
+		p->ret = FFCUE_REM_VAL;
+		continue;
 
-		case I_CR:
-			ffpars_cleardata(p);
-			p->line++;
-			st = I_WSPACE;
+
+	case CUE_FILETYPE:
+		p->state = CUE_VAL,  p->nextst = CUE_FILE_NXLINE;
+		p->ret = FFCUE_FILETYPE;
+		continue;
+
+	case CUE_FILE:
+		switch (cmd) {
+		case CMD_TRACK:
+			ffstr_nextval3(&s, &p->val, ' ');
+			if (p->val.len != 2 || 2 != ffs_toint(p->val.ptr, p->val.len, &p->intval, FFS_INT64))
+				return -FFPARS_EBADVAL;
+			p->state = CUE_LINE,  p->nextst = CUE_FILE_TRACK;
+			r = FFCUE_TRACKNO;
+			goto done;
+		}
+		// break
+
+	case CUE_FILE_NXLINE:
+		p->state = CUE_LINE,  p->nextst = CUE_FILE;
+		continue;
+
+
+	case CUE_FILE_TRACK:
+		switch (cmd) {
+		case CMD_PERFORMER:
+		case CMD_TITLE:
+			p->ret = (cmd == CMD_PERFORMER) ? FFCUE_TRK_PERFORMER : FFCUE_TRK_TITLE;
+			p->state = CUE_VAL,  p->nextst = CUE_FILE_TRACK_NXLINE;
 			continue;
 
-		case I_SKIPLINE:
-			break;
-
-		case I_REM:
-			if (ch != ' ')
-				goto addchar;
-			st = I_REM_VAL;
-			p->type = FFCUE_REM_NAME;
-			r = FFPARS_VAL;
-			break;
-
-		case I_REM_VAL:
-			ffpars_cleardata(p);
-			p->type = FFCUE_REM_VAL;
-			st = I_VAL;
-			continue;
-
-// FILE
-		case I_FILE:
-			if (ch == '"') {
-				st = I_FILE_QUOT;
-				p->type = FFCUE_FILE;
-			} else
-				r = FFPARS_EBADVAL;
-			break;
-
-		case I_FILE_QUOT:
-			if (ch != '"')
-				goto addchar;
-			r = FFPARS_VAL;
-			st = I_FILE_QUOT_AFTER;
-			break;
-
-		case I_FILE_QUOT_AFTER:
-			ffpars_cleardata(p);
-			if (ch == ' ') {
-				st = I_FILE_TYPE;
-				p->type = FFCUE_FILETYPE;
-				p->nextst = I_TRACK;
-			} else
-				r = FFPARS_EBADVAL; //expected whitespace
-			break;
-
-		case I_FILE_TYPE:
-			goto addchar;
-
-// TRACK
-		case I_TRACK:
-			if (ch != ' ')
-				goto addchar;
-			if (ffstr_eqcz(&p->val, "TRACK")) {
-				st = I_TRACKNO;
-				ffpars_cleardata(p);
-			} else {
-				st = I_CMD;
-				continue;
-			}
-			break;
-
-		case I_TRACKNO:
-			if (ch != ' ')
-				goto addchar;
-			if (2 != ffs_toint(p->val.ptr, p->val.len, &p->intval, FFS_INT64)) {
-				r = FFPARS_EBADVAL;
-				break;
-			}
-			r = FFPARS_VAL;
-			p->type = FFCUE_TRACKNO;
-			p->nextst = I_TRK_CMD;
-			st = I_TRK_TYPE_START;
-			break;
-
-		case I_TRK_TYPE_START:
-			ffpars_cleardata(p);
-			st = I_TRK_TYPE;
-			break;
-
-		case I_TRK_TYPE:
-			break;
-
-		case I_TRK_CMD:
-			if (ch != ' ')
-				goto addchar;
-			switch (ffszarr_ifindsorted(_ffcue_dict, FFCNT(_ffcue_dict), p->val.ptr, p->val.len)) {
-			case CMD_PERFORMER:
-				p->type = FFCUE_TRK_PERFORMER;
-				st = I_VAL;
-				p->nextst = I_TRK_CMD;
-				break;
-			case CMD_TITLE:
-				p->type = FFCUE_TRK_TITLE;
-				st = I_VAL;
-				p->nextst = I_TRK_CMD;
-				break;
-			case CMD_INDEX:
-				st = I_TRK_INDEX;
-				break;
-
-			case CMD_TRACK:
-				st = I_TRACKNO;
-				break;
-			case CMD_FILE:
-				st = I_FILE;
-				break;
-
-			default:
-				st = I_SKIPLINE;
-				p->nextst = I_TRK_CMD;
-			}
-			ffpars_cleardata(p);
-			break;
-
-		case I_TRK_INDEX:
-			if (0 != (r = _ffpars_addchar2(p, data)))
-				break;
-
-			if (p->val.len == FFSLEN("00 00:00:00")) {
-				uint idx, m, s, f;
-				if (p->val.len != ffs_fmatch(p->val.ptr, p->val.len, "%2u %2u:%2u:%2u", &idx, &m, &s, &f)) {
-					r = FFPARS_EBADVAL;
-					break;
-				}
-				p->intval = (int64)(m * 60 + s) * 75 + f;
-				r = FFPARS_VAL;
-				p->type = (idx == 0) ? FFCUE_TRK_INDEX00 : FFCUE_TRK_INDEX;
-				p->nextst = I_TRK_CMD;
-				st = I_SKIPLINE;
-			}
-			break;
-
-// VALUE
-		case I_VAL:
-			if (ch == '"') {
-				st = I_VAL_QUOT;
-			} else {
-				p->val.ptr = (char*)data;
-				st = I_VAL_BARE;
-				goto addchar;
-			}
-			break;
-
-		case I_VAL_BARE:
-addchar:
-			r = _ffpars_addchar2(p, data);
-			break;
-
-		case I_VAL_QUOT:
-			if (ch == '"') {
-				r = FFPARS_VAL;
-				st = I_SKIPLINE;
-			} else
-				goto addchar;
-			break;
+		case CMD_INDEX: {
+			uint idx, m, sec, f;
+			if (s.len != ffs_fmatch(s.ptr, s.len, "%2u %2u:%2u:%2u", &idx, &m, &sec, &f))
+				return -FFPARS_EBADVAL;
+			p->intval = (int64)(m * 60 + sec) * 75 + f;
+			p->state = CUE_FILE_TRACK_NXLINE;
+			r = (idx == 0) ? FFCUE_TRK_INDEX00 : FFCUE_TRK_INDEX;
+			goto done;
 		}
 
-		data++;
+		case CMD_TRACK:
+			p->state = CUE_FILE;
+			continue;
 
-		if (r != 0)
-			break;
+		case CMD_FILE:
+			p->state = CUE_GLOB;
+			continue;
+		}
+		// break
+
+	case CUE_FILE_TRACK_NXLINE:
+		p->state = CUE_LINE,  p->nextst = CUE_FILE_TRACK;
+		continue;
+
+	}
 	}
 
-	if (r == FFPARS_MORE)
-		ffpars_savedata(p);
-
 done:
-	p->state = st;
-	*len = data - d;
+	*len = d - data;
+	p->tmp = s;
 	return r;
 }
 

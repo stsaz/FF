@@ -17,7 +17,7 @@ FILE "VAL" $TYPE
 
 
 enum FFCUE_T {
-	FFCUE_REM_NAME,
+	FFCUE_REM_NAME = 1,
 	FFCUE_REM_VAL,
 	FFCUE_PERFORMER,
 	FFCUE_TITLE,
@@ -34,6 +34,10 @@ enum FFCUE_T {
 	FFCUE_FIN, // for ffcue_index()
 };
 
+FF_EXTN void ffcue_init(ffparser *p);
+
+/**
+Return enum FFCUE_T;  <0 on error (enum FFPARS_E). */
 FF_EXTN int ffcue_parse(ffparser *p, const char *data, size_t *len);
 
 

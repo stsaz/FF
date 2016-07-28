@@ -52,7 +52,7 @@ int test_cue(void)
 	for (i = 0;  i != FFCNT(idxs);  i++) {
 		k = 0;
 		ffmem_tzero(&p);
-		ffpars_init(&p);
+		ffcue_init(&p);
 		ffmem_tzero(&cu);
 		cu.options = i;
 		s1 = s;
@@ -66,7 +66,7 @@ int test_cue(void)
 				break;
 			ffstr_shift(&s1, n);
 
-			if (NULL == (trk = ffcue_index(&cu, p.type, p.intval)))
+			if (NULL == (trk = ffcue_index(&cu, r, p.intval)))
 				continue;
 			x(trk->from == idxs[i][k]);
 			x(trk->to == idxs[i][k + 1]);
