@@ -1,4 +1,4 @@
-/** MP4.
+/** MP4 reader/writer.
 Copyright (c) 2016 Simon Zolin
 */
 
@@ -18,6 +18,7 @@ mdat(CHUNK(SAMPLE(DATA)...) ...)
 
 struct bbox;
 struct mp4_box {
+	char name[4];
 	uint type; //enum BOX; flags
 	uint usedboxes; //bit-table of children boxes that were processed
 	uint64 osize; //the whole box size
@@ -29,7 +30,9 @@ typedef struct ffmp4 {
 	uint state;
 	uint nxstate;
 	uint whole_data;
+
 	int err; //enum MP4_E
+	char errmsg[64];
 
 	uint ictx;
 	struct mp4_box boxes[10];
@@ -41,14 +44,12 @@ typedef struct ffmp4 {
 	uint64 total_size;
 	ffarr buf;
 	uint isamp; //current MP4-sample
-	uint chunk_size;
-	uint chunk_audio;
+	uint frsize;
 	ffarr sktab; //struct seekpt[], MP4-sample table
 	ffarr chunktab; //uint64[], offsets of audio chunks
 	ffstr stts;
 	ffstr stsc;
-	ffstr alac; // ALAC magic cookie
-	char aac_asc[2]; // AAC Audio Specific Config
+	ffstr codec_conf;
 	uint aac_brate;
 
 	const char *out;
@@ -123,3 +124,49 @@ FF_EXTN uint ffmp4_bitrate(ffmp4 *m);
 
 /** Return codec name. */
 FF_EXTN const char* ffmp4_codec(int codec);
+
+
+typedef struct ffmp4_cook {
+	uint state;
+	int err;
+	ffarr buf;
+	ffarr stsz;
+	ffarr stco;
+	uint64 off;
+	uint stco_off;
+	uint stsz_off;
+	const struct bbox* ctx[10];
+	uint boxoff[10];
+	uint ictx;
+	ffpcm fmt;
+	struct {
+		uint nframes;
+		uint frame_samples;
+		uint64 total_samples;
+	} info;
+	uint frameno;
+	uint64 samples;
+	uint chunk_frames;
+	uint chunk_curframe;
+
+	char aconf[64];
+	uint aconf_len;
+
+	const char *data;
+	size_t datalen;
+
+	const char *out;
+	size_t outlen;
+
+	uint fin :1;
+} ffmp4_cook;
+
+const char* ffmp4_werrstr(ffmp4_cook *m);
+
+FF_EXTN int ffmp4_create_aac(ffmp4_cook *m, const ffpcm *fmt, const ffstr *conf, uint64 total_samples, uint frame_samples);
+
+FF_EXTN void ffmp4_wclose(ffmp4_cook *m);
+
+/**
+Return enum FFMP4_R. */
+FF_EXTN int ffmp4_write(ffmp4_cook *m);
