@@ -20,17 +20,14 @@ const char* ffaac_errstr(ffaac *a)
 	if (a->err == AAC_ESYS)
 		return fferr_strp(fferr_last());
 
-	uint n = ffs_fromint(a->err, a->serr, sizeof(a->serr) - 1, FFINT_HEXLOW);
-	a->serr[n] = '\0';
-	return a->serr;
+	return fdkaac_decode_errstr(-a->err);
 }
-
 
 int ffaac_open(ffaac *a, uint channels, const char *conf, size_t len)
 {
 	int r;
 	if (0 != (r = fdkaac_decode_open(&a->dec, conf, len))) {
-		a->err = r;
+		a->err = -r;
 		return FFAAC_RERR;
 	}
 
@@ -78,5 +75,74 @@ int ffaac_decode(ffaac *a)
 	}
 
 	a->pcmlen = a->frsamples * ffpcm_size1(&a->fmt);
+	return FFAAC_RDATA;
+}
+
+
+const char* ffaac_enc_errstr(ffaac_enc *a)
+{
+	if (a->err == AAC_ESYS)
+		return fferr_strp(fferr_last());
+
+	return fdkaac_encode_errstr(-a->err);
+}
+
+int ffaac_create(ffaac_enc *a, const ffpcm *pcm, uint quality)
+{
+	int r;
+	if (a->info.aot == 0)
+		a->info.aot = AAC_LC;
+	a->info.channels = pcm->channels;
+	a->info.rate = pcm->sample_rate;
+	a->info.quality = quality;
+
+	if (0 != (r = fdkaac_encode_create(&a->enc, &a->info))) {
+		a->err = -r;
+		return FFAAC_RERR;
+	}
+
+	if (NULL == (a->buf = ffmem_alloc(a->info.max_frame_size))) {
+		a->err = AAC_ESYS;
+		return FFAAC_RERR;
+	}
+	return 0;
+}
+
+void ffaac_enc_close(ffaac_enc *a)
+{
+	FF_SAFECLOSE(a->enc, NULL, fdkaac_encode_free);
+	ffmem_safefree(a->buf);
+}
+
+int ffaac_encode(ffaac_enc *a)
+{
+	int r;
+	size_t n = a->pcmlen / (a->info.channels * sizeof(short));
+	if (n == 0 && !a->fin)
+		return FFAAC_RMORE;
+
+	for (;;) {
+		r = fdkaac_encode(a->enc, a->pcm, &n, a->buf);
+		if (r < 0) {
+			a->err = -r;
+			return FFAAC_RERR;
+		}
+
+		a->pcm += n * a->info.channels,  a->pcmlen -= n * a->info.channels * sizeof(short);
+
+		if (r == 0) {
+			if (a->fin) {
+				if (n != 0) {
+					n = 0;
+					continue;
+				}
+				return FFAAC_RDONE;
+			}
+			return FFAAC_RMORE;
+		}
+		break;
+	}
+
+	a->data = a->buf,  a->datalen = r;
 	return FFAAC_RDATA;
 }
