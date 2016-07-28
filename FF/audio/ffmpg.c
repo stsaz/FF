@@ -782,7 +782,8 @@ int ffmpg_decode(ffmpg *m)
 		} else if (r < 0) {
 			m->err = FFMPG_EMPG123;
 			m->e = r;
-			return FFMPG_RERR;
+			m->state = I_SEEK2;
+			return FFMPG_RWARN;
 		}
 		m->pcmlen = r;
 		m->state = I_FROK;
