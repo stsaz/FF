@@ -49,6 +49,7 @@ typedef struct ffogg {
 		, seek_sample;
 
 	ffarr buf;
+	ffarr pktdata; //holds partial packet data
 	uint hdrsize;
 	uint pagesize;
 	uint bytes_skipped;
@@ -70,9 +71,11 @@ typedef struct ffogg {
 
 	uint seekable :1 //search for eos page
 		, init_done :1
+		, page_continued :1
 		, page_last :1
 		, firstseek :1
 		, pagenum_err :1
+		, continued :1 //expecting continued packet within next page
 		;
 } ffogg;
 

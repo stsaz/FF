@@ -100,6 +100,7 @@ enum OGG_E {
 	OGG_ENOSYNC,
 	OGG_EPKT,
 	OGG_EBIGPKT,
+	OGG_ECONTPKT,
 
 	OGG_ESYS,
 };
@@ -117,6 +118,7 @@ static const char* const ogg_errstr[] = {
 	"couldn't find OGG page",
 	"bad packet",
 	"too large packet",
+	"expected continued packet",
 };
 
 const char* ffogg_errstr(int e)
@@ -203,6 +205,11 @@ static int ogg_findpage(const char *data, size_t len, ogg_hdr *h)
 }
 
 /** Get next packet from page.
+
+Packets may be split across multiple pages:
+PAGE0{PKT0 PKT1...}  PAGE1{...PKT1 PKT2}
+ In this case the last segment length in PAGE0 is 0xff and PAGE1.flags_continued = 1.
+
 @segoff: current offset within ogg_hdr.segments
 @bodyoff: current offset within page body
 Return packet body size;  -1 if no more packets;  -2 for an incomplete packet. */
@@ -402,6 +409,12 @@ static int _ffogg_gethdr(ffogg *o, ogg_hdr **h)
 		, ogg_packets(hdr), (hdr->flags & OGG_FCONTINUED) != 0
 		, o->pagesize, o->off - o->hdrsize);
 
+	if (o->continued && !(hdr->flags & OGG_FCONTINUED)) {
+		o->continued = 0,  o->pktdata.len = 0;
+		o->err = OGG_ECONTPKT;
+		return FFOGG_RWARN;
+	}
+
 	if (n != 0) {
 		o->err = OGG_EJUNKDATA;
 		return FFOGG_RWARN;
@@ -451,6 +464,7 @@ static int _ffogg_getbody(ffogg *o)
 	else if (serial != o->serial)
 		return ERR(o, OGG_ESERIAL);
 
+	o->page_continued = (h->flags & OGG_FCONTINUED) != 0;
 	o->page_last = (h->flags & OGG_FLAST) != 0;
 
 	uint pagenum = ffint_ltoh32(h->number);
@@ -576,6 +590,7 @@ static int _ffogg_open(ffogg *o)
 void ffogg_close(ffogg *o)
 {
 	ffarr_free(&o->buf);
+	ffarr_free(&o->pktdata);
 	FF_SAFECLOSE(o->vctx, NULL, vorbis_decode_free);
 }
 
@@ -590,6 +605,8 @@ void ffogg_seek(ffogg *o, uint64 sample)
 	ffmemcpy(o->seekpt, o->seektab, sizeof(o->seekpt));
 	o->skoff = (uint64)-1;
 	o->buf.len = 0;
+
+	o->continued = 0,  o->pktdata.len = 0;
 }
 
 /* Seeking in OGG Vorbis:
@@ -757,13 +774,31 @@ int ffogg_decode(ffogg *o)
 
 	case I_PKT:
 		r = ogg_pkt_next(&o->opkt, o->buf.ptr, &o->segoff, &o->bodyoff);
+		if (o->page_continued) {
+			o->page_continued = 0;
+			if (!o->continued)
+				continue; //skip continued packet
+		}
 		if (r == -1) {
 			o->state = I_PAGE;
 			continue;
-		} else if (r == -2)
-			return ERR(o, OGG_EBIGPKT);
+		}
 
 		FFDBG_PRINTLN(10, "packet #%u, size: %u", o->pktno, (int)o->opkt.bytes);
+
+		if (r == -2 || o->continued) {
+			if (NULL == ffarr_append(&o->pktdata, o->opkt.packet, o->opkt.bytes))
+				return o->err = OGG_ESYS,  FFOGG_RERR;
+
+			if (r == -2) {
+				o->continued = 1;
+				o->state = I_PAGE;
+				continue;
+			}
+
+			o->opkt.packet = (void*)o->pktdata.ptr,  o->opkt.bytes = o->pktdata.len;
+			o->continued = 0,  o->pktdata.len = 0;
+		}
 
 		o->opkt.packetno = o->pktno++;
 		o->state = o->nxstate;
