@@ -122,14 +122,14 @@ static FFINL int wvpk_hdrinfo(ffwvpack *w, const wavpack_info *inf)
 
 	switch (inf->bps) {
 	case 16:
-		w->fmt.format = FFPCM_16LE;
+		w->fmt.format = FFPCM_16;
 		break;
 
 	case 32:
 		if (mode & MODE_FLOAT)
 			w->fmt.format = FFPCM_FLOAT;
 		else
-			w->fmt.format = FFPCM_32LE;
+			w->fmt.format = FFPCM_32;
 		break;
 
 	default:
@@ -518,14 +518,14 @@ pcm:
 	}
 
 	switch (w->fmt.format) {
-	case FFPCM_16LE:
+	case FFPCM_16:
 		//in-place conversion: int[] -> short[]
 		for (i = 0;  i != n * w->fmt.channels;  i++, isrc++) {
 			w->pcm[i] = (short)w->pcm32[isrc];
 		}
 		break;
 
-	case FFPCM_32LE:
+	case FFPCM_32:
 	case FFPCM_FLOAT:
 		if (isrc != 0) {
 			for (i = 0;  i != n * w->fmt.channels;  i++, isrc++) {

@@ -11,14 +11,19 @@ Copyright (c) 2015 Simon Zolin
 
 
 enum FFPCM_FMT {
+	FFPCM_8 = 8,
 	FFPCM_16LE = 16,
+	FFPCM_16 = 16,
 	FFPCM_24 = 24,
-	FFPCM_32LE = 32,
-	FFPCM_16LE_32 = 0x0100 | 32,
+	FFPCM_32 = 32,
 	FFPCM_FLOAT = 0x0200 | 32,
 };
 
+/** Get format name. */
 FF_EXTN const char* ffpcm_fmtstr(uint fmt);
+
+/** Get format by name. */
+FF_EXTN int ffpcm_fmt(const char *sfmt, size_t len);
 
 typedef struct ffpcm {
 	uint format; //enum FFPCM_FMT
@@ -39,6 +44,9 @@ enum {
 
 /** Channels as string. */
 FF_EXTN const char* ffpcm_channelstr(uint channels);
+
+/** Get channels by name. */
+FF_EXTN int ffpcm_channels(const char *s, size_t len);
 
 /** Get bits per sample for one channel. */
 #define ffpcm_bits(fmt)  ((fmt) & 0xff)
@@ -66,7 +74,7 @@ FF_EXTN const char* ffpcm_channelstr(uint channels);
 	FF_SAFEDIV((uint64)(bytes) * 8 * 1000, time_ms)
 
 /** Combine two streams together. */
-FF_EXTN void ffpcm_mix(const ffpcm *pcm, char *stm1, const char *stm2, size_t samples);
+FF_EXTN void ffpcm_mix(const ffpcmex *pcm, void *stm1, const void *stm2, size_t samples);
 
 
 /** Convert 16LE sample to FLOAT. */

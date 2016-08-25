@@ -31,7 +31,7 @@ int ffaac_open(ffaac *a, uint channels, const char *conf, size_t len)
 		return FFAAC_RERR;
 	}
 
-	a->fmt.format = FFPCM_16LE;
+	a->fmt.format = FFPCM_16;
 	a->fmt.channels = channels;
 	if (NULL == (a->pcmbuf = ffmem_alloc(AAC_MAXFRAMESAMPS * ffpcm_size1(&a->fmt)))) {
 		a->err = AAC_ESYS;

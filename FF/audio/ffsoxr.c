@@ -14,10 +14,9 @@ static const byte soxr_fmts[2][3] = {
 static int _ffsoxr_getfmt(int fmt, int ileaved)
 {
 	switch (fmt) {
-	case FFPCM_16LE:
+	case FFPCM_16:
 		return soxr_fmts[ileaved][0];
-	case FFPCM_32LE:
-	case FFPCM_16LE_32:
+	case FFPCM_32:
 		return soxr_fmts[ileaved][1];
 	case FFPCM_FLOAT:
 		return soxr_fmts[ileaved][2];
