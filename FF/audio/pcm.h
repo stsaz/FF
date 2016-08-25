@@ -80,7 +80,8 @@ FF_EXTN void ffpcm_mix(const ffpcmex *pcm, void *stm1, const void *stm2, size_t 
 /** Convert 16LE sample to FLOAT. */
 #define _ffpcm_16le_flt(sh)  ((float)(sh) * (1 / 32768.0))
 
-/** Convert PCM data. */
+/** Convert PCM data.
+Note: sample rate conversion isn't supported. */
 FF_EXTN int ffpcm_convert(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm, const void *in, size_t samples);
 
 

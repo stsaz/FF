@@ -166,7 +166,7 @@ FF_EXTN void * _ffarr_push(ffarr *ar, size_t elsz);
 	(T*)_ffarr_push((ffarr*)ar, sizeof(T))
 
 #define ffarr_add(a, src, n, elsz) \
-	ffarr2_add(a, (a)->cap, src, n, elsz)
+	ffarr2_add((ffarr2*)a, (a)->cap, src, n, elsz)
 
 /** Add items into array.  Reallocate memory, if needed.
 Return the tail.

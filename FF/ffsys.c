@@ -90,7 +90,7 @@ int fffile_mapbuf(fffilemap *fm, ffstr *dst)
 				return 1;
 		}
 
-		effoffs = ff_align_floor(fm->foff, fm->blocksize);
+		effoffs = ff_align_floor2(fm->foff, fm->blocksize);
 		fm->map = ffmap_open(fm->hmap, effoffs, size, PROT_READ, MAP_SHARED);
 		if (fm->map == NULL)
 			return 1;

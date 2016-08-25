@@ -330,6 +330,7 @@ static int _ffmpg_frame(ffmpg *m, ffarr *buf)
 				return FFMPG_RERR;
 			}
 
+			m->off += m->datalen;
 			return FFMPG_RMORE;
 		}
 
@@ -339,7 +340,7 @@ static int _ffmpg_frame(ffmpg *m, ffarr *buf)
 			d.off = (char*)h - buf->ptr + 1;
 		}
 	}
-	m->off += m->datalen - m->datalen;
+	m->off += d.data.len - m->datalen;
 	m->data = d.data.ptr;
 	m->datalen = d.data.len;
 
@@ -384,10 +385,7 @@ static int _ffmpg_frame2(ffmpg *m, ffarr *buf)
 
 		r = _ffmpg_frame(m, &m->buf2);
 		if (r == FFMPG_RWARN) {
-			ffarr_free(buf);
-			ffarr_acq(buf, &m->buf2);
-			ffarr_null(&m->buf2);
-			continue;
+			goto next;
 
 		} else if (r == FFMPG_RMORE) {
 			if (buf->cap == 0
@@ -401,10 +399,7 @@ static int _ffmpg_frame2(ffmpg *m, ffarr *buf)
 			return r;
 
 		if ((ffint_ntoh32(buf->ptr) & MPG_HDR_CONST_MASK) != (ffint_ntoh32(m->buf2.ptr) & MPG_HDR_CONST_MASK)) {
-			ffarr_free(buf);
-			ffarr_acq(buf, &m->buf2);
-			ffarr_null(&m->buf2);
-			continue;
+			goto next;
 		}
 
 		if (NULL == ffarr_append(buf, m->buf2.ptr, m->buf2.len)) {
@@ -414,6 +409,11 @@ static int _ffmpg_frame2(ffmpg *m, ffarr *buf)
 		ffarr_free(&m->buf2);
 		m->frame2 = 0;
 		return 0;
+
+next:
+		ffarr_free(buf);
+		ffarr_acq(buf, &m->buf2);
+		ffarr_null(&m->buf2);
 	}
 	//unreachable
 }
