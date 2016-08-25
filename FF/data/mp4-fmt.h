@@ -151,3 +151,4 @@ int mp4_stco_add(const char *data, uint type, uint64 offset);
 int mp4_ilst_data(const char *data, uint len, uint parent_type, ffstr *tagval, char *tagbuf, size_t tagbuf_cap);
 int mp4_ilst_trkn(const char *data, ffstr *tagval, char *tagbuf, size_t tagbuf_cap);
 const struct bbox* mp4_ilst_find(uint mmtag);
+int mp4_ilst_data_write(char *data, const ffstr *val);

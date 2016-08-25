@@ -551,11 +551,47 @@ int ffmp4_create_aac(ffmp4_cook *m, const ffpcm *fmt, const ffstr *conf, uint64 
 	return 0;
 }
 
+struct ffmp4_tag {
+	uint id;
+	ffstr val;
+};
+
+int ffmp4_addtag(ffmp4_cook *m, uint mmtag, const char *val, size_t val_len)
+{
+	if (mmtag == FFMMTAG_TRACKNO || mmtag == FFMMTAG_TRACKTOTAL || mmtag == FFMMTAG_DISCNUMBER
+		|| NULL == mp4_ilst_find(mmtag))
+		return 1;
+
+	if (NULL == _ffarr_grow(&m->tags, 1, 8, sizeof(struct ffmp4_tag)))
+		return MP4_ESYS;
+
+	struct ffmp4_tag *t = _ffarr_push(&m->tags, sizeof(struct ffmp4_tag));
+	t->id = mmtag;
+	if (NULL == ffstr_copy(&t->val, val, val_len))
+		return MP4_ESYS;
+	return 0;
+}
+
+static void tag_free(struct ffmp4_tag *t)
+{
+	ffstr_free(&t->val);
+}
+
+static struct ffmp4_tag* tags_find(struct ffmp4_tag *t, uint cnt, uint id)
+{
+	for (uint i = 0;  i != cnt;  i++) {
+		if (id == t[i].id)
+			return &t[i];
+	}
+	return NULL;
+}
+
 void ffmp4_wclose(ffmp4_cook *m)
 {
 	ffarr_free(&m->buf);
 	ffarr_free(&m->stsz);
 	ffarr_free(&m->stco);
+	FFARR2_FREE_ALL(&m->tags, tag_free, struct ffmp4_tag);
 }
 
 static const char mp4_ftyp_aac[24] = {
@@ -615,6 +651,10 @@ int ffmp4_write(ffmp4_cook *m)
 			n = mp4_stco_size(BOX_STCO, chunks);
 			if (NULL == ffarr_alloc(&m->stco, n))
 				return ERR(m, MP4_ESYS);
+			break;
+
+		case BOX_ILST_DATA:
+			n = mp4_ilst_data_write(NULL, &m->curtag->val);
 			break;
 		}
 		}
@@ -715,9 +755,19 @@ int ffmp4_write(ffmp4_cook *m)
 		case BOX_STSD_ALAC:
 			goto next;
 
+		case BOX_ILST_DATA:
+			n = mp4_ilst_data_write(data, &m->curtag->val);
+			break;
+
 		default:
-			if (t >= _TAG_FIRST)
-				goto next;
+			if (t >= _BOX_TAG) {
+				uint tag = t - _BOX_TAG;
+				if (tag == 0)
+					goto next;
+				m->curtag = tags_find((void*)m->tags.ptr, m->tags.len, tag);
+				if (m->curtag == NULL)
+					goto next;
+			}
 		}
 
 		box = ffarr_end(&m->buf);
@@ -737,6 +787,7 @@ next:
 
 	case W_DATA1:
 		ffarr_free(&m->buf);
+		FFARR2_FREE_ALL(&m->tags, tag_free, struct ffmp4_tag);
 		m->state = W_DATA;
 		// break
 

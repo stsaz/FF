@@ -710,6 +710,18 @@ const struct bbox* mp4_ilst_find(uint mmtag)
 	return NULL;
 }
 
+int mp4_ilst_data_write(char *data, const ffstr *val)
+{
+	if (data == NULL)
+		return sizeof(struct ilst_data) + val->len;
+
+	struct ilst_data *d = (void*)data;
+	ffmem_tzero(d);
+	d->type = ILST_UTF8;
+	ffmemcpy(d + 1, val->ptr, val->len);
+	return sizeof(struct ilst_data) + val->len;
+}
+
 
 /*
 Supported boxes hierarchy:

@@ -109,6 +109,7 @@ FF_EXTN uint ffmp4_bitrate(ffmp4 *m);
 /** Return codec name. */
 FF_EXTN const char* ffmp4_codec(int codec);
 
+struct ffmp4_tag;
 
 typedef struct ffmp4_cook {
 	uint state;
@@ -136,6 +137,9 @@ typedef struct ffmp4_cook {
 	char aconf[64];
 	uint aconf_len;
 
+	ffarr tags;
+	struct ffmp4_tag *curtag;
+
 	const char *data;
 	size_t datalen;
 
@@ -150,6 +154,8 @@ const char* ffmp4_werrstr(ffmp4_cook *m);
 FF_EXTN int ffmp4_create_aac(ffmp4_cook *m, const ffpcm *fmt, const ffstr *conf, uint64 total_samples, uint frame_samples);
 
 FF_EXTN void ffmp4_wclose(ffmp4_cook *m);
+
+FF_EXTN int ffmp4_addtag(ffmp4_cook *m, uint mmtag, const char *val, size_t val_len);
 
 /**
 Return enum FFMP4_R. */
