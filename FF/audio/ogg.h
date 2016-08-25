@@ -64,6 +64,7 @@ typedef struct ffogg {
 
 	size_t pcmlen;
 	const float **pcm; //non-interleaved
+	const float* pcm_arr[8];
 
 	ffpcm_seekpt seektab[2];
 	ffpcm_seekpt seekpt[2];

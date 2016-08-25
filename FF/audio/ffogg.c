@@ -540,6 +540,7 @@ static int _ffogg_open(ffogg *o)
 			o->state = I_SEEK_EOS;
 		else
 			o->state = I_PAGE;
+		o->seek_sample = (uint64)-1;
 		o->init_done = 1;
 		o->nxstate = I_DECODE;
 		return FFOGG_RHDRFIN;
@@ -811,6 +812,28 @@ int ffogg_decode(ffogg *o)
 			o->err = r;
 			return FFOGG_RWARN;
 		}
+
+		if (o->seek_sample != (uint64)-1) {
+			if (o->seek_sample < o->cursample) {
+				//couldn't find the target packet within the page
+				o->seek_sample = o->cursample;
+			}
+
+			uint skip = ffmin(o->seek_sample - o->cursample, r);
+			o->cursample += skip;
+			if (o->cursample != o->seek_sample || (uint)r == skip) {
+				o->state = I_PKT;
+				continue; //not yet reached the target packet
+			}
+
+			o->seek_sample = (uint64)-1;
+			for (uint i = 0;  i != o->vinfo.channels;  i++) {
+				o->pcm_arr[i] = o->pcm[i] + skip;
+			}
+			o->pcm = o->pcm_arr;
+			r -= skip;
+		}
+
 		o->nsamples = r;
 		o->pcmlen = o->nsamples * sizeof(float) * o->vinfo.channels;
 		o->state = I_DATA;
