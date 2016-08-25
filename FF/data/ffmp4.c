@@ -503,7 +503,7 @@ int ffmp4_read(ffmp4 *m)
 
 	case BOX_ILST_DATA: {
 		const struct mp4_box *parent = &m->boxes[m->ictx - 1];
-		r = mp4_ilst_data(sbox.ptr, sbox.len, GET_TYPE(parent->type), &m->tagval, m->tagbuf, sizeof(m->tagbuf));
+		r = mp4_ilst_data(sbox.ptr, sbox.len, GET_TYPE(parent->type) - _BOX_TAG, &m->tagval, m->tagbuf, sizeof(m->tagbuf));
 		if (r == 0)
 			break;
 		else if (r == -1) {
@@ -513,7 +513,7 @@ int ffmp4_read(ffmp4 *m)
 
 		m->tag = r;
 		m->state = R_BOXSKIP;
-		if (r == FFMP4_TRACKNO)
+		if (r == FFMMTAG_TRACKNO)
 			m->state = R_TRKTOTAL;
 		return FFMP4_RTAG;
 	}

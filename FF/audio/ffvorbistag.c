@@ -3,10 +3,29 @@ Copyright (c) 2015 Simon Zolin
 */
 
 #include <FF/audio/vorbistag.h>
+#include <FF/data/mmtag.h>
 #include <FF/number.h>
 
 
-const char *const ffvorbtag_str[] = {
+static const byte vorb_tags[] = {
+	FFMMTAG_ALBUM,
+	FFMMTAG_ALBUMARTIST,
+	FFMMTAG_ALBUMARTIST,
+	FFMMTAG_ARTIST,
+	FFMMTAG_COMMENT,
+	FFMMTAG_COMPOSER,
+	FFMMTAG_DATE,
+	FFMMTAG_DISCNUMBER,
+	FFMMTAG_GENRE,
+	FFMMTAG_LYRICS,
+	FFMMTAG_PUBLISHER,
+	FFMMTAG_TITLE,
+	FFMMTAG_TRACKTOTAL,
+	FFMMTAG_TRACKNO,
+	FFMMTAG_TRACKTOTAL,
+};
+
+static const char *const ffvorbtag_str[] = {
 	"ALBUM",
 	"ALBUM ARTIST", // =ALBUMARTIST
 	"ALBUMARTIST",
@@ -22,8 +41,6 @@ const char *const ffvorbtag_str[] = {
 	"TOTALTRACKS", // =TRACKTOTAL
 	"TRACKNUMBER",
 	"TRACKTOTAL",
-
-	"VENDOR",
 };
 
 int ffvorbtag_find(const char *name, size_t len)
@@ -47,7 +64,7 @@ int ffvorbtag_parse(ffvorbtag *v)
 			return FFVORBTAG_ERR;
 		ffstr_setcz(&v->name, "VENDOR");
 		ffstr_set(&v->val, v->data, len);
-		v->tag = FFVORBTAG_VENDOR;
+		v->tag = FFMMTAG_VENDOR;
 		FFARR_SHIFT(v->data, v->datalen, len);
 		v->state = I_CMTCNT;
 		return 0;
@@ -76,14 +93,7 @@ int ffvorbtag_parse(ffvorbtag *v)
 		FFARR_SHIFT(v->data, v->datalen, len);
 		v->cnt--;
 		v->tag = ffvorbtag_find(v->name.ptr, v->name.len);
-		if (v->tag == _FFVORBTAG_TOTALTRACKS) {
-			// "TOTALTRACKS" -> "TRACKTOTAL"
-			ffstr_setz(&v->name, ffvorbtag_str[FFVORBTAG_TRACKTOTAL]);
-
-		} else if (v->tag == _FFVORBTAG_ALBUMARTIST) {
-			// "ALBUM ARTIST" -> "ALBUMARTIST"
-			ffstr_setz(&v->name, ffvorbtag_str[FFVORBTAG_ALBUMARTIST]);
-		}
+		v->tag = (v->tag != -1) ? vorb_tags[v->tag] : 0;
 		return 0;
 	}
 

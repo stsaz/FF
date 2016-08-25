@@ -54,7 +54,7 @@ typedef struct ffapetag {
 	ffarr buf;
 	uint has_hdr :1;
 
-	int tag; // enum FFID3_FRAME or -1
+	int tag; //enum FFMMTAG
 	uint flags; //enum FFAPETAG_FLAGS
 	ffstr name
 		, val;

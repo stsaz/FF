@@ -3,7 +3,7 @@ Copyright (c) 2015 Simon Zolin
 */
 
 #include <FF/audio/apetag.h>
-#include <FF/audio/id3.h>
+#include <FF/data/mmtag.h>
 #include <FF/number.h>
 
 
@@ -21,16 +21,16 @@ static const char *const ffapetag_str[] = {
 };
 
 static const byte _ffapetag_id3[] = {
-	FFID3_ALBUM,
-	FFID3_ALBUMARTIST,
-	FFID3_ARTIST,
-	FFID3_COMMENT,
-	FFID3_PICTURE,
-	FFID3_GENRE,
-	FFID3_PUBLISHER,
-	FFID3_TITLE,
-	FFID3_TRACKNO,
-	FFID3_YEAR,
+	FFMMTAG_ALBUM,
+	FFMMTAG_ALBUMARTIST,
+	FFMMTAG_ARTIST,
+	FFMMTAG_COMMENT,
+	FFMMTAG_PICTURE,
+	FFMMTAG_GENRE,
+	FFMMTAG_PUBLISHER,
+	FFMMTAG_TITLE,
+	FFMMTAG_TRACKNO,
+	FFMMTAG_DATE,
 };
 
 static FFINL int _ffapetag_field(const char *name)

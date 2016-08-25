@@ -55,7 +55,7 @@ int ffid31_parse(ffid31ex *id31ex, const char *data, size_t len)
 		if (id31->title[0] != '\0') {
 			*state = I_ARTIST;
 			ffstr_setnz(val, id31->title, sizeof(id31->title));
-			id31ex->field = FFID3_TITLE;
+			id31ex->field = FFMMTAG_TITLE;
 			break;
 		}
 		//break
@@ -64,7 +64,7 @@ int ffid31_parse(ffid31ex *id31ex, const char *data, size_t len)
 		if (id31->artist[0] != '\0') {
 			ffstr_setnz(val, id31->artist, sizeof(id31->artist));
 			*state = I_ALBUM;
-			id31ex->field = FFID3_ARTIST;
+			id31ex->field = FFMMTAG_ARTIST;
 			break;
 		}
 		//break
@@ -73,7 +73,7 @@ int ffid31_parse(ffid31ex *id31ex, const char *data, size_t len)
 		if (id31->album[0] != '\0') {
 			ffstr_setnz(val, id31->album, sizeof(id31->album));
 			*state = I_YEAR;
-			id31ex->field = FFID3_ALBUM;
+			id31ex->field = FFMMTAG_ALBUM;
 			break;
 		}
 		//break
@@ -82,7 +82,7 @@ int ffid31_parse(ffid31ex *id31ex, const char *data, size_t len)
 		if (id31->year[0] != '\0') {
 			ffstr_setnz(val, id31->year, sizeof(id31->year));
 			*state = I_COMMENT;
-			id31ex->field = FFID3_YEAR;
+			id31ex->field = FFMMTAG_DATE;
 			break;
 		}
 		//break
@@ -92,7 +92,7 @@ int ffid31_parse(ffid31ex *id31ex, const char *data, size_t len)
 			n = (id31->comment30[28] != '\0') ? sizeof(id31->comment30) : sizeof(id31->comment);
 			ffstr_setnz(val, id31->comment, n);
 			*state = (id31->comment30[28] != '\0') ? I_DONE : I_TRK;
-			id31ex->field = FFID3_COMMENT;
+			id31ex->field = FFMMTAG_COMMENT;
 			break;
 		}
 		//break
@@ -101,7 +101,7 @@ int ffid31_parse(ffid31ex *id31ex, const char *data, size_t len)
 		if (id31->track_no != 0) {
 			n = ffs_fromint(id31->track_no, id31ex->trkno, sizeof(id31ex->trkno), FFINT_ZEROWIDTH | FFINT_WIDTH(2));
 			ffstr_set(val, id31ex->trkno, n);
-			id31ex->field = FFID3_TRACKNO;
+			id31ex->field = FFMMTAG_TRACKNO;
 			*state = I_GENRE;
 			break;
 		}
@@ -110,7 +110,7 @@ int ffid31_parse(ffid31ex *id31ex, const char *data, size_t len)
 	case I_GENRE:
 		if (id31->genre < FFCNT(id3_genres)) {
 			ffstr_setz(val, id3_genres[id31->genre]);
-			id31ex->field = FFID3_GENRE;
+			id31ex->field = FFMMTAG_GENRE;
 			*state = I_DONE;
 			break;
 		}
@@ -137,37 +137,37 @@ int ffid31_add(ffid31 *id31, uint id, const char *data, size_t len)
 	char *s;
 
 	switch (id) {
-	case FFID3_TITLE:
+	case FFMMTAG_TITLE:
 		s = id31->title;
 		len = ffmin(len, sizeof(id31->title));
 		break;
 
-	case FFID3_ARTIST:
+	case FFMMTAG_ARTIST:
 		s = id31->artist;
 		len = ffmin(len, sizeof(id31->artist));
 		break;
 
-	case FFID3_ALBUM:
+	case FFMMTAG_ALBUM:
 		s = id31->album;
 		len = ffmin(len, sizeof(id31->album));
 		break;
 
-	case FFID3_YEAR:
+	case FFMMTAG_DATE:
 		s = id31->year;
 		len = ffmin(len, sizeof(id31->year));
 		break;
 
-	case FFID3_COMMENT:
+	case FFMMTAG_COMMENT:
 		s = id31->comment;
 		len = ffmin(len, sizeof(id31->comment) - 1);
 		break;
 
-	case FFID3_TRACKNO:
+	case FFMMTAG_TRACKNO:
 		if (len != ffs_toint(data, len, &id31->track_no, FFS_INT8))
 			return 0;
 		return len;
 
-	case FFID3_GENRE:
+	case FFMMTAG_GENRE:
 		{
 		ssize_t r;
 		if (-1 == (r = ffs_ifindarrz(id3_genres, FFCNT(id3_genres), data, len)))
@@ -216,33 +216,46 @@ uint ffid3_size(const ffid3_hdr *h)
 	return i28_i32(h->size);
 }
 
-const char ffid3_frames[][4] = {
+static const byte ffid3_framei[] = {
+	FFMMTAG_PICTURE,
+	FFMMTAG_COMMENT,
+	FFMMTAG_ALBUM,
+	FFMMTAG_GENRE,
+	FFMMTAG_TITLE,
+	FFID3_LENGTH,
+	FFMMTAG_ARTIST,
+	FFMMTAG_ALBUMARTIST,
+	FFMMTAG_PUBLISHER,
+	FFMMTAG_TRACKNO,
+	FFMMTAG_DATE,
+};
+
+static const char ffid3_frames[][4] = {
 	"APIC",
-	"COMM",
+	"COMM", // "LNG" "SHORT" \0 "TEXT"
 	"TALB",
-	"TCON",
-	"TDRC",
-	"TENC",
+	"TCON", // "Genre" | "(NN)Genre" | "(NN)" where NN is ID3v1 genre index
+	// "TDRC", // "yyyy[-MM[-dd[THH[:mm[:ss]]]]]"
+	// "TENC",
 	"TIT2",
 	"TLEN",
 	"TPE1",
 	"TPE2",
 	"TPUB",
-	"TRCK",
+	"TRCK", // "N[/TOTAL]"
 	"TYER",
 };
 
 static const byte ffid3_22_framei[] = {
-	FFID3_COMMENT,
-	FFID3_PICTURE,
-	FFID3_ALBUM,
-	FFID3_GENRE,
-	FFID3_ENCODEDBY,
+	FFMMTAG_COMMENT,
+	FFMMTAG_PICTURE,
+	FFMMTAG_ALBUM,
+	FFMMTAG_GENRE,
 	FFID3_LENGTH,
-	FFID3_ARTIST,
-	FFID3_TRACKNO,
-	FFID3_TITLE,
-	FFID3_YEAR,
+	FFMMTAG_ARTIST,
+	FFMMTAG_TRACKNO,
+	FFMMTAG_TITLE,
+	FFMMTAG_DATE,
 };
 
 static const char ffid3_22_frames[][3] = {
@@ -250,7 +263,7 @@ static const char ffid3_22_frames[][3] = {
 	"PIC",
 	"TAL",
 	"TCO",
-	"TEN",
+	// "TEN",
 	"TLE",
 	"TP1",
 	"TRK",
@@ -261,15 +274,18 @@ static const char ffid3_22_frames[][3] = {
 /** Return enum FFID3_FRAME. */
 static FFINL int _ffid3_frame(const ffid3_frhdr *fr)
 {
-	return ffcharr_findsorted(ffid3_frames, FFCNT(ffid3_frames), sizeof(*ffid3_frames), fr->id, 4);
+	int i = ffcharr_findsorted(ffid3_frames, FFCNT(ffid3_frames), sizeof(*ffid3_frames), fr->id, 4);
+	if (i < 0)
+		return 0;
+	return ffid3_framei[i];
 }
 
 static FFINL int _ffid3_frame22(const ffid3_frhdr22 *fr)
 {
 	int id = ffcharr_findsorted(ffid3_22_frames, FFCNT(ffid3_22_frames), sizeof(*ffid3_22_frames), fr->id, 3);
 	if (id != -1)
-		id = ffid3_22_framei[id];
-	return id;
+		return ffid3_22_framei[id];
+	return 0;
 }
 
 /** Get frame size. */
@@ -398,7 +414,7 @@ int ffid3_parse(ffid3 *p, const char *data, size_t *len)
 			if ((p->fr.flags[1] & ~0x02) != 0)
 				goto done; //not supported
 
-			if (p->fr.id[0] == 'T' || p->frame == FFID3_COMMENT)
+			if (p->fr.id[0] == 'T' || p->frame == FFMMTAG_COMMENT)
 				p->state = I_TXTENC;
 			else
 				p->state = I_DATA;
@@ -439,7 +455,7 @@ int ffid3_parse(ffid3 *p, const char *data, size_t *len)
 			if (p->h.ver[0] == 2 && p->data.len != 0)
 				p->data.len--; //remove last '\0'
 
-			if (p->frame == FFID3_TRACKNO)
+			if (p->frame == FFMMTAG_TRACKNO)
 				p->state = I_TRKTOTAL;
 
 			r = FFID3_RDATA;
@@ -449,7 +465,7 @@ int ffid3_parse(ffid3 *p, const char *data, size_t *len)
 			p->state = I_DATA;
 			if (NULL == ffs_findc(p->data.ptr, p->data.len, '/'))
 				continue;
-			p->frame = FFID3_TRACKTOTAL;
+			p->frame = FFMMTAG_TRACKTOTAL;
 			r = FFID3_RDATA;
 			goto done;
 
@@ -493,7 +509,7 @@ int ffid3_getdata(int frame, const char *data, size_t len, int txtenc, uint code
 	}
 
 	switch (frame) {
-	case FFID3_COMMENT:
+	case FFMMTAG_COMMENT:
 		if (len >= FFSLEN("LNG\0")) {
 			data += FFSLEN("LNG");
 
@@ -549,18 +565,18 @@ int ffid3_getdata(int frame, const char *data, size_t len, int txtenc, uint code
 		return 0;
 
 	switch (frame) {
-	case FFID3_TRACKNO:
+	case FFMMTAG_TRACKNO:
 		if (NULL != (slash = ffs_findc(dst->ptr, dst->len, '/')))
 			dst->len = slash - dst->ptr;
 		break;
 
-	case FFID3_TRACKTOTAL:
+	case FFMMTAG_TRACKTOTAL:
 		if (NULL != (slash = ffs_findc(dst->ptr, dst->len, '/'))) {
 			_ffarr_rmleft(dst, slash + FFSLEN("/") - dst->ptr, sizeof(char));
 		}
 		break;
 
-	case FFID3_GENRE:
+	case FFMMTAG_GENRE:
 		if ((n = ffs_fmatch(dst->ptr, dst->len, "(%u)", &igenre)) > 0) {
 
 			if ((size_t)n == dst->len && igenre < FFCNT(id3_genres)) {
@@ -583,13 +599,14 @@ int ffid3_getdata(int frame, const char *data, size_t len, int txtenc, uint code
 
 uint ffid3_add(ffid3_cook *id3, uint id, const char *data, size_t len)
 {
-	if (id == FFID3_TRACKNO) {
+	if (id == FFMMTAG_TRACKNO) {
 		ffsz_copy(id3->trackno, sizeof(id3->trackno), data, len);
 		return 1;
-	} else if (id == FFID3_TRACKTOTAL) {
+	} else if (id == FFMMTAG_TRACKTOTAL) {
 		ffsz_copy(id3->tracktotal, sizeof(id3->tracktotal), data, len);
 		return 1;
 	}
+	id = ffint_find1(ffid3_framei, FFCNT(ffid3_framei), id);
 	return ffid3_addframe(id3, ffid3_frames[id], data, len, 0);
 }
 
@@ -640,7 +657,8 @@ uint ffid3_flush(ffid3_cook *id3)
 {
 	if (id3->trackno[0] != '\0' || id3->tracktotal[0] != '\0') {
 		uint n = _ffid3_trackno(id3->trackno, sizeof(id3->trackno), id3->tracktotal);
-		return ffid3_addframe(id3, ffid3_frames[FFID3_TRACKNO], id3->trackno, n, 0);
+		uint i = ffint_find1(ffid3_framei, FFCNT(ffid3_framei), FFMMTAG_TRACKNO);
+		return ffid3_addframe(id3, ffid3_frames[i], id3->trackno, n, 0);
 	}
 	return 0;
 }

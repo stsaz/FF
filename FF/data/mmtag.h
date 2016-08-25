@@ -1,0 +1,34 @@
+/** Meta tags for multimedia files.
+Copyright (c) 2016 Simon Zolin
+*/
+
+#pragma once
+
+#include <FFOS/types.h>
+
+
+enum FFMMTAG {
+	FFMMTAG_UKN,
+
+	FFMMTAG_ALBUM,
+	FFMMTAG_ALBUMARTIST,
+	FFMMTAG_ARTIST,
+	FFMMTAG_COMMENT,
+	FFMMTAG_COMPOSER,
+	FFMMTAG_COPYRIGHT,
+	FFMMTAG_DATE,
+	FFMMTAG_DISCNUMBER,
+	FFMMTAG_GENRE,
+	FFMMTAG_LYRICS,
+	FFMMTAG_PICTURE,
+	FFMMTAG_PUBLISHER,
+	FFMMTAG_TITLE,
+	FFMMTAG_TRACKNO,
+	FFMMTAG_TRACKTOTAL,
+	FFMMTAG_VENDOR,
+
+	_FFMMTAG_N,
+};
+
+/** enum FFMMTAG as a string. */
+FF_EXTN const char *const ffmmtag_str[_FFMMTAG_N];

@@ -11,6 +11,7 @@ ID3-HEADER  (FRAME-HEADER  [TEXT-ENCODING]  DATA...)...  PADDING
 
 #pragma once
 
+#include <FF/data/mmtag.h>
 #include <FF/array.h>
 
 
@@ -86,24 +87,8 @@ FF_EXTN uint ffid3_size(const ffid3_hdr *h);
 
 
 enum FFID3_FRAME {
-	FFID3_PICTURE //APIC
-	, FFID3_COMMENT //COMM: "LNG" "SHORT" \0 "TEXT"
-	, FFID3_ALBUM //TALB
-	, FFID3_GENRE //TCON: "Genre" | "(NN)Genre" | "(NN)" where NN is ID3v1 genre index
-	, FFID3_RECTIME //TDRC: "yyyy[-MM[-dd[THH[:mm[:ss]]]]]"
-	, FFID3_ENCODEDBY //TENC
-	, FFID3_TITLE //TIT2
-	, FFID3_LENGTH //TLEN
-	, FFID3_ARTIST //TPE1
-	, FFID3_ALBUMARTIST //TPE2
-	, FFID3_PUBLISHER //TPUB
-	, FFID3_TRACKNO //TRCK: "N[/TOTAL]"
-	, FFID3_YEAR //TYER
-
-	, FFID3_TRACKTOTAL
+	FFID3_LENGTH = _FFMMTAG_N,
 };
-
-FF_EXTN const char ffid3_frames[][4];
 
 //10 bytes
 typedef struct ffid3_frhdr {
@@ -149,7 +134,7 @@ typedef struct ffid3 {
 		, frsize; //bytes left in the frame
 	int txtenc; //enum FFID3_TXTENC
 	uint flags; //enum FFID3_F
-	int frame; //enum FFID3_FRAME or -1 if unknown frame
+	int frame; //enum FFMMTAG or enum FFID3_FRAME (<0)
 	ffstr3 data; //frame data
 } ffid3;
 

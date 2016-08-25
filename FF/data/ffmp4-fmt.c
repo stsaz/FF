@@ -635,29 +635,10 @@ struct disk {
 	byte total[2];
 };
 
-/** enum BOX (_TAG_FIRST..N) => enum FFMP4_TAG map */
-static const byte mp4_tags[] = {
-	FFMP4_ARTIST,
-	FFMP4_ALBUMARTIST,
-	FFMP4_YEAR,
-	FFMP4_ALBUM,
-	FFMP4_COMMENT,
-	FFMP4_TITLE,
-	FFMP4_TOOL,
-	FFMP4_GENRE,
-	0xff,
-	0xff,
-	FFMP4_COMPOSER,
-	0xff,
-	0xff,
-	FFMP4_LYRICS,
-	0xff,
-	0xff,
-	0xff,
-};
+static const struct bbox mp4_ctx_ilst[];
 
 /** Process "ilst.*.data" box.
-Return enum FFMP4_TAG;  0 on error;  -1: trackno tag. */
+Return enum FFMMTAG;  0 on error;  -1: trackno tag. */
 int mp4_ilst_data(const char *data, uint len, uint parent_type, ffstr *tagval, char *tagbuf, size_t tagbuf_cap)
 {
 	const struct ilst_data *d = (void*)data;
@@ -665,7 +646,7 @@ int mp4_ilst_data(const char *data, uint len, uint parent_type, ffstr *tagval, c
 
 	switch (parent_type) {
 
-	case TAG_TRKN: {
+	case FFMMTAG_TRACKNO: {
 		if (len < sizeof(struct trkn) || d->type != ILST_IMPLICIT)
 			return 0;
 
@@ -675,10 +656,10 @@ int mp4_ilst_data(const char *data, uint len, uint parent_type, ffstr *tagval, c
 			return -1;
 		int n = ffs_fromint(num, tagbuf, tagbuf_cap, 0);
 		ffstr_set(tagval, tagbuf, n);
-		return FFMP4_TRACKNO;
+		return FFMMTAG_TRACKNO;
 	}
 
-	case TAG_DISK: {
+	case FFMMTAG_DISCNUMBER: {
 		if (len < sizeof(struct disk) || d->type != ILST_IMPLICIT)
 			return 0;
 
@@ -686,28 +667,24 @@ int mp4_ilst_data(const char *data, uint len, uint parent_type, ffstr *tagval, c
 		int num = ffint_ntoh16(disk->num);
 		int n = ffs_fromint(num, tagbuf, tagbuf_cap, 0);
 		ffstr_set(tagval, tagbuf, n);
-		return FFMP4_DISK;
+		return FFMMTAG_DISCNUMBER;
 	}
 
-	case TAG_GENRE_ID31: {
+	case BOX_TAG_GENRE_ID31: {
 		if (len < sizeof(short) || !(d->type == ILST_IMPLICIT || d->type == ILST_INT))
 			return 0;
 
 		const char *g = ffid31_genre(ffint_ntoh16(data));
 		ffstr_setz(tagval, g);
-		return FFMP4_GENRE;
+		return FFMMTAG_GENRE;
 	}
 	}
 
 	if (d->type != ILST_UTF8)
 		return 0;
 
-	uint tag = mp4_tags[parent_type - _TAG_FIRST];
-	if (tag == 0xff)
-		return 0;
-
 	ffstr_set(tagval, data, len);
-	return tag;
+	return parent_type;
 }
 
 /** Process total tracks number from "ilst.trkn.data" */
@@ -719,7 +696,18 @@ int mp4_ilst_trkn(const char *data, ffstr *tagval, char *tagbuf, size_t tagbuf_c
 		return 0;
 	uint n = ffs_fromint(total, tagbuf, tagbuf_cap, 0);
 	ffstr_set(tagval, tagbuf, n);
-	return FFMP4_TRACKTOTAL;
+	return FFMMTAG_TRACKTOTAL;
+}
+
+/** Find box by tag ID. */
+const struct bbox* mp4_ilst_find(uint mmtag)
+{
+	const struct bbox *p = mp4_ctx_ilst;
+	for (uint i = 0;  p[i].type[0] != '\0';  i++) {
+		if (_BOX_TAG + mmtag == GET_TYPE(p[i].flags))
+			return &p[i];
+	}
+	return NULL;
 }
 
 
@@ -771,7 +759,6 @@ static const struct bbox mp4_ctx_mp4a[];
 
 static const struct bbox mp4_ctx_udta[];
 static const struct bbox mp4_ctx_meta[];
-static const struct bbox mp4_ctx_ilst[];
 static const struct bbox mp4_ctx_data[];
 
 const struct bbox mp4_ctx_global[] = {
@@ -844,25 +831,26 @@ static const struct bbox mp4_ctx_meta[] = {
 	{"",0,NULL}
 };
 static const struct bbox mp4_ctx_ilst[] = {
-	{"aART",	TAG_AART,	mp4_ctx_data},
-	{"covr",	TAG_COVR,	mp4_ctx_data},
-	{"cprt",	TAG_COPYIRGHT,	mp4_ctx_data},
-	{"desc",	TAG_DESC,	mp4_ctx_data},
-	{"disk",	TAG_DISK,	mp4_ctx_data},
-	{"gnre",	TAG_GENRE_ID31,	mp4_ctx_data},
-	{"trkn",	TAG_TRKN,	mp4_ctx_data},
-	{"\251alb",	TAG_ALB,	mp4_ctx_data},
-	{"\251ART",	TAG_ART,	mp4_ctx_data},
-	{"\251cmt",	TAG_CMT | F_MULTI,	mp4_ctx_data},
-	{"\251day",	TAG_DAY,	mp4_ctx_data},
-	{"\251enc",	TAG_ENC,	mp4_ctx_data},
-	{"\251gen",	TAG_GENRE,	mp4_ctx_data},
-	{"\251lyr",	TAG_LYR,	mp4_ctx_data},
-	{"\251nam",	TAG_NAM,	mp4_ctx_data},
-	{"\251too",	TAG_TOOL,	mp4_ctx_data},
-	{"\251wrt",	TAG_WRT,	mp4_ctx_data},
+	{"aART",	_BOX_TAG + FFMMTAG_ALBUMARTIST,	mp4_ctx_data},
+	{"covr",	_BOX_TAG,	mp4_ctx_data},
+	{"cprt",	_BOX_TAG + FFMMTAG_COPYRIGHT,	mp4_ctx_data},
+	{"desc",	_BOX_TAG,	mp4_ctx_data},
+	{"disk",	_BOX_TAG + FFMMTAG_DISCNUMBER,	mp4_ctx_data},
+	{"gnre",	_BOX_TAG + BOX_TAG_GENRE_ID31,	mp4_ctx_data},
+	{"trkn",	_BOX_TAG + FFMMTAG_TRACKNO,	mp4_ctx_data},
+	{"\251alb",	_BOX_TAG + FFMMTAG_ALBUM,	mp4_ctx_data},
+	{"\251ART",	_BOX_TAG + FFMMTAG_ARTIST,	mp4_ctx_data},
+	{"\251cmt",	(_BOX_TAG + FFMMTAG_COMMENT) | F_MULTI,	mp4_ctx_data},
+	{"\251day",	_BOX_TAG + FFMMTAG_DATE,	mp4_ctx_data},
+	{"\251enc",	_BOX_TAG,	mp4_ctx_data},
+	{"\251gen",	_BOX_TAG + FFMMTAG_GENRE,	mp4_ctx_data},
+	{"\251lyr",	_BOX_TAG + FFMMTAG_LYRICS,	mp4_ctx_data},
+	{"\251nam",	_BOX_TAG + FFMMTAG_TITLE,	mp4_ctx_data},
+	{"\251too",	_BOX_TAG + FFMMTAG_VENDOR,	mp4_ctx_data},
+	{"\251wrt",	_BOX_TAG + FFMMTAG_COMPOSER,	mp4_ctx_data},
 	{"",0,NULL}
 };
+
 static const struct bbox mp4_ctx_data[] = {
 	{"data", BOX_ILST_DATA | F_WHOLE | MINSIZE(sizeof(struct ilst_data)), NULL},
 	{"",0,NULL}

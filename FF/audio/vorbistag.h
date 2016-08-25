@@ -11,33 +11,10 @@ Copyright (c) 2015 Simon Zolin
 #include <FF/array.h>
 
 
-enum FFVORBTAG {
-	FFVORBTAG_ALBUM,
-	_FFVORBTAG_ALBUMARTIST,
-	FFVORBTAG_ALBUMARTIST,
-	FFVORBTAG_ARTIST,
-	FFVORBTAG_COMMENT,
-	FFVORBTAG_COMPOSER,
-	FFVORBTAG_DATE,
-	FFVORBTAG_DISCNUMBER,
-	FFVORBTAG_GENRE,
-	FFVORBTAG_LYRICS,
-	FFVORBTAG_PUBLISHER,
-	FFVORBTAG_TITLE,
-	_FFVORBTAG_TOTALTRACKS,
-	FFVORBTAG_TRACKNO,
-	FFVORBTAG_TRACKTOTAL,
-
-	FFVORBTAG_VENDOR, // ffvorbtag_parse() uses it to return vendor string
-};
-
-/** enum FFVORBTAG as a string. */
-FF_EXTN const char *const ffvorbtag_str[];
-
 typedef struct ffvorbtag {
 	uint state;
 	uint cnt;
-	int tag; // enum FFVORBTAG or -1
+	int tag; //enum FFMMTAG
 	ffstr name
 		, val;
 
@@ -55,10 +32,6 @@ enum FFVORBTAG_R {
 Note: partial input is not supported.
 Return enum FFVORBTAG_R. */
 FF_EXTN int ffvorbtag_parse(ffvorbtag *v);
-
-/**
-Return enum FFVORBTAG;  -1 if unknown. */
-FF_EXTN int ffvorbtag_find(const char *name, size_t len);
 
 
 typedef struct ffvorbtag_cook {

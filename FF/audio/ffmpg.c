@@ -407,7 +407,7 @@ static FFINL int mpg_id32(ffmpg *m)
 
 	case FFID3_RFRAME:
 		switch (m->id32tag.frame) {
-		case FFID3_PICTURE:
+		case FFMMTAG_PICTURE:
 			m->id32tag.flags &= ~FFID3_FWHOLE;
 			break;
 
@@ -420,7 +420,7 @@ static FFINL int mpg_id32(ffmpg *m)
 		if (!(m->id32tag.flags & FFID3_FWHOLE))
 			continue;
 
-		m->tag = m->id32tag.frame;
+		m->tag = (m->id32tag.frame < _FFMMTAG_N) ? m->id32tag.frame : 0;
 		if (0 > ffid3_getdata(m->id32tag.frame, m->id32tag.data.ptr, m->id32tag.data.len, m->id32tag.txtenc, m->codepage, &m->tagval)) {
 			m->err = FFMPG_ETAG;
 			return FFMPG_RWARN;
@@ -431,7 +431,6 @@ static FFINL int mpg_id32(ffmpg *m)
 			if (m->id32tag.data.len == ffs_toint(m->id32tag.data.ptr, m->id32tag.data.len, &dur, FFS_INT64))
 				m->total_len = dur;
 		}
-
 		return FFMPG_RTAG;
 
 	case FFID3_RERR:

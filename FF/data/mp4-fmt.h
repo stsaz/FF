@@ -3,6 +3,7 @@ Copyright (c) 2016 Simon Zolin
 */
 
 #include <FF/audio/pcm.h>
+#include <FF/data/mmtag.h>
 #include <FF/array.h>
 
 
@@ -75,24 +76,9 @@ enum BOX {
 	BOX_ILST_DATA,
 	BOX_MDAT,
 
-	_TAG_FIRST,
-	TAG_ART = _TAG_FIRST,
-	TAG_AART,
-	TAG_DAY,
-	TAG_ALB,
-	TAG_CMT,
-	TAG_NAM,
-	TAG_TOOL,
-	TAG_GENRE,
-	TAG_GENRE_ID31,
-	TAG_TRKN,
-	TAG_WRT,
-	TAG_COVR,
-	TAG_DISK,
-	TAG_LYR,
-	TAG_DESC,
-	TAG_ENC,
-	TAG_COPYIRGHT,
+	_BOX_TAG,
+	//FFMMTAG_*
+	BOX_TAG_GENRE_ID31 = _FFMMTAG_N,
 };
 
 enum MP4_F {
@@ -164,3 +150,4 @@ int mp4_stco_add(const char *data, uint type, uint64 offset);
 
 int mp4_ilst_data(const char *data, uint len, uint parent_type, ffstr *tagval, char *tagbuf, size_t tagbuf_cap);
 int mp4_ilst_trkn(const char *data, ffstr *tagval, char *tagbuf, size_t tagbuf_cap);
+const struct bbox* mp4_ilst_find(uint mmtag);
