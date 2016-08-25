@@ -11,13 +11,25 @@ Copyright (c) 2015 Simon Zolin
 #endif
 
 
+/** Protect against division by zero. */
 #define FF_SAFEDIV(val, by) \
 	((by) != 0 ? (val) / (by) : 0)
 
 
+/**
+ffint_ltoh*(), ffint_htol*(): Convert host integer <-> little endian.
+ffint_ntoh*(), ffint_hton*(): Convert host integer <-> big endian.
+*/
+
 static FFINL ushort ffint_ltoh16(const void *p)
 {
 	return *(ushort*)p;
+}
+
+static FFINL uint ffint_ltoh24(const void *p)
+{
+	const byte *b = p;
+	return (((int)b[2]) << 16) | *(ushort*)p;
 }
 
 static FFINL uint ffint_ltoh32(const void *p)
@@ -33,6 +45,15 @@ static FFINL uint64 ffint_ltoh64(const void *p)
 static FFINL void ffint_htol16(void *dst, ushort i)
 {
 	*((ushort*)dst) = i;
+}
+
+static FFINL void ffint_htol24(void *p, uint n)
+{
+	const byte *b = (void*)&n;
+	byte *o = p;
+	o[0] = b[0];
+	o[1] = b[1];
+	o[2] = b[2];
 }
 
 static FFINL void ffint_htol32(void *dst, uint i)
@@ -90,12 +111,47 @@ static FFINL uint64 ffint_ntoh64(const void *p)
 	return ffhton64(*(uint64*)p);
 }
 
-static FFINL int ffint_24(const void *p)
+
+/** ffint_lim*(): limit signed integer within specific bit boundary. */
+
+static FFINL int ffint_lim8(int i)
 {
-	return (((int)((char*)p)[2]) << 16) | *(ushort*)p;
+	if (i < -0x80)
+		i = -0x80;
+	else if (i > 0x7f)
+		i = 0x7f;
+	return i;
+}
+
+static FFINL int ffint_lim16(int i)
+{
+	if (i < -0x8000)
+		i = -0x8000;
+	else if (i > 0x7fff)
+		i = 0x7fff;
+	return i;
+}
+
+static FFINL int ffint_lim24(int64 i)
+{
+	if (i < -0x800000)
+		i = -0x800000;
+	else if (i > 0x7fffff)
+		i = 0x7fffff;
+	return i;
+}
+
+static FFINL int ffint_lim32(int64 i)
+{
+	if (i < -0x80000000LL)
+		i = -0x80000000LL;
+	else if (i > 0x7fffffffLL)
+		i = 0x7fffffffLL;
+	return i;
 }
 
 
+/** Convert FP number to integer. */
 static FFINL int ffint_ftoi(double d)
 {
 	int r;
@@ -117,8 +173,9 @@ static FFINL int ffint_ftoi(double d)
 }
 
 
+/** Search number within array. */
 FF_EXTN ssize_t ffint_find1(const byte *arr, size_t n, int search);
-
+FF_EXTN ssize_t ffint_find2(const ushort *arr, size_t n, uint search);
 FF_EXTN ssize_t ffint_find4(const uint *arr, size_t n, uint search);
 
 /** Binary search integer. */

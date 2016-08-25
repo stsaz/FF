@@ -16,6 +16,16 @@ ssize_t ffint_find1(const byte *arr, size_t n, int search)
 	return -1;
 }
 
+ssize_t ffint_find2(const ushort *arr, size_t n, uint search)
+{
+	size_t i;
+	for (i = 0;  i != n;  i++) {
+		if (search == arr[i])
+			return i;
+	}
+	return -1;
+}
+
 ssize_t ffint_find4(const uint *arr, size_t n, uint search)
 {
 	size_t i;
