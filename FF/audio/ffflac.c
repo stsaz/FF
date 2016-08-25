@@ -13,12 +13,100 @@ enum {
 	MAX_NOSYNC = 1 * 1024 * 1024,
 };
 
+static int pcm_from32(const int **src, void **dst, uint dstbits, uint channels, uint samples);
+static int pcm_to32(int **dst, const void **src, uint srcbits, uint channels, uint samples);
+
 static int _ffflac_findsync(ffflac *f);
 static int _ffflac_meta(ffflac *f);
 static int _ffflac_init(ffflac *f);
 static int _ffflac_seek(ffflac *f);
 static int _ffflac_findhdr(ffflac *f, ffflac_frame *fr);
 static int _ffflac_getframe(ffflac *f, ffstr *sframe);
+
+
+/** Convert data between 32bit integer and any other integer PCM format.
+e.g. 16bit: "11 22 00 00" <-> "11 22" */
+
+static int pcm_from32(const int **src, void **dst, uint dstbits, uint channels, uint samples)
+{
+	uint ic, i;
+	union {
+	char **pb;
+	short **psh;
+	} to;
+	to.psh = (void*)dst;
+
+	switch (dstbits) {
+	case 8:
+		for (ic = 0;  ic != channels;  ic++) {
+			for (i = 0;  i != samples;  i++) {
+				to.pb[ic][i] = (char)src[ic][i];
+			}
+		}
+		break;
+
+	case 16:
+		for (ic = 0;  ic != channels;  ic++) {
+			for (i = 0;  i != samples;  i++) {
+				to.psh[ic][i] = (short)src[ic][i];
+			}
+		}
+		break;
+
+	case 24:
+		for (ic = 0;  ic != channels;  ic++) {
+			for (i = 0;  i != samples;  i++) {
+				ffint_htol24(&to.pb[ic][i * 3], src[ic][i]);
+			}
+		}
+		break;
+
+	default:
+		return -1;
+	}
+	return 0;
+}
+
+static int pcm_to32(int **dst, const void **src, uint srcbits, uint channels, uint samples)
+{
+	uint ic, i;
+	union {
+	char **pb;
+	short **psh;
+	} from;
+	from.psh = (void*)src;
+
+	switch (srcbits) {
+	case 8:
+		for (ic = 0;  ic != channels;  ic++) {
+			for (i = 0;  i != samples;  i++) {
+				dst[ic][i] = from.pb[ic][i];
+			}
+		}
+		break;
+
+	case 16:
+		for (ic = 0;  ic != channels;  ic++) {
+			for (i = 0;  i != samples;  i++) {
+				dst[ic][i] = from.psh[ic][i];
+			}
+		}
+		break;
+
+	case 24:
+		for (ic = 0;  ic != channels;  ic++) {
+			for (i = 0;  i != samples;  i++) {
+				dst[ic][i] = ffint_ltoh24(&from.pb[ic][i * 3]);
+			}
+		}
+		break;
+
+	default:
+		return -1;
+	}
+
+	return 0;
+}
 
 
 void ffflac_init(ffflac *f)
@@ -353,7 +441,7 @@ static int _ffflac_getframe(ffflac *f, ffstr *sframe)
 int ffflac_decode(ffflac *f)
 {
 	int r;
-	uint isrc, i, ich;
+	uint isrc, ich;
 	const int **out;
 	ffstr sframe;
 
@@ -478,7 +566,7 @@ int ffflac_decode(ffflac *f)
 			return FFFLAC_RWARN;
 		}
 
-		f->pcm = (void**)f->out32;
+		f->pcm = (void**)f->out;
 		f->pcmlen = f->frame.samples;
 		f->frsample = f->frame.num * f->info.minblock;
 		isrc = 0;
@@ -492,29 +580,16 @@ int ffflac_decode(ffflac *f)
 		}
 
 		for (ich = 0;  ich != f->fmt.channels;  ich++) {
-			f->out32[ich] = out[ich];
+			f->out[ich] = out[ich];
 		}
 
-		if (f->fmt.format == FFPCM_16LE) {
-			//in-place conversion: int[] -> short[]
-			for (ich = 0;  ich != f->fmt.channels;  ich++) {
-				uint j = isrc;
-				for (i = 0;  i != f->pcmlen;  i++) {
-					f->out16[ich][i] = (short)f->out32[ich][j++];
-				}
-			}
-
-		} else if (f->fmt.format == FFPCM_24) {
-			// 24/32 -> 24/24
-			char **out8 = (char**)f->out32;
-			for (ich = 0;  ich != f->fmt.channels;  ich++) {
-				uint j = isrc;
-				for (i = 0;  i != f->pcmlen;  i++) {
-					ffmemcpy(&out8[ich][i * 3], &f->out32[ich][j++], 3);
-				}
-			}
+		const int *out2[FLAC__MAX_CHANNELS];
+		for (ich = 0;  ich != f->fmt.channels;  ich++) {
+			out2[ich] = out[ich] + isrc;
 		}
 
+		//in-place conversion
+		pcm_from32(out2, (void*)f->out, ffpcm_bits(f->fmt.format), f->fmt.channels, f->pcmlen);
 		f->pcmlen *= ffpcm_size1(&f->fmt);
 		f->st = I_FROK;
 		return FFFLAC_RDATA;
@@ -587,10 +662,18 @@ void ffflac_enc_close(ffflac_enc *f)
 	FF_SAFECLOSE(f->enc, NULL, flac_encode_free);
 }
 
-int ffflac_create(ffflac_enc *f, const ffpcm *pcm)
+int ffflac_create(ffflac_enc *f, ffpcm *pcm)
 {
 	int r;
-	if (pcm->format != FFPCM_16LE) {
+
+	switch (pcm->format) {
+	case FFPCM_8:
+	case FFPCM_16:
+	case FFPCM_24:
+		break;
+
+	default:
+		pcm->format = FFPCM_24;
 		f->errtype = FLAC_EFMT;
 		return -1;
 	}
@@ -675,6 +758,17 @@ static int _ffflac_enc_hdr(ffflac_enc *f)
 	return 0;
 }
 
+/*
+Reserve the space in output file for FLAC stream info and seek table.
+Write vorbis comments and padding.
+Encode audio data into FLAC frames.
+  An input sample must be within 32-bit container.
+  To encode a frame libFLAC needs NBLOCK+1 input samples.
+  flac_encode() returns a frame with NBLOCK encoded samples,
+    so 1 sample always stays cached in libFLAC until we explicitly flush output data.
+After all frames have been written,
+  seek back to the beginning and write the complete FLAC stream info and seek table.
+*/
 int ffflac_encode(ffflac_enc *f)
 {
 	uint samples, sampsize, blksize;
@@ -685,6 +779,13 @@ int ffflac_encode(ffflac_enc *f)
 	case ENC_HDR:
 		if (0 != (r = _ffflac_enc_hdr(f)))
 			return r;
+
+		if (NULL == ffarr_realloc(&f->outbuf, (f->info.minblock + 1) * sizeof(int) * f->info.channels))
+			return f->errtype = FLAC_ESYS,  FFFLAC_RERR;
+		for (uint i = 0;  i != f->info.channels;  i++) {
+			f->pcm32[i] = (void*)(f->outbuf.ptr + (f->info.minblock + 1) * sizeof(int) * i);
+		}
+		f->cap_pcm32 = f->info.minblock + 1;
 
 		f->state = ENC_FRAMES;
 		f->data = (void*)f->outbuf.ptr;
@@ -734,45 +835,60 @@ int ffflac_encode(ffflac_enc *f)
 		return FFFLAC_RDONE;
 	}
 
-	sampsize = sizeof(int) * f->info.channels;
-	for (;;) {
-		samples = f->pcmlen / sampsize - f->off;
+	sampsize = f->info.bits/8 * f->info.channels;
+	samples = ffmin(f->pcmlen / sampsize - f->off_pcm, f->cap_pcm32 - f->off_pcm32);
 
-		r = 0;
-		if (samples != 0) {
-			const int *src[FLAC__MAX_CHANNELS];
-			uint i;
-			for (i = 0;  i != f->info.channels;  i++) {
-				src[i] = f->pcm[i] + f->off;
-			}
-			r = flac_encode(f->enc, src, &samples, (char**)&f->data);
-			f->off += samples;
-			blksize = f->info.minblock;
-		}
-
-		if (r == 0) {
-			if (!f->fin) {
-				f->off = 0;
-				return FFFLAC_RMORE;
-			}
-
-			samples = 0;
-			r = flac_encode(f->enc, NULL, &samples, (char**)&f->data);
-			blksize = samples;
-			f->state = ENC_SEEK0;
-		}
-
-		if (r < 0) {
-			f->errtype = FLAC_ELIB, f->err = r;
-			return FFFLAC_RERR;
-		}
-		f->datalen = r;
-		break;
+	if (samples == 0 && !f->fin) {
+		f->off_pcm = 0;
+		return FFFLAC_RMORE;
 	}
 
+	const void* src[FLAC__MAX_CHANNELS];
+	int* dst[FLAC__MAX_CHANNELS];
+
+	for (uint i = 0;  i != f->info.channels;  i++) {
+		src[i] = f->pcm[i] + f->off_pcm * f->info.bits/8;
+		dst[i] = f->pcm32[i] + f->off_pcm32;
+	}
+
+	if (0 != (r = pcm_to32(dst, src, f->info.bits, f->info.channels, samples)))
+		return f->errtype = FLAC_EFMT,  FFFLAC_RERR;
+
+	f->off_pcm += samples;
+	f->off_pcm32 += samples;
+	if (!(f->off_pcm32 == f->cap_pcm32 || f->fin)) {
+		f->off_pcm = 0;
+		return FFFLAC_RMORE;
+	}
+
+	samples = f->off_pcm32;
+	f->off_pcm32 = 0;
+	r = flac_encode(f->enc, (const int**)f->pcm32, &samples, (char**)&f->data);
+	if (r < 0)
+		return f->errtype = FLAC_ELIB,  f->err = r,  FFFLAC_RERR;
+
+	if (r == 0 && f->fin) {
+		samples = 0;
+		r = flac_encode(f->enc, (const int**)f->pcm32, &samples, (char**)&f->data);
+		if (r < 0)
+			return f->errtype = FLAC_ELIB,  f->err = r,  FFFLAC_RERR;
+	}
+
+	FF_ASSERT(r != 0);
+	FF_ASSERT(samples == f->cap_pcm32 || f->fin);
+
+	if (f->cap_pcm32 == f->info.minblock + 1)
+		f->cap_pcm32 = f->info.minblock;
+
+	blksize = f->info.minblock;
+	if (f->fin) {
+		blksize = samples;
+		f->state = ENC_SEEK0;
+	}
+
+	f->datalen = r;
 	f->iskpt = flac_seektab_add(f->sktab.ptr, f->sktab.len, f->iskpt, f->nsamps, f->frlen, blksize);
 	f->frlen += f->datalen;
-
 	f->nsamps += blksize;
 	return FFFLAC_RDATA;
 }

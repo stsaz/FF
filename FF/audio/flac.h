@@ -24,10 +24,6 @@ typedef struct ffflac {
 	int st;
 	int err;
 	ffpcm fmt;
-	union {
-	short *out16[FLAC__MAX_CHANNELS];
-	const int *out32[FLAC__MAX_CHANNELS];
-	};
 	ffstr3 buf;
 	uint bufoff;
 	uint64 off
@@ -56,6 +52,7 @@ typedef struct ffflac {
 
 	size_t pcmlen;
 	void **pcm;
+	const void *out[FLAC__MAX_CHANNELS];
 } ffflac;
 
 enum FFFLAC_R {
@@ -119,10 +116,13 @@ typedef struct ffflac_enc {
 	const byte *data;
 	uint seektab_off;
 
-	size_t pcmlen
-		, off;
-	const int **pcm;
+	size_t pcmlen;
+	const void **pcm;
 	ffstr3 outbuf;
+	int* pcm32[FLAC__MAX_CHANNELS];
+	size_t off_pcm
+		, off_pcm32
+		, cap_pcm32;
 
 	uint64 total_samples;
 	uint min_meta; // minimum size of meta data (add padding block if needed)
@@ -141,7 +141,7 @@ FF_EXTN const char* ffflac_enc_errstr(ffflac_enc *f);
 FF_EXTN void ffflac_enc_init(ffflac_enc *f);
 
 /** Return 0 on success. */
-FF_EXTN int ffflac_create(ffflac_enc *f, const ffpcm *format);
+FF_EXTN int ffflac_create(ffflac_enc *f, ffpcm *format);
 
 FF_EXTN void ffflac_enc_close(ffflac_enc *f);
 

@@ -67,9 +67,9 @@ int flac_info(const char *data, size_t size, ffflac_info *info, ffpcm *fmt, uint
 	fmt->channels = ((uinfo4 & 0x00000e00) >> 9) + 1;
 	uint bpsample = ((uinfo4 & 0x000001f0) >> 4) + 1;
 	switch (bpsample) {
+	case 8:
 	case 16:
 	case 24:
-	case 32:
 		fmt->format = bpsample;
 		break;
 	default:
