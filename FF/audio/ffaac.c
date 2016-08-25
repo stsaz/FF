@@ -37,6 +37,7 @@ int ffaac_open(ffaac *a, uint channels, const char *conf, size_t len)
 		a->err = AAC_ESYS;
 		return FFAAC_RERR;
 	}
+	a->seek_sample = a->enc_delay;
 	return 0;
 }
 
@@ -48,7 +49,7 @@ void ffaac_close(ffaac *a)
 
 void ffaac_seek(ffaac *a, uint64 sample)
 {
-	a->skip_samples = sample;
+	a->seek_sample = sample + a->enc_delay;
 }
 
 int ffaac_decode(ffaac *a)
@@ -62,19 +63,24 @@ int ffaac_decode(ffaac *a)
 		return FFAAC_RERR;
 	}
 
-	a->frsamples = r;
 	a->datalen = 0;
 	a->pcm = a->pcmbuf;
+	if (a->seek_sample != (uint64)-1) {
+		FF_ASSERT(a->seek_sample >= a->cursample);
+		uint skip = a->seek_sample - a->cursample;
+		if (skip >= (uint)r)
+			return FFAAC_RMORE;
 
-	if (a->skip_samples != 0) {
-		if (a->frsamples > a->skip_samples) {
-			a->frsamples -= a->skip_samples;
-			a->pcm = (void*)((char*)a->pcmbuf + a->skip_samples * ffpcm_size1(&a->fmt));
-		}
-		a->skip_samples = 0;
+		a->seek_sample = (uint64)-1;
+		a->pcm = (void*)((char*)a->pcmbuf + skip * ffpcm_size1(&a->fmt));
+		r -= skip;
+		a->cursample += skip;
 	}
 
-	a->pcmlen = a->frsamples * ffpcm_size1(&a->fmt);
+	if (a->cursample + r >= a->total_samples + a->enc_delay)
+		r = ffmin(r - a->end_padding, r);
+
+	a->pcmlen = r * ffpcm_size1(&a->fmt);
 	return FFAAC_RDATA;
 }
 

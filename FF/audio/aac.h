@@ -21,8 +21,11 @@ typedef struct ffaac {
 	short *pcm;
 	uint pcmlen; // PCM data length in bytes
 	void *pcmbuf;
-	uint frsamples;
-	uint64 skip_samples;
+	uint64 total_samples;
+	uint64 cursample;
+	uint64 seek_sample;
+	uint enc_delay;
+	uint end_padding;
 } ffaac;
 
 enum FFAAC_R {
@@ -78,6 +81,8 @@ static FFINL ffstr ffaac_enc_conf(ffaac_enc *a)
 	ffstr_set(&s, a->info.conf, a->info.conf_len);
 	return s;
 }
+
+#define ffaac_cursample(a)  ((a)->cursample - (a)->enc_delay)
 
 /** Get audio samples per AAC frame. */
 #define ffaac_enc_frame_samples(a)  ((a)->info.frame_samples)
