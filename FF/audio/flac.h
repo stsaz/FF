@@ -11,36 +11,13 @@ fLaC INFO VORBIS_CMT [PADDING] [SEEKTABLE] (FRAME)...
 
 #pragma once
 
+#include <FF/audio/flac-fmt.h>
 #include <FF/audio/vorbistag.h>
 #include <FF/audio/pcm.h>
 #include <FF/array.h>
 
 #include <flac/FLAC-ff.h>
 
-
-typedef struct ffflac_info {
-	uint bits;
-	uint channels;
-	uint sample_rate;
-
-	uint minblock, maxblock;
-	uint minframe, maxframe;
-	uint64 total_samples;
-	char md5[16];
-} ffflac_info;
-
-typedef struct _ffflac_seektab {
-	uint len;
-	ffpcm_seekpt *ptr;
-} _ffflac_seektab;
-
-typedef struct ffflac_frame {
-	uint num;
-	uint samples;
-	uint rate;
-	uint channels;
-	uint bps;
-} ffflac_frame;
 
 typedef struct ffflac {
 	flac_decoder *dec;
@@ -168,8 +145,6 @@ FF_EXTN int ffflac_create(ffflac_enc *f, const ffpcm *format);
 
 FF_EXTN void ffflac_enc_close(ffflac_enc *f);
 
-/**
-Note: support only up to 4k data. */
 FF_EXTN int ffflac_addtag(ffflac_enc *f, const char *name, const char *val, size_t vallen);
 
 #define ffflac_iaddtag(f, tag, val, vallen) \
