@@ -1008,7 +1008,7 @@ int ffogg_encode(ffogg_enc *o)
 			continue;
 		}
 
-		if (o->page.size + o->opkt.bytes > o->max_pagesize) {
+		if (o->page.size + o->opkt.bytes > o->max_pagesize || o->page.nsegments == 255) {
 			ffstr s;
 			ogg_page_write(&o->page, o->buf.ptr, o->granpos, 0, &s);
 			o->data = s.ptr;
