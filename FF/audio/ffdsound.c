@@ -141,7 +141,6 @@ int ffdsnd_open(ffdsnd_buf *ds, const GUID *dev_id, ffpcm *fmt, uint bufsize)
 	WAVEFORMATEX wf;
 	HRESULT r;
 	uint sample_size = ffpcm_size(fmt->format, fmt->channels);
-	ffwav_fmt w;
 	HWND h;
 
 	if (0 != (r = DirectSoundCreate8(dev_id, &ds->dev, 0))) //dsound.dll
@@ -152,15 +151,7 @@ int ffdsnd_open(ffdsnd_buf *ds, const GUID *dev_id, ffpcm *fmt, uint bufsize)
 		goto fail;
 
 	ds->bufsize = ffpcm_samples(bufsize, fmt->sample_rate) * sample_size;
-	ffwav_pcmfmtset(&w, fmt->format);
-	wf.wFormatTag = w.format;
-	wf.wBitsPerSample = w.bit_depth;
-
-	wf.nChannels = fmt->channels;
-	wf.nSamplesPerSec = fmt->sample_rate;
-	wf.nBlockAlign = sample_size;
-	wf.nAvgBytesPerSec = fmt->sample_rate * sample_size;
-	wf.cbSize = 0;
+	ffwav_makewfx(&wf, fmt);
 
 	{
 	DSBUFFERDESC bufdesc = {
@@ -290,21 +281,12 @@ int ffdsnd_capt_open(ffdsnd_capt *dsc, const GUID *dev_id, ffpcm *fmt, uint bufs
 	WAVEFORMATEX wf;
 	HRESULT r;
 	uint sample_size = ffpcm_size(fmt->format, fmt->channels);
-	ffwav_fmt w;
 
 	if (0 != (r = DirectSoundCaptureCreate(dev_id, &dsc->dev, NULL)))
 		return r;
 
 	dsc->bufsize = ffpcm_samples(bufsize, fmt->sample_rate) * sample_size;
-	ffwav_pcmfmtset(&w, fmt->format);
-	wf.wFormatTag = w.format;
-	wf.wBitsPerSample = w.bit_depth;
-
-	wf.nChannels = fmt->channels;
-	wf.nSamplesPerSec = fmt->sample_rate;
-	wf.nBlockAlign = sample_size;
-	wf.nAvgBytesPerSec = fmt->sample_rate * sample_size;
-	wf.cbSize = 0;
+	ffwav_makewfx(&wf, fmt);
 
 	{
 	DSCBUFFERDESC desc = {

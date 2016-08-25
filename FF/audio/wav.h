@@ -12,9 +12,22 @@ RIFF(fmt data(DATA...))
 #include <FF/array.h>
 
 
-/** Convert between WAV format and PCM format.*/
+/** Get WAV format from enum FFPCM_FMT.*/
 FF_EXTN uint ffwav_fmt(uint pcm_fmt);
 
+#ifdef FF_WIN
+/** ffpcm -> WAVEFORMATEX */
+static FFINL void ffwav_makewfx(WAVEFORMATEX *wf, ffpcm *f)
+{
+	wf->wFormatTag = ffwav_fmt(f->format);
+	wf->wBitsPerSample = ffpcm_bits(f->format);
+	wf->nSamplesPerSec = f->sample_rate;
+	wf->nChannels = f->channels;
+	wf->nBlockAlign = ffpcm_size1(f);
+	wf->nAvgBytesPerSec = f->sample_rate * ffpcm_size1(f);
+	wf->cbSize = 0;
+}
+#endif
 
 struct ffwav_chunk {
 	uint id;

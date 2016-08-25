@@ -187,20 +187,11 @@ int ffwas_open(ffwasapi *w, const WCHAR *id, ffpcm *fmt, uint bufsize)
 	IMMDeviceEnumerator *enu = NULL;
 	IMMDevice *dev = NULL;
 	WAVEFORMATEX wf;
-	ffwav_fmt ww;
 	unsigned balign = 0;
 	REFERENCE_TIME dur;
 
 	w->frsize = ffpcm_size(fmt->format, fmt->channels);
-	ffwav_pcmfmtset(&ww, fmt->format);
-	wf.wFormatTag = ww.format;
-	wf.wBitsPerSample = ww.bit_depth;
-
-	wf.nChannels = fmt->channels;
-	wf.nSamplesPerSec = fmt->sample_rate;
-	wf.nBlockAlign = w->frsize;
-	wf.nAvgBytesPerSec = fmt->sample_rate * w->frsize;
-	wf.cbSize = 0;
+	ffwav_makewfx(&wf, fmt);
 
 	dur = 10 * 1000 * bufsize;
 	if (w->excl)
