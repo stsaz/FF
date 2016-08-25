@@ -1282,17 +1282,26 @@ size_t ffs_fmatchv(const char *s, size_t len, const char *fmt, va_list va)
 		}
 
 		switch (*fmt) {
+		case 'x':
+			iflags |= FFS_INTHEX;
+			fmt++;
+			break;
+		}
+
+		switch (*fmt) {
 		case 'U':
 			dst.i8 = va_arg(va, uint64*);
-			iflags = FFS_INT64;
+			iflags |= FFS_INT64;
 			break;
 
 		case 'u':
 			dst.i4 = va_arg(va, uint*);
-			iflags = FFS_INT32;
+			iflags |= FFS_INT32;
 			break;
 
 		case 's':
+			if (iflags != 0)
+				goto fail; //unsupported modifier
 			dst.s = va_arg(va, char*);
 			if (width == 0)
 				goto fail; //width must be specified for %s

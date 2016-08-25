@@ -575,7 +575,7 @@ static FFINL size_t ffs_fmt(char *buf, const char *end, const char *fmt, ...) {
 }
 
 /** Match string by format:
- "% [width] u|U" - uint|uint64
+ "% [width] x u|U" - uint|uint64
  "% width s" - char*
 Return the number of bytes parsed.  Return negative value on error. */
 FF_EXTN size_t ffs_fmatchv(const char *s, size_t len, const char *fmt, va_list va);
