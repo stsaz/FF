@@ -659,6 +659,7 @@ static int _ffogg_seek(ffogg *o)
 			gpos = ffint_ltoh64(h->granulepos) - o->first_sample;
 			if (gpos > o->seek_sample && o->skoff == o->seekpt[0].off) {
 				sk.fr_index = o->seekpt[0].sample;
+				o->cursample = o->seekpt[0].sample;
 				sk.fr_samples = gpos - o->seekpt[0].sample;
 				sk.fr_size = o->pagesize;
 				break;
