@@ -169,7 +169,8 @@ FF_EXTN int ffhttp_nexthdr(ffhttp_hdr *hdr, const char *d, size_t len);
 
 /** Return FFHTTP_METH. */
 static FFINL int ffhttp_findmethod(const char *data, size_t len) {
-	return (int)ffs_findarr(data, len, ffhttp_smeth, sizeof(*ffhttp_smeth), FFCNT(ffhttp_smeth));
+	int r = ffs_findarr3(ffhttp_smeth, data, len);
+	return (r != -1) ? (uint)r : FFCNT(ffhttp_smeth);
 }
 
 typedef struct _ffhttp_headr _ffhttp_headr;

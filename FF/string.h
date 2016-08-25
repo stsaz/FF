@@ -201,8 +201,9 @@ FF_EXTN char * ffs_rskip(const char *buf, size_t len, int ch);
 FF_EXTN char * ffs_rskipof(const char *buf, size_t len, const char *anyof, size_t cnt);
 
 /** Search a string in array using operations with type int64.
-Return 'count' if not found. */
-FF_EXTN size_t ffs_findarr(const void *s, size_t len, const void *ar, ssize_t elsz, size_t count);
+Return -1 if not found. */
+FF_EXTN ssize_t ffs_findarr(const void *ar, size_t n, uint elsz, const void *s, size_t len);
+#define ffs_findarr3(ar, s, len)  ffs_findarr(ar, FFCNT(ar), sizeof(*ar), s, len)
 
 /** Search a string in array of pointers to NULL-terminated strings.
 Return -1 if not found. */

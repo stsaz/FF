@@ -104,11 +104,10 @@ size_t fftime_fromstr(ffdtm *dt, const char *s, size_t len, uint fmt)
 			goto fail;
 		s += i;
 
-		t.month = 1 + (int)ffs_findarr(smon, 3, month_names, sizeof(*month_names), FFCNT(month_names));
+		t.month = 1 + ffs_findarr3(month_names, smon, 3);
 
-		t.weekday = (int)ffs_findarr(sweekday, 3, week_days, sizeof(*week_days), FFCNT(week_days));
-		if (t.weekday == FFCNT(week_days))
-			t.weekday = 0; //ignore invalid weekday
+		if (-1 != (i = ffs_findarr3(week_days, sweekday, 3)))
+			t.weekday = i;
 		break;
 
 	case 0:

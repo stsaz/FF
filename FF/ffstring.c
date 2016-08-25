@@ -259,7 +259,7 @@ static const int64 ff_intmasks[9] = {
 	, 0xffffffffffULL, 0xffffffffffffULL, 0xffffffffffffffULL, 0xffffffffffffffffULL
 };
 
-size_t ffs_findarr(const void *s, size_t len, const void *ar, ssize_t elsz, size_t count)
+ssize_t ffs_findarr(const void *ar, size_t n, uint elsz, const void *s, size_t len)
 {
 	if (len <= sizeof(int64)) {
 		int64 left;
@@ -267,13 +267,13 @@ size_t ffs_findarr(const void *s, size_t len, const void *ar, ssize_t elsz, size
 		int64 imask;
 		imask = ff_intmasks[len];
 		left = *(int64*)s & imask;
-		for (i = 0; i < count; i++) {
+		for (i = 0;  i != n;  i++) {
 			if (left == (*(int64*)ar & imask) && ((byte*)ar)[len] == 0x00)
 				return i;
 			ar = (byte*)ar + elsz;
 		}
 	}
-	return count;
+	return -1;
 }
 
 ssize_t ffs_findarrz(const char *const *ar, size_t n, const char *search, size_t search_len)
