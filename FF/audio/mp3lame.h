@@ -33,13 +33,17 @@ typedef struct ffmpg_enc {
 	};
 	size_t pcmoff;
 
+	struct ffmpg_info xing;
+
 	ffarr buf;
 	size_t datalen;
-	void *data;
+	const void *data;
 	uint off;
 
 	uint fin :1
-		, ileaved :1;
+		, ileaved :1
+		, have_xing :1
+		;
 	uint options; //enum FFMPG_ENC_OPT
 } ffmpg_enc;
 
@@ -59,3 +63,9 @@ Return enum FFMPG_R. */
 FF_EXTN int ffmpg_encode(ffmpg_enc *m);
 
 FF_EXTN const char* ffmpg_enc_errstr(ffmpg_enc *m);
+
+
+FF_EXTN void ffmpg_create_copy(ffmpg_enc *m);
+
+/** Pass MPEG frame as-is.  Skip input Xing frame.  Write Xing frame on finish. */
+FF_EXTN int ffmpg_writeframe(ffmpg_enc *m, const char *fr, uint len, ffstr *data);

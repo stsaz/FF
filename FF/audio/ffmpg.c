@@ -3,6 +3,7 @@ Copyright (c) 2013 Simon Zolin
 */
 
 #include <FF/audio/mpeg.h>
+#include <FF/audio/mp3lame.h>
 #include <FF/audio/id3.h>
 #include <FF/string.h>
 #include <FF/number.h>
@@ -20,12 +21,9 @@ enum {
 static int mpg_id31(ffmpg *m);
 static int mpg_id32(ffmpg *m);
 static int _ffmpg_apetag(ffmpg *m, ffarr *buf);
-static int _ffmpg_streaminfo(ffmpg *m, const char *xing, uint len, uint fr_samps);
+static int _ffmpg_streaminfo(ffmpg *m, const char *data, uint len);
 static int _ffmpg_frame(ffmpg *m, ffarr *buf);
 static int _ffmpg_frame2(ffmpg *m, ffarr *buf);
-#ifdef FF_LIBMAD
-static int mpg_mad_decode(ffmpg *m);
-#endif
 
 
 static const char *const _ffmpg_errs[] = {
@@ -43,11 +41,6 @@ const char* ffmpg_errstr(ffmpg *m)
 	case FFMPG_EMPG123:
 		return mpg123_errstr(m->e);
 
-#ifdef FF_LIBMAD
-	case FFMPG_ESTREAM:
-		return mad_stream_errorstr(&m->stream);
-#endif
-
 	case FFMPG_ESYS:
 		return fferr_strp(fferr_last());
 	}
@@ -58,9 +51,13 @@ const char* ffmpg_errstr(ffmpg *m)
 	return _ffmpg_errs[m->err];
 }
 
+
+enum { R_FRAME2, R_SEEK, R_FR, R_FROK };
+
 void ffmpg_init(ffmpg *m)
 {
 	ffid3_parseinit(&m->id32tag);
+	m->state2 = R_FRAME2;
 }
 
 void ffmpg_close(ffmpg *m)
@@ -73,18 +70,11 @@ void ffmpg_close(ffmpg *m)
 	ffarr_free(&m->buf);
 	ffarr_free(&m->buf2);
 
-#ifdef FF_LIBMAD
-	mad_synth_finish(&m->synth);
-	mad_frame_finish(&m->frame);
-	mad_stream_finish(&m->stream);
-
-#else
 	if (m->m123 != NULL)
 		mpg123_free(m->m123);
-#endif
 }
 
-enum { I_START, I_FIRST, I_INIT, I_INPUT, I_BUFINPUT, I_FR, I_FROK, I_SYNTH, I_SEEK, I_SEEK2,
+enum { I_START, I_FIRST, I_INIT, I_FR,
 	I_ID3V2, I_ID31_CHECK, I_FTRTAGS, I_ID31, I_APE2, I_APE2_MORE, I_TAG_SKIP };
 
 void ffmpg_seek(ffmpg *m, uint64 sample)
@@ -94,8 +84,14 @@ void ffmpg_seek(ffmpg *m, uint64 sample)
 	if (m->skip_samples != 0)
 		m->skip_samples = 0;
 	m->seek_sample = sample;
-	if (m->state != I_INIT)
-		m->state = I_SEEK;
+	m->buf.len = 0;
+
+	if (m->state == I_FR) {
+		mpg123_decode(m->m123, (void*)-1, (size_t)-1, NULL); //reset bufferred data
+		m->frame.len = 0;
+	}
+
+	m->state2 = R_SEEK;
 }
 
 /** Convert sample number to stream offset (in bytes) based on:
@@ -103,7 +99,7 @@ void ffmpg_seek(ffmpg *m, uint64 sample)
  . 'total samples' and 'total size' values (linear) */
 static FFINL uint64 mpg_getseekoff(ffmpg *m)
 {
-	if (m->xing.flags & FFMPG_XING_TOC)
+	if (m->xing.vbr && m->xing.toc[98] != 0)
 		return m->dataoff + ffmpg_xing_seekoff(m->xing.toc, m->seek_sample, m->total_samples, m->total_size);
 	else
 		return m->dataoff + m->total_size * m->seek_sample / m->total_samples;
@@ -268,48 +264,42 @@ static FFINL int mpg_id32(ffmpg *m)
 
 /**
 Total samples number is estimated from:
- . 'frames' value from Xing tag
+ . 'frames' value from Xing/VBRI tag
  . encoder/decoder delays from LAME tag
  . TLEN frame from ID3v2
  . bitrate from the first header and total stream size */
-static int _ffmpg_streaminfo(ffmpg *m, const char *p, uint datalen, uint fr_samps)
+static int _ffmpg_streaminfo(ffmpg *m, const char *p, uint datalen)
 {
+	const ffmpg_hdr *h = (void*)p;
 	uint n;
-	size_t len;
+	int r;
 
-	len = datalen;
 	if (!(m->options & FFMPG_O_NOXING)
-		&& 0 == ffmpg_xing_parse(&m->xing, p, &len)) {
+		&& 0 < (r = ffmpg_xing_parse(&m->xing, p, datalen))) {
 
-		if (m->xing.flags & FFMPG_XING_FRAMES) {
-			m->total_samples = m->xing.frames * fr_samps;
-		}
+		m->total_samples = m->xing.frames * ffmpg_hdr_frame_samples(h);
 
-		p += len;
-		len = datalen - len;
-		if (0 == ffmpg_lame_parse(&m->lame, p, &len)) {
+		p += r,  datalen -= r;
+		if (0 < ffmpg_lame_parse(&m->lame, p, datalen)) {
 			n = m->lame.enc_delay + DEC_DELAY + 1;
 			if (m->lame.enc_padding != 0)
 				n += m->lame.enc_padding - (DEC_DELAY + 1);
 			m->total_samples -= ffmin(n, m->total_samples);
 			m->skip_samples = m->lame.enc_delay + DEC_DELAY + 1;
 		}
-
-		if (m->total_samples != 0 && m->total_size != 0)
-			m->bitrate = ffpcm_brate(m->total_size, m->total_samples, m->fmt.sample_rate);
-
 		return 0;
 	}
 
-	if (m->total_len != 0) {
-		if (m->total_size != 0)
-			m->bitrate = ffpcm_brate_ms(m->total_size, m->total_len);
+	if (!(m->options & FFMPG_O_NOXING)
+		&& 0 < ffmpg_vbri(&m->xing, p, datalen)) {
+		m->total_samples = m->xing.frames * ffmpg_hdr_frame_samples(h);
+		return 0;
+	}
 
-	} else
-		m->total_len = m->total_size * 1000 / (m->bitrate/8);
+	if (m->total_len == 0)
+		m->total_len = m->total_size * 1000 / (ffmpg_hdr_bitrate(h) / 8);
 
-	m->total_samples = ffpcm_samples(m->total_len, m->fmt.sample_rate);
-
+	m->total_samples = ffpcm_samples(m->total_len, ffmpg_hdr_sample_rate(h));
 	return 0;
 }
 
@@ -357,7 +347,7 @@ static int _ffmpg_frame(ffmpg *m, ffarr *buf)
 
 body:
 	h = (void*)buf->ptr;
-	r = ffarr_append_until(buf, m->data, m->datalen, ffmpg_framelen(h));
+	r = ffarr_append_until(buf, m->data, m->datalen, ffmpg_hdr_framelen(h));
 	if (r == -1) {
 		m->err = FFMPG_ESYS;
 		return FFMPG_RERR;
@@ -428,6 +418,66 @@ static int _ffmpg_frame2(ffmpg *m, ffarr *buf)
 	//unreachable
 }
 
+int ffmpg_readframe(ffmpg *m)
+{
+	int r;
+
+	switch (m->state2) {
+
+	case R_SEEK:
+		m->buf.len = 0;
+		if (m->seek_sample >= m->total_samples) {
+			m->err = FFMPG_ESEEK;
+			return FFMPG_RERR;
+		}
+		m->off = mpg_getseekoff(m);
+		m->cur_sample = m->seek_sample;
+		m->state2 = R_FRAME2;
+		return FFMPG_RSEEK;
+
+	case R_FRAME2:
+		if (0 != (r = _ffmpg_frame2(m, &m->buf)))
+			return r;
+		ffstr_set(&m->frame, m->buf.ptr, ffmpg_hdr_framelen((void*)m->buf.ptr));
+
+		if (m->firsthdr.sync1 == 0) {
+			const ffmpg_hdr *h = (void*)m->frame.ptr;
+			m->firsthdr = *h;
+
+			m->fmt.sample_rate = ffmpg_hdr_sample_rate(h);
+			m->fmt.channels = ffmpg_hdr_channels(h);
+			_ffmpg_streaminfo(m, (char*)h, ffmpg_hdr_framelen(h));
+		}
+
+		m->state2 = R_FROK;
+		return FFMPG_RFRAME;
+
+	case R_FROK:
+		m->cur_sample += ffmpg_hdr_frame_samples((void*)m->frame.ptr);
+		m->state2 = R_FR;
+		if (m->buf.len != 0) {
+			ffstr_set(&m->frame, m->buf.ptr + m->frame.len, m->buf.len - m->frame.len);
+			m->buf.len = 0;
+			return FFMPG_RFRAME;
+		}
+		// break
+
+	case R_FR:
+		m->datalen = ffmin(m->datalen, m->dataoff + m->total_size - m->off);
+		if (m->off == m->dataoff + m->total_size)
+			return FFMPG_RDONE;
+		if (0 != (r = _ffmpg_frame(m, &m->buf)))
+			return r;
+		ffstr_set(&m->frame, m->buf.ptr, m->buf.len);
+		m->buf.len = 0;
+		m->state2 = R_FROK;
+		return FFMPG_RFRAME;
+	}
+
+	return FFMPG_RERR;
+}
+
+
 /*
 Workflow:
  . parse ID3v2
@@ -442,33 +492,6 @@ int ffmpg_decode(ffmpg *m)
 
 	for (;;) {
 	switch (m->state) {
-		case I_SEEK:
-			m->buf.len = 0;
-			if (m->seek_sample >= m->total_samples) {
-				m->err = FFMPG_ESEEK;
-				return FFMPG_RERR;
-			}
-			m->off = mpg_getseekoff(m);
-			m->cur_sample = m->seek_sample;
-			m->state = I_SEEK2;
-			return FFMPG_RSEEK;
-
-		case I_SEEK2:
-#ifdef FF_LIBMAD
-			mad_stream_finish(&m->stream);
-			mad_stream_init(&m->stream);
-			mad_stream_buffer(&m->stream, m->data, m->datalen);
-			m->stream.sync = 0;
-
-#else
-			if (0 != (r = _ffmpg_frame2(m, &m->buf)))
-				return r;
-			mpg123_decode(m->m123, (void*)-1, (size_t)-1, NULL); //reset bufferred data
-#endif
-			m->state = I_FR;
-			break;
-
-
 		case I_ID31_CHECK:
 			if (m->options & (FFMPG_O_ID3V1 | FFMPG_O_APETAG)) {
 				m->state = I_FTRTAGS;
@@ -533,38 +556,14 @@ int ffmpg_decode(ffmpg *m)
 			continue;
 
 	case I_FIRST:
-		{
-		if (0 != (r = _ffmpg_frame2(m, &m->buf)))
+		if (FFMPG_RFRAME != (r = ffmpg_readframe(m)))
 			return r;
-		ffmpg_hdr *h = (void*)m->buf.ptr;
-		m->fmt.format = (m->options & FFMPG_O_INT16) ? FFPCM_16LE : FFPCM_FLOAT;
-		m->fmt.sample_rate = ffmpg_sample_rate(h);
-		m->fmt.channels = ffmpg_channels(h);
-		m->bitrate = ffmpg_bitrate(h);
 
-		uint xingoff = sizeof(ffmpg_hdr) + mpg_xingoffs[h->ver != FFMPG_1][ffmpg_channels(h) - 1];
-		_ffmpg_streaminfo(m, (char*)h + xingoff, ffmpg_framelen(h) - xingoff, ffmpg_frame_samples(h));
-
-		m->firsthdr = *h;
-		m->state = I_INIT;
-		}
-
-#ifndef FF_LIBMAD
+		m->fmt.format = (m->options & FFMPG_O_INT16) ? FFPCM_16 : FFPCM_FLOAT;
 		m->fmt.ileaved = 1;
-#endif
-
-		//note: libmad: this frame will be skipped
+		m->state = I_INIT;
 		return FFMPG_RHDR;
 
-
-#ifdef FF_LIBMAD
-	default:
-		r = mpg_mad_decode(m);
-		if (r == 0x100)
-			continue;
-		return r;
-
-#else
 	case I_INIT:
 		i = (m->options & FFMPG_O_INT16) ? 0 : MPG123_FORCE_FLOAT;
 		if (0 != (r = mpg123_init(&m->m123, i))) {
@@ -572,195 +571,84 @@ int ffmpg_decode(ffmpg *m)
 			m->e = r;
 			return FFMPG_RERR;
 		}
-		m->state = (m->seek_sample != 0) ? I_SEEK : I_FR;
-		continue;
-
-	case I_FROK:
-		m->cur_sample += m->pcmlen / ffpcm_size1(&m->fmt);
 		m->state = I_FR;
 		// break
 
 	case I_FR:
-		m->datalen = ffmin(m->datalen, m->dataoff + m->total_size - m->off);
-		if (m->buf.len != 0) {
-			r = mpg123_decode(m->m123, m->buf.ptr, m->buf.len, NULL);
-			m->buf.len = 0;
-		}
-
-		r = mpg123_decode(m->m123, m->data, m->datalen, (byte**)&m->pcmi);
-		m->off += m->datalen;
-		FFARR_SHIFT(m->data, m->datalen, m->datalen);
+		if (m->frame.len == 0 && FFMPG_RFRAME != (r = ffmpg_readframe(m)))
+			return r;
+		r = mpg123_decode(m->m123, m->frame.ptr, m->frame.len, (byte**)&m->pcmi);
+		m->frame.len = 0;
 		if (r == 0) {
-			if (m->off == m->dataoff + m->total_size)
-				return FFMPG_RDONE;
-			return FFMPG_RMORE;
+			continue;
 
 		} else if (r < 0) {
 			m->err = FFMPG_EMPG123;
 			m->e = r;
-			m->state = I_SEEK2;
+			m->state2 = R_FRAME2;
 			return FFMPG_RWARN;
 		}
 		m->pcmlen = r;
-		m->state = I_FROK;
 		return FFMPG_RDATA;
-#endif
 	}
 	}
 }
 
-#ifdef FF_LIBMAD
-/* stream -> frame -> synth
 
-Frame decode:
-To decode a frame libmad needs data also for the following frames:
- (hdr1 data1)  (hdr2 data2)  ...
-When there's not enough contiguous data, MAD_ERROR_BUFLEN is returned.
-ffmpg.buf is used to provide libmad with contiguous data enough to decode one frame.
-*/
-static int mpg_mad_decode(ffmpg *m)
+enum { W_CHK_XING, W_FRAME, W_XING_SEEK, W_XING, W_DONE };
+
+void ffmpg_create_copy(ffmpg_enc *m)
 {
-	uint i, ich, isrc, skip;
-	size_t len;
+	m->state = W_CHK_XING;
+}
 
-	for (;;) {
-		switch (m->state) {
-
-		case I_INIT:
-			mad_stream_init(&m->stream);
-			mad_frame_init(&m->frame);
-			mad_synth_init(&m->synth);
-			if (m->seek_sample != 0) {
-				m->state = I_SEEK;
-				return 0x100;
-			}
-			// m->state = I_INPUT;
-			// break
-
-		case I_INPUT:
-			mad_stream_buffer(&m->stream, m->data, m->datalen);
-			m->state = I_FR;
-			break;
-
-		case I_BUFINPUT:
-			FF_ASSERT(m->datalen >= m->dlen);
-			i = ffmin(m->datalen - m->dlen, 1024);
-			if (NULL == ffarr_append(&m->buf, m->data + m->dlen, i)) {
-				m->err = FFMPG_ESYS;
-				return FFMPG_RERR;
-			}
-			m->dlen += i;
-			mad_stream_buffer(&m->stream, (void*)m->buf.ptr, m->buf.len);
-			if (m->datalen == 0)
-				m->stream.options |= MAD_OPTION_LASTFRAME;
-			m->state = I_FR;
-			break;
-
-		case I_FROK:
-			m->cur_sample += m->synth.pcm.length;
-			m->state = I_FR;
-			// break;
-
-		case I_FR:
-			i = mad_frame_decode(&m->frame, &m->stream);
-
-			if (m->stream.buffer == (void*)m->buf.ptr
-				&& (i == 0 || MAD_RECOVERABLE(m->stream.error))) {
-
-				len = m->buf.len - (m->stream.next_frame - m->stream.buffer); //number of unprocessed bytes in m->buf
-				if (len <= m->dlen) {
-					len = m->dlen - len;
-					m->data += len;
-					m->datalen -= len;
-					mad_stream_buffer(&m->stream, m->data, m->datalen);
-					m->buf.len = 0;
-					m->dlen = 0;
-				}
-			}
-
-			if (i != 0) {
-				m->err = FFMPG_ESTREAM;
-
-				if (m->stream.error == MAD_ERROR_LOSTSYNC
-					&& (m->options & FFMPG_O_ID3V1)
-					&& (size_t)(m->stream.bufend - m->stream.this_frame) >= FFSLEN("TAG")
-					&& ffid31_valid((ffid31*)m->stream.this_frame))
-					return FFMPG_RDONE;
-
-				else if (MAD_RECOVERABLE(m->stream.error))
-					return FFMPG_RWARN;
-
-				else if (m->stream.error == MAD_ERROR_BUFLEN) {
-
-					if (m->stream.buffer == (void*)m->buf.ptr) {
-						m->state = I_BUFINPUT;
-						len = m->stream.bufend - m->stream.next_frame;
-						ffmemcpy(m->buf.ptr, m->stream.next_frame, len);
-						m->buf.len = m->stream.bufend - m->stream.next_frame;
-						if (m->datalen - m->dlen == 0) {
-							m->dlen = 0;
-							return FFMPG_RMORE;
-						}
-						continue;
-					}
-
-					m->state = I_INPUT;
-
-					if (m->stream.next_frame != m->stream.bufend) {
-						if (NULL == ffarr_copy(&m->buf, m->stream.next_frame, m->stream.bufend - m->stream.next_frame)) {
-							m->err = FFMPG_ESYS;
-							return FFMPG_RERR;
-						}
-						m->state = I_BUFINPUT;
-					}
-					return FFMPG_RMORE;
-				}
-
-				return FFMPG_RERR;
-			}
-			// m->state = I_SYNTH;
-			// break
-
-		case I_SYNTH:
-			mad_synth_frame(&m->synth, &m->frame);
-			if (m->synth.pcm.channels != m->fmt.channels
-				|| m->synth.pcm.samplerate != m->fmt.sample_rate) {
-				m->err = FFMPG_EFMT;
-				return FFMPG_RERR;
-			}
-
-			skip = 0;
-			if (m->skip_samples != 0) {
-				skip = ffmin(m->synth.pcm.length, m->skip_samples);
-				m->synth.pcm.length -= skip;
-				m->skip_samples -= skip;
-			}
-
-			if (m->cur_sample + m->synth.pcm.length > m->total_samples
-				&& m->lame.enc_padding != 0) {
-				m->synth.pcm.length = m->total_samples - m->cur_sample;
-			}
-
-			if (m->synth.pcm.length == 0) {
-				m->state = I_FR;
-				continue;
-			}
-
-			goto ok;
-		}
+int ffmpg_writeframe(ffmpg_enc *m, const char *fr, uint frlen, ffstr *data)
+{
+	switch (m->state) {
+	case W_CHK_XING:
+	case W_FRAME:
+		if (m->fin)
+			m->state = (m->have_xing) ? W_XING_SEEK : W_DONE;
+		break;
 	}
 
-ok:
-	//in-place convert int[] -> float[]
-	for (ich = 0;  ich != m->synth.pcm.channels;  ich++) {
-		m->pcm[ich] = (float*)&m->synth.pcm.samples[ich];
-		for (i = 0, isrc = skip;  i != m->synth.pcm.length;  i++, isrc++) {
-			m->pcm[ich][i] = (float)mad_f_todouble(m->synth.pcm.samples[ich][isrc]);
+	switch (m->state) {
+	case W_CHK_XING:
+		m->state = W_FRAME;
+		if (0 < ffmpg_xing_parse(&m->xing, fr, frlen)) {
+			if (NULL == ffarr_realloc(&m->buf, frlen))
+				return m->err = FFMPG_ESYS,  FFMPG_RERR;
+			m->have_xing = 1;
+			m->xing.frames = 0;
+			m->xing.bytes = 0;
+			ffmem_zero(m->buf.ptr, frlen);
+			ffmemcpy(m->buf.ptr, fr, sizeof(ffmpg_hdr));
+			m->buf.len = frlen;
+			ffstr_set2(data, &m->buf);
+			return FFMPG_RDATA;
 		}
-	}
-	m->pcmlen = m->synth.pcm.length * m->synth.pcm.channels * sizeof(float);
+		break;
 
-	m->state = I_FROK;
+	case W_FRAME:
+		break;
+
+	case W_XING_SEEK:
+		m->off = 0;
+		m->state = W_XING;
+		return FFMPG_RSEEK;
+
+	case W_XING:
+		ffmpg_xing_write(&m->xing, m->buf.ptr);
+		ffstr_set2(data, &m->buf);
+		m->state = W_DONE;
+		return FFMPG_RDATA;
+
+	case W_DONE:
+		return FFMPG_RDONE;
+	}
+
+	ffstr_set(data, fr, frlen);
+	m->xing.frames++;
+	m->xing.bytes += frlen;
 	return FFMPG_RDATA;
 }
-#endif

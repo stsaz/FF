@@ -14,11 +14,7 @@ MPEG-HEADER  [CRC16]  ([XING-TAG  LAME-TAG]  |  FRAME-DATA...) ...
 #include <FF/audio/apetag.h>
 #include <FF/array.h>
 
-#ifdef FF_LIBMAD
-#include <mad/mad.h>
-#else
 #include <mpg123/mpg123-ff.h>
-#endif
 
 
 enum FFMPG_O {
@@ -31,17 +27,11 @@ enum FFMPG_O {
 
 typedef struct ffmpg {
 	uint state;
+	uint state2;
 
-#ifdef FF_LIBMAD
-	struct mad_stream stream;
-	struct mad_frame frame;
-	struct mad_synth synth;
-#else
 	mpg123 *m123;
-#endif
 
 	ffpcmex fmt;
-	uint bitrate;
 	ffmpg_hdr firsthdr;
 	uint err;
 	uint e;
@@ -54,8 +44,8 @@ typedef struct ffmpg {
 	uint64 dataoff //offset of the first MPEG header
 		, total_size
 		, off;
-	ffmpg_xing xing;
-	ffmpg_lame lame;
+	struct ffmpg_info xing;
+	struct ffmpg_lame lame;
 	uint skip_samples;
 
 	union {
@@ -71,6 +61,7 @@ typedef struct ffmpg {
 	const void *data;
 	ffarr buf2;
 	uint bytes_skipped;
+	ffstr frame;
 
 	size_t pcmlen;
 	union {
@@ -92,6 +83,7 @@ enum FFMPG_R {
 	, FFMPG_RERR
 	, FFMPG_RHDR
 	, FFMPG_RDATA
+	, FFMPG_RFRAME
 	, FFMPG_RMORE
 	, FFMPG_RSEEK
 	, FFMPG_RTAG
@@ -102,7 +94,6 @@ enum FFMPG_E {
 	FFMPG_EOK,
 	FFMPG_ESYS,
 	FFMPG_EMPG123,
-	FFMPG_ESTREAM,
 	FFMPG_EFMT,
 	FFMPG_ETAG,
 	FFMPG_EAPETAG,
@@ -129,7 +120,19 @@ FF_EXTN int ffmpg_decode(ffmpg *m);
 /** Get an absolute sample number. */
 #define ffmpg_cursample(m)  ((m)->cur_sample)
 
-static FFINL int ffmpg_isvbr(ffmpg *m)
+/** Get stream bitrate. */
+#define ffmpg_bitrate(m) \
+	ffpcm_brate((m)->total_size, (m)->total_samples, (m)->fmt.sample_rate)
+
+#define ffmpg_isvbr(m)  ((m)->xing.vbr)
+
+
+/** Read MPEG frame.  Parse Xing tag.
+Return enum FFMPG_R. */
+FF_EXTN int ffmpg_readframe(ffmpg *m);
+
+/** Get frame data. */
+static FFINL ffstr ffmpg_framedata(ffmpg *m)
 {
-	return !ffs_cmp(m->xing.id, "Xing", 4);
+	return m->frame;
 }

@@ -79,7 +79,7 @@ FF_EXTN ffmpg_hdr* ffmpg_framefind(const char *data, size_t len, const ffmpg_hdr
 struct ffmpg_info {
 	uint frames;
 	uint bytes;
-	uint vbr_scale; //100(worst)..0(best)
+	int vbr_scale; //100(worst)..0(best)
 	byte toc[100];
 	uint vbr :1;
 };
@@ -90,6 +90,10 @@ FF_EXTN uint64 ffmpg_xing_seekoff(const byte *toc, uint64 sample, uint64 total_s
 /** Parse Xing tag.
 Return the number of bytes read;  <0 on error. */
 FF_EXTN int ffmpg_xing_parse(struct ffmpg_info *xing, const char *data, size_t len);
+
+/** Write Xing tag.
+Note: struct ffmpg_info.toc isn't supported. */
+FF_EXTN int ffmpg_xing_write(const struct ffmpg_info *xing, char *data);
 
 /** Parse VBRI tag.
 Return the number of bytes read;  <0 on error. */

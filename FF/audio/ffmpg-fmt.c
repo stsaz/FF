@@ -3,7 +3,7 @@ Copyright (c) 2016 Simon Zolin
 */
 
 #include <FF/audio/mpeg-fmt.h>
-#include <FF/string.h>
+#include <FF/array.h>
 #include <FF/number.h>
 
 
@@ -144,12 +144,16 @@ uint64 ffmpg_xing_seekoff(const byte *toc, uint64 sample, uint64 total_samples, 
 	return (i1 + (i2 - i1) * d) * total_size / 256.0;
 }
 
+static int mpg_xing_off(const char *data)
+{
+	const ffmpg_hdr *h = (void*)data;
+	return sizeof(ffmpg_hdr) + mpg_xingoffs[h->ver != FFMPG_1][ffmpg_hdr_channels(h) - 1];
+}
+
 int ffmpg_xing_parse(struct ffmpg_info *xing, const char *data, size_t len)
 {
 	const char *dstart = data;
-	const ffmpg_hdr *h = (void*)data;
-	uint xingoff = sizeof(ffmpg_hdr) + mpg_xingoffs[h->ver != FFMPG_1][ffmpg_hdr_channels(h) - 1];
-	data += xingoff,  len -= xingoff;
+	FFARR_SHIFT(data, len, mpg_xing_off(data));
 
 	if (len < 8 || !mpg_xing_valid(data))
 		return -1;
@@ -180,9 +184,48 @@ int ffmpg_xing_parse(struct ffmpg_info *xing, const char *data, size_t len)
 	if (flags & MPG_XING_VBRSCALE) {
 		xing->vbr_scale = ffint_ntoh32(data);
 		data += sizeof(int);
-	}
+	} else
+		xing->vbr_scale = -1;
 
 	return data - dstart;
+}
+
+int ffmpg_xing_write(const struct ffmpg_info *xing, char *data)
+{
+	char *d = data;
+	struct mpg_xing *x = (void*)(data + mpg_xing_off(data));
+
+	if (xing->vbr)
+		ffmemcpy(x->id, "Xing", 4);
+	else
+		ffmemcpy(x->id, "Info", 4);
+
+	uint flags = 0;
+	if (xing->frames != 0)
+		flags |= MPG_XING_FRAMES;
+	if (xing->bytes != 0)
+		flags |= MPG_XING_BYTES;
+	if (xing->vbr_scale != -1)
+		flags |= MPG_XING_VBRSCALE;
+	ffint_hton32(x->flags, flags);
+	d = (void*)(x + 1);
+
+	if (xing->frames != 0) {
+		ffint_hton32(d, xing->frames);
+		d += 4;
+	}
+
+	if (xing->bytes != 0) {
+		ffint_hton32(d, xing->bytes);
+		d += 4;
+	}
+
+	if (xing->vbr_scale != -1) {
+		ffint_hton32(d, xing->vbr_scale);
+		d += 4;
+	}
+
+	return d - data;
 }
 
 
