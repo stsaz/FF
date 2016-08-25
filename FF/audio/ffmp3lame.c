@@ -24,7 +24,7 @@ int ffmpg_create(ffmpg_enc *m, ffpcm *pcm, int qual)
 	int r;
 
 	switch (pcm->format) {
-	case FFPCM_16LE:
+	case FFPCM_16:
 		break;
 
 	case FFPCM_FLOAT:
@@ -33,6 +33,7 @@ int ffmpg_create(ffmpg_enc *m, ffpcm *pcm, int qual)
 		// break
 
 	default:
+		pcm->format = FFPCM_16;
 		m->err = FFMPG_EFMT;
 		return FFMPG_EFMT;
 	}
