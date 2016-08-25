@@ -57,6 +57,8 @@ typedef struct ffmp4 {
 	uint64 cursample;
 
 	uint64 total_samples;
+	uint enc_delay;
+	uint end_padding;
 	ffpcm fmt;
 	byte codec; //enum FFMP4_CODEC
 
@@ -67,6 +69,7 @@ typedef struct ffmp4 {
 	uint meta_closed :1
 		, ftyp :1
 		, box64 :1
+		, itunes_smpb :1
 		;
 } ffmp4;
 

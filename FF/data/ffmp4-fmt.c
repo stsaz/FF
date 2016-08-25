@@ -722,6 +722,24 @@ int mp4_ilst_data_write(char *data, const ffstr *val)
 	return sizeof(struct ilst_data) + val->len;
 }
 
+int mp4_itunes_smpb(const char *data, size_t len, uint *_enc_delay, uint *_padding)
+{
+	ffstr s;
+	if (0 == mp4_ilst_data(data, len, (uint)-1, &s, NULL, 0))
+		return 0;
+
+	uint tmp, enc_delay, padding;
+	uint64 samples;
+	int r = ffs_fmatch(s.ptr, s.len, " %8xu %8xu %8xu %16xU"
+		, &tmp, &enc_delay, &padding, &samples);
+	if (r <= 0)
+		return 0;
+
+	*_enc_delay = enc_delay;
+	*_padding = padding;
+	return r;
+}
+
 
 /*
 Supported boxes hierarchy:
@@ -754,6 +772,10 @@ moov
    ilst
     *
      data
+    ----
+     mean
+     name
+     data
 mdat
 */
 
@@ -772,6 +794,7 @@ static const struct bbox mp4_ctx_mp4a[];
 static const struct bbox mp4_ctx_udta[];
 static const struct bbox mp4_ctx_meta[];
 static const struct bbox mp4_ctx_data[];
+static const struct bbox mp4_ctx_itunes[];
 
 const struct bbox mp4_ctx_global[] = {
 	{"ftyp", BOX_FTYP | MINSIZE(sizeof(struct ftyp)), NULL},
@@ -860,10 +883,18 @@ static const struct bbox mp4_ctx_ilst[] = {
 	{"\251nam",	_BOX_TAG + FFMMTAG_TITLE,	mp4_ctx_data},
 	{"\251too",	_BOX_TAG + FFMMTAG_VENDOR,	mp4_ctx_data},
 	{"\251wrt",	_BOX_TAG + FFMMTAG_COMPOSER,	mp4_ctx_data},
+	{"----",	BOX_ITUNES | F_MULTI,	mp4_ctx_itunes},
 	{"",0,NULL}
 };
 
 static const struct bbox mp4_ctx_data[] = {
 	{"data", BOX_ILST_DATA | F_WHOLE | MINSIZE(sizeof(struct ilst_data)), NULL},
+	{"",0,NULL}
+};
+
+static const struct bbox mp4_ctx_itunes[] = {
+	{"mean", BOX_ITUNES_MEAN | F_FULLBOX | F_WHOLE, NULL},
+	{"name", BOX_ITUNES_NAME | F_FULLBOX | F_WHOLE, NULL},
+	{"data", BOX_ITUNES_DATA | F_WHOLE | MINSIZE(sizeof(struct ilst_data)), NULL},
 	{"",0,NULL}
 };

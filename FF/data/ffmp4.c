@@ -218,6 +218,7 @@ static int mp4_meta_closed(ffmp4 *m)
 		return -rr;
 	}
 	m->total_samples = rr;
+	m->total_samples = ffmin(m->total_samples - (m->enc_delay + m->end_padding), m->total_samples);
 
 	if (0 != (r = mp4_stsc((void*)m->sktab.ptr, m->sktab.len, m->stsc.ptr, m->stsc.len))) {
 		ffmemcpy(m->boxes[++m->ictx].name, "stsc", 4);
@@ -517,6 +518,17 @@ int ffmp4_read(ffmp4 *m)
 			m->state = R_TRKTOTAL;
 		return FFMP4_RTAG;
 	}
+
+	case BOX_ITUNES_NAME:
+		m->itunes_smpb = ffstr_eqcz(&sbox, "iTunSMPB");
+		break;
+
+	case BOX_ITUNES_DATA:
+		if (!m->itunes_smpb)
+			break;
+		m->itunes_smpb = 0;
+		mp4_itunes_smpb(sbox.ptr, sbox.len, &m->enc_delay, &m->end_padding);
+		break;
 	}
 
 	if (GET_MINSIZE(box->type) != 0 && !(box->type & F_WHOLE))

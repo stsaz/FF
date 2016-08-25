@@ -74,6 +74,12 @@ enum BOX {
 	BOX_ALAC,
 	BOX_ESDS,
 	BOX_ILST_DATA,
+
+	BOX_ITUNES,
+	BOX_ITUNES_MEAN,
+	BOX_ITUNES_NAME,
+	BOX_ITUNES_DATA,
+
 	BOX_MDAT,
 
 	_BOX_TAG,
@@ -152,3 +158,4 @@ int mp4_ilst_data(const char *data, uint len, uint parent_type, ffstr *tagval, c
 int mp4_ilst_trkn(const char *data, ffstr *tagval, char *tagbuf, size_t tagbuf_cap);
 const struct bbox* mp4_ilst_find(uint mmtag);
 int mp4_ilst_data_write(char *data, const ffstr *val);
+int mp4_itunes_smpb(const char *data, size_t len, uint *enc_delay, uint *padding);
