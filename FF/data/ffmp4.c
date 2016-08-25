@@ -546,15 +546,17 @@ int ffmp4_read(ffmp4 *m)
 }
 
 
-int ffmp4_create_aac(ffmp4_cook *m, const ffpcm *fmt, const ffstr *conf, uint64 total_samples, uint frame_samples)
+int ffmp4_create_aac(ffmp4_cook *m, const ffpcm *fmt, const ffstr *conf)
 {
 	if (NULL == ffarr_alloc(&m->buf, 64 * 1024))
 		return ERR(m, MP4_ESYS);
 
 	m->fmt = *fmt;
-	m->info.nframes = total_samples / frame_samples + !!(total_samples % frame_samples);
-	m->info.frame_samples = frame_samples;
-	m->info.total_samples = total_samples;
+	m->info.total_samples += m->info.enc_delay;
+	uint64 ts = m->info.total_samples;
+	m->info.total_samples = ff_align_ceil(m->info.total_samples, m->info.frame_samples);
+	m->info.end_padding = m->info.total_samples - ts;
+	m->info.nframes = m->info.total_samples / m->info.frame_samples;
 
 	ffs_copy(m->aconf, m->aconf + sizeof(m->aconf), conf->ptr, conf->len);
 	m->aconf_len = conf->len;
@@ -668,6 +670,10 @@ int ffmp4_write(ffmp4_cook *m)
 		case BOX_ILST_DATA:
 			n = mp4_ilst_data_write(NULL, &m->curtag->val);
 			break;
+
+		case BOX_ITUNES_DATA:
+			n = mp4_itunes_smpb_write(NULL, 0, 0, 0);
+			break;
 		}
 		}
 
@@ -769,6 +775,18 @@ int ffmp4_write(ffmp4_cook *m)
 
 		case BOX_ILST_DATA:
 			n = mp4_ilst_data_write(data, &m->curtag->val);
+			break;
+
+		case BOX_ITUNES_MEAN:
+			n = ffmem_copycz(data, "com.apple.iTunes") - (char*)data;
+			break;
+
+		case BOX_ITUNES_NAME:
+			n = ffmem_copycz(data, "iTunSMPB") - (char*)data;
+			break;
+
+		case BOX_ITUNES_DATA:
+			n = mp4_itunes_smpb_write(data, m->info.total_samples, m->info.enc_delay, m->info.end_padding);
 			break;
 
 		default:

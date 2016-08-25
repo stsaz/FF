@@ -740,6 +740,22 @@ int mp4_itunes_smpb(const char *data, size_t len, uint *_enc_delay, uint *_paddi
 	return r;
 }
 
+int mp4_itunes_smpb_write(char *data, uint64 total_samples, uint enc_delay, uint padding)
+{
+	char buf[255];
+	ffstr s;
+
+	if (data == NULL) {
+		s.len = (1 + 8) * 11 + (1 + 16);
+		return mp4_ilst_data_write(NULL, &s);
+	}
+
+	s.ptr = buf;
+	s.len = ffs_fmt(buf, buf + sizeof(buf), " 00000000 %08Xu %08Xu %016XU 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000"
+		, enc_delay, padding, total_samples - enc_delay - padding);
+	return mp4_ilst_data_write(data, &s);
+}
+
 
 /*
 Supported boxes hierarchy:

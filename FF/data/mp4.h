@@ -131,6 +131,8 @@ typedef struct ffmp4_cook {
 		uint nframes;
 		uint frame_samples;
 		uint64 total_samples;
+		uint enc_delay;
+		uint end_padding;
 	} info;
 	uint frameno;
 	uint64 samples;
@@ -154,7 +156,7 @@ typedef struct ffmp4_cook {
 
 const char* ffmp4_werrstr(ffmp4_cook *m);
 
-FF_EXTN int ffmp4_create_aac(ffmp4_cook *m, const ffpcm *fmt, const ffstr *conf, uint64 total_samples, uint frame_samples);
+FF_EXTN int ffmp4_create_aac(ffmp4_cook *m, const ffpcm *fmt, const ffstr *conf);
 
 FF_EXTN void ffmp4_wclose(ffmp4_cook *m);
 
