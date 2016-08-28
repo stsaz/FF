@@ -606,7 +606,8 @@ uint ffid3_add(ffid3_cook *id3, uint id, const char *data, size_t len)
 		ffsz_copy(id3->tracktotal, sizeof(id3->tracktotal), data, len);
 		return 1;
 	}
-	id = ffint_find1(ffid3_framei, FFCNT(ffid3_framei), id);
+	if (-1 == (int)(id = ffint_find1(ffid3_framei, FFCNT(ffid3_framei), id)))
+		return 0;
 	return ffid3_addframe(id3, ffid3_frames[id], data, len, 0);
 }
 
