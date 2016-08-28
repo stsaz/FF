@@ -671,6 +671,14 @@ int ffmp4_write(ffmp4_cook *m)
 			n = mp4_ilst_data_write(NULL, &m->curtag->val);
 			break;
 
+		case BOX_ITUNES_MEAN:
+			n = FFSLEN("com.apple.iTunes");
+			break;
+
+		case BOX_ITUNES_NAME:
+			n = FFSLEN("iTunSMPB");
+			break;
+
 		case BOX_ITUNES_DATA:
 			n = mp4_itunes_smpb_write(NULL, 0, 0, 0);
 			break;
