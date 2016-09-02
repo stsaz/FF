@@ -354,9 +354,9 @@ int ffpcm_convert(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm, const 
 			if (in_ileaved) {
 				from.pb = pcm_setni(ini, from.b, inpcm->format, nch);
 				in_ileaved = 0;
-			} else {
+			} else if (samples != 0) {
 				for (uint i = 0;  i != nch;  i++) {
-					ini[i] = from.b;
+					ini[i] = from.pb[0];
 				}
 				from.pb = (void*)ini;
 			}
@@ -368,7 +368,9 @@ int ffpcm_convert(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm, const 
 	if (inpcm->format == outpcm->format && istep == 1) {
 
 		if (in_ileaved != outpcm->ileaved && nch == 1) {
-			if (!in_ileaved)
+			if (samples == 0)
+			{}
+			else if (!in_ileaved)
 				from.b = from.pb[0];
 			else {
 				ini[0] = from.b;
