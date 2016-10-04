@@ -48,6 +48,7 @@ typedef struct ffxz {
 	uint64 inoff;
 	uint64 osize;
 	lzma_decoder *dec;
+	uint64 idx_size;
 
 	uint64 insize;
 	uint64 outsize;
@@ -67,10 +68,7 @@ enum FFXZ_R {
 
 FF_EXTN void ffxz_close(ffxz *xz);
 
-static FFINL void ffxz_init(ffxz *xz, uint64 total_size)
-{
-	xz->inoff = total_size;
-}
+FF_EXTN void ffxz_init(ffxz *xz, int64 total_size);
 
 #define ffxz_size(xz)  ((xz)->osize)
 

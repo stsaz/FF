@@ -267,14 +267,22 @@ void ffxz_close(ffxz *xz)
 
 enum {
 	R_START, R_GATHER, R_HDRSEEK, R_HDR, R_BLKHDR_SIZE, R_BLKHDR, R_DATA, R_IDX, R_FTR,
+	R_SKIP_IDX_FTR, R_DONE,
 	R_CHK
 };
+
+void ffxz_init(ffxz *xz, int64 total_size)
+{
+	xz->inoff = total_size;
+	xz->state = R_START;
+}
 
 /*
 . Seek; read stream footer (SEEK)
 . Seek; read index (SEEK, INFO)
 . Seek; read stream header (SEEK)
-. Read data (DATA, DONE) */
+. Read data (DATA)
+. Skip index and stream footer (DONE) */
 int ffxz_read(ffxz *xz, char *dst, size_t cap)
 {
 	int r;
@@ -320,7 +328,8 @@ int ffxz_read(ffxz *xz, char *dst, size_t cap)
 	case R_BLKHDR_SIZE: {
 		const byte *b = (void*)xz->buf.ptr;
 		if (*b == 0) {
-			return FFXZ_DONE;
+			xz->state = R_SKIP_IDX_FTR;
+			continue;
 		}
 		xz->hsize = (*b + 1) * 4;
 		xz->state = R_GATHER, xz->nxstate = R_BLKHDR;
@@ -357,6 +366,7 @@ int ffxz_read(ffxz *xz, char *dst, size_t cap)
 		}
 
 		ffstr_shift(&xz->in, rd);
+		xz->inoff += rd;
 		xz->insize += rd;
 
 		if (r == 0)
@@ -366,6 +376,16 @@ int ffxz_read(ffxz *xz, char *dst, size_t cap)
 		xz->outsize += r;
 		return FFXZ_DATA;
 	}
+
+	case R_SKIP_IDX_FTR:
+		r = xz->idx_size - 1 + sizeof(struct stm_ftr);
+		ffstr_shift(&xz->in, r);
+		xz->inoff += r;
+		xz->state = R_DONE;
+		return FFXZ_SEEK;
+
+	case R_DONE:
+		return FFXZ_DONE;
 
 	case R_IDX: {
 		int64 rr;
@@ -388,6 +408,7 @@ int ffxz_read(ffxz *xz, char *dst, size_t cap)
 		xz->hsize = rr;
 		xz->state = R_GATHER, xz->nxstate = R_IDX;
 		xz->inoff = xz->inoff - xz->buf.len - rr;
+		xz->idx_size = rr;
 		xz->buf.len = 0;
 		return FFXZ_SEEK;
 	}
