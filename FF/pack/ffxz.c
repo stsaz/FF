@@ -2,7 +2,7 @@
 Copyright (c) 2016 Simon Zolin
 */
 
-#include <FF/data/xz.h>
+#include <FF/pack/xz.h>
 #include <FF/number.h>
 #include <FF/crc.h>
 

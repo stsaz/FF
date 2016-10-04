@@ -2,7 +2,7 @@
 Copyright (c) 2016 Simon Zolin
 */
 
-#include <FF/data/gz.h>
+#include <FF/pack/gz.h>
 #include <FF/path.h>
 #include <FF/crc.h>
 #include <FFOS/error.h>

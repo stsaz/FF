@@ -2,7 +2,7 @@
 Copyright (c) 2016 Simon Zolin
 */
 
-#include <FF/data/tar.h>
+#include <FF/pack/tar.h>
 #include <FF/path.h>
 #include <FFOS/error.h>
 #include <FFOS/file.h>

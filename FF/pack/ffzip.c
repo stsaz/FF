@@ -2,7 +2,7 @@
 Copyright (c) 2016 Simon Zolin
 */
 
-#include <FF/data/zip.h>
+#include <FF/pack/zip.h>
 #include <FF/crc.h>
 #include <FF/number.h>
 #include <FF/path.h>

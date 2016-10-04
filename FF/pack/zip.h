@@ -6,10 +6,11 @@ Copyright (c) 2016 Simon Zolin
 (FILE_HDR DATA [DATA_DESC])... EXTRA_DATA CDIR_HDR... CDIR_EOF
 */
 
-#include <FF/data/gz.h>
 #include <FF/array.h>
 #include <FF/chain.h>
 #include <FFOS/time.h>
+
+#include <zlib/zlib-ff.h>
 
 
 enum FFZIP_E {
