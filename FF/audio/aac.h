@@ -82,6 +82,9 @@ static FFINL ffstr ffaac_enc_conf(ffaac_enc *a)
 	return s;
 }
 
+/** Get bitrate from quality. */
+FF_EXTN uint ffaac_bitrate(ffaac_enc *a, uint qual);
+
 #define ffaac_cursample(a)  ((a)->cursample - (a)->enc_delay)
 
 /** Get audio samples per AAC frame. */

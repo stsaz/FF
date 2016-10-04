@@ -623,6 +623,11 @@ void ffmp4_wclose(ffmp4_cook *m)
 	FFARR2_FREE_ALL(&m->tags, tag_free, struct ffmp4_tag);
 }
 
+uint64 ffmp4_wsize(ffmp4_cook *m)
+{
+	return 64 * 1024 + (m->info.total_samples / m->fmt.sample_rate + 1) * (m->info.bitrate / 8);
+}
+
 static const char mp4_ftyp_aac[24] = {
 	"M4A " "\0\0\0\0" "M4A " "mp42" "isom" "\0\0\0\0"
 };
@@ -768,6 +773,7 @@ int ffmp4_write(ffmp4_cook *m)
 			struct mp4_esds esds = {
 				.type = DEC_MPEG4_AUDIO,
 				.stm_type = 0x15,
+				.avg_brate = m->info.bitrate,
 				.conf = m->aconf,  .conflen = m->aconf_len,
 			};
 			n = mp4_esds_write(data, &esds);

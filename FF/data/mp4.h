@@ -131,6 +131,7 @@ typedef struct ffmp4_cook {
 		uint nframes;
 		uint frame_samples;
 		uint64 total_samples;
+		uint bitrate;
 		uint enc_delay;
 		uint end_padding;
 	} info;
@@ -164,6 +165,9 @@ const char* ffmp4_werrstr(ffmp4_cook *m);
 FF_EXTN int ffmp4_create_aac(ffmp4_cook *m, const ffpcm *fmt, const ffstr *conf);
 
 FF_EXTN void ffmp4_wclose(ffmp4_cook *m);
+
+/** Get approximate output file size. */
+FF_EXTN uint64 ffmp4_wsize(ffmp4_cook *m);
 
 FF_EXTN int ffmp4_addtag(ffmp4_cook *m, uint mmtag, const char *val, size_t val_len);
 

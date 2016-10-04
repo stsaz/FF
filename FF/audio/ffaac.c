@@ -120,6 +120,21 @@ void ffaac_enc_close(ffaac_enc *a)
 	ffmem_safefree(a->buf);
 }
 
+static const byte vbr_brate[] = {
+	32, 40, 56, 64, 96
+};
+
+uint ffaac_bitrate(ffaac_enc *a, uint qual)
+{
+	if (qual == 0)
+		return 0;
+
+	if (qual <= 5)
+		return a->info.channels * vbr_brate[qual - 1] * 1000;
+
+	return qual;
+}
+
 int ffaac_encode(ffaac_enc *a)
 {
 	int r;
