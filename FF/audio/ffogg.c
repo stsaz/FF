@@ -7,71 +7,12 @@ Copyright (c) 2015 Simon Zolin
 #include <FFOS/error.h>
 #include <FFOS/mem.h>
 
-#include <ogg/ogg-crc.h>
-
-
-enum OGG_F {
-	OGG_FCONTINUED = 1,
-	OGG_FFIRST = 2,
-	OGG_FLAST = 4,
-};
-
-typedef struct ogg_hdr {
-	char sync[4]; //"OggS"
-	byte version; //0
-	byte flags; //enum OGG_F
-	byte granulepos[8];
-	byte serial[4];
-	byte number[4];
-	byte crc[4];
-	byte nsegments;
-	byte segments[0];
-} ogg_hdr;
-
-enum VORBIS_HDR_T {
-	T_INFO = 1,
-	T_COMMENT = 3,
-};
-
-#define OGG_STR  "OggS"
-#define VORB_STR  "vorbis"
-
-struct vorbis_hdr {
-	byte type; //enum VORBIS_HDR_T
-	char vorbis[6]; //"vorbis"
-};
-
-struct vorbis_info {
-	byte ver[4]; //0
-	byte channels;
-	byte rate[4];
-	byte br_max[4];
-	byte br_nominal[4];
-	byte br_min[4];
-	byte blocksize;
-	byte framing_bit; //1
-};
 
 enum {
-	OGG_MAXHDR = sizeof(ogg_hdr) + 255,
 	OGG_MAXPAGE = OGG_MAXHDR + 255 * 255,
 	MAX_NOSYNC = 256 * 1024,
 };
 
-static uint ogg_checksum(const char *d, size_t len);
-static int ogg_parse(ogg_hdr *h, const char *data, size_t len);
-static uint ogg_pagesize(const ogg_hdr *h);
-static uint ogg_packets(const ogg_hdr *h);
-static int ogg_findpage(const char *data, size_t len, ogg_hdr *h);
-static int ogg_pkt_next(ogg_packet *pkt, const char *buf, uint *segoff, uint *bodyoff);
-static int ogg_pkt_write(ffogg_page *p, char *buf, const char *pkt, uint len);
-static int ogg_page_write(ffogg_page *p, char *buf, uint64 granulepos, uint flags, ffstr *page);
-static int ogg_hdr_write(ffogg_page *p, char *buf, ffstr *data,
-	const ogg_packet *info, const ogg_packet *tag, const ogg_packet *codbk);
-
-static int vorb_info(const char *d, size_t len, uint *channels, uint *rate, uint *br_nominal);
-static void* ogg_tag(const char *d, size_t len, size_t *vorbtag_len);
-static uint ogg_tag_write(char *d, size_t vorbtag_len);
 
 static int _ffogg_gethdr(ffogg *o, ogg_hdr **h);
 static int _ffogg_getbody(ffogg *o);
@@ -86,24 +27,6 @@ enum { I_HDR, I_BODY, I_HDRPKT, I_COMM_PKT, I_COMM, I_BOOK_PKT, I_FIRSTPAGE
 	, I_SEEK_EOS, I_SEEK_EOS2, I_SEEK_EOS3
 	, I_SEEK, I_SEEK2, I_ASIS_SEEKHDR
 	, I_PAGE, I_PKT, I_DECODE, I_DATA };
-
-enum OGG_E {
-	OGG_EOK
-	, OGG_ESEEK
-	, OGG_EHDR,
-	OGG_EVERSION,
-	OGG_ESERIAL,
-	OGG_EPAGENUM,
-	OGG_EJUNKDATA,
-	OGG_ECRC,
-	OGG_ETAG,
-	OGG_ENOSYNC,
-	OGG_EPKT,
-	OGG_EBIGPKT,
-	OGG_ECONTPKT,
-
-	OGG_ESYS,
-};
 
 static const char* const ogg_errstr[] = {
 	""
@@ -133,223 +56,6 @@ const char* ffogg_errstr(int e)
 
 #define ERR(o, n) \
 	(o)->err = n, FFOGG_RERR
-
-
-/** Get page checksum. */
-static uint ogg_checksum(const char *d, size_t len)
-{
-	uint crc = 0, i;
-
-	for (i = 0;  i != 22;  i++)
-		crc = (crc << 8) ^ ogg_crc_table[((crc >> 24) & 0xff) ^ (byte)d[i]];
-	for (;  i != 26;  i++)
-		crc = (crc << 8) ^ ogg_crc_table[((crc >> 24) & 0xff) ^ 0x00];
-	for (;  i != len;  i++)
-		crc = (crc << 8) ^ ogg_crc_table[((crc >> 24) & 0xff) ^ (byte)d[i]];
-
-	return crc;
-}
-
-/** Parse header.
-Return header length;  0 if more data is needed;  -OGG_E* on error. */
-static int ogg_parse(ogg_hdr *h, const char *data, size_t len)
-{
-	ogg_hdr *hdr = (void*)data;
-	if (len < sizeof(ogg_hdr))
-		return 0;
-	if (!!ffs_cmp(data, OGG_STR, FFSLEN(OGG_STR)) || hdr->version != 0)
-		return -OGG_EHDR;
-	if (len < sizeof(ogg_hdr) + hdr->nsegments)
-		return 0;
-	return sizeof(ogg_hdr) + hdr->nsegments;
-}
-
-static uint ogg_pagesize(const ogg_hdr *h)
-{
-	uint i, r = 0;
-	for (i = 0;  i != h->nsegments;  i++) {
-		r += h->segments[i];
-	}
-	return sizeof(ogg_hdr) + h->nsegments + r;
-}
-
-/** Get number of packets in page. */
-static FFINL uint ogg_packets(const ogg_hdr *h)
-{
-	uint i, n = 0;
-	for (i = 0;  i != h->nsegments;  i++) {
-		if (h->segments[i] < 255)
-			n++;
-	}
-	return n;
-}
-
-/**
-Return offset of the page;  -1 on error. */
-static int ogg_findpage(const char *data, size_t len, ogg_hdr *h)
-{
-	const char *d = data, *end = data + len;
-
-	while (d != end) {
-
-		if (d[0] != 'O' && NULL == (d = ffs_findc(d, end - d, 'O')))
-			break;
-
-		if (ogg_parse(h, d, end - d) > 0)
-			return d - data;
-
-		d++;
-	}
-
-	return -1;
-}
-
-/** Get next packet from page.
-
-Packets may be split across multiple pages:
-PAGE0{PKT0 PKT1...}  PAGE1{...PKT1 PKT2}
- In this case the last segment length in PAGE0 is 0xff and PAGE1.flags_continued = 1.
-
-@segoff: current offset within ogg_hdr.segments
-@bodyoff: current offset within page body
-Return packet body size;  -1 if no more packets;  -2 for an incomplete packet. */
-static int ogg_pkt_next(ogg_packet *pkt, const char *buf, uint *segoff, uint *bodyoff)
-{
-	const ogg_hdr *h = (void*)buf;
-	uint seglen, pktlen = 0, nsegs = h->nsegments, i = *segoff;
-
-	if (i == nsegs)
-		return -1;
-
-	do {
-		seglen = h->segments[i++];
-		pktlen += seglen;
-	} while (seglen == 255 && i != nsegs);
-
-	pkt->packet = (byte*)buf + sizeof(ogg_hdr) + nsegs + *bodyoff;
-	pkt->bytes = pktlen;
-	*segoff = i;
-	*bodyoff += pktlen;
-
-	pkt->b_o_s = 0;
-	pkt->e_o_s = 0;
-	pkt->granulepos = -1;
-	return (seglen == 255) ? -2 : (int)pktlen;
-}
-
-/** Add packet into page. */
-static int ogg_pkt_write(ffogg_page *p, char *buf, const char *pkt, uint len)
-{
-	uint i, newsegs = p->nsegments + len / 255 + 1;
-
-	if (newsegs > 255)
-		return OGG_EBIGPKT; // partial packets aren't supported
-
-	for (i = p->nsegments;  i != newsegs - 1;  i++) {
-		p->segs[i] = 255;
-	}
-	p->segs[i] = len % 255;
-	p->nsegments = newsegs;
-
-	ffmemcpy(buf + p->size + OGG_MAXHDR, pkt, len);
-	p->size += len;
-	return 0;
-}
-
-/** Write page header into the position in buffer before page body.
-Buffer: [... OGG_HDR PKT1 PKT2 ...]
-@page: is set to page data within buffer.
-@flags: enum OGG_F. */
-static int ogg_page_write(ffogg_page *p, char *buf, uint64 granulepos, uint flags, ffstr *page)
-{
-	ogg_hdr *h = (void*)(buf + OGG_MAXHDR - (sizeof(ogg_hdr) + p->nsegments));
-	ffmemcpy(h->sync, OGG_STR, FFSLEN(OGG_STR));
-	h->version = 0;
-	h->flags = flags;
-	ffint_htol64(h->granulepos, granulepos);
-	ffint_htol32(h->serial, p->serial);
-	ffint_htol32(h->number, p->number++);
-	h->nsegments = p->nsegments;
-	ffmemcpy(h->segments, p->segs, h->nsegments);
-
-	p->size += sizeof(ogg_hdr) + p->nsegments;
-	ffint_htol32(h->crc, ogg_checksum((void*)h, p->size));
-
-	ffstr_set(page, (void*)h, p->size);
-
-	p->nsegments = 0;
-	p->size = 0;
-	return 0;
-}
-
-/** Get 2 pages at once containting all 3 vorbis headers. */
-static int ogg_hdr_write(ffogg_page *p, char *buf, ffstr *data,
-	const ogg_packet *info, const ogg_packet *tag, const ogg_packet *codbk)
-{
-	ffstr s;
-	char *d = buf + OGG_MAXHDR + info->bytes;
-	if (0 != ogg_pkt_write(p, d, (void*)tag->packet, tag->bytes)
-		|| 0 != ogg_pkt_write(p, d, (void*)codbk->packet, codbk->bytes))
-		return OGG_EBIGPKT;
-	p->number = 1;
-	ogg_page_write(p, d, 0, 0, &s);
-
-	if (info->bytes != sizeof(struct vorbis_hdr) + sizeof(struct vorbis_info))
-		return OGG_EHDR;
-	d = s.ptr - (OGG_MAXHDR + info->bytes);
-	ogg_pkt_write(p, d, (void*)info->packet, info->bytes);
-	p->number = 0;
-	ogg_page_write(p, d, 0, OGG_FFIRST, data);
-	data->len += s.len;
-	p->number = 2;
-
-	return 0;
-}
-
-/** Parse Vorbis-info packet. */
-static int vorb_info(const char *d, size_t len, uint *channels, uint *rate, uint *br_nominal)
-{
-	const struct vorbis_hdr *h = (void*)d;
-	if (len < sizeof(struct vorbis_hdr) + sizeof(struct vorbis_info)
-		|| !(h->type == T_INFO && !ffs_cmp(h->vorbis, VORB_STR, FFSLEN(VORB_STR))))
-		return -1;
-
-	const struct vorbis_info *vi = (void*)(d + sizeof(struct vorbis_hdr));
-	if (0 != ffint_ltoh32(vi->ver)
-		|| 0 == (*channels = vi->channels)
-		|| 0 == (*rate = ffint_ltoh32(vi->rate))
-		|| vi->framing_bit != 1)
-		return -1;
-
-	*br_nominal = ffint_ltoh32(vi->br_nominal);
-	return 0;
-}
-
-/**
-Return pointer to the beginning of Vorbis comments data;  NULL if not Vorbis comments header. */
-static void* ogg_tag(const char *d, size_t len, size_t *vorbtag_len)
-{
-	const struct vorbis_hdr *h = (void*)d;
-
-	if (len < (uint)sizeof(struct vorbis_hdr)
-		|| !(h->type == T_COMMENT && !ffs_cmp(h->vorbis, VORB_STR, FFSLEN(VORB_STR))))
-		return NULL;
-
-	*vorbtag_len = len - sizeof(struct vorbis_hdr);
-	return (char*)d + sizeof(struct vorbis_hdr);
-}
-
-/** Prepare OGG packet for Vorbis comments.
-@d: buffer for the whole packet, must have 1 byte of free space at the end
-Return packet length. */
-static uint ogg_tag_write(char *d, size_t vorbtag_len)
-{
-	struct vorbis_hdr *h = (void*)d;
-	h->type = T_COMMENT;
-	ffmemcpy(h->vorbis, VORB_STR, FFSLEN(VORB_STR));
-	d[sizeof(struct vorbis_hdr) + vorbtag_len] = 1; //set framing bit
-	return sizeof(struct vorbis_hdr) + vorbtag_len + 1;
-}
 
 
 void ffogg_init(ffogg *o)
@@ -497,7 +203,7 @@ static int _ffogg_open(ffogg *o)
 		return FFOGG_RHDR;
 
 	case I_COMM_PKT:
-		if (NULL == (o->vtag.data = ogg_tag((void*)o->opkt.packet, o->opkt.bytes, &o->vtag.datalen)))
+		if (NULL == (o->vtag.data = vorb_comm((void*)o->opkt.packet, o->opkt.bytes, &o->vtag.datalen)))
 			return ERR(o, OGG_ETAG);
 		o->state = I_COMM;
 		// break
@@ -956,7 +662,7 @@ static int _ffogg_pkt_vorbtag(ffogg_enc *o, ogg_packet *pkt)
 		ffmem_zero(v->ptr + v->len + 1, npadding);
 
 	pkt->packet = (void*)v->ptr;
-	pkt->bytes = ogg_tag_write(v->ptr, taglen) + npadding;
+	pkt->bytes = vorb_comm_write(v->ptr, taglen) + npadding;
 	return 0;
 }
 

@@ -8,21 +8,13 @@ OGG(VORB_INFO)  OGG(VORB_COMMENTS VORB_CODEBOOK)  OGG(PKT1 PKT2...)...
 
 #pragma once
 
+#include <FF/audio/ogg-fmt.h>
 #include <FF/audio/pcm.h>
 #include <FF/audio/vorbistag.h>
 #include <FF/array.h>
 
 #include <vorbis/vorbis-ff.h>
 
-
-typedef struct ffogg_page {
-	uint size;
-	uint nsegments;
-	byte segs[255];
-
-	uint serial;
-	uint number;
-} ffogg_page;
 
 typedef struct ffogg {
 	uint state;
