@@ -4,7 +4,7 @@ Copyright (c) 2015 Simon Zolin
 
 #include <FF/audio/wasapi.h>
 #include <FF/audio/wav.h>
-#include <FF/wohandler.h>
+#include <FF/sys/wohandler.h>
 #include <FFOS/error.h>
 
 

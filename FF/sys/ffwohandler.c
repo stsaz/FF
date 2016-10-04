@@ -2,7 +2,7 @@
 Copyright (c) 2015 Simon Zolin
 */
 
-#include <FF/wohandler.h>
+#include <FF/sys/wohandler.h>
 #include <FF/string.h>
 #include <FFOS/mem.h>
 
