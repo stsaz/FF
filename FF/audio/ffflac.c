@@ -96,7 +96,7 @@ static int pcm_to32(int **dst, const void **src, uint srcbits, uint channels, ui
 	case 24:
 		for (ic = 0;  ic != channels;  ic++) {
 			for (i = 0;  i != samples;  i++) {
-				dst[ic][i] = ffint_ltoh24(&from.pb[ic][i * 3]);
+				dst[ic][i] = ffint_ltoh24s(&from.pb[ic][i * 3]);
 			}
 		}
 		break;

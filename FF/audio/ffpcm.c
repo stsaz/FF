@@ -248,7 +248,7 @@ static int _ffpcm_mono_mix(void *out, const ffpcmex *inpcm, const void *in, size
 		int sum = 0;
 		for (i = 0;  i != samples;  i++) {
 			for (ich = 0;  ich != nch;  ich++) {
-				sum += (int)ffint_ltoh24(&from.pb[ich][i * step * 3]);
+				sum += (int)ffint_ltoh24s(&from.pb[ich][i * step * 3]);
 			}
 
 			int n = sum % (int)nch;
@@ -493,7 +493,7 @@ int ffpcm_convert(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm, const 
 	case CASE(FFPCM_24, FFPCM_FLOAT):
 		for (ich = 0;  ich != nch;  ich++) {
 			for (i = 0;  i != samples;  i++) {
-				to.pf[ich][i * ostep] = _ffpcm_24_flt(ffint_ltoh24(&from.pb[ich][i * istep * 3]));
+				to.pf[ich][i * ostep] = _ffpcm_24_flt(ffint_ltoh24s(&from.pb[ich][i * istep * 3]));
 			}
 		}
 		break;
@@ -618,7 +618,8 @@ int ffpcm_gain(const ffpcmex *pcm, float gain, const void *in, void *out, uint s
 	case FFPCM_24:
 		for (ich = 0;  ich != nch;  ich++) {
 			for (i = 0;  i != samples;  i++) {
-				ffint_htol24(&to.pb[ich][i * step * 3], _ffpcm_flt_24(_ffpcm_24_flt(from.pb[ich][i * step * 3]) * gain));
+				int n = ffint_ltoh24s(&from.pb[ich][i * step * 3]);
+				ffint_htol24(&to.pb[ich][i * step * 3], _ffpcm_flt_24(_ffpcm_24_flt(n) * gain));
 			}
 		}
 		break;
