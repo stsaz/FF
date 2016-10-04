@@ -118,7 +118,8 @@ FF_EXTN void ffmpg_seek(ffmpg *m, uint64 sample);
 FF_EXTN int ffmpg_decode(ffmpg *m);
 
 /** Get an absolute sample number. */
-#define ffmpg_cursample(m)  ((m)->cur_sample)
+#define ffmpg_cursample(m) \
+	(((m)->cur_sample >= (m)->skip_samples) ? (m)->cur_sample - (m)->skip_samples : 0)
 
 /** Get stream bitrate. */
 #define ffmpg_bitrate(m) \
@@ -128,6 +129,7 @@ FF_EXTN int ffmpg_decode(ffmpg *m);
 
 
 /** Read MPEG frame.  Parse Xing tag.
+Note: it doesn't account for encoder/decoder delays.
 Return enum FFMPG_R. */
 FF_EXTN int ffmpg_readframe(ffmpg *m);
 
