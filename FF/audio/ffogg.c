@@ -647,6 +647,17 @@ int ffogg_create(ffogg_enc *o, ffpcm *pcm, int quality, uint serialno)
 	return 0;
 }
 
+static const byte brates[] = {
+	45/2, 64/2, 80/2, 96/2, 112/2, 128/2, 160/2, 192/2, 224/2, 256/2, 320/2, 500/2 //q=-1..10 for 44.1kHz mono
+};
+
+uint64 ffogg_enc_size(ffogg_enc *o, uint64 total_samples)
+{
+	uint q = o->vinfo.quality / 10 + 1;
+	uint metalen = o->datalen;
+	return metalen + (total_samples / o->vinfo.rate + 1) * (brates[q] * 1000 * o->vinfo.channels / 8);
+}
+
 /** Get complete packet with Vorbis comments and padding. */
 static int _ffogg_pkt_vorbtag(ffogg_enc *o, ogg_packet *pkt)
 {

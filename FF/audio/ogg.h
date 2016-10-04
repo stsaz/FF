@@ -184,8 +184,4 @@ FF_EXTN int ffogg_encode(ffogg_enc *o);
 
 /** Get approximate output file size.
 Must be called only once after FFOGG_RDATA is returned for the first time. */
-static FFINL uint64 ffogg_enc_size(ffogg_enc *o, uint64 total_samples)
-{
-	uint metalen = o->datalen;
-	return metalen + (224000 * total_samples) / (8 * o->vinfo.rate);
-}
+FF_EXTN uint64 ffogg_enc_size(ffogg_enc *o, uint64 total_samples);
