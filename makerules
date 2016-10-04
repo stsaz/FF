@@ -70,6 +70,15 @@ $(FF_OBJ_DIR)/%.o: $(FF)/FF/audio/%.c $(FF_HDR) $(FF_AUDIO_HDR)
 	$(C) $(FF_CFLAGS)  $< -o$@
 
 
+# pic
+FF_PIC_HDR := $(wildcard $(FF)/FF/pic/*.h)
+FF_PIC_SRC := $(wildcard $(FF)/FF/pic/*.c)
+FF_PIC_OBJ := $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_PIC_SRC)))))
+FF_ALL_OBJ += $(FF_PIC_OBJ)
+$(FF_OBJ_DIR)/%.o: $(FF)/FF/pic/%.c $(FF_HDR) $(FF_PIC_HDR)
+	$(C) $(FF_CFLAGS)  $< -o$@
+
+
 # DB
 FF_DB_HDR := $(wildcard $(FF)/FF/db/*.h)
 FF_DB_SRC := $(wildcard $(FF)/FF/db/*.c)
