@@ -572,7 +572,22 @@ struct ffmp4_tag {
 
 int ffmp4_addtag(ffmp4_cook *m, uint mmtag, const char *val, size_t val_len)
 {
-	if (mmtag == FFMMTAG_TRACKNO || mmtag == FFMMTAG_TRACKTOTAL || mmtag == FFMMTAG_DISCNUMBER
+	switch (mmtag) {
+	case FFMMTAG_TRACKNO:
+	case FFMMTAG_TRACKTOTAL: {
+		ushort n;
+		if (val_len != ffs_toint(val, val_len, &n, FFS_INT16))
+			return 1;
+		if (mmtag == FFMMTAG_TRACKNO)
+			m->trkn.num = n;
+		else
+			m->trkn.total = n;
+		m->trkn.id = FFMMTAG_TRACKNO;
+		return 0;
+	}
+	}
+
+	if (mmtag == FFMMTAG_DISCNUMBER
 		|| NULL == mp4_ilst_find(mmtag))
 		return 1;
 
@@ -668,6 +683,10 @@ int ffmp4_write(ffmp4_cook *m)
 			break;
 
 		case BOX_ILST_DATA:
+			if (m->curtag->id == FFMMTAG_TRACKNO) {
+				n = mp4_ilst_trkn_data_write(NULL, 0, 0);
+				break;
+			}
 			n = mp4_ilst_data_write(NULL, &m->curtag->val);
 			break;
 
@@ -782,6 +801,10 @@ int ffmp4_write(ffmp4_cook *m)
 			goto next;
 
 		case BOX_ILST_DATA:
+			if (m->curtag->id == FFMMTAG_TRACKNO) {
+				n = mp4_ilst_trkn_data_write(data, m->trkn.num, m->trkn.total);
+				break;
+			}
 			n = mp4_ilst_data_write(data, &m->curtag->val);
 			break;
 
@@ -803,6 +826,10 @@ int ffmp4_write(ffmp4_cook *m)
 				if (tag == 0)
 					goto next;
 				m->curtag = tags_find((void*)m->tags.ptr, m->tags.len, tag);
+
+				if (tag == FFMMTAG_TRACKNO && (m->trkn.num != 0 || m->trkn.total != 0))
+					m->curtag = (void*)&m->trkn;
+
 				if (m->curtag == NULL)
 					goto next;
 			}

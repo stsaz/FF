@@ -143,6 +143,11 @@ typedef struct ffmp4_cook {
 	uint aconf_len;
 
 	ffarr tags;
+	struct {
+		uint id;
+		ushort num;
+		ushort total;
+	} trkn;
 	struct ffmp4_tag *curtag;
 
 	const char *data;

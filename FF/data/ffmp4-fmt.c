@@ -722,6 +722,22 @@ int mp4_ilst_data_write(char *data, const ffstr *val)
 	return sizeof(struct ilst_data) + val->len;
 }
 
+int mp4_ilst_trkn_data_write(char *data, uint num, uint total)
+{
+	if (data == NULL)
+		return sizeof(struct ilst_data) + sizeof(struct trkn);
+
+	struct ilst_data *d = (void*)data;
+	ffmem_tzero(d);
+	d->type = ILST_IMPLICIT;
+
+	struct trkn *t = (void*)(d + 1);
+	ffmem_tzero(t);
+	ffint_hton16(t->num, num);
+	ffint_hton16(t->total, total);
+	return sizeof(struct ilst_data) + sizeof(struct trkn);
+}
+
 int mp4_itunes_smpb(const char *data, size_t len, uint *_enc_delay, uint *_padding)
 {
 	ffstr s;
