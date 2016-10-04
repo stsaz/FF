@@ -82,6 +82,15 @@ static int wav_fmt(const void *data, size_t len, ffpcm *format, uint *bitrate)
 		return -WAV_ESMALL;
 
 	uint fmt = ffint_ltoh16(f->format);
+
+	if (fmt == WAV_EXT) {
+		const struct wav_fmtext *fx = (void*)(f + 1);
+		if (len < sizeof(struct wav_fmt) + sizeof(struct wav_fmtext))
+			return -WAV_ESMALL;
+
+		fmt = ffint_ltoh16(fx->subformat);
+	}
+
 	switch (fmt) {
 	case WAV_PCM: {
 		uint bps = ffint_ltoh16(f->bit_depth);
@@ -102,15 +111,6 @@ static int wav_fmt(const void *data, size_t len, ffpcm *format, uint *bitrate)
 	case WAV_IEEE_FLOAT:
 		fmt = FFPCM_FLOAT;
 		break;
-
-	case WAV_EXT: {
-		const struct wav_fmtext *fx = (void*)(f + 1);
-		if (len < sizeof(struct wav_fmt) + sizeof(struct wav_fmtext))
-			return -WAV_ESMALL;
-
-		fmt = ffint_ltoh16(fx->subformat);
-		break;
-	}
 
 	default:
 		return -WAV_EBADFMT;
