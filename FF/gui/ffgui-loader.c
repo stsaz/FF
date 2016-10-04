@@ -1148,6 +1148,7 @@ static int view_column(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 	ffstr *name = &ps->vals[0];
 	ffui_loader *g = obj;
 	ffui_viewcol_reset(&g->vicol);
+	ffui_viewcol_setwidth(&g->vicol, 100);
 	ffui_viewcol_settext(&g->vicol, name->ptr, name->len);
 	ffpars_setargs(ctx, g, viewcol_args, FFCNT(viewcol_args));
 	return 0;

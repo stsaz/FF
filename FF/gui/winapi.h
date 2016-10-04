@@ -557,7 +557,7 @@ do { \
 
 FF_EXTN void ffui_viewcol_settext(ffui_viewcol *vc, const char *text, size_t len);
 
-#define ffui_viewcol_setwidth(vc, w)  ((vc)->col.cx = (w))
+FF_EXTN void ffui_viewcol_setwidth(ffui_viewcol *vc, uint w);
 
 #define ffui_viewcol_setalign(vc, a) \
 do { \

@@ -550,6 +550,11 @@ void ffui_viewcol_settext(ffui_viewcol *vc, const char *text, size_t len)
 	ffui_viewcol_settext_q(vc, vc->text);
 }
 
+void ffui_viewcol_setwidth(ffui_viewcol *vc, uint w)
+{
+	vc->col.cx = dpi_scale(w);
+}
+
 void ffui_view_settext(ffui_viewitem *it, const char *text, size_t len)
 {
 	size_t n = FFCNT(it->wtext) - 1;
