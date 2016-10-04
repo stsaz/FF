@@ -218,7 +218,10 @@ int ffalsa_open(ffalsa_buf *snd, const char *dev, ffpcm *fmt, uint bufsize)
 	if (0 != (e = snd_pcm_hw_params_set_buffer_time_near(snd->pcm, params, &bufsize, NULL)))
 		goto fail;
 
-	period = bufsize / ALSA_NFYRATE;
+	if (snd->nfy_interval == 0)
+		period = bufsize / ALSA_NFYRATE;
+	else
+		period = ffpcm_time(snd->nfy_interval, fmt->sample_rate) * 1000;
 	if (0 != (e = snd_pcm_hw_params_set_period_time_near(snd->pcm, params, &period, NULL)))
 		goto fail;
 

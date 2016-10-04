@@ -57,6 +57,7 @@ typedef struct ffalsa_buf {
 	uint bufsize;
 	uint width;
 	uint channels;
+	uint nfy_interval; //device notify interval (in samples)
 
 	snd_pcm_uframes_t off
 		, frames;
