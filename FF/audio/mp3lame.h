@@ -20,6 +20,7 @@ typedef struct ffmpg_enc {
 	lame *lam;
 	uint fmt;
 	uint channels;
+	uint qual;
 
 	ffid3_cook id3;
 	ffid31 id31;
@@ -57,6 +58,9 @@ FF_EXTN int ffmpg_create(ffmpg_enc *m, ffpcm *pcm, int qual);
 FF_EXTN void ffmpg_enc_close(ffmpg_enc *m);
 
 FF_EXTN int ffmpg_addtag(ffmpg_enc *m, uint id, const char *val, size_t vallen);
+
+/** Get approximate output file size. */
+FF_EXTN uint64 ffmpg_enc_size(ffmpg_enc *m, uint64 total_samples);
 
 /**
 Return enum FFMPG_R. */

@@ -60,6 +60,7 @@ int ffmpg_create(ffmpg_enc *m, ffpcm *pcm, int qual)
 
 	ffid31_init(&m->id31);
 	m->min_meta = 1000;
+	m->qual = qual;
 	return FFMPG_EOK;
 }
 
@@ -80,6 +81,16 @@ int ffmpg_addtag(ffmpg_enc *m, uint id, const char *val, size_t vallen)
 	if (m->options & FFMPG_WRITE_ID3V1)
 		ffid31_add(&m->id31, id, val, vallen);
 	return 0;
+}
+
+static const byte vbitrate[] = {
+	245, 225, 190, 175, 165, 130, 115, 100, 85, 65 //q=0..9 for 44.1kHz stereo
+};
+
+uint64 ffmpg_enc_size(ffmpg_enc *m, uint64 total_samples)
+{
+	uint kbrate = (m->qual <= 9) ? vbitrate[m->qual] * m->fmt.channels / 2 : m->qual;
+	return m->min_meta + (total_samples / m->fmt.sample_rate + 1) * (kbrate * 1000 / 8);
 }
 
 int ffmpg_encode(ffmpg_enc *m)
