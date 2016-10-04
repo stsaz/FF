@@ -266,6 +266,7 @@ int fftar_read(fftar *t)
 		ffstr_set(&in, t->in.ptr, ff_align_floor(t->in.len, TAR_BLOCK));
 		n = ffmin64(t->fsize, in.len);
 		ffstr_shift(&t->in, ff_align_ceil(n, TAR_BLOCK));
+		in.len = ff_align_ceil2(n, TAR_BLOCK);
 		// break
 
 	case R_DATA_BLK:
