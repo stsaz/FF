@@ -8,17 +8,10 @@ FF_CFLAGS += -Werror -Wall -Wextra -Wno-unused-parameter \
 
 
 # FFOS
-FFOS_HDR := $(wildcard $(FFOS)/*.h) $(wildcard $(FFOS)/unix/*.h) $(wildcard $(FFOS)/win/*.h)
-FFOS_OBJ := $(FF_OBJ_DIR)/ffos.o \
-	$(FF_OBJ_DIR)/ff$(OS).o
-
-ifneq ($(OS),win)
-FFOS_OBJ += $(FF_OBJ_DIR)/ffunix.o
-endif
-
+FFOS_OBJ_DIR := $(FF_OBJ_DIR)
+FFOS_CFLAGS := $(FF_CFLAGS) -pthread
+include $(FFOS)/makerules
 FF_ALL_OBJ := $(FFOS_OBJ)
-$(FF_OBJ_DIR)/%.o: $(FFOS)/FFOS/%.c $(FFOS_HDR)
-	$(C) $(FF_CFLAGS) -pthread  $< -o$@
 
 
 FF_SRC := $(FF)/FF/ffcrc.c \
@@ -30,7 +23,6 @@ FF_SRC := $(FF)/FF/ffcrc.c \
 	$(FF)/FF/ffrbtree.c \
 	$(FF)/FF/ffs-regex.c \
 	$(FF)/FF/ffstring.c \
-	$(FF)/FF/ffsys.c \
 	$(FF)/FF/fftime.c
 
 FF_HDR := $(FFOS_HDR) $(wildcard $(FF)/FF/*.h)
@@ -43,12 +35,31 @@ $(FF_OBJ_DIR)/%.o: $(FF)/FF/%.c $(FF_HDR)
 	$(C) $(FF_CFLAGS)  $< -o$@
 
 
+# sys
+FF_SYS_HDR := $(wildcard $(FF)/FF/sys/*.h)
+FF_SYS_SRC := $(wildcard $(FF)/FF/sys/*.c)
+FF_SYS_OBJ := $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_SYS_SRC)))))
+FF_ALL_OBJ += $(FF_SYS_OBJ)
+FF_OBJ += $(FF_OBJ_DIR)/ffsys.o
+$(FF_OBJ_DIR)/%.o: $(FF)/FF/sys/%.c $(FF_HDR)
+	$(C) $(FF_CFLAGS)  $< -o$@
+
+
 # data
 FF_DATA_HDR := $(wildcard $(FF)/FF/data/*.h)
 FF_DATA_SRC := $(wildcard $(FF)/FF/data/*.c)
 FF_DATA_OBJ := $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_DATA_SRC)))))
 FF_ALL_OBJ += $(FF_DATA_OBJ)
 $(FF_OBJ_DIR)/%.o: $(FF)/FF/data/%.c $(FF_HDR)
+	$(C) $(FF_CFLAGS)  $< -o$@
+
+
+# pack
+FF_PACK_HDR := $(wildcard $(FF)/FF/pack/*.h)
+FF_PACK_SRC := $(wildcard $(FF)/FF/pack/*.c)
+FF_PACK_OBJ := $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_PACK_SRC)))))
+FF_ALL_OBJ += $(FF_PACK_OBJ)
+$(FF_OBJ_DIR)/%.o: $(FF)/FF/pack/%.c $(FF_HDR)
 	$(C) $(FF_CFLAGS)  $< -o$@
 
 

@@ -162,6 +162,8 @@ typedef struct ffmp4_cook {
 
 const char* ffmp4_werrstr(ffmp4_cook *m);
 
+/**
+@m->info: total_samples, frame_samples, enc_delay must be set by caller. */
 FF_EXTN int ffmp4_create_aac(ffmp4_cook *m, const ffpcm *fmt, const ffstr *conf);
 
 FF_EXTN void ffmp4_wclose(ffmp4_cook *m);

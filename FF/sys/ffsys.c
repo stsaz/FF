@@ -414,6 +414,11 @@ void ffdir_expclose(ffdirexp *dex)
 
 
 #ifdef FF_UNIX
+
+#ifndef _GNU_SOURCE
+extern char **environ;
+#endif
+
 static FFINL const char* env_find(const char *env, size_t len)
 {
 	uint i;

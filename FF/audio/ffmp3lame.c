@@ -43,7 +43,6 @@ int ffmpg_create(ffmpg_enc *m, ffpcm *pcm, int qual)
 	conf.interleaved = m->ileaved;
 	conf.channels = pcm->channels;
 	conf.rate = pcm->sample_rate;
-	conf.rate = pcm->sample_rate;
 	conf.quality = qual;
 	if (0 != (r = lame_create(&m->lam, &conf))) {
 		m->err = r;
@@ -55,9 +54,8 @@ int ffmpg_create(ffmpg_enc *m, ffpcm *pcm, int qual)
 		return FFMPG_ESYS;
 	}
 
-	m->channels = pcm->channels;
-	m->fmt = pcm->format;
-
+	m->fmt = *pcm;
+	m->samp_size = ffpcm_size1(pcm);
 	ffid31_init(&m->id31);
 	m->min_meta = 1000;
 	m->qual = qual;
@@ -151,16 +149,16 @@ int ffmpg_encode(ffmpg_enc *m)
 		return FFMPG_RDONE;
 	}
 
-	nsamples = m->pcmlen / ffpcm_size(m->fmt, m->channels);
+	nsamples = m->pcmlen / m->samp_size;
 	nsamples = ffmin(nsamples, 8 * 1152);
 
 	r = 0;
 	if (nsamples != 0) {
 		const void *pcm[2];
 		if (m->ileaved)
-			pcm[0] = (char*)m->pcmi + m->pcmoff * m->channels;
+			pcm[0] = (char*)m->pcmi + m->pcmoff * m->fmt.channels;
 		else {
-			for (uint i = 0;  i != m->channels;  i++) {
+			for (uint i = 0;  i != m->fmt.channels;  i++) {
 				pcm[i] = (char*)m->pcm[i] + m->pcmoff;
 			}
 		}
@@ -169,8 +167,8 @@ int ffmpg_encode(ffmpg_enc *m)
 			m->err = r;
 			return FFMPG_RERR;
 		}
-		m->pcmoff += nsamples * ffpcm_bits(m->fmt)/8;
-		m->pcmlen -= nsamples * ffpcm_size(m->fmt, m->channels);
+		m->pcmoff += nsamples * ffpcm_bits(m->fmt.format)/8;
+		m->pcmlen -= nsamples * m->samp_size;
 	}
 
 	if (r == 0) {

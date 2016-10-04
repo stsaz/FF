@@ -29,7 +29,7 @@ enum FFDNS_OP {
 typedef struct ffdns_hdr {
 	byte id[2]; //query ID
 
-#if FFENDIAN == FF_BIG_ENDIAN
+#if defined FF_BIG_ENDIAN
 	byte qr :1 //response flag
 		, opcode :4 //operation type
 		, aa :1 //authoritive answer
@@ -42,7 +42,7 @@ typedef struct ffdns_hdr {
 		, cd :1 //checking disabled (DNSSEC)
 		, rcode :4; //response code
 
-#else
+#elif defined FF_LITTLE_ENDIAN
 	byte rd :1
 		, tc :1
 		, aa :1

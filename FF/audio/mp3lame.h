@@ -18,8 +18,7 @@ typedef struct ffmpg_enc {
 	uint state;
 	int err;
 	lame *lam;
-	uint fmt;
-	uint channels;
+	ffpcm fmt;
 	uint qual;
 
 	ffid3_cook id3;
@@ -33,6 +32,7 @@ typedef struct ffmpg_enc {
 	const short *pcmi;
 	};
 	size_t pcmoff;
+	uint samp_size;
 
 	struct ffmpg_info xing;
 

@@ -13,8 +13,8 @@ Copyright (c) 2013 Simon Zolin
 #include <FF/path.h>
 #include <FF/bitops.h>
 #include <FF/net/dns.h>
-#include <FF/filemap.h>
-#include <FF/sendfile.h>
+#include <FF/sys/filemap.h>
+#include <FF/sys/sendfile.h>
 #include <FF/dir.h>
 #include <FF/net/url.h>
 

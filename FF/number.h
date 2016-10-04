@@ -15,6 +15,9 @@ Copyright (c) 2015 Simon Zolin
 #define FF_SAFEDIV(val, by) \
 	((by) != 0 ? (val) / (by) : 0)
 
+/** Increment and reset to 0 on reaching the limit. */
+#define ffint_cycleinc(n, lim)  (((n) + 1) % (lim))
+
 
 /** Unaligned memory access. */
 #define ffint_unaligned16(p)  (*(short*)(p))
@@ -154,7 +157,7 @@ static FFINL int ffint_lim16(int i)
 	return i;
 }
 
-static FFINL int ffint_lim24(int64 i)
+static FFINL int ffint_lim24(int i)
 {
 	if (i < -0x800000)
 		i = -0x800000;
@@ -173,6 +176,10 @@ static FFINL int ffint_lim32(int64 i)
 }
 
 
+/** Check whether a number is within range [from, to). */
+#define ffint_within(n, from, to) \
+	((from) <= (n) && (n) < (to))
+
 /** Convert FP number to integer. */
 static FFINL int ffint_ftoi(double d)
 {
@@ -182,7 +189,7 @@ static FFINL int ffint_ftoi(double d)
 	r = _mm_cvtsd_si32(_mm_load_sd(&d));
 
 #elif !defined FF_MSVC
-	asm volatile("fistpl %0"
+	__asm__ volatile("fistpl %0"
 		: "=m"(r)
 		: "t"(d)
 		: "st");

@@ -49,7 +49,7 @@ FEATURES
 		. WAVE
 		. AAC (libfdk-aac)
 		. OGG Vorbis (libvorbis), Vorbis comments
-		. MPEG (libmad, libmp3lame), ID3v1, ID3v2
+		. MPEG (libmpg123, libmp3lame), ID3v1, ID3v2
 		. FLAC (libflac)
 		. ALAC (libalac)
 		. WavPack (libwavpack)
@@ -59,7 +59,7 @@ FEATURES
 		. Windows API GUI
 
 	. Database:
-		. SQLite
+		. SQLite (libsqlite)
 
 	. CRC32
 	. filesystem path functions

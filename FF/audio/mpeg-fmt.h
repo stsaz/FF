@@ -31,6 +31,7 @@ FF_EXTN const char ffmpg_strchannel[4][8];
 typedef struct ffmpg_hdr {
 	byte sync1 :8; //0xff
 
+#if defined FF_LITTLE_ENDIAN
 	byte noprotect :1 //0: protected by CRC
 		, layer :2 //enum FFMPG_LAYER
 		, ver :2 //enum FFMPG_VER
@@ -46,6 +47,7 @@ typedef struct ffmpg_hdr {
 		, copyright :1
 		, modeext :2 //mode extension (for Joint Stereo)
 		, channel :2; //enum FFMPG_CHANNEL
+#endif
 } ffmpg_hdr;
 
 /** Return TRUE if valid MPEG header. */

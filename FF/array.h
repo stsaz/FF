@@ -8,6 +8,15 @@ Copyright (c) 2013 Simon Zolin
 #include <FF/string.h>
 
 
+/** FOREACH() for array pointer, e.g. int *ptr */
+#define FFARR_FOREACH(ptr, n, it) \
+	for (it = (ptr);  it != (ptr) + (n);  it++)
+
+/** FOREACH() for static array, e.g. int ar[4] */
+#define FFARRS_FOREACH(ar, it) \
+	for (it = (ar);  it != (ar) + FFCNT(ar);  it++)
+
+
 typedef struct ffarr2 {
 	size_t len;
 	void *ptr;
@@ -18,6 +27,16 @@ static FFINL void* ffarr2_alloc(ffarr2 *a, size_t n, size_t elsz)
 	a->len = 0;
 	return (a->ptr = ffmem_alloc(n * elsz));
 }
+
+#define ffarr2_allocT(a, n, T)  ffarr2_alloc(a, n, sizeof(T))
+
+static FFINL void* ffarr2_calloc(ffarr2 *a, size_t n, size_t elsz)
+{
+	a->len = 0;
+	return (a->ptr = ffmem_calloc(n, elsz));
+}
+
+#define ffarr2_callocT(a, n, T)  ffarr2_calloc(a, n, sizeof(T))
 
 FF_EXTN void* ffarr2_realloc(ffarr2 *a, size_t n, size_t elsz);
 
@@ -148,6 +167,9 @@ enum { FFARR_GROWQUARTER = 0x80000000 };
 
 /** Reserve more space for an array. */
 FF_EXTN char *_ffarr_grow(ffarr *ar, size_t by, ssize_t lowat, size_t elsz);
+
+#define ffarr_growT(ar, by, lowat, T) \
+	_ffarr_grow(ar, by, lowat, sizeof(T))
 
 #define ffarr_grow(ar, by, lowat) \
 	_ffarr_grow((ffarr*)(ar), (by), (lowat), sizeof(*(ar)->ptr))
@@ -343,6 +365,7 @@ static FFINL char * ffstr_copy(ffstr *s, const char *d, size_t len) {
 	return s->ptr;
 }
 
+#define ffstr_alcopyz(dst, sz)  ffstr_copy(dst, sz, ffsz_len(sz))
 #define ffstr_alcopystr(dst, src)  ffstr_copy(dst, (src)->ptr, (src)->len)
 
 

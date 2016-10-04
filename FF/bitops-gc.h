@@ -2,7 +2,7 @@
 static FFINL ffbool ffbit_test32(uint i, uint bit)
 {
 	int oldbit;
-	asm volatile("btl %2,%1\n\t"
+	__asm__ volatile("btl %2,%1\n\t"
 		"sbbl %0,%0"
 		: "=r" (oldbit)
 		: "m" (i), "Ir" (bit));
@@ -13,7 +13,7 @@ static FFINL ffbool ffbit_test32(uint i, uint bit)
 static FFINL ffbool ffbit_test64(uint64 i, uint bit)
 {
 	long oldbit;
-	asm volatile("btq %2,%1\n\t"
+	__asm__ volatile("btq %2,%1\n\t"
 		"sbb %0,%0"
 		: "=r" (oldbit)
 		: "m" ((unsigned long)i), "Ir" ((long)bit));
@@ -23,7 +23,7 @@ static FFINL ffbool ffbit_test64(uint64 i, uint bit)
 
 static FFINL ffbool ffbit_set32(uint *p, uint bit) {
 	int oldbit;
-	asm volatile("btsl %2,%1\n\t"
+	__asm__ volatile("btsl %2,%1\n\t"
 		"sbbl %0,%0"
 		: "=r" (oldbit), "+m" (*p)
 		: "Ir" (bit));
@@ -33,7 +33,7 @@ static FFINL ffbool ffbit_set32(uint *p, uint bit) {
 #ifdef FF_64
 static FFINL ffbool ffbit_set64(uint64 *p, uint bit) {
 	long oldbit;
-	asm volatile("btsq %2,%1\n\t"
+	__asm__ volatile("btsq %2,%1\n\t"
 		"sbbq %0,%0"
 		: "=r" ((long)oldbit), "+m" (*(long*)p)
 		: "Ir" ((long)bit));
@@ -44,7 +44,7 @@ static FFINL ffbool ffbit_set64(uint64 *p, uint bit) {
 static FFINL ffbool ffbit_reset32(uint *p, uint bit)
 {
 	int oldbit;
-	asm volatile("btrl %2,%1\n\t"
+	__asm__ volatile("btrl %2,%1\n\t"
 		"sbbl %0,%0"
 		: "=r" (oldbit), "+m" (*p)
 		: "Ir" (bit));
@@ -55,7 +55,7 @@ static FFINL ffbool ffbit_reset32(uint *p, uint bit)
 static FFINL ffbool ffbit_reset64(uint64 *p, uint bit)
 {
 	long oldbit;
-	asm volatile("btrq %2,%1\n\t"
+	__asm__ volatile("btrq %2,%1\n\t"
 		"sbbq %0,%0"
 		: "=r" ((long)oldbit), "+m" (*(long*)p)
 		: "Ir" ((long)bit));

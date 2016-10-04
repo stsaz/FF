@@ -76,6 +76,8 @@ FF_EXTN uint ffchar_sizesfx(int suffix);
 #define ffsz_icmp(sz1, sz2)  _stricmp(sz1, sz2)
 #endif
 
+#define ffsz_eq(sz1, sz2)  (!ffsz_cmp(sz1, sz2))
+
 
 /** Compare two ANSI strings.  Case-insensitive.
 Return -1 if s1 < s2. */

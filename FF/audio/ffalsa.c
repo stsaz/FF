@@ -385,15 +385,14 @@ ssize_t ffalsa_write(ffalsa_buf *snd, const void *data, size_t len, size_t datao
 			return e;
 
 		if (frames == 0) {
-			if (snd->autostart && 0 != (e = ffalsa_start(snd)))
-				return e;
+			if (snd->autostart && 0 != (wr = ffalsa_start(snd)))
+				goto err;
 			break;
 		}
 
 		for (i = 0;  i != snd->channels;  i++) {
 			ffmemcpy((char*)areas[i].addr + off * areas[i].step/8, (char*)datani[i] + inoff, frames * snd->width);
 		}
-		inoff += frames * snd->width;
 
 		wr = snd_pcm_mmap_commit(snd->pcm, off, frames);
 		if (wr >= 0 && (snd_pcm_uframes_t)wr != frames)
@@ -401,12 +400,20 @@ ssize_t ffalsa_write(ffalsa_buf *snd, const void *data, size_t len, size_t datao
 
 		if (wr < 0) {
 err:
+			if (wr == -EPIPE) {
+				if (0 > (e = snd_pcm_prepare(snd->pcm)))
+					return e;
+				continue;
+			}
+
+			//note: may block forever if snd_pcm_resume() keeps returning EAGAIN
 			wr = snd_pcm_recover(snd->pcm, wr, 1 /*silent*/);
 			if (wr < 0)
 				return wr;
 			continue;
 		}
 
+		inoff += frames * snd->width;
 		inframes -= frames;
 	}
 

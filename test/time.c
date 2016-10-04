@@ -5,7 +5,7 @@ Copyright (c) 2014 Simon Zolin
 #include <FFOS/test.h>
 #include <FF/array.h>
 #include <FF/time.h>
-#include <FF/timer-queue.h>
+#include <FF/sys/timer-queue.h>
 #include <test/all.h>
 
 #define x FFTEST_BOOL

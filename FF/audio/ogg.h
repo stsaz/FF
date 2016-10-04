@@ -147,7 +147,7 @@ typedef struct ffogg_enc {
 	struct {
 		uint channels;
 		uint rate;
-		uint quality;
+		int quality;
 	} vinfo;
 
 	ffvorbtag_cook vtag;

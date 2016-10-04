@@ -38,6 +38,13 @@ typedef struct ffpcmex {
 	unsigned ileaved :1;
 } ffpcmex;
 
+#define ffpcm_fmtcopy(dst, src) \
+do { \
+	(dst)->format = (src)->format; \
+	(dst)->channels = (src)->channels; \
+	(dst)->sample_rate = (src)->sample_rate; \
+} while (0)
+
 enum {
 	FFPCM_CHMASK = 0x0f,
 };
