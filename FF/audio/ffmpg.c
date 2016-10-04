@@ -447,6 +447,12 @@ int ffmpg_readframe(ffmpg *m)
 			m->fmt.sample_rate = ffmpg_hdr_sample_rate(h);
 			m->fmt.channels = ffmpg_hdr_channels(h);
 			_ffmpg_streaminfo(m, (char*)h, ffmpg_hdr_framelen(h));
+
+			if (m->dataoff == 0) {
+				m->dataoff = m->off - m->buf.len;
+				if (m->total_size != 0)
+					m->total_size -= m->dataoff;
+			}
 		}
 
 		m->state2 = R_FROK;
