@@ -16,60 +16,79 @@ Copyright (c) 2015 Simon Zolin
 	((by) != 0 ? (val) / (by) : 0)
 
 
-/**
-ffint_ltoh*(), ffint_htol*(): Convert host integer <-> little endian.
-ffint_ntoh*(), ffint_hton*(): Convert host integer <-> big endian.
-*/
+/** Unaligned memory access. */
+#define ffint_unaligned16(p)  (*(short*)(p))
+#define ffint_unaligned32(p)  (*(int*)(p))
+#define ffint_unaligned64(p)  (*(int64*)(p))
+#define ffint_set_unaligned16(p, n)  (*(short*)(p) = (n))
+#define ffint_set_unaligned32(p, n)  (*(int*)(p) = (n))
+#define ffint_set_unaligned64(p, n)  (*(int64*)(p) = (n))
+
+
+/** Convert little endian integer to host integer. */
 
 static FFINL ushort ffint_ltoh16(const void *p)
 {
-	return *(ushort*)p;
+	return ffhtol16(ffint_unaligned16(p));
 }
 
 static FFINL uint ffint_ltoh24(const void *p)
 {
 	const byte *b = p;
-	return (((int)b[2]) << 16) | *(ushort*)p;
+	return ((int)b[2] << 16) | ((int)b[1] << 8) | b[0];
+}
+
+static FFINL int ffint_ltoh24s(const void *p)
+{
+	const byte *b = p;
+	uint n = ((uint)b[2] << 16) | ((uint)b[1] << 8) | b[0];
+	if (n & 0x00800000)
+		n |= 0xff000000;
+	return n;
 }
 
 static FFINL uint ffint_ltoh32(const void *p)
 {
-	return *(uint*)p;
+	return ffhtol32(ffint_unaligned32(p));
 }
 
 static FFINL uint64 ffint_ltoh64(const void *p)
 {
-	return *(uint64*)p;
+	return ffhtol64(ffint_unaligned64(p));
 }
+
+
+/** Convert host integer to little endian integer. */
 
 static FFINL void ffint_htol16(void *dst, ushort i)
 {
-	*((ushort*)dst) = i;
+	ffint_set_unaligned16(dst, ffhtol16(i));
 }
 
 static FFINL void ffint_htol24(void *p, uint n)
 {
-	const byte *b = (void*)&n;
 	byte *o = p;
-	o[0] = b[0];
-	o[1] = b[1];
-	o[2] = b[2];
+	o[0] = (byte)n;
+	o[1] = (byte)(n >> 8);
+	o[2] = (byte)(n >> 16);
 }
 
 static FFINL void ffint_htol32(void *dst, uint i)
 {
-	*((uint*)dst) = i;
+	ffint_set_unaligned32(dst, ffhtol32(i));
 }
 
 static FFINL void ffint_htol64(void *dst, uint64 i)
 {
-	*((uint64*)dst) = i;
+	ffint_set_unaligned64(dst, ffhtol64(i));
 }
 
 
+/** Convert host integer to big endian integer. */
+
 static FFINL void ffint_hton16(void *dst, ushort i)
 {
-	*((ushort*)dst) = ffhton16(i);
+	ffint_set_unaligned16(dst, ffhton16(i));
 }
 
 static FFINL void ffint_hton24(void *dst, uint i)
@@ -82,17 +101,20 @@ static FFINL void ffint_hton24(void *dst, uint i)
 
 static FFINL void ffint_hton32(void *dst, uint i)
 {
-	*((uint*)dst) = ffhton32(i);
+	ffint_set_unaligned32(dst, ffhton32(i));
 }
 
 static FFINL void ffint_hton64(void *dst, uint64 i)
 {
-	*((uint64*)dst) = ffhton64(i);
+	ffint_set_unaligned64(dst, ffhton64(i));
 }
+
+
+/** Convert big endian integer to host integer. */
 
 static FFINL ushort ffint_ntoh16(const void *p)
 {
-	return ffhton16(*(ushort*)p);
+	return ffhton16(ffint_unaligned16(p));
 }
 
 static FFINL uint ffint_ntoh24(const void *p)
@@ -103,12 +125,12 @@ static FFINL uint ffint_ntoh24(const void *p)
 
 static FFINL uint ffint_ntoh32(const void *p)
 {
-	return ffhton32(*(uint*)p);
+	return ffhton32(ffint_unaligned32(p));
 }
 
 static FFINL uint64 ffint_ntoh64(const void *p)
 {
-	return ffhton64(*(uint64*)p);
+	return ffhton64(ffint_unaligned64(p));
 }
 
 

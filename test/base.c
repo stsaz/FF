@@ -15,11 +15,33 @@ Copyright (c) 2014 Simon Zolin
 #define x FFTEST_BOOL
 
 
+static void test_endian(void)
+{
+	uint64 n;
+
+#if defined FF_LITTLE_ENDIAN
+	n = 0x123456,  x(0x123456 == ffint_ltoh24(&n));
+	n = 0x00f23456,  x(0xfff23456 == ffint_ltoh24s(&n));
+	n = 0x1234567890abcdefULL,  x(0x1234567890abcdefULL == ffint_ltoh64(&n));
+
+	ffint_htol24(&n, 0x123456),  x((n & 0xffffff) == 0x123456);
+	ffint_htol64(&n, 0x1234567890abcdefULL),  x(n == 0x1234567890abcdefULL);
+
+	n = 0x563412,  x(0x123456 == ffint_ntoh24(&n));
+	n = 0xefcdab9078563412ULL,  x(0x1234567890abcdefULL == ffint_ntoh64(&n));
+
+	ffint_hton24(&n, 0x563412),  x((n & 0xffffff) == 0x123456);
+	ffint_hton64(&n, 0xefcdab9078563412ULL),  x(n == 0x1234567890abcdefULL);
+#endif
+}
+
 static const uint iarr[] = { 0,1,2,3,4,5 };
 
 int test_num(void)
 {
 	uint i;
+
+	test_endian();
 
 	FFTEST_FUNC;
 
