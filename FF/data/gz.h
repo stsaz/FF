@@ -55,7 +55,9 @@ enum FFGZ_E {
 	FFGZ_ECRC,
 };
 
-FF_EXTN const char* ffgz_errstr(const void *gz);
+FF_EXTN const char* _ffgz_errstr(int err, z_ctx *lz);
+
+#define ffgz_errstr(gz)  _ffgz_errstr((gz)->err, (gz)->lz)
 
 
 typedef struct ffgz {

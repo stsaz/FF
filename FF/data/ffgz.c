@@ -17,18 +17,17 @@ static const char *const gz_errs[] = {
 	"CRC mismatch",
 };
 
-const char* ffgz_errstr(const void *_gz)
+const char* _ffgz_errstr(int err, z_ctx *lz)
 {
-	const ffgz *gz = _gz;
-	switch (gz->err) {
+	switch (err) {
 	case FFGZ_ESYS:
 		return fferr_strp(fferr_last());
 
 	case FFGZ_ELZ:
-		return z_errstr(gz->lz);
+		return z_errstr(lz);
 	}
 
-	return gz_errs[gz->err - FFGZ_ENOTREADY];
+	return gz_errs[err - FFGZ_ENOTREADY];
 }
 
 #define ERR(gz, n) \

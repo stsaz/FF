@@ -252,17 +252,16 @@ static const char *const zip_errs[] = {
 	"size mismatch for STORED file",
 };
 
-const char* ffzip_errstr(const void *_z)
+const char* _ffzip_errstr(int err, z_ctx *lz)
 {
-	const ffzip *z = _z;
-	switch (z->err) {
+	switch (err) {
 	case FFZIP_ESYS:
 		return fferr_strp(fferr_last());
 
 	case FFZIP_ELZ:
-		return z_errstr(z->lz);
+		return z_errstr(lz);
 	}
-	return zip_errs[z->err - FFZIP_ENOTREADY];
+	return zip_errs[err - FFZIP_ENOTREADY];
 }
 
 #define ERR(z, n) \

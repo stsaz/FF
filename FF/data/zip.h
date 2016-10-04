@@ -32,7 +32,9 @@ enum FFZIP_E {
 	FFZIP_EFSIZE,
 };
 
-FF_EXTN const char* ffzip_errstr(const void *z);
+FF_EXTN const char* _ffzip_errstr(int err, z_ctx *lz);
+
+#define ffzip_errstr(z)  _ffzip_errstr((z)->err, (z)->lz)
 
 
 typedef struct ffzip_file {
