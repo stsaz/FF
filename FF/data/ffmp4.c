@@ -869,8 +869,11 @@ next:
 			m->state = W_STSZ;
 			m->off = m->stsz_off;
 			return FFMP4_RSEEK;
-		}
+		} else if (m->datalen == 0)
+			return FFMP4_RMORE;
 
+		if (m->frameno == m->info.nframes)
+			return ERR(m, MP4_ENFRAMES);
 		m->stsz.len = mp4_stsz_add(m->stsz.ptr, m->datalen);
 		m->frameno++;
 
