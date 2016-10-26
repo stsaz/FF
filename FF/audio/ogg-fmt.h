@@ -6,8 +6,6 @@ Copyright (c) 2016 Simon Zolin
 
 #include <FF/array.h>
 
-#include <vorbis/vorbis-ff.h>
-
 
 enum OGG_F {
 	OGG_FCONTINUED = 1,
@@ -40,10 +38,7 @@ enum OGG_E {
 	OGG_EPAGENUM,
 	OGG_EJUNKDATA,
 	OGG_ECRC,
-	OGG_ETAG,
 	OGG_ENOSYNC,
-	OGG_EPKT,
-	OGG_EBIGPKT,
 	OGG_ECONTPKT,
 
 	OGG_ESYS,
@@ -84,40 +79,15 @@ PAGE0{PKT0 PKT1...}  PAGE1{...PKT1 PKT2}
 @segoff: current offset within ogg_hdr.segments
 @bodyoff: current offset within page body
 Return packet body size;  -1 if no more packets;  -2 for an incomplete packet. */
-FF_EXTN int ogg_pkt_next(ogg_packet *pkt, const char *buf, uint *segoff, uint *bodyoff);
+FF_EXTN int ogg_pkt_next(ffstr *pkt, const char *buf, uint *segoff, uint *bodyoff);
 
-/** Add packet into page. */
-FF_EXTN int ogg_pkt_write(ffogg_page *p, char *buf, const char *pkt, uint len);
+/** Add packet into page.
+Return the number of bytes written. */
+FF_EXTN uint ogg_pkt_write(ffogg_page *p, char *buf, const char *pkt, size_t len);
 
 /** Write page header into the position in buffer before page body.
 Buffer: [... OGG_HDR PKT1 PKT2 ...]
 @page: is set to page data within buffer.
-@flags: enum OGG_F. */
-FF_EXTN int ogg_page_write(ffogg_page *p, char *buf, uint64 granulepos, uint flags, ffstr *page);
-
-/** Get 2 pages at once containting all 3 vorbis headers. */
-FF_EXTN int ogg_hdr_write(ffogg_page *p, char *buf, ffstr *data,
-	const ogg_packet *info, const ogg_packet *tag, const ogg_packet *codbk);
-
-
-enum VORBIS_HDR_T {
-	T_INFO = 1,
-	T_COMMENT = 3,
-};
-
-struct vorbis_hdr {
-	byte type; //enum VORBIS_HDR_T
-	char vorbis[6]; //"vorbis"
-};
-
-/** Parse Vorbis-info packet. */
-FF_EXTN int vorb_info(const char *d, size_t len, uint *channels, uint *rate, uint *br_nominal);
-
-/**
-Return pointer to the beginning of Vorbis comments data;  NULL if not Vorbis comments header. */
-FF_EXTN void* vorb_comm(const char *d, size_t len, size_t *vorbtag_len);
-
-/** Prepare OGG packet for Vorbis comments.
-@d: buffer for the whole packet, must have 1 byte of free space at the end
-Return packet length. */
-FF_EXTN uint vorb_comm_write(char *d, size_t vorbtag_len);
+@flags: enum OGG_F.
+Return OGG data length (overhead). */
+FF_EXTN uint ogg_page_write(ffogg_page *p, char *buf, uint64 granulepos, uint flags, ffstr *page);
