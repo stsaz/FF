@@ -20,6 +20,7 @@ typedef struct ffsoxr {
 	const void **in;
 	};
 	uint inlen;
+	uint inoff;
 
 	union {
 	void *out;

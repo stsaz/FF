@@ -77,31 +77,43 @@ void ffsoxr_destroy(ffsoxr *soxr)
 int ffsoxr_convert(ffsoxr *soxr)
 {
 	size_t idone, odone;
-	uint i;
+	uint i, fin = 0;
 	void *in = soxr->in;
+	const void *inarr[8];
 
-	if (soxr->inlen == 0) {
-		soxr->outlen = 0;
-		return 0;
-	}
+	for (;;) {
 
-	for (i = 0;  i != 2;  i++) {
+		if (soxr->inlen == 0) {
+			if (!soxr->fin) {
+				soxr->outlen = 0;
+				return 0;
+			}
+			in = NULL;
+			fin = 1;
+
+		} else if (soxr->in_ileaved)
+			in = (char*)soxr->in_i + soxr->inoff * soxr->isampsize;
+
+		else {
+			for (i = 0;  i != soxr->nchannels;  i++) {
+				inarr[i] = soxr->in[i] + soxr->inoff * soxr->isampsize / soxr->nchannels;
+			}
+			in = inarr;
+		}
+
 		soxr->err = soxr_process(soxr->soxr, in, soxr->inlen / soxr->isampsize, &idone
 			, soxr->out, soxr->outcap, &odone);
 		if (soxr->err != NULL)
 			return -1;
 
-		if (soxr->in_ileaved)
-			soxr->in_i = (char*)soxr->in_i + idone * soxr->isampsize;
-		else if (idone != 0)
-			ffarrp_shift((void**)soxr->in, soxr->nchannels, idone * soxr->isampsize / soxr->nchannels);
+		soxr->inoff += idone;
 		soxr->inlen -= idone * soxr->isampsize;
+		if (soxr->inlen == 0)
+			soxr->inoff = 0;
 		soxr->outlen = odone * soxr->osampsize;
 
-		if (odone != 0 || !soxr->fin)
+		if (odone != 0 || fin)
 			break;
-
-		in = NULL;
 	}
 	return 0;
 }
