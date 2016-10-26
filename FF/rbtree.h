@@ -71,13 +71,17 @@ do { \
 
 
 /** Red-black tree node. */
-typedef struct ffrbt_node ffrbt_node;
-struct ffrbt_node {
+typedef union ffrbt_node ffrbt_node;
+union ffrbt_node {
+	struct {
 	ffrbt_node *left
 		, *right
 		, *parent;
 	uint color;
 	ffrbtkey key;
+	};
+
+	fftree_node _tnode;
 };
 
 typedef struct ffrbtree {
