@@ -182,6 +182,7 @@ static int _ffogg_open(ffogg *o)
 	switch (o->state) {
 
 	case I_SEEK_EOS:
+		o->buf.len = 0;
 		o->off = o->total_size - ffmin(OGG_MAXPAGE, o->total_size);
 		o->state = I_SEEK_EOS2;
 		return FFOGG_RSEEK;
