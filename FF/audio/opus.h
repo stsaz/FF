@@ -9,6 +9,7 @@ OGG(OPUS_HDR)  OGG(OPUS_TAGS)  OGG(OPUS_PKT...)...
 #pragma once
 
 #include <FF/audio/vorbistag.h>
+#include <FF/audio/pcm.h>
 #include <FF/array.h>
 
 #include <opus/opus-ff.h>
@@ -66,3 +67,45 @@ FF_EXTN int ffopus_decode(ffopus *o, const void *pkt, size_t len);
 
 /** Get an absolute sample number. */
 #define ffopus_pos(o)  ((o)->pos - (o)->info.preskip)
+
+
+typedef struct ffopus_enc {
+	uint state;
+	opus_ctx *enc;
+	uint orig_sample_rate;
+	uint channels;
+	uint complexity;
+	uint bandwidth;
+	int err;
+	ffarr buf;
+	ffarr bufpcm;
+	uint preskip;
+	uint packet_dur; //msec
+
+	ffvorbtag_cook vtag;
+	uint min_tagsize;
+
+	ffstr data;
+
+	size_t pcmlen;
+	const float *pcm;
+	uint64 granulepos;
+
+	uint fin :1;
+} ffopus_enc;
+
+#define ffopus_enc_errstr(o)  _ffopus_errstr((o)->err)
+
+FF_EXTN int ffopus_create(ffopus_enc *o, const ffpcm *fmt, int bitrate);
+
+FF_EXTN void ffopus_enc_close(ffopus_enc *o);
+
+/** Add vorbis tag. */
+#define ffopus_addtag(o, name, val, val_len) \
+	ffvorbtag_add(&(o)->vtag, name, val, val_len)
+
+/**
+Return enum FFVORBIS_R. */
+FF_EXTN int ffopus_encode(ffopus_enc *o);
+
+#define ffopus_enc_pos(o)  ((o)->granulepos)
