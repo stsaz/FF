@@ -20,9 +20,9 @@ static int _ffogg_open(ffogg *o);
 static int _ffogg_seek(ffogg *o);
 
 
-enum { I_HDR, I_BODY
+enum { I_HDR, I_BODY, I_INFO
 	, I_SEEK_EOS, I_SEEK_EOS2, I_SEEK_EOS3
-	, I_SEEK, I_SEEK2, I_ASIS_SEEKHDR
+	, I_SEEK, I_SEEK2
 	, I_PAGE, I_PKT };
 
 static const char* const ogg_errstr[] = {
@@ -373,6 +373,10 @@ int ffogg_read(ffogg *o)
 			return r;
 		continue;
 
+	case I_INFO:
+		o->state = I_BODY;
+		return FFOGG_RINFO;
+
 	case I_SEEK:
 	case I_SEEK2:
 		if (FFOGG_RDONE != (r = _ffogg_seek(o)))
@@ -409,9 +413,15 @@ int ffogg_read(ffogg *o)
 				o->first_sample = ffint_ltoh64(h->granulepos);
 			}
 
-			if (o->seekable && o->total_size != 0)
-				o->state = I_SEEK_EOS;
-			else
+			if (o->seekable && o->total_size != 0) {
+				if (o->total_samples != 0) {
+					// total_samples is set by user: no need to find EOS page
+					o->seektab[1].sample = o->total_samples;
+					o->seektab[1].off = o->total_size - o->off_data;
+					o->state = I_INFO;
+				} else
+					o->state = I_SEEK_EOS;
+			} else
 				o->state = I_BODY;
 			o->init_done = 1;
 			return FFOGG_RHDRFIN;
@@ -433,6 +443,7 @@ int ffogg_read(ffogg *o)
 			return r;
 
 		o->state = I_PKT;
+		o->pktno = 0;
 
 		if (o->pagenum_err) {
 			o->pagenum_err = 0;
