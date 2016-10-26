@@ -125,6 +125,7 @@ do { \
 
 /** The tail of array. */
 #define ffarr_end(ar)  ((ar)->ptr + (ar)->len)
+#define ffarr_endT(ar, T)  ((T*)(ar)->ptr + (ar)->len)
 
 /** Get the edge of allocated buffer. */
 #define ffarr_edge(ar)  ((ar)->ptr + (ar)->cap)
@@ -436,6 +437,10 @@ static FFINL size_t ffstr_nextval3(ffstr *src, ffstr *dst, int spl)
 	ffstr_shift(src, n);
 	return n;
 }
+
+#define ffstr_toint(s, dst, flags) \
+	((s)->len == ffs_toint((s)->ptr, (s)->len, dst, flags))
+
 
 static FFINL void ffstr3_cat(ffstr3 *s, const char *d, size_t len) {
 	ffstr_cat((ffstr*)s, s->cap, d, len);

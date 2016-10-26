@@ -2,14 +2,13 @@
 
 # FF := .
 FF_OBJ_DIR := ./ff-obj
-FF_CFLAGS ?= -c
-FF_CFLAGS += -Werror -Wall -Wextra -Wno-unused-parameter \
+override FF_CFLAGS += \
+	-Werror -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers \
 	-I$(FF) -I$(FF)-3pt -I$(FFOS)
 
 
 # FFOS
 FFOS_OBJ_DIR := $(FF_OBJ_DIR)
-FFOS_CFLAGS := $(FF_CFLAGS) -pthread
 include $(FFOS)/makerules
 FF_ALL_OBJ := $(FFOS_OBJ)
 

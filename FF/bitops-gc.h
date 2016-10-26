@@ -16,7 +16,7 @@ static FFINL ffbool ffbit_test64(uint64 i, uint bit)
 	__asm__ volatile("btq %2,%1\n\t"
 		"sbb %0,%0"
 		: "=r" (oldbit)
-		: "m" ((unsigned long)i), "Ir" ((long)bit));
+		: "m" (i), "Ir" ((long)bit));
 	return oldbit != 0;
 }
 #endif
@@ -35,7 +35,7 @@ static FFINL ffbool ffbit_set64(uint64 *p, uint bit) {
 	long oldbit;
 	__asm__ volatile("btsq %2,%1\n\t"
 		"sbbq %0,%0"
-		: "=r" ((long)oldbit), "+m" (*(long*)p)
+		: "=r" (oldbit), "+m" (*p)
 		: "Ir" ((long)bit));
 	return oldbit != 0;
 }
@@ -57,7 +57,7 @@ static FFINL ffbool ffbit_reset64(uint64 *p, uint bit)
 	long oldbit;
 	__asm__ volatile("btrq %2,%1\n\t"
 		"sbbq %0,%0"
-		: "=r" ((long)oldbit), "+m" (*(long*)p)
+		: "=r" (oldbit), "+m" (*p)
 		: "Ir" ((long)bit));
 	return oldbit != 0;
 }

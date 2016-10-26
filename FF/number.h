@@ -176,6 +176,15 @@ static FFINL int ffint_lim32(int64 i)
 }
 
 
+/** Set or clear bits. */
+#define ffint_bitmask(pn, mask, set) \
+do { \
+	if (set) \
+		*(pn) |= (mask); \
+	else \
+		*(pn) &= ~(mask); \
+} while (0)
+
 /** Check whether a number is within range [from, to). */
 #define ffint_within(n, from, to) \
 	((from) <= (n) && (n) < (to))

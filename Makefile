@@ -9,6 +9,7 @@ OPT := LTO
 
 include $(FFOS)/makeconf
 
+FFOS_CFLAGS := $(CFLAGS)
 FF_CFLAGS := $(CFLAGS)
 CFLAGS += -Werror -Wall \
 	-I$(FF) -I$(FF)-3pt -I$(FFOS)

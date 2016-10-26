@@ -16,6 +16,9 @@ typedef struct fftask {
 	fflist_item sib;
 } fftask;
 
+#define fftask_set(tsk, func, udata) \
+	(tsk)->handler = (func),  (tsk)->param = (udata)
+
 typedef struct fftaskmgr {
 	fflist tasks; //fftask[]
 	fflock lk;

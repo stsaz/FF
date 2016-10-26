@@ -676,10 +676,10 @@ int ffui_tree_create(ffui_ctl *c, void *parent)
 	if (0 != ctl_create(c, FFUI_UID_TREEVIEW, ((ffui_ctl*)parent)->h))
 		return 1;
 
-	{
+#if FF_WIN >= 0x0600
 	int n = TVS_EX_DOUBLEBUFFER;
 	TreeView_SetExtendedStyle(c->h, n, n);
-	}
+#endif
 
 	return 0;
 }

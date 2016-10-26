@@ -25,11 +25,16 @@ FEATURES
 		. configuration parser
 		. command-line arguments parser
 		. deserialization of structured data using a predefined scheme
+
+	. Packing/compression:
 		. gzip (libz)
 		. xz (liblzma)
 		. zip (libz)
 		. tar
+
+	. Data containers:
 		. MP4
+		. OGG
 
 	. Picture:
 		. BMP
@@ -48,7 +53,8 @@ FEATURES
 		. APE (libMAC), APE tag
 		. WAVE
 		. AAC (libfdk-aac)
-		. OGG Vorbis (libvorbis), Vorbis comments
+		. Vorbis (libvorbis), Vorbis comments
+		. Opus (libopus)
 		. MPEG (libmpg123, libmp3lame), ID3v1, ID3v2
 		. FLAC (libflac)
 		. ALAC (libalac)
