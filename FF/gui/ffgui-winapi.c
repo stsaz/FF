@@ -1242,13 +1242,26 @@ int ffui_wndproc(ffui_wnd *wnd, size_t *code, HWND h, uint msg, size_t w, size_t
 	case WM_SYSCOMMAND:
 		print("WM_SYSCOMMAND", h, w, l);
 
-		if ((w & 0xfff0) == SC_CLOSE) {
+		switch (w & 0xfff0) {
+		case SC_CLOSE:
 			wnd->on_action(wnd, wnd->onclose_id);
 
 			if (wnd->hide_on_close) {
 				ffui_show(wnd, 0);
 				return 1;
 			}
+			break;
+
+		case SC_MINIMIZE:
+			if (wnd->onminimize_id != 0) {
+				wnd->on_action(wnd, wnd->onminimize_id);
+				return 1;
+			}
+			break;
+
+		case SC_MAXIMIZE:
+			wnd->on_action(wnd, wnd->onmaximize_id);
+			break;
 		}
 		break;
 

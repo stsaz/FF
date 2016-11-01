@@ -752,6 +752,8 @@ struct ffui_wnd {
 	void (*on_dropfiles)(ffui_wnd *wnd, ffui_fdrop *df);
 
 	uint onclose_id;
+	uint onminimize_id;
+	uint onmaximize_id;
 };
 
 FF_EXTN int ffui_wnd_initstyle(void);
