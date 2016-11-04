@@ -86,7 +86,7 @@ int ffopus_decode(ffopus *o, const void *pkt, size_t len)
 		if (r != 0)
 			return ERR(o, r);
 
-		if (NULL == ffarr_alloc(&o->pcmbuf, OPUS_BUFLEN(o->info.rate)))
+		if (NULL == ffarr_alloc(&o->pcmbuf, OPUS_BUFLEN(o->info.rate) * o->info.channels * sizeof(float)))
 			return ERR(o, FFOPUS_ESYS);
 
 		o->seek_sample = o->info.preskip;
@@ -117,6 +117,8 @@ int ffopus_decode(ffopus *o, const void *pkt, size_t len)
 
 	float *pcm = (void*)o->pcmbuf.ptr;
 	r = opus_decode_f(o->dec, pkt, len, pcm);
+	if (r < 0)
+		return ERR(o, r);
 
 	if (o->seek_sample != (uint64)-1) {
 		if (o->seek_sample < o->pos) {
