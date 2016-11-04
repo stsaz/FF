@@ -198,7 +198,9 @@ static int _ffogg_open(ffogg *o)
 			uint buflen = o->buf.len;
 			o->buf.len = 0;
 
-			o->total_samples = ffint_ltoh64(h->granulepos) - o->first_sample;
+			uint64 gpos = ffint_ltoh64(h->granulepos);
+			if (gpos != (uint64)-1)
+				o->total_samples = gpos - o->first_sample;
 			if (h->flags & OGG_FLAST)
 				break;
 
