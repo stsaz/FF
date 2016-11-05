@@ -260,6 +260,12 @@ int ffwas_open(ffwasapi *w, const WCHAR *id, ffpcm *fmt, uint bufsize)
 		w->nfy_interval = w->bufsize / WAS_DEFNFYRATE;
 	w->nfy_next = w->capture ? (int)w->nfy_interval : -(int)w->nfy_interval;
 
+	if (w->capture)
+		if (NULL == ffarr_alloc(&w->buf, ffwas_bufsize(w))) {
+			r = fferr_last();
+			goto fail;
+		}
+
 	goto done;
 
 fail:
@@ -285,6 +291,7 @@ void ffwas_close(ffwasapi *w)
 	else
 		FF_SAFECLOSE(w->capt, NULL, IAudioCaptureClient_Release);
 	FF_SAFECLOSE(w->cli, NULL, IAudioClient_Release);
+	ffarr_free(&w->buf);
 }
 
 int ffwas_filled(ffwasapi *w)
@@ -598,27 +605,44 @@ int ffwas_stoplazy(ffwasapi *w)
 }
 
 
+enum {
+	AUDCNT_S_BUFFEREMPTY = 0x8890001,
+};
+
 int ffwas_capt_read(ffwasapi *w, void **data, size_t *len)
 {
 	int r;
 	DWORD flags;
+	ffstr d;
 
-	if (w->actvbufs != 0) {
-		if (0 != (r = IAudioCaptureClient_ReleaseBuffer(w->capt, w->wpos)))
-			return r;
-		w->actvbufs = 0;
-	}
-
-	if (0 != (r = IAudioCaptureClient_GetBuffer(w->capt, (byte**)data, &w->wpos, &flags, NULL, NULL))) {
-		if (r == 0x8890001 /*AUDCNT_S_BUFFEREMPTY*/) {
-			*len = 0;
-			return 0;
+	for (;;) {
+		if (w->actvbufs != 0) {
+			if (0 != (r = IAudioCaptureClient_ReleaseBuffer(w->capt, w->wpos)))
+				return r;
+			w->actvbufs = 0;
 		}
-		return r;
-	}
 
-	w->actvbufs = 1;
-	*len = w->wpos * w->frsize;
-	w->nfy_next -= w->wpos;
-	return 1;
+		if (0 != (r = IAudioCaptureClient_GetBuffer(w->capt, (byte**)&d.ptr, &w->wpos, &flags, NULL, NULL))) {
+			if (r == AUDCNT_S_BUFFEREMPTY) {
+				*len = 0;
+				return 0;
+			}
+			return r;
+		}
+		d.len = w->wpos * w->frsize;
+		w->actvbufs = 1;
+		w->nfy_next -= w->wpos;
+
+		if (!w->excl) {
+			ffarr_append(&w->buf, d.ptr, d.len);
+			if (w->buf.len >= w->nfy_interval * w->frsize) {
+				*data = w->buf.ptr,  *len = w->buf.len;
+				w->buf.len = 0;
+				return 1;
+			}
+		} else {
+			*data = d.ptr,  *len = d.len;
+			return 1;
+		}
+	}
 }

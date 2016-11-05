@@ -3,6 +3,7 @@ Copyright (c) 2015 Simon Zolin
 */
 
 #include <FF/audio/pcm.h>
+#include <FF/array.h>
 #include <FFOS/mem.h>
 #include <FFOS/atomic.h>
 
@@ -63,6 +64,7 @@ typedef struct ffwasapi {
 	byte *wptr;
 	uint wpos;
 	uint actvbufs;
+	ffarr buf;
 
 	unsigned excl :1 //exclusive mode
 		, capture :1
