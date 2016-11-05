@@ -81,6 +81,8 @@ int ogg_pkt_next(ffstr *pkt, const char *buf, uint *segoff, uint *bodyoff)
 
 	if (i == nsegs)
 		return -1;
+	if (pkt == NULL)
+		return 0;
 
 	do {
 		seglen = h->segments[i++];

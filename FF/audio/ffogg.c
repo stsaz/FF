@@ -542,7 +542,8 @@ int ffogg_write(ffogg_cook *o)
 			|| ((uint)r != o->pkt.len && !o->allow_partial))
 			goto flush;
 
-		if (o->pkt_endpos - o->page_startpos > o->max_pagedelta)
+		if (o->max_pagedelta != (uint)-1
+			&& o->pkt_endpos - o->page_startpos > o->max_pagedelta)
 			goto flush;
 	}
 

@@ -94,6 +94,10 @@ FF_EXTN int ffogg_read(ffogg *o);
 /** Get an absolute sample number. */
 #define ffogg_cursample(o)  ((o)->cursample)
 
+/** Return 1 if the last packet in page. */
+#define ffogg_page_last_pkt(o) \
+	(-1 == ogg_pkt_next(NULL, (o)->buf.ptr, &(o)->segoff, NULL))
+
 
 typedef struct ffogg_cook {
 	uint state;
