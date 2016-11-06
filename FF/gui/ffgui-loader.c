@@ -1302,6 +1302,8 @@ static int wnd_position(ffparser_schem *ps, void *obj, const int64 *v)
 	int *i = &g->r.x;
 	if (ps->p->type == FFCONF_TVAL)
 		g->ir = 0;
+	else if (g->ir == 4)
+		return FFPARS_EBIGVAL;
 	i[g->ir++] = (int)*v;
 	if (g->ir == 4) {
 		ffui_setposrect(g->wnd, &g->r, 0);

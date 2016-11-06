@@ -91,6 +91,7 @@ FF_EXTN void ffwas_close(ffwasapi *w);
 /** Return the number of bytes left in sound buffer. */
 FF_EXTN int ffwas_filled(ffwasapi *w);
 
+/** Return total buffer size (in bytes). */
 static FFINL int ffwas_bufsize(ffwasapi *w)
 {
 	return ((w->excl) ? w->bufsize * 2 : w->bufsize) * w->frsize;

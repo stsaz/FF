@@ -25,6 +25,7 @@ FEATURES
 		. configuration parser
 		. command-line arguments parser
 		. deserialization of structured data using a predefined scheme
+		. support .m3u, .pls, .cue
 
 	. Packing/compression:
 		. gzip (libz)

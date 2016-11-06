@@ -329,12 +329,23 @@ static int scHdlVal(ffparser_schem *ps, ffpars_ctx *ctx)
 
 			} else if (p->val.len == 0)
 				ffstr_null(&tmp);
+
 			else if (NULL == ffstr_copy(&tmp, p->val.ptr, p->val.len))
 				return FFPARS_ESYS;
-		} else
+
+		} else {
+
+			if (f & FFPARS_FSTRZ)
+				return FFPARS_ECONF;
+
 			tmp = p->val;
+		}
 
 		if (t == FFPARS_TCHARPTR) {
+
+			if (!(f & FFPARS_FSTRZ))
+				return FFPARS_ECONF;
+
 			if (func)
 				er = edst.f_charptr(ps, ctx->obj, tmp.ptr);
 			else

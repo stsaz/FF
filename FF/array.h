@@ -164,6 +164,9 @@ static FFINL void * _ffarr_alloc(ffarr *ar, size_t len, size_t elsz) {
 #define ffarr_alloc(ar, len) \
 	_ffarr_alloc((ffarr*)(ar), (len), sizeof(*(ar)->ptr))
 
+#define ffarr_allocT(ar, len, T) \
+	_ffarr_alloc(ar, len, sizeof(T))
+
 enum { FFARR_GROWQUARTER = 0x80000000 };
 
 /** Reserve more space for an array. */
@@ -211,6 +214,13 @@ static FFINL void * _ffarr_copy(ffarr *ar, const void *src, size_t num, size_t e
 
 #define ffarr_copy(ar, src, num) \
 	_ffarr_copy((ffarr*)ar, src, num, sizeof(*(ar)->ptr))
+
+/** Allocate and copy data from memory pointed by 'a.ptr'. */
+#define ffarr_copyself(a) \
+do { \
+	FF_ASSERT((a)->cap == 0); \
+	ffarr_realloc(a, (a)->len); \
+} while (0)
 
 #define _ffarr_swap(p1, p2, n, elsize) \
 do { \

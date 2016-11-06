@@ -238,8 +238,8 @@ int ffwas_open(ffwasapi *w, const WCHAR *id, ffpcm *fmt, uint bufsize)
 		goto fail;
 
 	if (NULL == (w->evt = CreateEvent(NULL, 0, 0, NULL))) {
-		 r = fferr_last();
-		 goto fail;
+		r = fferr_last();
+		goto fail;
 	}
 	if (0 != (r = IAudioClient_SetEventHandle(w->cli, w->evt)))
 		goto fail;

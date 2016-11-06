@@ -473,6 +473,9 @@ FF_EXTN int ffui_trk_create(ffui_trkbar *t, ffui_wnd *parent);
 
 #define ffui_trk_val(t)  ffui_ctl_send(t, TBM_GETPOS, 0, 0)
 
+#define ffui_trk_setdelta(t, delta) \
+	ffui_trk_set(t, (int)ffui_trk_val(t) + delta)
+
 enum FFUI_TRK_MOVE {
 	FFUI_TRK_PGUP,
 	FFUI_TRK_PGDN,

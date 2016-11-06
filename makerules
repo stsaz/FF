@@ -80,6 +80,15 @@ $(FF_OBJ_DIR)/%.o: $(FF)/FF/audio/%.c $(FF_HDR) $(FF_AUDIO_HDR)
 	$(C) $(FF_CFLAGS)  $< -o$@
 
 
+# adev
+FF_ADEV_HDR := $(wildcard $(FF)/FF/adev/*.h)
+FF_ADEV_SRC := $(wildcard $(FF)/FF/adev/*.c)
+FF_ADEV_OBJ := $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_ADEV_SRC)))))
+FF_ALL_OBJ += $(FF_ADEV_OBJ)
+$(FF_OBJ_DIR)/%.o: $(FF)/FF/adev/%.c $(FF_HDR) $(FF_ADEV_HDR)
+	$(C) $(FF_CFLAGS)  $< -o$@
+
+
 # pic
 FF_PIC_HDR := $(wildcard $(FF)/FF/pic/*.h)
 FF_PIC_SRC := $(wildcard $(FF)/FF/pic/*.c)
