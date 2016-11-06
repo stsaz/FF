@@ -5,6 +5,7 @@ Copyright (c) 2014 Simon Zolin
 #include <FF/gui/loader.h>
 #include <FF/data/conf.h>
 #include <FF/path.h>
+#include <FF/pic/pic.h>
 #include <FFOS/error.h>
 #include <FFOS/file.h>
 
@@ -1052,58 +1053,12 @@ static int view_style(ffparser_schem *ps, void *obj, const ffstr *val)
 	return 0;
 }
 
-
-static const char *const _ffui_clrstr[] = {
-	"black",
-	"blue",
-	"green",
-	"grey",
-	"lime",
-	"maroon",
-	"navy",
-	"red",
-	"silver",
-	"white",
-};
-
-static const uint _ffui_clr[] = {
-	/*black*/	0x000000,
-	/*blue*/	0x0000ff,
-	/*green*/	0x008000,
-	/*grey*/	0x808080,
-	/*lime*/	0x00ff00,
-	/*maroon*/	0x800000,
-	/*navy*/	0x000080,
-	/*red*/	0xff0000,
-	/*silver*/	0xc0c0c0,
-	/*white*/	0xffffff,
-};
-
-/** Convert color represented as a string to integer.
-@s: #rrggbb or a predefined color string (_ffui_clrstr[]) */
-static uint _ffui_getclr(const char *s, size_t len)
-{
-	ssize_t n;
-	uint clr;
-
-	if (len == FFSLEN("#rrggbb") && s[0] == '#') {
-		if (FFSLEN("rrggbb") == ffs_toint(s + 1, len - 1, &clr, FFS_INT32 | FFS_INTHEX))
-			return clr;
-
-	} else {
-		if (-1 != (n = ffszarr_ifindsorted(_ffui_clrstr, FFCNT(_ffui_clrstr), s, len)))
-			return _ffui_clr[n];
-	}
-
-	return (uint)-1;
-}
-
 static int view_color(ffparser_schem *ps, void *obj, const ffstr *val)
 {
 	ffui_loader *g = obj;
 	uint clr;
 
-	if ((uint)-1 == (clr = _ffui_getclr(val->ptr, val->len)))
+	if ((uint)-1 == (clr = ffpic_color(val->ptr, val->len)))
 		return FFPARS_EBADVAL;
 
 	if (!ffsz_cmp(ps->curarg->name, "color"))

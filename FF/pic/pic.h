@@ -19,5 +19,10 @@ FF_EXTN const char* ffpic_fmtstr(uint fmt);
 
 #define ffpic_bits(fmt)  ((fmt) & 0xff)
 
+/** Convert color represented as a string to integer.
+@s: "#rrggbb" or a predefined color name (e.g. "black").
+Return -1 if unknown color name. */
+FF_EXTN uint ffpic_color(const char *s, size_t len);
+
 /** Convert pixels. */
 FF_EXTN int ffpic_convert(uint in_fmt, const void *in, uint out_fmt, void *out, uint pixels);

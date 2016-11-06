@@ -3,6 +3,7 @@ Copyright (c) 2016 Simon Zolin
 */
 
 #include <FF/pic/pic.h>
+#include <FF/string.h>
 
 
 const char* ffpic_fmtstr(uint fmt)
@@ -19,6 +20,65 @@ const char* ffpic_fmtstr(uint fmt)
 	}
 	return "";
 }
+
+
+static const char *const _ffpic_clrstr[] = {
+	"black",
+	"blue",
+	"green",
+	"grey",
+	"lime",
+	"maroon",
+	"navy",
+	"red",
+	"silver",
+	"white",
+};
+
+static const uint _ffpic_clr[] = {
+	/*black*/	0x000000,
+	/*blue*/	0x0000ff,
+	/*green*/	0x008000,
+	/*grey*/	0x808080,
+	/*lime*/	0x00ff00,
+	/*maroon*/	0x800000,
+	/*navy*/	0x000080,
+	/*red*/	0xff0000,
+	/*silver*/	0xc0c0c0,
+	/*white*/	0xffffff,
+};
+
+uint ffpic_color(const char *s, size_t len)
+{
+	ssize_t n;
+	uint clr = (uint)-1;
+
+	if (len == FFSLEN("#rrggbb") && s[0] == '#') {
+		if (FFSLEN("rrggbb") != ffs_toint(s + 1, len - 1, &clr, FFS_INT32 | FFS_INTHEX))
+			goto err;
+
+	} else {
+		if (-1 == (n = ffszarr_ifindsorted(_ffpic_clrstr, FFCNT(_ffpic_clrstr), s, len)))
+			goto err;
+		clr = _ffpic_clr[n];
+	}
+
+	//LE: BGR0 -> RGB0
+	//BE: 0RGB -> RGB0
+	union {
+		uint i;
+		byte b[4];
+	} u;
+	u.b[0] = ((clr & 0xff0000) >> 16);
+	u.b[1] = ((clr & 0x00ff00) >> 8);
+	u.b[2] = (clr & 0x0000ff);
+	u.b[3] = 0;
+	clr = u.i;
+
+err:
+	return clr;
+}
+
 
 #define CASE(a, b)  (((a) << 8) | (b))
 
