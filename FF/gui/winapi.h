@@ -113,6 +113,7 @@ enum FFUI_UID {
 	FFUI_UID_LABEL,
 	FFUI_UID_EDITBOX,
 	FFUI_UID_TEXT,
+	FFUI_UID_COMBOBOX,
 	FFUI_UID_BUTTON,
 
 	FFUI_UID_TRACKBAR,
@@ -213,6 +214,52 @@ FF_EXTN int ffui_edit_addtext(ffui_edit *c, const char *text, size_t len);
 
 #define ffui_edit_sel(e, off, n)  ffui_send((e)->h, EM_SETSEL, off, (off) + (n))
 #define ffui_edit_selall(e)  ffui_send((e)->h, EM_SETSEL, 0, -1)
+
+
+// COMBOBOX
+typedef struct ffui_combx {
+	FFUI_CTL;
+	HFONT font;
+	uint change_id;
+	uint popup_id;
+	uint edit_change_id;
+	uint edit_update_id;
+} ffui_combx;
+
+FF_EXTN int ffui_combx_create(ffui_ctl *c, ffui_wnd *parent);
+
+/** Insert an item */
+static FFINL void ffui_combx_ins_q(ffui_combx *c, const ffsyschar *txt, int idx)
+{
+	uint msg = CB_INSERTSTRING;
+	if (idx == -1) {
+		idx = 0;
+		msg = CB_ADDSTRING;
+	}
+	ffui_ctl_send(c, msg, idx, txt);
+}
+
+/** Remove item */
+#define ffui_combx_rm(c, idx)  ffui_ctl_send(c, CB_DELETESTRING, idx, 0)
+
+/** Remove all items */
+#define ffui_combx_clear(c)  ffui_ctl_send(c, CB_RESETCONTENT, 0, 0)
+
+/** Get number of items */
+#define ffui_combx_count(c)  ((uint)ffui_ctl_send(c, CB_GETCOUNT, 0, 0))
+
+/** Set/get active index */
+#define ffui_combx_set(c, idx)  ffui_ctl_send(c, CB_SETCURSEL, idx, 0)
+#define ffui_combx_active(c)  ((uint)ffui_ctl_send(c, CB_GETCURSEL, 0, 0))
+
+/** Get text */
+#define ffui_combx_text_q(c, idx, buf) \
+	ffui_ctl_send(c, CB_GETLBTEXT, idx, buf)
+
+FF_EXTN int ffui_combx_textstr(ffui_ctl *c, uint idx, ffstr *dst);
+
+/** Show/hide drop down list */
+#define ffui_combx_popup(c, show)  ffui_ctl_send(c, CB_SHOWDROPDOWN, val, 0)
 
 
 // BUTTON
@@ -794,6 +841,7 @@ union ffui_anyctl {
 	ffui_ctl *ctl;
 	ffui_btn *btn;
 	ffui_edit *edit;
+	ffui_combx *combx;
 	ffui_paned *paned;
 	ffui_trkbar *trkbar;
 	ffui_stbar *stbar;

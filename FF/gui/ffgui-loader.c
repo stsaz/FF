@@ -120,6 +120,15 @@ static const ffpars_arg editbox_args[] = {
 };
 static int new_editbox(ffparser_schem *ps, void *obj, ffpars_ctx *ctx);
 
+// COMBOBOX
+static int combx_style(ffparser_schem *ps, void *obj, const ffstr *val);
+static const ffpars_arg combx_args[] = {
+	{ "style",	FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&combx_style) },
+	{ "font",	FFPARS_TOBJ, FFPARS_DST(&label_font) },
+	{ "position",	FFPARS_TINT | FFPARS_FSIGN | FFPARS_FLIST, FFPARS_DST(&label_pos) },
+};
+static int new_combobox(ffparser_schem *ps, void *obj, ffpars_ctx *ctx);
+
 // TRACKBAR
 static int trkbar_style(ffparser_schem *ps, void *obj, const ffstr *val);
 static int trkbar_pagesize(ffparser_schem *ps, void *obj, const int64 *val);
@@ -240,6 +249,7 @@ static const ffpars_arg wnd_args[] = {
 	{ "label",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&new_label) },
 	{ "editbox",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&new_editbox) },
 	{ "text",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&new_editbox) },
+	{ "combobox",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&new_combobox) },
 	{ "button",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&new_button) },
 	{ "trackbar",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&new_trkbar) },
 	{ "progressbar",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&new_pgsbar) },
@@ -855,6 +865,18 @@ static int edit_action(ffparser_schem *ps, void *obj, const ffstr *val)
 }
 
 
+static int combx_style(ffparser_schem *ps, void *obj, const ffstr *val)
+{
+	ffui_loader *g = obj;
+	if (ffstr_eqcz(val, "visible"))
+		ffui_show(g->ctl, 1);
+	else
+		return FFPARS_EBADVAL;
+
+	return 0;
+}
+
+
 static int new_label(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 {
 	ffui_loader *g = obj;
@@ -887,6 +909,21 @@ static int new_editbox(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 		return FFPARS_ESYS;
 
 	ffpars_setargs(ctx, g, editbox_args, FFCNT(editbox_args));
+	return 0;
+}
+
+static int new_combobox(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
+{
+	ffui_loader *g = obj;
+
+	g->ctl = ldr_getctl(g, &ps->vals[0]);
+	if (g->ctl == NULL)
+		return FFPARS_EBADVAL;
+
+	if (0 != ffui_combx_create(g->ctl, g->wnd))
+		return FFPARS_ESYS;
+
+	ffpars_setargs(ctx, g, combx_args, FFCNT(combx_args));
 	return 0;
 }
 

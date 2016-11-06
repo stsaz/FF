@@ -58,6 +58,7 @@ static const struct ctlinfo ctls[] = {
 		, WS_EX_CLIENTEDGE },
 	{ "text",	TEXT("EDIT"), ES_MULTILINE | ES_AUTOHSCROLL | ES_AUTOVSCROLL | ES_NOHIDESEL | WS_HSCROLL | WS_VSCROLL
 		, WS_EX_CLIENTEDGE },
+	{ "combobox",	TEXT("COMBOBOX"), CBS_DROPDOWN | CBS_AUTOHSCROLL, WS_EX_CLIENTEDGE },
 	{ "button",	TEXT("BUTTON"), 0, 0 },
 
 	{ "trackbar",	TEXT("msctls_trackbar32"), 0, 0 },
@@ -462,6 +463,47 @@ int ffui_edit_addtext(ffui_edit *c, const char *text, size_t len)
 	if (w != ws)
 		ffmem_free(w);
 	return 0;
+}
+
+
+int ffui_combx_create(ffui_ctl *c, ffui_wnd *parent)
+{
+	if (0 != ctl_create(c, FFUI_UID_COMBOBOX, parent->h))
+		return 1;
+
+	if (parent->font != NULL)
+		ffui_ctl_send(c, WM_SETFONT, parent->font, 0);
+
+	return 0;
+}
+
+int ffui_combx_textstr(ffui_ctl *c, uint idx, ffstr *dst)
+{
+	size_t len = ffui_ctl_send(c, CB_GETLBTEXTLEN, idx, 0);
+	ffsyschar *w, ws[255];
+
+	if (len < FFCNT(ws)) {
+		w = ws;
+	} else {
+		if (NULL == (w = ffq_alloc(len + 1)))
+			goto fail;
+	}
+	ffui_combx_text_q(c, idx, w);
+
+	dst->len = ff_wtou(NULL, 0, w, len, 0);
+	if (NULL == (dst->ptr = ffmem_alloc(dst->len + 1)))
+		goto fail;
+
+	ff_wtou(dst->ptr, dst->len + 1, w, len + 1, 0);
+	if (w != ws)
+		ffmem_free(w);
+	return (int)dst->len;
+
+fail:
+	if (w != ws)
+		ffmem_free(w);
+	dst->len = 0;
+	return -1;
 }
 
 
@@ -1078,27 +1120,54 @@ static FFINL void wnd_bordstick(uint stick, WINDOWPOS *ws)
 
 static FFINL void wnd_cmd(ffui_wnd *wnd, uint w, HWND h)
 {
-	uint id;
+	uint id = 0, msg = HIWORD(w);
 	union ffui_anyctl ctl;
 
 	if (NULL == (ctl.ctl = ffui_getctl(h)))
 		return;
 
-	switch (HIWORD(w)) {
-	case BN_CLICKED:
-		id = ctl.btn->action_id;
+	switch ((int)ctl.ctl->uid) {
+
+	case FFUI_UID_BUTTON:
+		switch (msg) {
+		case BN_CLICKED:
+			id = ctl.btn->action_id;
+			break;
+		}
 		break;
 
-	case EN_CHANGE:
-		id = ctl.edit->change_id;
+	case FFUI_UID_EDITBOX:
+	case FFUI_UID_TEXT:
+		switch (msg) {
+		case EN_CHANGE:
+			id = ctl.edit->change_id;
+			break;
+
+		case EN_SETFOCUS:
+			id = ctl.edit->focus_id;
+			break;
+		}
 		break;
 
-	case EN_SETFOCUS:
-		id = ctl.edit->focus_id;
-		break;
+	case FFUI_UID_COMBOBOX:
+		switch (msg) {
+		case CBN_SELCHANGE:
+			id = ctl.combx->change_id;
+			break;
 
-	default:
-		return;
+		case CBN_DROPDOWN:
+			id = ctl.combx->popup_id;
+			break;
+
+		case CBN_EDITCHANGE:
+			id = ctl.combx->edit_change_id;
+			break;
+
+		case CBN_EDITUPDATE:
+			id = ctl.combx->edit_update_id;
+			break;
+		}
+		break;
 	}
 
 	if (id != 0)
