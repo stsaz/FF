@@ -273,6 +273,12 @@ FF_EXTN int ffui_btn_create(ffui_ctl *c, ffui_wnd *parent);
 
 
 // LABEL
+typedef struct ffui_label {
+	FFUI_CTL;
+	HFONT font;
+	uint click_id;
+} ffui_label;
+
 FF_EXTN int ffui_lbl_create(ffui_ctl *c, ffui_wnd *parent);
 
 
@@ -839,6 +845,7 @@ FF_EXTN int ffui_wnd_tooltip(ffui_wnd *w, ffui_ctl *ctl, const char *text, size_
 
 union ffui_anyctl {
 	ffui_ctl *ctl;
+	ffui_label *lbl;
 	ffui_btn *btn;
 	ffui_edit *edit;
 	ffui_combx *combx;

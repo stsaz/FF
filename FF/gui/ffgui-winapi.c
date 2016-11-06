@@ -1128,6 +1128,14 @@ static FFINL void wnd_cmd(ffui_wnd *wnd, uint w, HWND h)
 
 	switch ((int)ctl.ctl->uid) {
 
+	case FFUI_UID_LABEL:
+		switch (msg) {
+		case STN_CLICKED:
+			id = ctl.lbl->click_id;
+			break;
+		}
+		break;
+
 	case FFUI_UID_BUTTON:
 		switch (msg) {
 		case BN_CLICKED:
