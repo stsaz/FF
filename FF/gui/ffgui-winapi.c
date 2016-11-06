@@ -1391,6 +1391,21 @@ int ffui_wndproc(ffui_wnd *wnd, size_t *code, HWND h, uint msg, size_t w, size_t
 		}
 		break;
 
+	case WM_CTLCOLORSTATIC: {
+		union ffui_anyctl c;
+		c.ctl = ffui_getctl((HWND)l);
+		if (c.ctl == NULL)
+			break;
+		if (c.ctl->uid == FFUI_UID_LABEL && c.lbl->color != 0) {
+			HDC hdc = (HDC)w;
+			SetTextColor(hdc, c.lbl->color);
+			SetBkMode(hdc, TRANSPARENT);
+			*code = COLOR_WINDOW;
+			return 1;
+		}
+		break;
+	}
+
 	case WM_DROPFILES:
 		print("WM_DROPFILES", h, w, l);
 		if (wnd->on_dropfiles != NULL) {

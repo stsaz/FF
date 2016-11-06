@@ -276,6 +276,7 @@ FF_EXTN int ffui_btn_create(ffui_ctl *c, ffui_wnd *parent);
 typedef struct ffui_label {
 	FFUI_CTL;
 	HFONT font;
+	uint color;
 	uint click_id;
 } ffui_label;
 

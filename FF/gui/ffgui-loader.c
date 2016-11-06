@@ -88,11 +88,13 @@ static int label_text(ffparser_schem *ps, void *obj, const ffstr *val);
 static int label_font(ffparser_schem *ps, void *obj, ffpars_ctx *ctx);
 static int label_style(ffparser_schem *ps, void *obj, const ffstr *val);
 static int label_pos(ffparser_schem *ps, void *obj, const int64 *val);
+static int label_color(ffparser_schem *ps, void *obj, const ffstr *val);
 static int label_action(ffparser_schem *ps, void *obj, const ffstr *val);
 static const ffpars_arg label_args[] = {
 	{ "text",	FFPARS_TSTR, FFPARS_DST(&label_text) },
 	{ "style",	FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&label_style) },
 	{ "font",	FFPARS_TOBJ, FFPARS_DST(&label_font) },
+	{ "color",	FFPARS_TSTR, FFPARS_DST(&label_color) },
 	{ "position",	FFPARS_TINT | FFPARS_FSIGN | FFPARS_FLIST, FFPARS_DST(&label_pos) },
 	{ "onclick",	FFPARS_TSTR, FFPARS_DST(&label_action) },
 };
@@ -815,6 +817,18 @@ static int label_pos(ffparser_schem *ps, void *obj, const int64 *val)
 	if (g->ir == 4) {
 		ffui_setposrect(g->ctl, &g->r, 0);
 	}
+	return 0;
+}
+
+static int label_color(ffparser_schem *ps, void *obj, const ffstr *val)
+{
+	ffui_loader *g = obj;
+	uint clr;
+
+	if ((uint)-1 == (clr = ffpic_color(val->ptr, val->len)))
+		return FFPARS_EBADVAL;
+
+	g->actl.lbl->color = clr;
 	return 0;
 }
 
