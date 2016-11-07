@@ -679,6 +679,30 @@ int ffpcm_peak(const ffpcmex *fmt, const void *data, size_t samples, float *maxp
 		max_f = _ffpcm_16le_flt(max_sh);
 		break;
 
+	case FFPCM_24:
+		for (ich = 0;  ich != nch;  ich++) {
+			for (i = 0;  i != samples;  i++) {
+				int n = ffint_ltoh24s(&d.pb[ich][i * step * 3]);
+				uint u = ffabs(n);
+				if (max_sh < u)
+					max_sh = u;
+			}
+		}
+		max_f = _ffpcm_24_flt(max_sh);
+		break;
+
+	case FFPCM_32:
+		for (ich = 0;  ich != nch;  ich++) {
+			for (i = 0;  i != samples;  i++) {
+				int n = ffint_ltoh32(&d.pb[ich][i * step * 3]);
+				uint u = ffabs(n);
+				if (max_sh < u)
+					max_sh = u;
+			}
+		}
+		max_f = _ffpcm_32_flt(max_sh);
+		break;
+
 	case FFPCM_FLOAT:
 		for (ich = 0;  ich != nch;  ich++) {
 			for (i = 0;  i != samples;  i++) {
