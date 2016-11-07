@@ -647,6 +647,7 @@ If total data length is known in advance:
   . Pass audio frames data and fill "stco" & "stsz" data buffers.
   . After all frames are written, seek back to header and write "stsz" data.
   . Seek to "stco" and write its data.
+  . Seek to "mdat" and write its size.
 else:
   . Write "ftyp", "mdat" box header with 0 size.
   . Pass audio frames data and fill "stco" & "stsz" data buffers.
@@ -923,6 +924,9 @@ next:
 		return FFMP4_RSEEK;
 
 	case W_MDAT_SIZE:
+		m->buf.len = 0;
+		if (NULL == ffarr_growT(&m->buf, 1, 0, struct box))
+			return ERR(m, MP4_ESYS);
 		mp4_box_write("mdat", m->buf.ptr, m->mdat_size);
 		m->out = m->buf.ptr,  m->outlen = sizeof(struct box);
 		m->state = W_DONE;
@@ -998,7 +1002,7 @@ fr:
 
 	case W_STCO:
 		m->out = m->stco.ptr,  m->outlen = m->stco.len;
-		m->state = W_DONE;
+		m->state = W_MDAT_SEEK;
 		return FFMP4_RDATA;
 
 	case W_DONE:
