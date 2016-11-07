@@ -16,7 +16,7 @@ Event processing from ALSA, 2 approaches:
 	Signal handler is always called from the single thread which processes kernel events.
 */
 
-#include <FF/audio/alsa.h>
+#include <FF/adev/alsa.h>
 #include <FF/array.h>
 #include <FFOS/mem.h>
 #include <FFOS/sig.h>
