@@ -91,6 +91,15 @@ Return the number of bytes written.
 Return <0 if there is no enough space. */
 FF_EXTN ssize_t ffuri_escape(char *dst, size_t cap, const char *s, size_t len, uint type);
 
+/** Parse URI scheme.
+Return scheme length on success. */
+static FFINL uint ffuri_scheme(const char *s, size_t len)
+{
+	ffstr scheme = {0};
+	ffs_fmatch(s, len, "%S://", &scheme);
+	return scheme.len;
+}
+
 /** Get port number by scheme name.
 Return 0 if unknown. */
 FF_EXTN uint ffuri_scheme2port(const char *scheme, size_t schemelen);
