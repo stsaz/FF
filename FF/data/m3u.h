@@ -47,3 +47,20 @@ static FFINL void ffm3u_fin(ffm3u_cook *m)
 {
 	ffarr_free(&m->buf);
 }
+
+
+typedef struct ffpls_entry {
+	ffarr url;
+	ffarr artist;
+	ffarr title;
+	int duration;
+	uint clear :1;
+} ffpls_entry;
+
+static FFINL void ffpls_entry_free(ffpls_entry *ent)
+{
+	ffarr_free(&ent->url);
+	ffarr_free(&ent->artist);
+	ffarr_free(&ent->title);
+	ent->duration = -1;
+}
