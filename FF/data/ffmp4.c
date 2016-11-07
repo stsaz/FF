@@ -552,16 +552,21 @@ int ffmp4_create_aac(ffmp4_cook *m, const ffpcm *fmt, const ffstr *conf)
 		return ERR(m, MP4_ESYS);
 
 	m->fmt = *fmt;
-	m->info.total_samples += m->info.enc_delay;
-	uint64 ts = m->info.total_samples;
-	m->info.total_samples = ff_align_ceil(m->info.total_samples, m->info.frame_samples);
-	m->info.end_padding = m->info.total_samples - ts;
-	m->info.nframes = m->info.total_samples / m->info.frame_samples;
+	m->chunk_frames = (m->fmt.sample_rate / 2) / m->info.frame_samples;
+	m->stream = (m->info.total_samples == 0);
+	if (!m->stream) {
+		m->info.total_samples += m->info.enc_delay;
+		uint64 ts = m->info.total_samples;
+		m->info.total_samples = ff_align_ceil(m->info.total_samples, m->info.frame_samples);
+		m->info.end_padding = m->info.total_samples - ts;
+		m->info.nframes = m->info.total_samples / m->info.frame_samples;
+		m->ctx[0] = &mp4_ctx_global[0];
+	} else {
+		m->ctx[0] = &mp4_ctx_global_stream[0];
+	}
 
 	ffs_copy(m->aconf, m->aconf + sizeof(m->aconf), conf->ptr, conf->len);
 	m->aconf_len = conf->len;
-
-	m->ctx[0] = &mp4_ctx_global[0];
 	return 0;
 }
 
@@ -632,8 +637,22 @@ static const char mp4_ftyp_aac[24] = {
 	"M4A " "\0\0\0\0" "M4A " "mp42" "isom" "\0\0\0\0"
 };
 
-enum { W_META, W_DATA1, W_DATA, W_MORE, W_STSZ, W_STCO_SEEK, W_STCO, W_DONE };
+enum { W_META, W_DATA1, W_DATA, W_MORE, W_STSZ, W_STCO_SEEK, W_STCO, W_DONE,
+	W_MDAT_HDR, W_MDAT_SEEK, W_MDAT_SIZE, W_STM_DATA,
+};
 
+/* MP4 writing algorithm:
+If total data length is known in advance:
+  . Write MP4 header: "ftyp", "moov" with empty "stco" & "stsz", "mdat" box header.
+  . Pass audio frames data and fill "stco" & "stsz" data buffers.
+  . After all frames are written, seek back to header and write "stsz" data.
+  . Seek to "stco" and write its data.
+else:
+  . Write "ftyp", "mdat" box header with 0 size.
+  . Pass audio frames data and fill "stco" & "stsz" data buffers.
+  . After all frames are written, write "moov".
+  . Seek back to "mdat" and write its size.
+*/
 int ffmp4_write(ffmp4_cook *m)
 {
 	for (;;) {
@@ -647,10 +666,11 @@ int ffmp4_write(ffmp4_cook *m)
 
 		if (b->type[0] == '\0') {
 			if (m->ictx == 0) {
-				m->state = W_DATA1;
+				m->mp4_size += m->buf.len;
 				m->out = m->buf.ptr,  m->outlen = m->buf.len;
 				m->buf.len = 0;
 				m->off += m->outlen;
+				m->state = (m->stream) ? W_MDAT_SEEK : W_DATA1;
 				return FFMP4_RDATA;
 			}
 
@@ -674,13 +694,22 @@ int ffmp4_write(ffmp4_cook *m)
 			break;
 
 		case BOX_STSZ:
+			if (m->stream) {
+				n = m->stsz.len;
+				break;
+			}
+
 			n = mp4_stsz_size(m->info.nframes);
 			if (NULL == ffarr_alloc(&m->stsz, n))
 				return ERR(m, MP4_ESYS);
 			break;
 
 		case BOX_STCO: {
-			m->chunk_frames = (m->fmt.sample_rate / 2) / m->info.frame_samples;
+			if (m->stream) {
+				n = m->stco.len;
+				break;
+			}
+
 			uint chunks = m->info.nframes / m->chunk_frames + !!(m->info.nframes % m->chunk_frames);
 			n = mp4_stco_size(BOX_STCO, chunks);
 			if (NULL == ffarr_alloc(&m->stco, n))
@@ -730,6 +759,12 @@ int ffmp4_write(ffmp4_cook *m)
 		case BOX_FTYP:
 			n = sizeof(mp4_ftyp_aac);
 			ffmemcpy(data, mp4_ftyp_aac, n);
+			break;
+
+		case BOX_MDAT:
+			m->mdat_off = (char*)data - sizeof(struct box) - m->buf.ptr;
+			if (m->stream)
+				m->state = W_MDAT_HDR;
 			break;
 
 		case BOX_TKHD:
@@ -789,6 +824,12 @@ int ffmp4_write(ffmp4_cook *m)
 			break;
 
 		case BOX_STSZ:
+			if (m->stream) {
+				ffmemcpy(data, m->stsz.ptr, m->stsz.len);
+				n = m->stsz.len;
+				break;
+			}
+
 			ffmem_zero(data, m->stsz.cap);
 			ffmem_zero(m->stsz.ptr, m->stsz.cap);
 			n = m->stsz.cap;
@@ -796,6 +837,12 @@ int ffmp4_write(ffmp4_cook *m)
 			break;
 
 		case BOX_STCO:
+			if (m->stream) {
+				ffmemcpy(data, m->stco.ptr, m->stco.len);
+				n = m->stco.len;
+				break;
+			}
+
 			ffmem_zero(data, m->stco.cap);
 			ffmem_zero(m->stco.ptr, m->stco.cap);
 			n = m->stco.cap;
@@ -856,6 +903,45 @@ next:
 		break;
 	}
 
+	case W_MDAT_HDR:
+		if (NULL == ffarr_alloc(&m->stsz, mp4_stsz_size(0))
+			|| NULL == ffarr_alloc(&m->stco, mp4_stco_size(BOX_STCO, 0)))
+			return ERR(m, MP4_ESYS);
+		ffmem_zero(m->stsz.ptr, m->stsz.cap);
+		ffmem_zero(m->stco.ptr, m->stco.cap);
+
+		m->state = W_STM_DATA;
+		m->mp4_size += m->buf.len;
+		m->out = m->buf.ptr,  m->outlen = m->buf.len;
+		m->buf.len = 0;
+		m->off += m->outlen;
+		return FFMP4_RDATA;
+
+	case W_MDAT_SEEK:
+		m->state = W_MDAT_SIZE;
+		m->off = m->mdat_off;
+		return FFMP4_RSEEK;
+
+	case W_MDAT_SIZE:
+		mp4_box_write("mdat", m->buf.ptr, m->mdat_size);
+		m->out = m->buf.ptr,  m->outlen = sizeof(struct box);
+		m->state = W_DONE;
+		return FFMP4_RDATA;
+
+	case W_STM_DATA:
+		if (m->fin) {
+			m->info.total_samples = m->frameno * m->info.frame_samples;
+			m->buf.len = 0;
+			m->state = W_META;
+			continue;
+		} else if (m->datalen == 0)
+			return FFMP4_RMORE;
+
+		if (NULL == ffarr_growT(&m->stsz, 1, 128 | FFARR_GROWQUARTER, int)
+			|| NULL == ffarr_growT(&m->stco, 1, 4 | FFARR_GROWQUARTER, int))
+			return ERR(m, MP4_ESYS);
+		goto fr;
+
 	case W_DATA1:
 		ffarr_free(&m->buf);
 		FFARR2_FREE_ALL(&m->tags, tag_free, struct ffmp4_tag);
@@ -874,6 +960,8 @@ next:
 
 		if (m->frameno == m->info.nframes)
 			return ERR(m, MP4_ENFRAMES);
+
+fr:
 		m->stsz.len = mp4_stsz_add(m->stsz.ptr, m->datalen);
 		m->frameno++;
 
@@ -889,12 +977,13 @@ next:
 
 		m->samples += m->info.frame_samples;
 		m->off += m->datalen;
+		m->mdat_size += m->datalen;
 		m->out = m->data,  m->outlen = m->datalen;
 		m->state = W_MORE;
 		return FFMP4_RDATA;
 
 	case W_MORE:
-		m->state = W_DATA;
+		m->state = (m->stream) ? W_STM_DATA : W_DATA;
 		return FFMP4_RMORE;
 
 	case W_STSZ:

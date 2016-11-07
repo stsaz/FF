@@ -123,6 +123,9 @@ typedef struct ffmp4_cook {
 	uint64 off;
 	uint stco_off;
 	uint stsz_off;
+	uint mdat_off;
+	uint64 mdat_size;
+	uint mp4_size;
 	const struct bbox* ctx[10];
 	uint boxoff[10];
 	uint ictx;
@@ -157,6 +160,7 @@ typedef struct ffmp4_cook {
 	const char *out;
 	size_t outlen;
 
+	uint stream :1; //total length isn't known in advance
 	uint fin :1;
 } ffmp4_cook;
 

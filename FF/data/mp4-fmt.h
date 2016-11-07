@@ -105,6 +105,7 @@ struct bbox {
 #define GET_MINSIZE(f)  ((f & 0xff000000) >> 24)
 
 extern const struct bbox mp4_ctx_global[];
+extern const struct bbox mp4_ctx_global_stream[];
 
 
 int mp4_box_find(const struct bbox *ctx, const char type[4]);

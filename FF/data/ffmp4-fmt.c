@@ -834,6 +834,12 @@ const struct bbox mp4_ctx_global[] = {
 	{"mdat", BOX_MDAT, NULL},
 	{"",0,NULL}
 };
+const struct bbox mp4_ctx_global_stream[] = {
+	{"ftyp", BOX_FTYP | MINSIZE(sizeof(struct ftyp)), NULL},
+	{"mdat", BOX_MDAT, NULL},
+	{"moov", BOX_MOOV, mp4_ctx_moov},
+	{"",0,NULL}
+};
 static const struct bbox mp4_ctx_moov[] = {
 	{"mvhd", BOX_MVHD | F_FULLBOX | F_REQ | MINSIZE(sizeof(struct mvhd0)), NULL},
 	{"trak", BOX_ANY | F_MULTI, mp4_ctx_trak},
