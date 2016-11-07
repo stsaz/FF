@@ -641,6 +641,220 @@ enum { W_META, W_DATA1, W_DATA, W_MORE, W_STSZ, W_STCO_SEEK, W_STCO, W_DONE,
 	W_MDAT_HDR, W_MDAT_SEEK, W_MDAT_SIZE, W_STM_DATA,
 };
 
+/** Return size needed for the box. */
+uint _ffmp4_boxsize(ffmp4_cook *m, const struct bbox *b)
+{
+	uint t = GET_TYPE(b->flags), n = GET_MINSIZE(b->flags);
+
+	switch (t) {
+	case BOX_STSC:
+	case BOX_STTS:
+		n = 64;
+		break;
+
+	case BOX_STSZ:
+		if (m->stream) {
+			n = m->stsz.len;
+			break;
+		}
+
+		n = mp4_stsz_size(m->info.nframes);
+		if (NULL == ffarr_alloc(&m->stsz, n))
+			return ERR(m, MP4_ESYS);
+		break;
+
+	case BOX_STCO: {
+		if (m->stream) {
+			n = m->stco.len;
+			break;
+		}
+
+		uint chunks = m->info.nframes / m->chunk_frames + !!(m->info.nframes % m->chunk_frames);
+		n = mp4_stco_size(BOX_STCO, chunks);
+		if (NULL == ffarr_alloc(&m->stco, n))
+			return ERR(m, MP4_ESYS);
+		break;
+	}
+
+	case BOX_ILST_DATA:
+		if (m->curtag->id == FFMMTAG_TRACKNO) {
+			n = mp4_ilst_trkn_data_write(NULL, 0, 0);
+			break;
+		}
+		n = mp4_ilst_data_write(NULL, &m->curtag->val);
+		break;
+
+	case BOX_ITUNES_MEAN:
+		n = FFSLEN("com.apple.iTunes");
+		break;
+
+	case BOX_ITUNES_NAME:
+		n = FFSLEN("iTunSMPB");
+		break;
+
+	case BOX_ITUNES_DATA:
+		n = mp4_itunes_smpb_write(NULL, 0, 0, 0);
+		break;
+	}
+
+	return n;
+}
+
+/** Write box data.
+Return -1 if box should be skipped. */
+static int _ffmp4_boxdata(ffmp4_cook *m, const struct bbox *b)
+{
+	uint t = GET_TYPE(b->flags), n, boxoff = m->buf.len, box_data_off;
+	struct fullbox *fbox = NULL;
+	void *data = ffarr_end(&m->buf) + sizeof(struct box);
+
+	if (b->flags & F_FULLBOX) {
+		fbox = data;
+		ffmem_zero(fbox, sizeof(struct fullbox));
+		data = fbox + 1;
+	}
+	box_data_off = (char*)data - m->buf.ptr;
+
+	n = GET_MINSIZE(b->flags);
+	if (n != 0)
+		ffmem_zero(data, n);
+
+	switch (t) {
+	case BOX_FTYP:
+		n = sizeof(mp4_ftyp_aac);
+		ffmemcpy(data, mp4_ftyp_aac, n);
+		break;
+
+	case BOX_MDAT:
+		m->mdat_off = boxoff;
+		if (m->stream)
+			m->state = W_MDAT_HDR;
+		break;
+
+	case BOX_TKHD:
+		n = mp4_tkhd_write((void*)fbox, 1, m->info.total_samples);
+		break;
+
+	case BOX_MVHD:
+		n = mp4_mvhd_write((void*)fbox, m->fmt.sample_rate, m->info.total_samples);
+		break;
+
+	case BOX_MDHD:
+		n = mp4_mdhd_write((void*)fbox, m->fmt.sample_rate, m->info.total_samples);
+		break;
+
+	case BOX_DREF: {
+		struct dref *dref = data;
+		ffint_hton32(dref->cnt, 1);
+		break;
+	}
+
+	case BOX_DREF_URL:
+		ffint_hton24(fbox->flags, 1); //"mdat" is in the same file as "moov"
+		break;
+
+	case BOX_STSD:
+		n = mp4_stsd_write(data);
+		break;
+
+	case BOX_HDLR: {
+		struct hdlr *hdlr = data;
+		ffmemcpy(hdlr->type, "soun", 4);
+		n = sizeof(struct hdlr);
+		break;
+	}
+
+	case BOX_STSD_MP4A:
+		n = mp4_asamp_write(data, &m->fmt);
+		break;
+
+	case BOX_ESDS: {
+		struct mp4_esds esds = {
+			.type = DEC_MPEG4_AUDIO,
+			.stm_type = 0x15,
+			.avg_brate = m->info.bitrate,
+			.conf = m->aconf,  .conflen = m->aconf_len,
+		};
+		n = mp4_esds_write(data, &esds);
+		break;
+	}
+
+	case BOX_STSC:
+		n = mp4_stsc_write(data, m->info.total_samples, m->info.frame_samples, m->fmt.sample_rate / 2);
+		break;
+
+	case BOX_STTS:
+		n = mp4_stts_write(data, m->info.total_samples, m->info.frame_samples);
+		break;
+
+	case BOX_STSZ:
+		if (m->stream) {
+			ffmemcpy(data, m->stsz.ptr, m->stsz.len);
+			n = m->stsz.len;
+			break;
+		}
+
+		ffmem_zero(data, m->stsz.cap);
+		ffmem_zero(m->stsz.ptr, m->stsz.cap);
+		n = m->stsz.cap;
+		m->stsz_off = box_data_off;
+		break;
+
+	case BOX_STCO:
+		if (m->stream) {
+			ffmemcpy(data, m->stco.ptr, m->stco.len);
+			n = m->stco.len;
+			break;
+		}
+
+		ffmem_zero(data, m->stco.cap);
+		ffmem_zero(m->stco.ptr, m->stco.cap);
+		n = m->stco.cap;
+		m->stco_off = box_data_off;
+		break;
+
+	case BOX_CO64:
+	case BOX_STSD_ALAC:
+		return -1;
+
+	case BOX_ILST_DATA:
+		if (m->curtag->id == FFMMTAG_TRACKNO) {
+			n = mp4_ilst_trkn_data_write(data, m->trkn.num, m->trkn.total);
+			break;
+		}
+		n = mp4_ilst_data_write(data, &m->curtag->val);
+		break;
+
+	case BOX_ITUNES_MEAN:
+		n = ffmem_copycz(data, "com.apple.iTunes") - (char*)data;
+		break;
+
+	case BOX_ITUNES_NAME:
+		n = ffmem_copycz(data, "iTunSMPB") - (char*)data;
+		break;
+
+	case BOX_ITUNES_DATA:
+		n = mp4_itunes_smpb_write(data, m->info.total_samples, m->info.enc_delay, m->info.end_padding);
+		break;
+
+	default:
+		if (t >= _BOX_TAG) {
+			uint tag = t - _BOX_TAG;
+			if (tag == 0)
+				return -1;
+			m->curtag = tags_find((void*)m->tags.ptr, m->tags.len, tag);
+
+			if (tag == FFMMTAG_TRACKNO && (m->trkn.num != 0 || m->trkn.total != 0))
+				m->curtag = (void*)&m->trkn;
+
+			if (m->curtag == NULL)
+				return -1;
+		}
+	}
+
+	return n;
+}
+
 /* MP4 writing algorithm:
 If total data length is known in advance:
   . Write MP4 header: "ftyp", "moov" with empty "stco" & "stsz", "mdat" box header.
@@ -662,7 +876,6 @@ int ffmp4_write(ffmp4_cook *m)
 	case W_META: {
 		const struct bbox *b = m->ctx[m->ictx];
 		char *box;
-		void *data;
 		uint n;
 
 		if (b->type[0] == '\0') {
@@ -684,210 +897,16 @@ int ffmp4_write(ffmp4_cook *m)
 			continue;
 		}
 
-		uint t = GET_TYPE(b->flags);
-
 		// determine box size and reallocate m->buf
-		n = GET_MINSIZE(b->flags);
-		switch (t) {
-		case BOX_STSC:
-		case BOX_STTS:
-			n = 64;
-			break;
-
-		case BOX_STSZ:
-			if (m->stream) {
-				n = m->stsz.len;
-				break;
-			}
-
-			n = mp4_stsz_size(m->info.nframes);
-			if (NULL == ffarr_alloc(&m->stsz, n))
-				return ERR(m, MP4_ESYS);
-			break;
-
-		case BOX_STCO: {
-			if (m->stream) {
-				n = m->stco.len;
-				break;
-			}
-
-			uint chunks = m->info.nframes / m->chunk_frames + !!(m->info.nframes % m->chunk_frames);
-			n = mp4_stco_size(BOX_STCO, chunks);
-			if (NULL == ffarr_alloc(&m->stco, n))
-				return ERR(m, MP4_ESYS);
-			break;
-
-		case BOX_ILST_DATA:
-			if (m->curtag->id == FFMMTAG_TRACKNO) {
-				n = mp4_ilst_trkn_data_write(NULL, 0, 0);
-				break;
-			}
-			n = mp4_ilst_data_write(NULL, &m->curtag->val);
-			break;
-
-		case BOX_ITUNES_MEAN:
-			n = FFSLEN("com.apple.iTunes");
-			break;
-
-		case BOX_ITUNES_NAME:
-			n = FFSLEN("iTunSMPB");
-			break;
-
-		case BOX_ITUNES_DATA:
-			n = mp4_itunes_smpb_write(NULL, 0, 0, 0);
-			break;
-		}
-		}
-
+		n = _ffmp4_boxsize(m, b);
 		n += sizeof(struct box) + sizeof(struct fullbox);
 		if (NULL == ffarr_grow(&m->buf, n, 0))
 			return ERR(m, MP4_ESYS);
 
 		m->boxoff[m->ictx] = m->buf.len;
-		data = ffarr_end(&m->buf) + sizeof(struct box);
-		struct fullbox *fbox = NULL;
-		if (b->flags & F_FULLBOX) {
-			fbox = data;
-			ffmem_zero(fbox, sizeof(struct fullbox));
-			data = fbox + 1;
-		}
-
-		n = GET_MINSIZE(b->flags);
-		if (n != 0)
-			ffmem_zero(data, n);
-
-		switch (t) {
-		case BOX_FTYP:
-			n = sizeof(mp4_ftyp_aac);
-			ffmemcpy(data, mp4_ftyp_aac, n);
-			break;
-
-		case BOX_MDAT:
-			m->mdat_off = (char*)data - sizeof(struct box) - m->buf.ptr;
-			if (m->stream)
-				m->state = W_MDAT_HDR;
-			break;
-
-		case BOX_TKHD:
-			n = mp4_tkhd_write((void*)fbox, 1, m->info.total_samples);
-			break;
-
-		case BOX_MVHD:
-			n = mp4_mvhd_write((void*)fbox, m->fmt.sample_rate, m->info.total_samples);
-			break;
-
-		case BOX_MDHD:
-			n = mp4_mdhd_write((void*)fbox, m->fmt.sample_rate, m->info.total_samples);
-			break;
-
-		case BOX_DREF: {
-			struct dref *dref = data;
-			ffint_hton32(dref->cnt, 1);
-			break;
-		}
-
-		case BOX_DREF_URL:
-			ffint_hton24(fbox->flags, 1); //"mdat" is in the same file as "moov"
-			break;
-
-		case BOX_STSD:
-			n = mp4_stsd_write(data);
-			break;
-
-		case BOX_HDLR: {
-			struct hdlr *hdlr = data;
-			ffmemcpy(hdlr->type, "soun", 4);
-			n = sizeof(struct hdlr);
-			break;
-		}
-
-		case BOX_STSD_MP4A:
-			n = mp4_asamp_write(data, &m->fmt);
-			break;
-
-		case BOX_ESDS: {
-			struct mp4_esds esds = {
-				.type = DEC_MPEG4_AUDIO,
-				.stm_type = 0x15,
-				.avg_brate = m->info.bitrate,
-				.conf = m->aconf,  .conflen = m->aconf_len,
-			};
-			n = mp4_esds_write(data, &esds);
-			break;
-		}
-
-		case BOX_STSC:
-			n = mp4_stsc_write(data, m->info.total_samples, m->info.frame_samples, m->fmt.sample_rate / 2);
-			break;
-
-		case BOX_STTS:
-			n = mp4_stts_write(data, m->info.total_samples, m->info.frame_samples);
-			break;
-
-		case BOX_STSZ:
-			if (m->stream) {
-				ffmemcpy(data, m->stsz.ptr, m->stsz.len);
-				n = m->stsz.len;
-				break;
-			}
-
-			ffmem_zero(data, m->stsz.cap);
-			ffmem_zero(m->stsz.ptr, m->stsz.cap);
-			n = m->stsz.cap;
-			m->stsz_off = (char*)data - m->buf.ptr;
-			break;
-
-		case BOX_STCO:
-			if (m->stream) {
-				ffmemcpy(data, m->stco.ptr, m->stco.len);
-				n = m->stco.len;
-				break;
-			}
-
-			ffmem_zero(data, m->stco.cap);
-			ffmem_zero(m->stco.ptr, m->stco.cap);
-			n = m->stco.cap;
-			m->stco_off = (char*)data - m->buf.ptr;
-			break;
-
-		case BOX_CO64:
-		case BOX_STSD_ALAC:
+		n = _ffmp4_boxdata(m, b);
+		if ((int)n == -1)
 			goto next;
-
-		case BOX_ILST_DATA:
-			if (m->curtag->id == FFMMTAG_TRACKNO) {
-				n = mp4_ilst_trkn_data_write(data, m->trkn.num, m->trkn.total);
-				break;
-			}
-			n = mp4_ilst_data_write(data, &m->curtag->val);
-			break;
-
-		case BOX_ITUNES_MEAN:
-			n = ffmem_copycz(data, "com.apple.iTunes") - (char*)data;
-			break;
-
-		case BOX_ITUNES_NAME:
-			n = ffmem_copycz(data, "iTunSMPB") - (char*)data;
-			break;
-
-		case BOX_ITUNES_DATA:
-			n = mp4_itunes_smpb_write(data, m->info.total_samples, m->info.enc_delay, m->info.end_padding);
-			break;
-
-		default:
-			if (t >= _BOX_TAG) {
-				uint tag = t - _BOX_TAG;
-				if (tag == 0)
-					goto next;
-				m->curtag = tags_find((void*)m->tags.ptr, m->tags.len, tag);
-
-				if (tag == FFMMTAG_TRACKNO && (m->trkn.num != 0 || m->trkn.total != 0))
-					m->curtag = (void*)&m->trkn;
-
-				if (m->curtag == NULL)
-					goto next;
-			}
-		}
 
 		box = ffarr_end(&m->buf);
 		if (b->flags & F_FULLBOX)
