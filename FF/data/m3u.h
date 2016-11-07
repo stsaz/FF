@@ -24,7 +24,7 @@ FF_EXTN void ffm3u_init(ffparser *p);
 
 /**
 Return enum FFM3U_T;  <0 on error (enum FFPARS_E). */
-FF_EXTN int ffm3u_parse(ffparser *p, const char *data, size_t *len);
+FF_EXTN int ffm3u_parse(ffparser *p, ffstr *data);
 
 
 enum FFM3U_OPT {
@@ -64,3 +64,8 @@ static FFINL void ffpls_entry_free(ffpls_entry *ent)
 	ffarr_free(&ent->title);
 	ent->duration = -1;
 }
+
+/** Get next playlist entry.
+@type: value returned by ffm3u_parse()
+Return 1 when an entry is ready. */
+FF_EXTN int ffm3u_entry_get(ffpls_entry *ent, uint type, const ffstr *val);

@@ -14,24 +14,24 @@ void ffm3u_init(ffparser *p)
 	p->line = 0;
 }
 
-int ffm3u_parse(ffparser *p, const char *data, size_t *len)
+int ffm3u_parse(ffparser *p, ffstr *data)
 {
 	ssize_t r;
-	const char *pos, *d = data, *end = data + *len;
+	const char *pos;
 	ffstr s = p->tmp;
 
 	for (;;) {
 	switch (p->state) {
 
 	case M3U_LINE:
-		pos = ffs_find(d, end - d, '\n');
-		r = ffarr_append_until(&p->buf, d, end - d, p->buf.len + pos - d + 1);
+		pos = ffs_find(data->ptr, data->len, '\n');
+		r = ffarr_append_until(&p->buf, data->ptr, data->len, p->buf.len + pos - data->ptr + 1);
 		if (r == 0)
 			return FFPARS_MORE;
 		else if (r < 0)
 			return -FFPARS_ESYS;
 
-		d += r;
+		ffstr_shift(data, r);
 		ffstr_set2(&s, &p->buf);
 		p->buf.len = 0;
 		pos = ffs_rskipof(s.ptr, s.len, "\r\n", 2);
@@ -97,7 +97,6 @@ int ffm3u_parse(ffparser *p, const char *data, size_t *len)
 	}
 
 done:
-	*len = d - data;
 	p->tmp = s;
 	return r;
 }
@@ -154,4 +153,41 @@ int ffm3u_add(ffm3u_cook *m, uint type, const char *val, size_t len)
 
 err:
 	return -1;
+}
+
+
+int ffm3u_entry_get(ffpls_entry *ent, uint type, const ffstr *val)
+{
+	if (ent->clear) {
+		ffpls_entry_free(ent);
+		ent->clear = 0;
+	}
+
+	switch (type) {
+
+	case FFPARS_MORE:
+		ffarr_copyself(&ent->url);
+		ffarr_copyself(&ent->artist);
+		ffarr_copyself(&ent->title);
+		return 0;
+
+	case FFM3U_ARTIST:
+		ffstr_set2(&ent->artist, val);
+		break;
+
+	case FFM3U_TITLE:
+		ffstr_set2(&ent->title, val);
+		break;
+
+	case FFM3U_DUR:
+		(void)ffstr_toint(val, &ent->duration, FFS_INT32 | FFS_INTSIGN);
+		break;
+
+	case FFM3U_URL:
+		ffstr_set2(&ent->url, val);
+		ent->clear = 1;
+		return 1;
+	}
+
+	return 0;
 }
