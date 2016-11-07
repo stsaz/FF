@@ -1253,6 +1253,7 @@ size_t ffs_fmatchv(const char *s, size_t len, const char *fmt, va_list va)
 	uint width, iflags = 0;
 	union {
 		char *s;
+		ffstr *str;
 		uint *i4;
 		uint64 *i8;
 	} dst;
@@ -1307,6 +1308,26 @@ size_t ffs_fmatchv(const char *s, size_t len, const char *fmt, va_list va)
 				goto fail; //width must be specified for %s
 			ffmemcpy(dst.s, s, width);
 			s += width;
+			break;
+
+		case 'S':
+			if (iflags != 0)
+				goto fail; //unsupported modifier
+			dst.str = va_arg(va, ffstr*);
+			dst.str->ptr = (void*)s;
+
+			if (width != 0) {
+				dst.str->len = width;
+				s += width;
+
+			} else {
+
+				for (;  s != s_end;  s++) {
+					if (!ffchar_isletter(*s))
+						break;
+				}
+				dst.str->len = s - dst.str->ptr;
+			}
 			break;
 
 		default:
