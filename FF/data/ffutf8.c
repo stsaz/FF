@@ -22,6 +22,8 @@ int ffu_coding(const char *data, size_t len)
 }
 
 
+static const byte utf8_b1masks[] = { 0x1f, 0x0f, 0x07, 0x03, 0x01 };
+
 int ffutf8_decode1(const char *utf8, size_t len, uint *val)
 {
 	uint i, n, r, d = (byte)utf8[0];
@@ -29,23 +31,13 @@ int ffutf8_decode1(const char *utf8, size_t len, uint *val)
 	if ((d & 0x80) == 0) {
 		*val = d;
 		return 1;
-	} else if ((d & 0xe0) == 0xc0) {
-		n = 2;
-		r = d & ~0xe0;
-	} else if ((d & 0xf0) == 0xe0) {
-		n = 3;
-		r = d & ~0xf0;
-	} else if ((d & 0xf8) == 0xf0) {
-		n = 4;
-		r = d & ~0xf8;
-	} else if ((d & 0xfc) == 0xf8) {
-		n = 5;
-		r = d & ~0xfc;
-	} else if ((d & 0xfe) == 0xfc) {
-		n = 6;
-		r = d & ~0xfe;
-	} else
-		return 0; //invalid
+	}
+
+	n = ffbit_find32(~(d << 24) & 0xfe000000);
+	if (n < 3 || n == 8)
+		return 0; //invalid first byte
+	n--;
+	r = d & utf8_b1masks[n - 2];
 
 	if (len < n)
 		return -(int)n; //need more data
@@ -63,24 +55,20 @@ int ffutf8_decode1(const char *utf8, size_t len, uint *val)
 
 size_t ffutf8_len(const char *p, size_t len)
 {
+	uint n;
 	size_t nchars = 0;
 	const char *end = p + len;
 	while (p < end) {
 		uint d = (byte)*p;
-		if (d < 0x80)
+		if ((d & 0x80) == 0)
 			p++;
-		else if ((d & 0xe0) == 0xc0)
-			p += 2;
-		else if ((d & 0xf0) == 0xe0)
-			p += 3;
-		else if ((d & 0xf8) == 0xf0)
-			p += 4;
-		else if ((d & 0xfc) == 0xf8)
-			p += 5;
-		else if ((d & 0xfe) == 0xfc)
-			p += 6;
-		else //invalid char
-			p++;
+		else {
+			n = ffbit_find32(~(d << 24) & 0xfe000000);
+			if (n >= 3 && n != 8)
+				p += n - 1;
+			else
+				p++;//invalid char
+		}
 		nchars++;
 	}
 	return nchars;
