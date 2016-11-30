@@ -311,6 +311,118 @@ int ffconf_parse(ffparser *p, const char *data, size_t *len)
 }
 
 
+/** Escape string:
+. \r \n \t \\ " -> \\?
+. non-printable -> \x??
+*/
+static ssize_t ffs_escape_conf_str(char *dst, size_t cap, const char *data, size_t len)
+{
+	if (dst == NULL) {
+		size_t n = 0;
+		for (size_t i = 0;  i != len;  i++) {
+			uint ch = (byte)data[i];
+
+			if (!ffbit_testarr(ffcharmask_nobslash_esc, ch)
+				|| ch == '"')
+				n += FFSLEN("\\?") - 1;
+
+			else if (!ffbit_testarr(ffcharmask_printable, ch))
+				n += FFSLEN("\\x??") - 1;
+		}
+
+		return len + n;
+	}
+
+	const char *end = dst + cap;
+	const char *dsto = dst;
+
+	for (size_t i = 0;  i != len;  i++) {
+		uint ch = (byte)data[i];
+
+		if (!ffbit_testarr(ffcharmask_nobslash_esc, ch)
+			|| ch == '"') {
+
+			if (dst + FFSLEN("\\?") > end)
+				return -(ssize_t)i;
+
+			char *d = ffmemchr(ff_escbyte, ch, FFCNT(ff_escbyte));
+			FF_ASSERT(d != NULL);
+
+			*dst++ = '\\';
+			*dst++ = ff_escchar[d - ff_escbyte];
+
+		} else if (!ffbit_testarr(ffcharmask_printable, ch)) {
+
+			if (dst + FFSLEN("\\x??") > end)
+				return -(ssize_t)i;
+
+			*dst++ = '\\';
+			*dst++ = 'x';
+			dst += ffs_hexbyte(dst, ch, ffHEX);
+
+		} else {
+
+			if (dst == end)
+				return -(ssize_t)i;
+			*dst++ = ch;
+		}
+	}
+
+	return dst - dsto;
+}
+
+int ffconf_write(ffconfw *c, const char *data, size_t len, uint flags)
+{
+	ffstr d;
+	ffstr_set(&d, data, len);
+	ssize_t r = 0;
+	ffbool esc = 0;
+
+	if (flags == FFCONF_TKEY) {
+		if (data == NULL)
+			return 0;
+		if (len == 0)
+			return -1;
+		r += FFSLEN("\n");
+	} else if (flags == FFCONF_TVAL)
+		r += FFSLEN(" ");
+
+	if (len == 0 || d.ptr + d.len != ffs_skip_mask(d.ptr, d.len, ffcharmask_name)) {
+		r += ffs_escape_conf_str(NULL, 0, d.ptr, d.len);
+		r += FFSLEN("\"\"");
+		esc = 1;
+	} else {
+		r += d.len;
+	}
+
+	if (NULL == ffarr_grow(&c->buf, r, 256 | FFARR_GROWQUARTER))
+		return -1;
+	char *dst = ffarr_end(&c->buf);
+
+	if (flags == FFCONF_TKEY)
+		*dst++ = '\n';
+	else if (flags == FFCONF_TVAL)
+		*dst++ = ' ';
+
+	if (esc) {
+		*dst++ = '"';
+		dst += ffs_escape_conf_str(dst, ffarr_unused(&c->buf), d.ptr, d.len);
+		*dst++ = '"';
+
+	} else {
+		dst = ffmem_copy(dst, d.ptr, d.len);
+	}
+
+	c->buf.len = dst - c->buf.ptr;
+	return 0;
+}
+
+void ffconf_wdestroy(ffconfw *c)
+{
+	ffarr_free(&c->buf);
+}
+
+
 int ffconf_scheminit(ffparser_schem *ps, ffparser *p, const ffpars_ctx *ctx)
 {
 	int r;

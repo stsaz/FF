@@ -38,6 +38,26 @@ Return enum FFPARS_E.
  @p->type: enum FFCONF_T. */
 FF_EXTN int ffconf_parse(ffparser *p, const char *data, size_t *len);
 
+static FFINL int ffconf_parsestr(ffparser *p, ffstr *data)
+{
+	size_t n = data->len;
+	int r = ffconf_parse(p, data->ptr, &n);
+	ffstr_shift(data, n);
+	return r;
+}
+
+
+typedef struct ffconfw {
+	ffarr buf;
+} ffconfw;
+
+/** Add one element.
+flags: enum FFCONF_T. */
+FF_EXTN int ffconf_write(ffconfw *c, const char *data, size_t len, uint flags);
+
+FF_EXTN void ffconf_wdestroy(ffconfw *c);
+
+
 /** Initialize parser and scheme.
 Return 0 on success. */
 FF_EXTN int ffconf_scheminit(ffparser_schem *ps, ffparser *p, const ffpars_ctx *ctx);
