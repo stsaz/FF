@@ -91,7 +91,8 @@ FF_EXTN void ffogg_seek(ffogg *o, uint64 sample);
 Return enum FFOGG_R. */
 FF_EXTN int ffogg_read(ffogg *o);
 
-/** Get an absolute sample number. */
+/** Get an absolute sample number.
+Note: -1 is returned for the page which follows the page with granule position = -1. */
 #define ffogg_cursample(o)  ((o)->cursample)
 
 /** Return 1 if the last packet in page. */

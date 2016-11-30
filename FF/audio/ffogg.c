@@ -11,6 +11,7 @@ Copyright (c) 2015 Simon Zolin
 enum {
 	OGG_MAXPAGE = OGG_MAXHDR + 255 * 255,
 	MAX_NOSYNC = 256 * 1024,
+	OGG_GPOS_UNDEF = ~0ULL,
 };
 
 
@@ -199,7 +200,7 @@ static int _ffogg_open(ffogg *o)
 			o->buf.len = 0;
 
 			uint64 gpos = ffint_ltoh64(h->granulepos);
-			if (gpos != (uint64)-1)
+			if (gpos != OGG_GPOS_UNDEF)
 				o->total_samples = gpos - o->first_sample;
 			if (h->flags & OGG_FLAST)
 				break;
@@ -269,6 +270,8 @@ Therefore, we need additional processing:
  2. If the currently processed page is the first within search boundaries (P2 in [^P2 P3])
     and it's proven to be the target page (its granulepos > target sample),
     use audio position value from the lower search boundary, so we don't need the previous page.
+
+ 3. If the page's granulepos is undefined, skip it.
 */
 static int _ffogg_seek(ffogg *o)
 {
@@ -291,10 +294,16 @@ static int _ffogg_seek(ffogg *o)
 		if (r != FFOGG_RDONE && !(r == FFOGG_RWARN && o->err == OGG_EJUNKDATA))
 			return r;
 		foff = o->off - o->hdrsize;
+		gpos = ffint_ltoh64(h->granulepos);
 
 		switch (o->state) {
 		case I_SEEK:
-			gpos = ffint_ltoh64(h->granulepos) - o->first_sample;
+			if (gpos == OGG_GPOS_UNDEF) {
+				o->buf.len = 0;
+				continue;
+			}
+
+			gpos -= o->first_sample;
 			if (gpos > o->seek_sample && o->skoff == o->seekpt[0].off) {
 				sk.fr_index = o->seekpt[0].sample;
 				o->cursample = o->seekpt[0].sample;
@@ -308,6 +317,11 @@ static int _ffogg_seek(ffogg *o)
 			continue;
 
 		case I_SEEK2:
+			if (gpos == OGG_GPOS_UNDEF) {
+				o->buf.len = 0;
+				continue;
+			}
+
 			o->state = I_SEEK;
 			if (foff - o->off_data >= o->seekpt[1].off) {
 				uint64 newoff = ffmax((int64)o->skoff - OGG_MAXPAGE, (int64)o->seekpt[0].off);
@@ -320,7 +334,7 @@ static int _ffogg_seek(ffogg *o)
 				o->off = o->off_data + o->skoff;
 				return FFOGG_RSEEK;
 			}
-			gpos = ffint_ltoh64(h->granulepos) - o->first_sample;
+			gpos -= o->first_sample;
 			sk.fr_index = o->cursample;
 			sk.fr_samples = gpos - o->cursample;
 			sk.fr_size = o->pagesize;
@@ -387,7 +401,7 @@ int ffogg_read(ffogg *o)
 		continue;
 
 	case I_PAGE:
-		if (o->page_gpos != (uint64)-1)
+		if (o->page_gpos != OGG_GPOS_UNDEF)
 			o->cursample = o->page_gpos - o->first_sample;
 		if (o->page_last)
 			return FFOGG_RDONE;
