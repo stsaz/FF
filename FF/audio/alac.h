@@ -27,6 +27,7 @@ typedef struct ffalac {
 	ffarr buf;
 	uint64 cursample;
 	uint64 seek_sample;
+	uint64 total_samples; //the last frame will be truncated to match this value
 } ffalac;
 
 enum FFALAC_R {

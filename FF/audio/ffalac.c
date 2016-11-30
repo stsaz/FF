@@ -54,6 +54,7 @@ int ffalac_open(ffalac *a, const char *data, size_t len)
 		a->err = ESYS;
 		return FFALAC_RERR;
 	}
+	a->total_samples = (uint64)-1;
 	return 0;
 }
 
@@ -72,7 +73,7 @@ void ffalac_seek(ffalac *a, uint64 sample)
 int ffalac_decode(ffalac *a)
 {
 	int r;
-	uint samps;
+	uint off = 0, samps;
 
 	r = alac_decode(a->al, a->data, a->datalen, a->buf.ptr);
 	if (r < 0) {
@@ -83,16 +84,20 @@ int ffalac_decode(ffalac *a)
 
 	a->datalen = 0;
 	samps = r;
-	a->pcm = a->buf.ptr;
-	a->pcmlen = samps * ffpcm_size1(&a->fmt);
 
 	if (a->seek_sample != 0) {
 		FF_ASSERT(a->seek_sample < a->cursample + samps);
-		uint n = ffmin(a->seek_sample - a->cursample, samps) * ffpcm_size1(&a->fmt);
-		a->pcm = (char*)a->pcm + n;
-		a->pcmlen -= n;
+		off = ffmin(a->seek_sample - a->cursample, samps);
 		a->seek_sample = 0;
 	}
+
 	a->cursample += samps;
+	if (a->cursample > a->total_samples) {
+		samps -= ffmin(a->cursample - a->total_samples, samps);
+		a->cursample = a->total_samples;
+	}
+
+	a->pcm = a->buf.ptr + off * ffpcm_size1(&a->fmt);
+	a->pcmlen = (samps - off) * ffpcm_size1(&a->fmt);
 	return 0;
 }
