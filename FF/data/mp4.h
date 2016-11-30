@@ -76,6 +76,7 @@ typedef struct ffmp4 {
 enum FFMP4_CODEC {
 	FFMP4_ALAC = 1,
 	FFMP4_AAC,
+	FFMP4_MPEG1,
 };
 
 enum FFMP4_R {

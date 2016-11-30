@@ -17,6 +17,7 @@ enum MP4_E {
 	MP4_EDUPBOX,
 	MP4_ENOREQ,
 	MP4_ENOFMT,
+	MP4_EACODEC,
 	MP4_ENFRAMES,
 	MP4_ECO64,
 };
@@ -123,6 +124,7 @@ uint mp4_asamp_write(char *dst, const ffpcm *fmt);
 
 enum ESDS_DEC_TYPE {
 	DEC_MPEG4_AUDIO = 0x40,
+	DEC_MPEG1_AUDIO = 0x6b,
 };
 struct mp4_esds {
 	uint type; //enum ESDS_DEC_TYPE

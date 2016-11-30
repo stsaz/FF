@@ -26,6 +26,7 @@ static const char *const mp4_errs[] = {
 	"duplicate box",
 	"mandatory box not found",
 	"no audio format info",
+	"unsupported audio codec",
 	"trying to add more frames than expected",
 	"co64 output isn't supported",
 };
@@ -75,7 +76,7 @@ static uint64 mp4_data(const uint64 *chunks, const struct seekpt *sk, uint isamp
 
 
 static const char* const codecs[] = {
-	"unknown codec", "ALAC", "AAC"
+	"unknown codec", "ALAC", "AAC", "MPEG-1"
 };
 
 const char* ffmp4_codec(int codec)
@@ -456,8 +457,17 @@ int ffmp4_read(ffmp4 *m)
 		if (r < 0)
 			return ERR(m, -r);
 
-		if (esds.type != DEC_MPEG4_AUDIO)
-			return ERR(m, MP4_EDATA);
+		switch (esds.type) {
+		case DEC_MPEG4_AUDIO:
+			m->codec = FFMP4_AAC;
+			break;
+		case DEC_MPEG1_AUDIO:
+			m->codec = FFMP4_MPEG1;
+			break;
+		}
+
+		if (m->codec == 0)
+			return ERR(m, MP4_EACODEC);
 
 		if (m->codec_conf.len != 0)
 			break;
@@ -465,7 +475,6 @@ int ffmp4_read(ffmp4 *m)
 			return ERR(m, MP4_ESYS);
 
 		m->aac_brate = esds.avg_brate;
-		m->codec = FFMP4_AAC;
 		break;
 	}
 
