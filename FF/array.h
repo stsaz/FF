@@ -369,12 +369,13 @@ static FFINL size_t ffstr_cat(ffstr *s, size_t cap, const char *d, size_t len) {
 	return ffarr2_add((ffarr2*)s, cap, d, len, sizeof(char));
 }
 
-static FFINL char * ffstr_copy(ffstr *s, const char *d, size_t len) {
+static FFINL char* ffstr_dup(ffstr *s, const char *d, size_t len) {
 	if (NULL == ffstr_alloc(s, len))
 		return NULL;
 	ffstr_cat(s, len, d, len);
 	return s->ptr;
 }
+#define ffstr_copy(dst, d, len)  ffstr_dup(dst, d, len)
 
 #define ffstr_alcopyz(dst, sz)  ffstr_copy(dst, sz, ffsz_len(sz))
 #define ffstr_alcopystr(dst, src)  ffstr_copy(dst, (src)->ptr, (src)->len)

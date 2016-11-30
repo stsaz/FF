@@ -19,6 +19,12 @@ FF_EXTN const uint ffcharmask_name[8];
 /** non-whitespace ANSI */
 FF_EXTN const uint ffcharmask_nowhite[8];
 
+/** All printable */
+FF_EXTN const uint ffcharmask_printable[8];
+
+/** All except '\\' \a \b \f \n \r \t \v */
+FF_EXTN const uint ffcharmask_nobslash_esc[8];
+
 #define ffchar_lower(ch)  ((ch) | 0x20)
 #define ffchar_upper(ch)  ((ch) & ~0x20)
 #define ffchar_tonum(ch)  ((ch) - '0')
@@ -201,6 +207,10 @@ FF_EXTN char * ffs_skipof(const char *buf, size_t len, const char *anyof, size_t
 FF_EXTN char * ffs_rskip(const char *buf, size_t len, int ch);
 
 FF_EXTN char * ffs_rskipof(const char *buf, size_t len, const char *anyof, size_t cnt);
+
+/** Skip characters by mask.
+@mask: uint[8] */
+FF_EXTN char* ffs_skip_mask(const char *buf, size_t len, const uint *mask);
 
 /** Search a string in array using operations with type int64.
 Return -1 if not found. */
@@ -465,6 +475,9 @@ enum FFS_INT {
 Return the number of chars processed.
 Return 0 on error. */
 FF_EXTN uint ffs_toint(const char *src, size_t len, void *dst, int flags);
+
+#define ffs_toint32(src, len, dst, flags) \
+	ffs_toint(src, len, dst, FFS_INT32 | (flags))
 
 enum { FFINT_MAXCHARS = FFSLEN("18446744073709551615") };
 

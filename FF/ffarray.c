@@ -225,6 +225,8 @@ int ffbuf_gather(ffarr *buf, struct ffbuf_gather *d)
 
 	case I_INPUTDATA:
 		ffarr_free(buf);
+		if (d->data.len == 0)
+			return FFBUF_MORE;
 		ffarr_set(buf, d->data.ptr, d->data.len);
 		d->state = I_CHK;
 		return FFBUF_READY;

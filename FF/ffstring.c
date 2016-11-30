@@ -252,6 +252,15 @@ char * ffs_rskipof(const char *buf, size_t len, const char *anyof, size_t cnt)
 	return (char*)end;
 }
 
+char* ffs_skip_mask(const char *buf, size_t len, const uint *mask)
+{
+	for (size_t i = 0;  i != len;  i++) {
+		if (!ffbit_testarr(mask, (byte)buf[i]))
+			return (char*)buf + i;
+	}
+	return (char*)buf + len;
+}
+
 
 static const int64 ff_intmasks[9] = {
 	0
@@ -510,6 +519,35 @@ const uint ffcharmask_nowhite[] = {
 	0,
 	0,
 	0
+};
+
+const uint ffcharmask_printable[] = {
+	0,
+	            // ?>=< ;:98 7654 3210  /.-, +*)( '&%$ #"!
+	0xffffffff, // 1111 1111 1111 1111  1111 1111 1111 1111
+	            // _^]\ [ZYX WVUT SRQP  ONML KJIH GFED CBA@
+	0xffffffff, // 1111 1111 1111 1111  1111 1111 1111 1111
+	            //  ~}| {zyx wvut srqp  onml kjih gfed cba`
+	0x7fffffff, // 0111 1111 1111 1111  1111 1111 1111 1111
+	0xffffffff,
+	0xffffffff,
+	0xffffffff,
+	0xffffffff
+};
+
+const uint ffcharmask_nobslash_esc[] = {
+	            // .... .... .... ....  ..rf vntb a... ....
+	0xffffc07f, // 1111 1111 1111 1111  1100 0000 0111 1111
+	            // ?>=< ;:98 7654 3210  /.-, +*)( '&%$ #"!
+	0xffffffff, // 1111 1111 1111 1111  1111 1111 1111 1111
+	            // _^]\ [ZYX WVUT SRQP  ONML KJIH GFED CBA@
+	0xefffffff, // 1110 1111 1111 1111  1111 1111 1111 1111
+	            //  ~}| {zyx wvut srqp  onml kjih gfed cba`
+	0xffffffff, // 1111 1111 1111 1111  1111 1111 1111 1111
+	0xffffffff,
+	0xffffffff,
+	0xffffffff,
+	0xffffffff
 };
 
 // allow all except '\\' and non-printable
