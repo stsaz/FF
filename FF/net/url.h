@@ -95,8 +95,9 @@ FF_EXTN ssize_t ffuri_escape(char *dst, size_t cap, const char *s, size_t len, u
 Return scheme length on success. */
 static FFINL uint ffuri_scheme(const char *s, size_t len)
 {
-	ffstr scheme = {0};
-	ffs_fmatch(s, len, "%S://", &scheme);
+	ffstr scheme;
+	if (0 >= (ssize_t)ffs_fmatch(s, len, "%S://", &scheme))
+		return 0;
 	return scheme.len;
 }
 
