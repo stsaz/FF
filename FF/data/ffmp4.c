@@ -937,7 +937,9 @@ next:
 			|| NULL == ffarr_alloc(&m->stco, mp4_stco_size(BOX_STCO, 0)))
 			return ERR(m, MP4_ESYS);
 		ffmem_zero(m->stsz.ptr, m->stsz.cap);
+		m->stsz.len = m->stsz.cap;
 		ffmem_zero(m->stco.ptr, m->stco.cap);
+		m->stco.len = m->stco.cap;
 
 		m->state = W_STM_DATA;
 		m->mp4_size += m->buf.len;
