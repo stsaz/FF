@@ -170,6 +170,8 @@ int ffopus_create(ffopus_enc *o, const ffpcm *fmt, int bitrate)
 	if (o->packet_dur == 0)
 		o->packet_dur = 40;
 	o->channels = fmt->channels;
+	o->sample_rate = fmt->sample_rate;
+	o->bitrate = bitrate;
 	return 0;
 }
 
@@ -178,6 +180,11 @@ void ffopus_enc_close(ffopus_enc *o)
 	ffarr_free(&o->buf);
 	ffarr_free(&o->bufpcm);
 	opus_encode_free(o->enc);
+}
+
+uint64 ffopus_enc_size(ffopus_enc *o, uint64 total_samples)
+{
+	return (total_samples / o->sample_rate + 1) * (o->bitrate / 8);
 }
 
 /** Get complete packet with Vorbis comments and padding. */

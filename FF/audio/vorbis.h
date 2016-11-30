@@ -87,6 +87,8 @@ typedef struct ffvorbis_enc {
 	uint state;
 	vorbis_ctx *vctx;
 	uint channels;
+	uint sample_rate;
+	uint quality;
 	int err;
 	ffstr pkt_hdr;
 	ffstr pkt_book;
@@ -115,6 +117,9 @@ FF_EXTN void ffvorbis_enc_close(ffvorbis_enc *v);
 
 /** Get bitrate from quality. */
 FF_EXTN uint ffvorbis_enc_bitrate(ffvorbis_enc *v, int qual);
+
+/** Get approximate output file size. */
+FF_EXTN uint64 ffvorbis_enc_size(ffvorbis_enc *v, uint64 total_samples);
 
 /**
 Return enum FFVORBIS_R. */

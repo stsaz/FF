@@ -73,6 +73,8 @@ typedef struct ffopus_enc {
 	uint state;
 	opus_ctx *enc;
 	uint orig_sample_rate;
+	uint bitrate;
+	uint sample_rate;
 	uint channels;
 	uint complexity;
 	uint bandwidth;
@@ -103,6 +105,9 @@ FF_EXTN void ffopus_enc_close(ffopus_enc *o);
 /** Add vorbis tag. */
 #define ffopus_addtag(o, name, val, val_len) \
 	ffvorbtag_add(&(o)->vtag, name, val, val_len)
+
+/** Get approximate output file size. */
+FF_EXTN uint64 ffopus_enc_size(ffopus_enc *o, uint64 total_samples);
 
 /**
 Return enum FFVORBIS_R. */

@@ -227,6 +227,8 @@ int ffvorbis_create(ffvorbis_enc *v, const ffpcm *fmt, int quality)
 	ffvorbtag_add(&v->vtag, NULL, vendor, ffsz_len(vendor));
 
 	v->channels = fmt->channels;
+	v->sample_rate = fmt->sample_rate;
+	v->quality = quality;
 	ffstr_set(&v->pkt_hdr, pkt[0].packet, pkt[0].bytes);
 	ffstr_set(&v->pkt_book, pkt[1].packet, pkt[1].bytes);
 	v->min_tagsize = 1000;
@@ -247,6 +249,11 @@ uint ffvorbis_enc_bitrate(ffvorbis_enc *v, int quality)
 {
 	uint q = quality / 10 + 1;
 	return _ffvorbis_brates[q] * 1000 * v->channels;
+}
+
+uint64 ffvorbis_enc_size(ffvorbis_enc *v, uint64 total_samples)
+{
+	return (total_samples / v->sample_rate + 1) * (ffvorbis_enc_bitrate(v, v->quality) / 8);
 }
 
 /** Get complete packet with Vorbis comments and padding. */
