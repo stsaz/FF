@@ -352,7 +352,10 @@ int ffpcm_convert(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm, const 
 
 		} else if (inpcm->channels == 1) {
 			if (in_ileaved) {
-				from.pb = pcm_setni(ini, from.b, inpcm->format, nch);
+				for (uint i = 0;  i != nch;  i++) {
+					ini[i] = from.b;
+				}
+				from.pb = (void*)ini;
 				in_ileaved = 0;
 			} else if (samples != 0) {
 				for (uint i = 0;  i != nch;  i++) {
