@@ -340,7 +340,7 @@ static int _ffmpg_frame(ffmpg *m, ffarr *buf)
 			d.off = (char*)h - buf->ptr + 1;
 		}
 	}
-	m->off += d.data.len - m->datalen;
+	m->off += m->datalen - d.data.len;
 	m->data = d.data.ptr;
 	m->datalen = d.data.len;
 
@@ -354,6 +354,7 @@ body:
 		return FFMPG_RERR;
 	} else if (r == 0) {
 		m->fr_body = 1;
+		m->off += m->datalen;
 		return FFMPG_RMORE;
 	}
 	FFARR_SHIFT(m->data, m->datalen, r);
