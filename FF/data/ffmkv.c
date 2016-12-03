@@ -558,7 +558,7 @@ int ffmkv_read(ffmkv *m)
 
 
 		case T_TIME:
-			m->nsamples = val4;
+			m->time_clust = val4;
 			break;
 
 		case T_BLOCK:
@@ -579,11 +579,16 @@ int ffmkv_read(ffmkv *m)
 			if (m->gbuf.len < 3)
 				return ERR(m, MKV_ESMALL);
 			sblk.time = ffint_ntoh16(m->gbuf.ptr);
-			sblk.flags = m->gbuf.ptr[2];
+			sblk.flags = (byte)m->gbuf.ptr[2];
 			ffarr_shift(&m->gbuf, 3);
+
+			FFDBG_PRINTLN(10, "block: track:%U  time:%u (cluster:%u)  flags:%xu"
+				, sblk.trackno, sblk.time, m->time_clust, sblk.flags);
 
 			if (sblk.flags & 0x60)
 				return ERR(m, MKV_ELACING);
+
+			m->nsamples = ffpcm_samples((uint64)(m->time_clust + sblk.time) * m->info.scale / 1000000, m->info.sample_rate);
 
 			m->state = R_SKIP;
 			ffstr_set2(&m->out, &m->gbuf);

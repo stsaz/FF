@@ -61,8 +61,8 @@ typedef struct ffmkv {
 		int type;
 	} info;
 	int audio_trkno;
-	uint blocksize;
 	uint64 nsamples;
+	uint time_clust;
 	ffstr codec_data;
 
 	int tag;
@@ -90,7 +90,7 @@ FF_EXTN void ffmkv_close(ffmkv *m);
 
 FF_EXTN int ffmkv_read(ffmkv *m);
 
-#define ffmkv_cursample(m)  ((m)->nsamples - (m)->blocksize)
+#define ffmkv_cursample(m)  ((m)->nsamples)
 
 
 typedef struct ffmkv_vorbis {
