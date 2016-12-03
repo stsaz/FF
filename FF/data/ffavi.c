@@ -92,6 +92,7 @@ static int avi_strf(struct ffavi_audio_info *ai, const char *data, size_t len)
 enum {
 	T_UKN,
 	T_ANY,
+	T_AVI,
 	T_STRH,
 	T_STRF,
 	T_INFO,
@@ -179,7 +180,7 @@ static const ffavi_bchunk avi_ctx_global[] = {
 	{ "RIFF", T_ANY | MINSIZE(4) | F_LIST | F_LAST, avi_ctx_riff },
 };
 static const ffavi_bchunk avi_ctx_riff[] = {
-	{ "AVI ", T_ANY | F_LAST, avi_ctx_avi },
+	{ "AVI ", T_AVI | F_LAST, avi_ctx_avi },
 };
 static const ffavi_bchunk avi_ctx_avi[] = {
 	{ "LIST", T_ANY | MINSIZE(4) | F_LIST | F_LAST, avi_ctx_avi_list },
@@ -312,11 +313,11 @@ int ffavi_read(ffavi *a)
 			struct ffavi_chunk *parent = &a->chunks[a->ictx - 1];
 			if (parent->size == 0) {
 				a->ctx[a->ictx--] = NULL;
+				switch (parent->id) {
+				case T_AVI:
+					return FFAVI_RDONE;
+				}
 			}
-		}
-
-		if (a->ictx == 0 && (a->ctx[a->ictx]->flags & F_LAST)) {
-			return FFAVI_RDONE;
 		}
 
 		// break

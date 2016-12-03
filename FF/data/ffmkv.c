@@ -61,6 +61,7 @@ enum MKV_ELID {
 	T_UKN = -1,
 	T_ANY,
 
+	T_SEG,
 	T_VER,
 	T_DOCTYPE, //MKV_ID
 	T_TRACKS,
@@ -188,7 +189,7 @@ static const mkv_bel mkv_ctx_cluster[];
 
 static const mkv_bel mkv_ctx_global[] = {
 	{ 0x1A45DFA3, F_REQ, mkv_ctx_head },
-	{ 0x18538067, F_REQ | F_LAST, mkv_ctx_segment },
+	{ 0x18538067, T_SEG | F_REQ | F_LAST, mkv_ctx_segment },
 };
 
 static const mkv_bel mkv_ctx_head[] = {
@@ -352,19 +353,24 @@ int ffmkv_read(ffmkv *m)
 			if (parent->size == 0) {
 				m->ctxs[m->ictx--] = NULL;
 
-				if (parent->id == T_TRACKS) {
+				switch (parent->id) {
+				case T_SEG:
+					return FFMKV_RDONE;
+
+				case T_TRACKS:
 					if (m->info.scale == 0)
 						m->info.scale = 1000000;
-					m->info.total_samples = ffpcm_samples(m->info.dur * m->info.scale / 1000000, m->info.sample_rate);
+					m->info.total_samples = ffpcm_samples((double)m->info.dur * m->info.scale / 1000000, m->info.sample_rate);
 					return FFMKV_RHDR;
 
-				} else if (parent->id == T_TRKENT) {
+				case T_TRKENT:
 					if (m->info.type == MKV_TRK_AUDIO) {
 						m->audio_trkno = m->info.num;
 						ffstr_acq(&m->info.asc, &m->codec_data);
 					}
+					break;
 
-				} else if (parent->id == T_TAG) {
+				case T_TAG:
 					return FFMKV_RTAG;
 				}
 
@@ -373,11 +379,6 @@ int ffmkv_read(ffmkv *m)
 		}
 
 		m->state = R_ELID1;
-
-		if (m->ictx == 0 && (m->ctxs[m->ictx]->flags & F_LAST)) {
-			return FFMKV_RDONE;
-		}
-
 		continue;
 	}
 
