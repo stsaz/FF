@@ -43,6 +43,48 @@ static int mkv_varint(const void *data, size_t len, uint64 *dst)
 	return size;
 }
 
+static int mkv_int_ntoh(uint64 *dst, const char *d, size_t len)
+{
+	switch (len) {
+	case 1:
+		*dst = *(byte*)d; break;
+	case 2:
+		*dst = ffint_ntoh16(d); break;
+	case 3:
+		*dst = ffint_ntoh24(d); break;
+	case 4:
+		*dst = ffint_ntoh32(d); break;
+	case 8:
+		*dst = ffint_ntoh64(d); break;
+	default:
+		return -1;
+	}
+	return 0;
+}
+
+static int mkv_flt_ntoh(double *dst, const char *d, size_t len)
+{
+	union {
+		uint u;
+		uint64 u8;
+		float f;
+		double d;
+	} u;
+
+	switch (len) {
+	case 4:
+		u.u = ffint_ntoh32(d);
+		*dst = u.f;
+		break;
+	case 8:
+		u.u8 = ffint_ntoh64(d);
+		*dst = u.d;
+		break;
+	default:
+		return -1;
+	}
+	return 0;
+}
 
 #define MKV_ID  "matroska"
 
@@ -56,6 +98,27 @@ enum MKV_TRKTYPE {
 #define MKV_A_AAC  "A_AAC"
 #define MKV_A_VORBIS  "A_VORBIS"
 #define MKV_A_PCM  "A_PCM/INT/LIT"
+
+static int mkv_codec(const ffstr *name)
+{
+	int r = 0;
+
+	if (ffstr_eqcz(name, MKV_A_ALAC))
+		r = FFMKV_AUDIO_ALAC;
+	else if (ffstr_eqcz(name, MKV_A_VORBIS))
+		r = FFMKV_AUDIO_VORBIS;
+
+	else if (ffstr_match(name, MKV_A_AAC, FFSLEN(MKV_A_AAC)))
+		r = FFMKV_AUDIO_AAC;
+	else if (ffstr_match(name, MKV_A_MPEG, FFSLEN(MKV_A_MPEG)))
+		r = FFMKV_AUDIO_MPEG;
+
+	return r;
+}
+
+enum {
+	MKV_MASK_ELID = 0x000000ff,
+};
 
 enum MKV_ELID {
 	T_UKN = -1,
@@ -81,6 +144,7 @@ enum MKV_ELID {
 	T_TAG_VAL,
 	T_TAG_BVAL,
 
+	T_CLUST,
 	T_TIME,
 	T_BLOCK,
 	T_SBLOCK,
@@ -93,16 +157,24 @@ enum MKV_FLAGS {
 	F_WHOLE = 0x0800,
 	F_REQ = 0x1000,
 	F_MULTI = 0x2000,
+	F_INT8 = 0x4000,
 };
 
 #define DEF(n)  (0)
+
+/** Priority, strict order of elements.
+0: unspecified
+1: highest priority
+>1: require previous element with lower number */
+#define PRIOTY(n)  ((n) << 24)
+#define GET_PRIO(flags)  ((flags & 0xff000000) >> 24)
 
 typedef struct mkv_el mkv_el;
 
 typedef struct mkv_bel mkv_bel;
 struct mkv_bel {
 	uint id;
-	uint flags;
+	uint flags; //PRIO FLAGS ID
 	const mkv_bel *ctx;
 };
 
@@ -122,7 +194,7 @@ static int mkv_el_find(const mkv_bel *ctx, uint id)
 	return -1;
 }
 
-static int mkv_el_info(mkv_el *el, const mkv_bel *ctx, const void *data, uint level)
+static int mkv_el_info(mkv_el *el, const mkv_bel *ctx, const void *data, uint level, uint64 off)
 {
 	uint64 id;
 	int r = mkv_varint(data, -1, &id);
@@ -135,19 +207,19 @@ static int mkv_el_info(mkv_el *el, const mkv_bel *ctx, const void *data, uint le
 
 	r = mkv_el_find(ctx, (uint)id);
 	if (r >= 0) {
-		el->id = ctx[r].flags & 0xff;
-		el->flags = ctx[r].flags & 0xffffff00;
+		el->id = ctx[r].flags & MKV_MASK_ELID;
+		el->flags = ctx[r].flags & ~MKV_MASK_ELID;
 		el->ctx = ctx[r].ctx;
 	}
 
-	FFDBG_PRINTLN(10, "%*c%xu  size:%u  %s"
-		, level, ' ', (uint)id, el->size, (r < 0) ? "unsupported" : "");
-	return 0;
+	FFDBG_PRINTLN(10, "%*c%xu  size:%u  offset:%xU  %s"
+		, (size_t)level, ' ', (uint)id, el->size, off, (r < 0) ? "unsupported" : "");
+	return r;
 }
 
 /* Supported elements:
 
-EBMLHead (0x1A45DFA3)
+EBMLHead (0x1a45dfa3)
  EBMLVersion (0x4286)
  EBMLDoocType (0x4282)
 Segment (0x18538067)
@@ -188,8 +260,8 @@ static const mkv_bel mkv_ctx_tag_simple[];
 static const mkv_bel mkv_ctx_cluster[];
 
 static const mkv_bel mkv_ctx_global[] = {
-	{ 0x1A45DFA3, F_REQ, mkv_ctx_head },
-	{ 0x18538067, T_SEG | F_REQ | F_LAST, mkv_ctx_segment },
+	{ 0x1A45DFA3, F_REQ | PRIOTY(1), mkv_ctx_head },
+	{ 0x18538067, T_SEG | F_REQ | PRIOTY(2) | F_LAST, mkv_ctx_segment },
 };
 
 static const mkv_bel mkv_ctx_head[] = {
@@ -198,10 +270,10 @@ static const mkv_bel mkv_ctx_head[] = {
 };
 
 static const mkv_bel mkv_ctx_segment[] = {
-	{ 0x1549a966, 0, mkv_ctx_info },
-	{ 0x1654ae6b, T_TRACKS | F_REQ, mkv_ctx_tracks },
+	{ 0x1549a966, 0 | PRIOTY(1), mkv_ctx_info },
+	{ 0x1654ae6b, T_TRACKS | F_REQ | PRIOTY(2), mkv_ctx_tracks },
 	{ 0x1254c367, 0, mkv_ctx_tags },
-	{ 0x1f43b675, F_MULTI | F_LAST, mkv_ctx_cluster },
+	{ 0x1f43b675, T_CLUST | F_MULTI | PRIOTY(3) | F_LAST, mkv_ctx_cluster },
 };
 
 static const mkv_bel mkv_ctx_info[] = {
@@ -210,9 +282,8 @@ static const mkv_bel mkv_ctx_info[] = {
 };
 
 static const mkv_bel mkv_ctx_tracks[] = {
-	{ 0xae, T_TRKENT | F_LAST, mkv_ctx_trackentry },
+	{ 0xae, T_TRKENT | F_MULTI | F_LAST, mkv_ctx_trackentry },
 };
-
 static const mkv_bel mkv_ctx_trackentry[] = {
 	{ 0xd7, T_TRKNO | F_INT, NULL },
 	{ 0x83, T_TRKTYPE | F_INT, NULL },
@@ -220,7 +291,6 @@ static const mkv_bel mkv_ctx_trackentry[] = {
 	{ 0x63a2, T_CODEC_PRIV | F_WHOLE, NULL },
 	{ 0xe1, F_LAST, mkv_ctx_trackentry_audio },
 };
-
 static const mkv_bel mkv_ctx_trackentry_audio[] = {
 	{ 0xb5, T_A_RATE | F_FLT, NULL },
 	{ 0x9f, T_A_CHANNELS | F_INT, NULL },
@@ -228,13 +298,11 @@ static const mkv_bel mkv_ctx_trackentry_audio[] = {
 };
 
 static const mkv_bel mkv_ctx_tags[] = {
-	{ 0x7373, T_TAG | F_LAST, mkv_ctx_tag },
+	{ 0x7373, T_TAG | F_MULTI | F_LAST, mkv_ctx_tag },
 };
-
 static const mkv_bel mkv_ctx_tag[] = {
-	{ 0x67c8, F_LAST, mkv_ctx_tag_simple },
+	{ 0x67c8, F_MULTI | F_LAST, mkv_ctx_tag_simple },
 };
-
 static const mkv_bel mkv_ctx_tag_simple[] = {
 	{ 0x45a3, T_TAG_NAME | F_WHOLE, NULL },
 	{ 0x4487, T_TAG_VAL | F_WHOLE, NULL },
@@ -242,9 +310,9 @@ static const mkv_bel mkv_ctx_tag_simple[] = {
 };
 
 static const mkv_bel mkv_ctx_cluster[] = {
-	{ 0xe7, T_TIME | F_INT, NULL },
-	{ 0xa1, T_BLOCK | F_WHOLE, NULL },
-	{ 0xa3, T_SBLOCK | F_WHOLE | F_LAST, NULL },
+	{ 0xe7, T_TIME | F_INT | F_REQ | PRIOTY(1), NULL },
+	{ 0xa1, T_BLOCK | F_MULTI | F_WHOLE | PRIOTY(2), NULL },
+	{ 0xa3, T_SBLOCK | F_MULTI | F_WHOLE | PRIOTY(2) | F_LAST, NULL },
 };
 
 
@@ -255,8 +323,10 @@ enum MKV_E {
 	MKV_EDOCTYPE,
 	MKV_EINTVAL,
 	MKV_EFLTVAL,
+	MKV_EDUPEL,
 	MKV_ELARGE,
 	MKV_ESMALL,
+	MKV_EORDER,
 	MKV_ELACING,
 	MKV_EVORBISHDR,
 
@@ -271,8 +341,10 @@ static const char* const mkv_errstr[] = {
 	"unsupported EBML doctype",
 	"bad integer",
 	"bad float number",
+	"duplicate element",
 	"too large element",
 	"too small element",
+	"unsupported order of elements",
 	"lacing isn't supported",
 	"bad Vorbis codec private data",
 };
@@ -289,14 +361,15 @@ const char* ffmkv_errstr(ffmkv *m)
 
 enum {
 	R_ELID1, R_ELSIZE1, R_ELSIZE, R_EL,
-	R_NEXTCHUNK, R_SKIP_PARENT, R_SKIP, R_GATHER,
+	R_NEXTCHUNK, R_SKIP, R_GATHER,
 };
 
 int ffmkv_open(ffmkv *m)
 {
 	m->info.type = -1;
 	m->info.num = -1;
-	m->ctxs[m->ictx] = mkv_ctx_global;
+	m->els[m->ictx].size = (uint64)-1;
+	m->els[m->ictx].ctx = mkv_ctx_global;
 	m->state = R_ELID1;
 	return 0;
 }
@@ -308,10 +381,21 @@ void ffmkv_close(ffmkv *m)
 	ffstr_free(&m->codec_data);
 }
 
-/*
+/** Convert audio time units to samples. */
+static uint64 mkv_units_samples(ffmkv *m, uint64 units)
+{
+	return ffpcm_samples(units * m->info.scale / 1000000, m->info.sample_rate);
+}
+
+void ffmkv_seek(ffmkv *m, uint64 sample)
+{
+}
+
+/* MKV read algorithm:
 . gather data for element id
 . gather data for element size
 . process element:
+ . search element within the current context
  . skip if unknown
  . or gather its data and convert (string -> int/float) if needed
 */
@@ -321,15 +405,6 @@ int ffmkv_read(ffmkv *m)
 
 	for (;;) {
 	switch (m->state) {
-
-	case R_SKIP_PARENT: {
-		mkv_el *el = &m->els[m->ictx];
-		m->ctxs[m->ictx--] = NULL;
-		mkv_el *parent = &m->els[m->ictx];
-		parent->size += el->size;
-		m->state = R_SKIP;
-		// break
-	}
 
 	case R_SKIP: {
 		mkv_el *el = &m->els[m->ictx];
@@ -345,37 +420,35 @@ int ffmkv_read(ffmkv *m)
 	}
 
 	case R_NEXTCHUNK: {
-		// mkv_el *el = &m->els[m->ictx];
+		mkv_el *el = &m->els[m->ictx];
 
-		if (m->ictx >= 1) {
-			mkv_el *parent = &m->els[m->ictx - 1];
+		if (el->size == 0) {
+			uint id = el->id;
+			ffmem_tzero(el);
+			m->ictx--;
 
-			if (parent->size == 0) {
-				m->ctxs[m->ictx--] = NULL;
+			switch (id) {
+			case T_SEG:
+				return FFMKV_RDONE;
 
-				switch (parent->id) {
-				case T_SEG:
-					return FFMKV_RDONE;
+			case T_TRACKS:
+				if (m->info.scale == 0)
+					m->info.scale = 1000000;
+				m->info.total_samples = ffpcm_samples((double)m->info.dur * m->info.scale / 1000000, m->info.sample_rate);
+				break;
 
-				case T_TRACKS:
-					if (m->info.scale == 0)
-						m->info.scale = 1000000;
-					m->info.total_samples = ffpcm_samples((double)m->info.dur * m->info.scale / 1000000, m->info.sample_rate);
-					return FFMKV_RHDR;
-
-				case T_TRKENT:
-					if (m->info.type == MKV_TRK_AUDIO) {
-						m->audio_trkno = m->info.num;
-						ffstr_acq(&m->info.asc, &m->codec_data);
-					}
-					break;
-
-				case T_TAG:
-					return FFMKV_RTAG;
+			case T_TRKENT:
+				if (m->info.type == MKV_TRK_AUDIO) {
+					m->audio_trkno = m->info.num;
+					ffstr_acq(&m->info.asc, &m->codec_data);
 				}
+				break;
 
-				continue;
+			case T_TAG:
+				return FFMKV_RTAG;
 			}
+
+			continue;
 		}
 
 		m->state = R_ELID1;
@@ -384,12 +457,13 @@ int ffmkv_read(ffmkv *m)
 
 	case R_GATHER:
 		r = ffarr_append_until(&m->buf, m->data.ptr, m->data.len, m->gsize);
-		if (r == 0)
+		if (r == 0) {
+			m->off += m->data.len;
 			return FFMKV_RMORE;
-		else if (r == -1)
+		} else if (r == -1)
 			return ERR(m, MKV_ESYS);
 		ffarr_shift(&m->data, r);
-		m->off += m->gsize;
+		m->off += r;
 		ffstr_set2(&m->gbuf, &m->buf);
 		m->buf.len = 0;
 		m->state = m->gstate;
@@ -422,23 +496,34 @@ int ffmkv_read(ffmkv *m)
 		// break
 
 	case R_ELSIZE: {
+		mkv_el *parent = &m->els[m->ictx];
+		FF_ASSERT(m->ictx != FFCNT(m->els));
+		m->ictx++;
 		mkv_el *el = &m->els[m->ictx];
-		const mkv_bel *ctx = m->ctxs[m->ictx];
-		mkv_el_info(el, ctx, m->gbuf.ptr, m->ictx);
+		m->el_off = m->off - m->gbuf.len;
+		int r = mkv_el_info(el, parent->ctx, m->gbuf.ptr, m->ictx - 1, m->el_off);
 
-		if (m->ictx != 0) {
-			mkv_el *parent = &m->els[m->ictx - 1];
-			if (m->el_hdrsize + el->size > parent->size)
-				return ERR(m, MKV_ELARGE);
-			parent->size -= m->el_hdrsize + el->size;
-		}
+		if (m->el_hdrsize + el->size > parent->size)
+			return ERR(m, MKV_ELARGE);
+		parent->size -= m->el_hdrsize + el->size;
 
 		if (el->id == T_UKN) {
 			m->state = R_SKIP;
 			continue;
 		}
 
-		if (el->flags & (F_WHOLE | F_INT | F_FLT)) {
+		if ((uint)r < 32 && ffbit_set32(&parent->usemask, r)
+			&& !(el->flags & F_MULTI))
+			return ERR(m, MKV_EDUPEL);
+
+		uint prio = GET_PRIO(el->flags);
+		if (prio != 0) {
+			if (prio > parent->prio + 1)
+				return ERR(m, MKV_EORDER);
+			parent->prio = prio;
+		}
+
+		if (el->flags & (F_WHOLE | F_INT | F_INT8 | F_FLT)) {
 			m->gsize = el->size;
 			el->size = 0;
 			m->state = R_GATHER,  m->gstate = R_EL;
@@ -451,41 +536,23 @@ int ffmkv_read(ffmkv *m)
 	}
 
 	case R_EL: {
-		int val4;
-		uint64 val;
-		double fval;
+		int val4 = 0;
+		uint64 val = 0;
+		double fval = 0;
 		mkv_el *el = &m->els[m->ictx];
 
-		if (el->flags & F_INT) {
-			if (m->gbuf.len == 1)
-				val = *(byte*)m->gbuf.ptr;
-			else if (m->gbuf.len == 2)
-				val = ffint_ntoh16(m->gbuf.ptr);
-			else if (m->gbuf.len == 3)
-				val = ffint_ntoh24(m->gbuf.ptr);
-			else if (m->gbuf.len == 4)
-				val = ffint_ntoh32(m->gbuf.ptr);
-			else if (m->gbuf.len == 8)
-				val = ffint_ntoh64(m->gbuf.ptr);
-			else
+		if (el->flags & (F_INT | F_INT8)) {
+			if (0 != mkv_int_ntoh(&val, m->gbuf.ptr, m->gbuf.len))
 				return ERR(m, MKV_EINTVAL);
+
+			if ((el->flags & F_INT) && val > 0xffffffff)
+				return ERR(m, MKV_EINTVAL);
+
 			val4 = val;
 		}
 
 		if (el->flags & F_FLT) {
-			union {
-				uint u;
-				uint64 u8;
-				float f;
-				double d;
-			} u;
-			if (m->gbuf.len == 4) {
-				u.u = ffint_ntoh32(m->gbuf.ptr);
-				fval = u.f;
-			} else if (m->gbuf.len == 8) {
-				u.u8 = ffint_ntoh64(m->gbuf.ptr);
-				fval = u.d;
-			} else
+			if (0 != mkv_flt_ntoh(&fval, m->gbuf.ptr, m->gbuf.len))
 				return ERR(m, MKV_EFLTVAL);
 		}
 
@@ -500,6 +567,10 @@ int ffmkv_read(ffmkv *m)
 				return ERR(m, MKV_EDOCTYPE);
 			break;
 
+
+		case T_SEG:
+			m->seg_off = m->off;
+			break;
 
 		case T_SCALE:
 			m->info.scale = val4;
@@ -518,14 +589,8 @@ int ffmkv_read(ffmkv *m)
 			break;
 
 		case T_CODEC_ID:
-			if (ffstr_match(&m->gbuf, MKV_A_AAC, FFSLEN(MKV_A_AAC)))
-				m->info.format = FFMKV_AUDIO_AAC;
-			else if (ffstr_eqcz(&m->gbuf, MKV_A_ALAC))
-				m->info.format = FFMKV_AUDIO_ALAC;
-			else if (ffstr_match(&m->gbuf, MKV_A_MPEG, FFSLEN(MKV_A_MPEG)))
-				m->info.format = FFMKV_AUDIO_MPEG;
-			else if (ffstr_eqcz(&m->gbuf, MKV_A_VORBIS))
-				m->info.format = FFMKV_AUDIO_VORBIS;
+			if (0 != (r = mkv_codec(&m->gbuf)))
+				m->info.format = r;
 			break;
 
 		case T_CODEC_PRIV:
@@ -557,6 +622,13 @@ int ffmkv_read(ffmkv *m)
 			break;
 
 
+		case T_CLUST:
+			if (m->clust1_off == 0) {
+				m->clust1_off = m->el_off;
+				return FFMKV_RHDR;
+			}
+			break;
+
 		case T_TIME:
 			m->time_clust = val4;
 			break;
@@ -573,9 +645,6 @@ int ffmkv_read(ffmkv *m)
 				return ERR(m, MKV_EINTVAL);
 			ffarr_shift(&m->gbuf, r);
 
-			if (sblk.trackno != (uint)m->audio_trkno)
-				break;
-
 			if (m->gbuf.len < 3)
 				return ERR(m, MKV_ESMALL);
 			sblk.time = ffint_ntoh16(m->gbuf.ptr);
@@ -585,10 +654,13 @@ int ffmkv_read(ffmkv *m)
 			FFDBG_PRINTLN(10, "block: track:%U  time:%u (cluster:%u)  flags:%xu"
 				, sblk.trackno, sblk.time, m->time_clust, sblk.flags);
 
+			if (sblk.trackno != (uint)m->audio_trkno)
+				break;
+
 			if (sblk.flags & 0x60)
 				return ERR(m, MKV_ELACING);
 
-			m->nsamples = ffpcm_samples((uint64)(m->time_clust + sblk.time) * m->info.scale / 1000000, m->info.sample_rate);
+			m->nsamples = mkv_units_samples(m, m->time_clust + sblk.time);
 
 			m->state = R_SKIP;
 			ffstr_set2(&m->out, &m->gbuf);
@@ -597,7 +669,6 @@ int ffmkv_read(ffmkv *m)
 		}
 
 		if (el->ctx != NULL) {
-			m->ctxs[++m->ictx] = el->ctx;
 			m->state = R_NEXTCHUNK;
 			continue;
 		}

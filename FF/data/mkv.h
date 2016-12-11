@@ -14,6 +14,8 @@ struct mkv_bel;
 struct mkv_el {
 	int id; //enum MKV_ELID
 	uint flags;
+	uint usemask;
+	uint prio;
 	uint64 size;
 	const struct mkv_bel *ctx;
 };
@@ -36,6 +38,7 @@ typedef struct ffmkv {
 	uint options;
 	uint err;
 	uint el_hdrsize;
+	uint64 el_off;
 
 	uint gstate;
 	uint gsize;
@@ -43,7 +46,6 @@ typedef struct ffmkv {
 	ffstr gbuf;
 
 	struct mkv_el els[6];
-	const struct mkv_bel* ctxs[6];
 	uint ictx;
 
 	struct {
@@ -68,6 +70,8 @@ typedef struct ffmkv {
 	int tag;
 	ffstr tagval;
 
+	uint seg_off;
+	uint clust1_off;
 	ffstr data;
 	ffstr out;
 } ffmkv;
@@ -91,6 +95,10 @@ FF_EXTN void ffmkv_close(ffmkv *m);
 FF_EXTN int ffmkv_read(ffmkv *m);
 
 #define ffmkv_cursample(m)  ((m)->nsamples)
+
+FF_EXTN void ffmkv_seek(ffmkv *m, uint64 sample);
+
+#define ffmkv_seekoff(m)  ((m)->off)
 
 
 typedef struct ffmkv_vorbis {
