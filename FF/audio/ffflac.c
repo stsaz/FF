@@ -867,11 +867,14 @@ int ffflac_encode(ffflac_enc *f)
 	if (r < 0)
 		return f->errtype = FLAC_ELIB,  f->err = r,  FFFLAC_RERR;
 
+	blksize = f->info.minblock;
 	if (r == 0 && f->fin) {
 		samples = 0;
 		r = flac_encode(f->enc, (const int**)f->pcm32, &samples, (char**)&f->data);
 		if (r < 0)
 			return f->errtype = FLAC_ELIB,  f->err = r,  FFFLAC_RERR;
+		blksize = samples;
+		f->state = ENC_SEEK0;
 	}
 
 	FF_ASSERT(r != 0);
@@ -879,12 +882,6 @@ int ffflac_encode(ffflac_enc *f)
 
 	if (f->cap_pcm32 == f->info.minblock + 1)
 		f->cap_pcm32 = f->info.minblock;
-
-	blksize = f->info.minblock;
-	if (f->fin) {
-		blksize = samples;
-		f->state = ENC_SEEK0;
-	}
 
 	f->datalen = r;
 	f->iskpt = flac_seektab_add(f->sktab.ptr, f->sktab.len, f->iskpt, f->nsamps, f->frlen, blksize);
