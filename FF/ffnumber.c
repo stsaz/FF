@@ -71,7 +71,7 @@ static int _ffint_sortfunc(FF_QSORT_PARAMS)
 {
 	const int *i1 = a, *i2 = b;
 	return (*i1 == *i2) ? 0
-		: ((*i1 < *i2) ? -1 : 0);
+		: ((*i1 < *i2) ? -1 : 1);
 }
 
 void ffint_sort(uint *arr, size_t n, uint flags)
