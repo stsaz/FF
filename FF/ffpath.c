@@ -113,7 +113,20 @@ size_t ffpath_norm(char *dst, size_t dstcap, const char *path, size_t len, int f
 	return dst - dsto;
 }
 
-static const char badFilenameChars[] = "*?/\\:\"";
+/** All printable except *, ?, /, \\, :, \", <, >, |. */
+static const uint _ffpath_charmask_filename[] = {
+	0,
+	            // ?>=< ;:98 7654 3210  /.-, +*)( '&%$ #"!
+	0x2bff7bfb, // 0010 1011 1111 1111  0111 1011 1111 1011
+	            // _^]\ [ZYX WVUT SRQP  ONML KJIH GFED CBA@
+	0xefffffff, // 1110 1111 1111 1111  1111 1111 1111 1111
+	            //  ~}| {zyx wvut srqp  onml kjih gfed cba`
+	0x6fffffff, // 0110 1111 1111 1111  1111 1111 1111 1111
+	0xffffffff,
+	0xffffffff,
+	0xffffffff,
+	0xffffffff
+};
 
 size_t ffpath_makefn(char *dst, size_t dstcap, const char *src, size_t len, int repl_with)
 {
@@ -121,11 +134,11 @@ size_t ffpath_makefn(char *dst, size_t dstcap, const char *src, size_t len, int 
 	const char *dsto = dst;
 	const char *end = dst + dstcap;
 
+	const char *pos = ffs_rskip(src, len, ' ');
+	len = pos - src;
+
 	for (i = 0;  i < len && dst != end;  i++) {
-		const char *pos = src + i;
-		if ((byte)src[i] >= ' ') //replace chars 0-32
-			pos = ffs_findof(src + i, 1, badFilenameChars, FFCNT(badFilenameChars));
-		if (pos == src + i)
+		if (!ffbit_testarr(_ffpath_charmask_filename, (byte)src[i]))
 			*dst = (byte)repl_with;
 		else
 			*dst = src[i];

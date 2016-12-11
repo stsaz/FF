@@ -49,7 +49,7 @@ enum FFPATH_FLAGS {
 Return the number of bytes written in 'dst';  0 on error. */
 FF_EXTN size_t ffpath_norm(char *dst, size_t dstcap, const char *path, size_t len, int flags);
 
-/** Replace characters that can not be used in a filename. */
+/** Replace characters that can not be used in a filename.  Trim trailing whitespace. */
 FF_EXTN size_t ffpath_makefn(char *dst, size_t dstcap, const char *src, size_t len, int repl_with);
 
 #if defined FF_UNIX
