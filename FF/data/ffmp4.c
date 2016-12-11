@@ -10,19 +10,21 @@ Copyright (c) 2016 Simon Zolin
 
 static uint64 mp4_data(const uint64 *chunks, const struct seekpt *sk, uint isamp, uint *data_size, uint64 *cursample);
 
-static int mp4_box_parse(ffmp4 *m, struct mp4_box *box, const char *data, uint len);
-static int mp4_fbox_parse(ffmp4 *m, struct mp4_box *box, const char *data);
+static int mp4_box_parse(ffmp4 *m, struct mp4_box *parent, struct mp4_box *box, const char *data, uint len);
+static int mp4_box_process(ffmp4 *m, const ffstr *data);
 static int mp4_box_close(ffmp4 *m, struct mp4_box *box);
 static int mp4_meta_closed(ffmp4 *m);
+
+static uint _ffmp4_boxsize(ffmp4_cook *m, const struct bbox *b);
+static int _ffmp4_boxdata(ffmp4_cook *m, const struct bbox *b);
 
 
 static const char *const mp4_errs[] = {
 	"",
-	"ftyp: missing",
-	"ftyp: unsupported brand",
 	"invalid data",
 	"box is larger than its parent",
 	"too small box",
+	"unsupported order of boxes",
 	"duplicate box",
 	"mandatory box not found",
 	"no audio format info",
@@ -87,7 +89,8 @@ const char* ffmp4_codec(int codec)
 
 void ffmp4_init(ffmp4 *m)
 {
-	m->ctxs[0] = mp4_ctx_global;
+	m->boxes[0].ctx = mp4_ctx_global;
+	m->boxes[0].size = (uint64)-1;
 }
 
 void ffmp4_close(ffmp4 *m)
@@ -109,7 +112,7 @@ uint ffmp4_bitrate(ffmp4 *m)
 
 /**
 Return 0 on success;  -1 if need more data, i.e. sizeof(struct box64). */
-static int mp4_box_parse(ffmp4 *m, struct mp4_box *box, const char *data, uint len)
+static int mp4_box_parse(ffmp4 *m, struct mp4_box *parent, struct mp4_box *box, const char *data, uint len)
 {
 	const struct box *pbox = (void*)data;
 
@@ -124,33 +127,23 @@ static int mp4_box_parse(ffmp4 *m, struct mp4_box *box, const char *data, uint l
 	}
 	box->size = box->osize - len;
 
-	int idx = mp4_box_find(m->ctxs[m->ictx], pbox->type);
+	int idx = mp4_box_find(parent->ctx, pbox->type);
 	if (idx != -1) {
+		const struct bbox *b = &parent->ctx[idx];
 		ffmemcpy(box->name, pbox->type, 4);
-		box->type = m->ctxs[m->ictx][idx].flags;
-		box->ctx = m->ctxs[m->ictx][idx].ctx;
+		box->type = b->flags;
+		box->ctx = b->ctx;
 	}
 
-	FFDBG_PRINTLN(10, "%*c%4s (%U)", (size_t)m->ictx, ' ', pbox->type, box->osize);
+	FFDBG_PRINTLN(10, "%*c%4s  size:%U  offset:%xU"
+		, (size_t)m->ictx, ' ', pbox->type, box->osize, m->off - len);
 
-	struct mp4_box *parent = &m->boxes[m->ictx - 1];
-	if (m->ictx != 0 && box->osize > parent->size)
+	if (box->osize > parent->size)
 		return MP4_ELARGE;
 
-	if (m->ictx != 0 && idx != -1) {
-		if (ffbit_set32(&parent->usedboxes, idx) && !(box->type & F_MULTI))
-			return MP4_EDUPBOX;
-	}
+	if (idx != -1 && ffbit_set32(&parent->usedboxes, idx) && !(box->type & F_MULTI))
+		return MP4_EDUPBOX;
 
-	return 0;
-}
-
-static int mp4_fbox_parse(ffmp4 *m, struct mp4_box *box, const char *data)
-{
-	if (box->size < sizeof(struct fullbox))
-		return MP4_ESMALL;
-
-	box->size -= sizeof(struct fullbox);
 	return 0;
 }
 
@@ -164,11 +157,12 @@ static int mp4_box_close(ffmp4 *m, struct mp4_box *box)
 		m->meta_closed = 1;
 
 	if (box->ctx != NULL) {
-		uint i;
-		for (i = 0;  box->ctx[i].type[0] != '\0';  i++) {
+		for (uint i = 0;  ;  i++) {
 			if ((box->ctx[i].flags & F_REQ)
 				&& !ffbit_test32(box->usedboxes, i))
 				return MP4_ENOREQ;
+			if (box->ctx[i].flags & F_LAST)
+				break;
 		}
 	}
 
@@ -179,16 +173,15 @@ static int mp4_box_close(ffmp4 *m, struct mp4_box *box)
 
 	parent->size -= box->osize;
 	ffmem_tzero(box);
-	if ((int64)parent->size > 0)
+	m->ictx--;
+	if (parent->size != 0)
 		return -1;
 
-	m->ctxs[m->ictx] = NULL;
-	m->ictx--;
 	return 0;
 }
 
 enum {
-	R_BOXREAD, R_BOXSKIP, R_WHOLEDATA, R_FBOX, R_MINSIZE, R_BOXPROCESS, R_TRKTOTAL, R_METAFIN,
+	R_BOXREAD, R_BOX_PARSE, R_BOXSKIP, R_WHOLEDATA, R_BOXPROCESS, R_TRKTOTAL, R_METAFIN,
 	R_DATA, R_DATAREAD, R_DATAOK,
 };
 
@@ -201,237 +194,13 @@ void ffmp4_seek(ffmp4 *m, uint64 sample)
 	m->state = R_DATA;
 }
 
-static int mp4_meta_closed(ffmp4 *m)
+/**
+Return 0 on success;  enum FFMP4_R on error. */
+static int mp4_box_process(ffmp4 *m, const ffstr *data)
 {
+	ffstr sbox = *data;
 	int r;
-
-	if (m->fmt.format == 0)
-		return MP4_ENOFMT;
-
-	if (m->chunktab.len == 0) {
-		ffmemcpy(m->boxes[++m->ictx].name, "stco", 4);
-		return MP4_EDATA;
-	}
-
-	int64 rr = mp4_stts((void*)m->sktab.ptr, m->sktab.len, m->stts.ptr, m->stts.len);
-	if (rr < 0) {
-		ffmemcpy(m->boxes[++m->ictx].name, "stts", 4);
-		return -rr;
-	}
-	m->total_samples = rr;
-	m->total_samples = ffmin(m->total_samples - (m->enc_delay + m->end_padding), m->total_samples);
-
-	if (0 != (r = mp4_stsc((void*)m->sktab.ptr, m->sktab.len, m->stsc.ptr, m->stsc.len))) {
-		ffmemcpy(m->boxes[++m->ictx].name, "stsc", 4);
-		return -r;
-	}
-	ffstr_free(&m->stts);
-	ffstr_free(&m->stsc);
-
-	if (m->codec == FFMP4_ALAC || m->codec == FFMP4_AAC)
-		m->out = m->codec_conf.ptr,  m->outlen = m->codec_conf.len;
-	return 0;
-}
-
-int ffmp4_read(ffmp4 *m)
-{
-	struct mp4_box *box;
-	int r;
-	ffstr sbox = {0};
-
-	for (;;) {
-
-	box = &m->boxes[m->ictx];
-
-	switch (m->state) {
-
-	case R_BOXSKIP:
-		if (box->type & F_WHOLE) {
-			//m->data points to the next box
-		} else {
-			if (m->datalen < box->size) {
-				box->size -= m->datalen;
-				return FFMP4_RMORE;
-			}
-			FFARR_SHIFT(m->data, m->datalen, box->size);
-			m->off += box->size;
-		}
-
-		m->state = R_BOXREAD;
-
-		do {
-			r = mp4_box_close(m, &m->boxes[m->ictx]);
-			if (r > 0)
-				return ERR(m, r);
-		} while (r == 0);
-
-		if (m->meta_closed) {
-			m->meta_closed = 0;
-
-			if (0 != (r = mp4_meta_closed(m)))
-				return ERR(m, r);
-			m->state = R_METAFIN;
-			return FFMP4_RHDR;
-		}
-		continue;
-
-	case R_METAFIN:
-		ffstr_free(&m->codec_conf);
-		m->state = R_DATA;
-		return FFMP4_RMETAFIN;
-
-	case R_WHOLEDATA:
-		r = ffarr_append_until(&m->buf, m->data, m->datalen, m->whole_data);
-		if (r == 0)
-			return FFMP4_RMORE;
-		else if (r == -1)
-			return ERR(m, MP4_ESYS);
-		FFARR_SHIFT(m->data, m->datalen, r);
-		m->off += m->whole_data;
-		m->state = m->nxstate;
-		continue;
-
-	case R_BOXREAD: {
-		uint sz = (m->box64) ? sizeof(struct box64) : sizeof(struct box);
-
-		const struct mp4_box *parent;
-		if (m->ictx != 0) {
-			parent = &m->boxes[m->ictx - 1];
-			if (parent->size < sz) {
-				m->ictx--;
-				m->state = R_BOXSKIP;
-				continue;
-			}
-		}
-
-		if (m->buf.len < sz) {
-			m->state = R_WHOLEDATA,  m->nxstate = R_BOXREAD;
-			m->whole_data = sz;
-			continue;
-		}
-		r = mp4_box_parse(m, box, m->buf.ptr, sz);
-		if (r == -1) {
-			m->box64 = 1;
-			continue;
-		}
-		m->box64 = 0;
-		m->buf.len = 0;
-
-		if (r > 0) {
-			m->err = r;
-			if (r == MP4_EDUPBOX) {
-				m->state = R_BOXSKIP;
-				return FFMP4_RWARN;
-			}
-			return FFMP4_RERR;
-		}
-
-		m->state = R_FBOX;
-		// break
-	}
-
-	case R_FBOX:
-		if (box->type & F_FULLBOX) {
-			if (m->buf.len < sizeof(struct fullbox)) {
-				m->state = R_WHOLEDATA,  m->nxstate = R_FBOX;
-				m->whole_data = sizeof(struct fullbox);
-				continue;
-			}
-			m->buf.len = 0;
-
-			if (0 != (r = mp4_fbox_parse(m, box, m->buf.ptr)))
-				return ERR(m, r);
-		}
-		m->state = R_MINSIZE;
-		// break
-
-	case R_MINSIZE: {
-		uint minsize = GET_MINSIZE(box->type);
-		if (minsize != 0) {
-			if (box->size < minsize)
-				return ERR(m, MP4_ESMALL);
-
-			if (!(box->type & F_WHOLE)) {
-				if (m->buf.len < minsize) {
-					m->state = R_WHOLEDATA,  m->nxstate = R_MINSIZE;
-					m->whole_data = minsize;
-					continue;
-				}
-				ffstr_set2(&sbox, &m->buf);
-				m->buf.len = 0;
-				// m->data points to box+minsize
-			}
-		}
-
-		if (box->type & F_WHOLE) {
-			if (m->buf.len < box->size) {
-				m->state = R_WHOLEDATA,  m->nxstate = R_MINSIZE;
-				m->whole_data = box->size;
-				continue;
-			}
-			ffstr_set2(&sbox, &m->buf);
-			m->buf.len = 0;
-		}
-
-		m->state = R_BOXPROCESS;
-		// break
-	}
-
-	case R_BOXPROCESS:
-		break;
-
-
-	case R_TRKTOTAL:
-		m->state = R_BOXSKIP;
-		r = mp4_ilst_trkn(m->buf.ptr, &m->tagval, m->tagbuf, sizeof(m->tagbuf));
-		if (r == 0)
-			continue;
-		m->tag = r;
-		return FFMP4_RTAG;
-
-
-	case R_DATAOK:
-		m->state = R_DATA;
-		// break
-
-	case R_DATA: {
-		if (m->isamp == m->sktab.len - 1)
-			return FFMP4_RDONE;
-		uint64 off = mp4_data((void*)m->chunktab.ptr, (void*)m->sktab.ptr, m->isamp, &m->frsize, &m->cursample);
-		m->isamp++;
-		m->state = R_DATAREAD;
-		if (off != m->off) {
-			m->off = off;
-			return FFMP4_RSEEK;
-		}
-		// break
-	}
-
-	case R_DATAREAD:
-		r = ffarr_append_until(&m->buf, m->data, m->datalen, m->frsize);
-		if (r == 0)
-			return FFMP4_RMORE;
-		else if (r == -1)
-			return ERR(m, MP4_ESYS);
-		m->buf.len = 0;
-		FFARR_SHIFT(m->data, m->datalen, r);
-		m->off += m->frsize;
-		m->out = m->buf.ptr,  m->outlen = m->frsize;
-		m->state = R_DATAOK;
-
-		FFDBG_PRINTLN(10, "fr#%u  size:%L  data-chunk:%u  audio-pos:%U  off:%U"
-			, m->isamp - 1, m->outlen, ((struct seekpt*)m->sktab.ptr)[m->isamp - 1].chunk_id, m->cursample, m->off - m->frsize);
-
-		return FFMP4_RDATA;
-	}
-
-	// R_BOXPROCESS:
-
-	if (!m->ftyp) {
-		m->ftyp = 1;
-		if (GET_TYPE(box->type) != BOX_FTYP)
-			return ERR(m, MP4_ENOFTYP);
-	}
+	struct mp4_box *box = &m->boxes[m->ictx];
 
 	switch (GET_TYPE(box->type)) {
 
@@ -518,7 +287,7 @@ int ffmp4_read(ffmp4 *m)
 			break;
 		else if (r == -1) {
 			m->state = R_TRKTOTAL;
-			continue;
+			return 0;
 		}
 
 		m->tag = r;
@@ -540,14 +309,219 @@ int ffmp4_read(ffmp4 *m)
 		break;
 	}
 
-	if (GET_MINSIZE(box->type) != 0 && !(box->type & F_WHOLE))
-		box->size -= GET_MINSIZE(box->type);
+	return 0;
+}
 
-	if (box->ctx == NULL)
-		m->state = R_BOXSKIP;
-	else {
+static int mp4_meta_closed(ffmp4 *m)
+{
+	int r;
+
+	if (m->fmt.format == 0)
+		return MP4_ENOFMT;
+
+	if (m->chunktab.len == 0) {
+		ffmemcpy(m->boxes[++m->ictx].name, "stco", 4);
+		return MP4_EDATA;
+	}
+
+	int64 rr = mp4_stts((void*)m->sktab.ptr, m->sktab.len, m->stts.ptr, m->stts.len);
+	if (rr < 0) {
+		ffmemcpy(m->boxes[++m->ictx].name, "stts", 4);
+		return -rr;
+	}
+	m->total_samples = rr;
+	m->total_samples = ffmin(m->total_samples - (m->enc_delay + m->end_padding), m->total_samples);
+
+	if (0 != (r = mp4_stsc((void*)m->sktab.ptr, m->sktab.len, m->stsc.ptr, m->stsc.len))) {
+		ffmemcpy(m->boxes[++m->ictx].name, "stsc", 4);
+		return -r;
+	}
+	ffstr_free(&m->stts);
+	ffstr_free(&m->stsc);
+
+	if (m->codec == FFMP4_ALAC || m->codec == FFMP4_AAC)
+		m->out = m->codec_conf.ptr,  m->outlen = m->codec_conf.len;
+	return 0;
+}
+
+/* MP4 reading algorithm:
+. Gather box header (size + name)
+. Check size, gather box64 header if needed
+. Search box within the current context
+. Skip box if unknown
+. Check flags, gather fullbox data, or minimum size, or the whole box, if needed
+. Process box
+*/
+int ffmp4_read(ffmp4 *m)
+{
+	struct mp4_box *box;
+	int r;
+
+	for (;;) {
+
+	box = &m->boxes[m->ictx];
+
+	switch (m->state) {
+
+	case R_BOXSKIP:
+		if (box->type & F_WHOLE) {
+			//m->data points to the next box
+		} else {
+			if (m->datalen < box->size) {
+				box->size -= m->datalen;
+				return FFMP4_RMORE;
+			}
+			FFARR_SHIFT(m->data, m->datalen, box->size);
+			m->off += box->size;
+		}
+
 		m->state = R_BOXREAD;
-		m->ctxs[++m->ictx] = box->ctx;
+
+		do {
+			r = mp4_box_close(m, &m->boxes[m->ictx]);
+			if (r > 0)
+				return ERR(m, r);
+		} while (r == 0);
+
+		if (m->meta_closed) {
+			m->meta_closed = 0;
+
+			if (0 != (r = mp4_meta_closed(m)))
+				return ERR(m, r);
+			m->state = R_METAFIN;
+			return FFMP4_RHDR;
+		}
+		continue;
+
+	case R_METAFIN:
+		ffstr_free(&m->codec_conf);
+		m->state = R_DATA;
+		return FFMP4_RMETAFIN;
+
+	case R_WHOLEDATA:
+		r = ffarr_append_until(&m->buf, m->data, m->datalen, m->whole_data);
+		if (r == 0) {
+			m->off += m->datalen;
+			return FFMP4_RMORE;
+		} else if (r == -1)
+			return ERR(m, MP4_ESYS);
+		FFARR_SHIFT(m->data, m->datalen, r);
+		m->off += r;
+		m->state = m->nxstate;
+		continue;
+
+	case R_BOXREAD:
+		m->whole_data = sizeof(struct box);
+		m->state = R_WHOLEDATA,  m->nxstate = R_BOX_PARSE;
+		continue;
+
+	case R_BOX_PARSE: {
+		struct mp4_box *parent = &m->boxes[m->ictx];
+		uint sz = m->buf.len;
+		m->buf.len = 0;
+		box = &m->boxes[m->ictx + 1];
+		r = mp4_box_parse(m, parent, box, m->buf.ptr, sz);
+		if (r == -1) {
+			m->buf.len = sizeof(struct box);
+			m->whole_data = sizeof(struct box64);
+			m->state = R_WHOLEDATA,  m->nxstate = R_BOX_PARSE;
+			continue;
+		}
+		FF_ASSERT(m->ictx != FFCNT(m->boxes));
+		m->ictx++;
+
+		if (r > 0) {
+			m->err = r;
+			if (r == MP4_EDUPBOX) {
+				m->state = R_BOXSKIP;
+				return FFMP4_RWARN;
+			}
+			return FFMP4_RERR;
+		}
+
+		uint prio = GET_PRIO(box->type);
+		if (prio != 0) {
+			if (prio > parent->prio + 1)
+				return ERR(m, MP4_EORDER);
+			parent->prio = prio;
+		}
+
+		uint minsize = GET_MINSIZE(box->type);
+		if (box->type & F_FULLBOX)
+			minsize += sizeof(struct fullbox);
+		if (box->size < minsize)
+			return ERR(m, MP4_ESMALL);
+		if (box->type & F_WHOLE)
+			minsize = box->size;
+		if (minsize != 0) {
+			m->whole_data = minsize;
+			box->size -= minsize;
+			m->state = R_WHOLEDATA,  m->nxstate = R_BOXPROCESS;
+			continue;
+		}
+
+		m->state = R_BOXPROCESS;
+		// break
+	}
+
+	case R_BOXPROCESS: {
+		ffstr sbox;
+		ffstr_set2(&sbox, &m->buf);
+		m->buf.len = 0;
+
+		if (box->type & F_FULLBOX)
+			ffstr_shift(&sbox, sizeof(struct fullbox));
+
+		if (0 != (r = mp4_box_process(m, &sbox)))
+			return r;
+
+		if (m->state == R_TRKTOTAL)
+			continue;
+
+		if (box->ctx == NULL)
+			m->state = R_BOXSKIP;
+		else
+			m->state = R_BOXREAD;
+		continue;
+	}
+
+
+	case R_TRKTOTAL:
+		m->state = R_BOXSKIP;
+		r = mp4_ilst_trkn(m->buf.ptr, &m->tagval, m->tagbuf, sizeof(m->tagbuf));
+		if (r == 0)
+			continue;
+		m->tag = r;
+		return FFMP4_RTAG;
+
+
+	case R_DATAOK:
+		m->state = R_DATA;
+		// break
+
+	case R_DATA: {
+		if (m->isamp == m->sktab.len - 1)
+			return FFMP4_RDONE;
+		uint64 off = mp4_data((void*)m->chunktab.ptr, (void*)m->sktab.ptr, m->isamp, &m->frsize, &m->cursample);
+		m->isamp++;
+		m->whole_data = m->frsize;
+		m->state = R_WHOLEDATA,  m->nxstate = R_DATAREAD;
+		if (off != m->off) {
+			m->off = off;
+			return FFMP4_RSEEK;
+		}
+		continue;
+	}
+
+	case R_DATAREAD:
+		m->buf.len = 0;
+		m->out = m->buf.ptr,  m->outlen = m->frsize;
+		m->state = R_DATAOK;
+
+		FFDBG_PRINTLN(10, "fr#%u  size:%L  data-chunk:%u  audio-pos:%U  off:%U"
+			, m->isamp - 1, m->outlen, ((struct seekpt*)m->sktab.ptr)[m->isamp - 1].chunk_id, m->cursample, m->off - m->frsize);
+
+		return FFMP4_RDATA;
 	}
 	}
 
@@ -646,12 +620,12 @@ static const char mp4_ftyp_aac[24] = {
 	"M4A " "\0\0\0\0" "M4A " "mp42" "isom" "\0\0\0\0"
 };
 
-enum { W_META, W_DATA1, W_DATA, W_MORE, W_STSZ, W_STCO_SEEK, W_STCO, W_DONE,
+enum { W_META, W_META_NEXT, W_DATA1, W_DATA, W_MORE, W_STSZ, W_STCO_SEEK, W_STCO, W_DONE,
 	W_MDAT_HDR, W_MDAT_SEEK, W_MDAT_SIZE, W_STM_DATA,
 };
 
 /** Return size needed for the box. */
-uint _ffmp4_boxsize(ffmp4_cook *m, const struct bbox *b)
+static uint _ffmp4_boxsize(ffmp4_cook *m, const struct bbox *b)
 {
 	uint t = GET_TYPE(b->flags), n = GET_MINSIZE(b->flags);
 
@@ -882,12 +856,8 @@ int ffmp4_write(ffmp4_cook *m)
 	for (;;) {
 	switch (m->state) {
 
-	case W_META: {
-		const struct bbox *b = m->ctx[m->ictx];
-		char *box;
-		uint n;
-
-		if (b->type[0] == '\0') {
+	case W_META_NEXT:
+		if (m->ctx[m->ictx]->flags & F_LAST) {
 			if (m->ictx == 0) {
 				m->mp4_size += m->buf.len;
 				m->out = m->buf.ptr,  m->outlen = m->buf.len;
@@ -897,14 +867,20 @@ int ffmp4_write(ffmp4_cook *m)
 				return FFMP4_RDATA;
 			}
 
-			m->ictx--;
+			m->ctx[m->ictx--] = NULL;
 
 			struct box *b = (void*)(m->buf.ptr + m->boxoff[m->ictx]);
 			ffint_hton32(b->size, m->buf.len - m->boxoff[m->ictx]);
-
-			m->ctx[m->ictx]++;
 			continue;
 		}
+		m->ctx[m->ictx]++;
+		m->state = W_META;
+		// break
+
+	case W_META: {
+		const struct bbox *b = m->ctx[m->ictx];
+		char *box;
+		uint n;
 
 		// determine box size and reallocate m->buf
 		n = _ffmp4_boxsize(m, b);
@@ -914,8 +890,10 @@ int ffmp4_write(ffmp4_cook *m)
 
 		m->boxoff[m->ictx] = m->buf.len;
 		n = _ffmp4_boxdata(m, b);
-		if ((int)n == -1)
-			goto next;
+		if ((int)n == -1) {
+			m->state = W_META_NEXT;
+			continue;
+		}
 
 		box = ffarr_end(&m->buf);
 		if (b->flags & F_FULLBOX)
@@ -923,11 +901,11 @@ int ffmp4_write(ffmp4_cook *m)
 		else
 			m->buf.len += mp4_box_write(b->type, box, n);
 
-		if (b->ctx != NULL)
+		if (b->ctx != NULL) {
+			FF_ASSERT(m->ictx != FFCNT(m->ctx));
 			m->ctx[++m->ictx] = &b->ctx[0];
-		else {
-next:
-			m->ctx[m->ictx]++;
+		} else {
+			m->state = W_META_NEXT;
 		}
 		break;
 	}

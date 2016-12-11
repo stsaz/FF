@@ -12,10 +12,11 @@ Copyright (c) 2016 Simon Zolin
 Return -1 if not found. */
 int mp4_box_find(const struct bbox *ctx, const char type[4])
 {
-	uint i;
-	for (i = 0;  ctx[i].type[0] != '\0';  i++) {
+	for (uint i = 0;  ;  i++) {
 		if (!ffs_cmp(type, ctx[i].type, 4))
 			return i;
+		if (ctx[i].flags & F_LAST)
+			break;
 	}
 	return -1;
 }
@@ -703,9 +704,11 @@ int mp4_ilst_trkn(const char *data, ffstr *tagval, char *tagbuf, size_t tagbuf_c
 const struct bbox* mp4_ilst_find(uint mmtag)
 {
 	const struct bbox *p = mp4_ctx_ilst;
-	for (uint i = 0;  p[i].type[0] != '\0';  i++) {
+	for (uint i = 0;  ;  i++) {
 		if (_BOX_TAG + mmtag == GET_TYPE(p[i].flags))
 			return &p[i];
+		if (p[i].flags & F_LAST)
+			break;
 	}
 	return NULL;
 }
@@ -829,48 +832,40 @@ static const struct bbox mp4_ctx_data[];
 static const struct bbox mp4_ctx_itunes[];
 
 const struct bbox mp4_ctx_global[] = {
-	{"ftyp", BOX_FTYP | MINSIZE(sizeof(struct ftyp)), NULL},
-	{"moov", BOX_MOOV, mp4_ctx_moov},
-	{"mdat", BOX_MDAT, NULL},
-	{"",0,NULL}
+	{"ftyp", BOX_FTYP | PRIOTY(1) | MINSIZE(sizeof(struct ftyp)), NULL},
+	{"moov", BOX_MOOV | PRIOTY(2), mp4_ctx_moov},
+	{"mdat", BOX_MDAT | PRIOTY(2) | F_LAST, NULL},
 };
 const struct bbox mp4_ctx_global_stream[] = {
 	{"ftyp", BOX_FTYP | MINSIZE(sizeof(struct ftyp)), NULL},
 	{"mdat", BOX_MDAT, NULL},
-	{"moov", BOX_MOOV, mp4_ctx_moov},
-	{"",0,NULL}
+	{"moov", BOX_MOOV | F_LAST, mp4_ctx_moov},
 };
 static const struct bbox mp4_ctx_moov[] = {
 	{"mvhd", BOX_MVHD | F_FULLBOX | F_REQ | MINSIZE(sizeof(struct mvhd0)), NULL},
 	{"trak", BOX_ANY | F_MULTI, mp4_ctx_trak},
-	{"udta", BOX_ANY, mp4_ctx_udta},
-	{"",0,NULL}
+	{"udta", BOX_ANY | F_LAST, mp4_ctx_udta},
 };
 
 static const struct bbox mp4_ctx_trak[] = {
 	{"tkhd", BOX_TKHD | F_FULLBOX | F_REQ | MINSIZE(sizeof(struct tkhd0)), NULL},
-	{"mdia", BOX_ANY, mp4_ctx_mdia},
-	{"",0,NULL}
+	{"mdia", BOX_ANY | F_LAST, mp4_ctx_mdia},
 };
 static const struct bbox mp4_ctx_mdia[] = {
 	{"hdlr", BOX_HDLR | F_FULLBOX | F_REQ | MINSIZE(sizeof(struct hdlr)), NULL},
 	{"mdhd", BOX_MDHD | F_FULLBOX | F_REQ | MINSIZE(sizeof(struct mdhd0)), NULL},
-	{"minf", BOX_ANY, mp4_ctx_minf},
-	{"",0,NULL}
+	{"minf", BOX_ANY | F_LAST, mp4_ctx_minf},
 };
 static const struct bbox mp4_ctx_minf[] = {
 	{"smhd", BOX_ANY | F_FULLBOX | MINSIZE(sizeof(struct smhd)), NULL},
 	{"dinf", BOX_ANY | F_REQ, mp4_ctx_dinf},
-	{"stbl", BOX_ANY, mp4_ctx_stbl},
-	{"",0,NULL}
+	{"stbl", BOX_ANY | F_LAST, mp4_ctx_stbl},
 };
 static const struct bbox mp4_ctx_dinf[] = {
-	{"dref", BOX_DREF | F_FULLBOX | F_REQ | MINSIZE(sizeof(struct dref)), mp4_ctx_dref},
-	{"",0,NULL}
+	{"dref", BOX_DREF | F_FULLBOX | F_REQ | MINSIZE(sizeof(struct dref)) | F_LAST, mp4_ctx_dref},
 };
 static const struct bbox mp4_ctx_dref[] = {
-	{"url ", BOX_DREF_URL | F_FULLBOX, NULL},
-	{"",0,NULL}
+	{"url ", BOX_DREF_URL | F_FULLBOX | F_LAST, NULL},
 };
 static const struct bbox mp4_ctx_stbl[] = {
 	{"stsd", BOX_STSD | F_FULLBOX | F_REQ | MINSIZE(sizeof(struct stsd)), mp4_ctx_stsd},
@@ -878,30 +873,24 @@ static const struct bbox mp4_ctx_stbl[] = {
 	{"stco", BOX_STCO | F_FULLBOX | F_WHOLE | MINSIZE(sizeof(struct stco)), NULL},
 	{"stsc", BOX_STSC | F_FULLBOX | F_REQ | F_WHOLE | MINSIZE(sizeof(struct stsc)), NULL},
 	{"stsz", BOX_STSZ | F_FULLBOX | F_REQ | F_WHOLE | MINSIZE(sizeof(struct stsz)), NULL},
-	{"stts", BOX_STTS | F_FULLBOX | F_REQ | F_WHOLE | MINSIZE(sizeof(struct stts)), NULL},
-	{"",0,NULL}
+	{"stts", BOX_STTS | F_FULLBOX | F_REQ | F_WHOLE | MINSIZE(sizeof(struct stts)) | F_LAST, NULL},
 };
 static const struct bbox mp4_ctx_stsd[] = {
 	{"alac", BOX_STSD_ALAC | MINSIZE(sizeof(struct asamp)), mp4_ctx_alac},
-	{"mp4a", BOX_STSD_MP4A | MINSIZE(sizeof(struct asamp)), mp4_ctx_mp4a},
-	{"",0,NULL}
+	{"mp4a", BOX_STSD_MP4A | MINSIZE(sizeof(struct asamp)) | F_LAST, mp4_ctx_mp4a},
 };
 static const struct bbox mp4_ctx_alac[] = {
-	{"alac", BOX_ALAC | F_FULLBOX | F_REQ | F_WHOLE | MINSIZE(sizeof(struct alac)), NULL},
-	{"",0,NULL}
+	{"alac", BOX_ALAC | F_FULLBOX | F_REQ | F_WHOLE | MINSIZE(sizeof(struct alac)) | F_LAST, NULL},
 };
 static const struct bbox mp4_ctx_mp4a[] = {
-	{"esds", BOX_ESDS | F_FULLBOX | F_REQ | F_WHOLE, NULL},
-	{"",0,NULL}
+	{"esds", BOX_ESDS | F_FULLBOX | F_REQ | F_WHOLE | F_LAST, NULL},
 };
 
 static const struct bbox mp4_ctx_udta[] = {
-	{"meta", BOX_ANY | F_FULLBOX, mp4_ctx_meta},
-	{"",0,NULL}
+	{"meta", BOX_ANY | F_FULLBOX | F_LAST, mp4_ctx_meta},
 };
 static const struct bbox mp4_ctx_meta[] = {
-	{"ilst", BOX_ANY, mp4_ctx_ilst},
-	{"",0,NULL}
+	{"ilst", BOX_ANY | F_LAST, mp4_ctx_ilst},
 };
 static const struct bbox mp4_ctx_ilst[] = {
 	{"aART",	_BOX_TAG + FFMMTAG_ALBUMARTIST,	mp4_ctx_data},
@@ -921,18 +910,15 @@ static const struct bbox mp4_ctx_ilst[] = {
 	{"\251nam",	_BOX_TAG + FFMMTAG_TITLE,	mp4_ctx_data},
 	{"\251too",	_BOX_TAG + FFMMTAG_VENDOR,	mp4_ctx_data},
 	{"\251wrt",	_BOX_TAG + FFMMTAG_COMPOSER,	mp4_ctx_data},
-	{"----",	BOX_ITUNES | F_MULTI,	mp4_ctx_itunes},
-	{"",0,NULL}
+	{"----",	BOX_ITUNES | F_MULTI | F_LAST,	mp4_ctx_itunes},
 };
 
 static const struct bbox mp4_ctx_data[] = {
-	{"data", BOX_ILST_DATA | F_WHOLE | MINSIZE(sizeof(struct ilst_data)), NULL},
-	{"",0,NULL}
+	{"data", BOX_ILST_DATA | F_WHOLE | MINSIZE(sizeof(struct ilst_data)) | F_LAST, NULL},
 };
 
 static const struct bbox mp4_ctx_itunes[] = {
 	{"mean", BOX_ITUNES_MEAN | F_FULLBOX | F_WHOLE, NULL},
 	{"name", BOX_ITUNES_NAME | F_FULLBOX | F_WHOLE, NULL},
-	{"data", BOX_ITUNES_DATA | F_WHOLE | MINSIZE(sizeof(struct ilst_data)), NULL},
-	{"",0,NULL}
+	{"data", BOX_ITUNES_DATA | F_WHOLE | MINSIZE(sizeof(struct ilst_data)) | F_LAST, NULL},
 };

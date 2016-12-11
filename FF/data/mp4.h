@@ -21,6 +21,7 @@ struct mp4_box {
 	char name[4];
 	uint type; //enum BOX; flags
 	uint usedboxes; //bit-table of children boxes that were processed
+	uint prio;
 	uint64 osize; //the whole box size
 	uint64 size; //unprocessed box size
 	const struct bbox *ctx; //non-NULL if the box may have children
@@ -36,7 +37,6 @@ typedef struct ffmp4 {
 
 	uint ictx;
 	struct mp4_box boxes[10];
-	const struct bbox* ctxs[10];
 
 	const char *data;
 	size_t datalen;
@@ -67,8 +67,6 @@ typedef struct ffmp4 {
 	char tagbuf[32];
 
 	uint meta_closed :1
-		, ftyp :1
-		, box64 :1
 		, itunes_smpb :1
 		;
 } ffmp4;

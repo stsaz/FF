@@ -9,11 +9,11 @@ Copyright (c) 2016 Simon Zolin
 
 enum MP4_E {
 	MP4_ESYS = -1,
-	MP4_ENOFTYP = 1,
-	MP4_EFTYP,
+	MP4_EOK,
 	MP4_EDATA,
 	MP4_ELARGE,
 	MP4_ESMALL,
+	MP4_EORDER,
 	MP4_EDUPBOX,
 	MP4_ENOREQ,
 	MP4_ENOFMT,
@@ -93,17 +93,25 @@ enum MP4_F {
 	F_FULLBOX = 0x200, //box inherits "struct fullbox"
 	F_REQ = 0x400, //mandatory box
 	F_MULTI = 0x800, //allow multiple occurrences
+	F_LAST = 0x8000, //the last box in context
 };
 
 struct bbox {
 	char type[4];
-	uint flags; // "minsize" "reserved" "enum MP4_F" "enum BOX"
+	uint flags; // "minsize" "priority" "enum MP4_F" "enum BOX"
 	const struct bbox *ctx;
 };
 
 #define GET_TYPE(f)  ((f) & 0xff)
 #define MINSIZE(n)  ((n) << 24)
 #define GET_MINSIZE(f)  ((f & 0xff000000) >> 24)
+
+/** Priority, strict order of boxes.
+0: unspecified
+1: highest priority
+>1: require previous box with lower number */
+#define PRIOTY(n)  ((n) << 16)
+#define GET_PRIO(flags)  ((flags & 0x00ff0000) >> 16)
 
 extern const struct bbox mp4_ctx_global[];
 extern const struct bbox mp4_ctx_global_stream[];
