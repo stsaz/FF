@@ -12,14 +12,14 @@ AVI (hdrl(strl...) movi(xxxx(DATA...)...) idx1(xxxx()...))
 #include <FF/array.h>
 
 
+struct ffavi_bchunk;
 struct ffavi_chunk {
 	uint id;
 	uint size;
-	uint osize;
 	uint flags;
+	uint padding :1;
+	const struct ffavi_bchunk *ctx;
 };
-
-struct ffavi_bchunk;
 
 enum STRF_FMT {
 	FFAVI_AUDIO_MP3 = 0x0055,
@@ -55,8 +55,7 @@ typedef struct ffavi {
 	uint64 nsamples;
 	uint options; //enum FFAVI_O
 
-	struct ffavi_chunk chunks[4];
-	const struct ffavi_bchunk* ctx[4];
+	struct ffavi_chunk chunks[5];
 	uint ictx;
 
 	ffarr buf;

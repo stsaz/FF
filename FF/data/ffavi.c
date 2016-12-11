@@ -11,6 +11,8 @@ struct avi_seekpt {
 	uint off;
 };
 
+typedef struct ffavi_chunk ffavi_chunk;
+
 struct avi_chunk {
 	char id[4];
 	byte size[4];
@@ -88,6 +90,9 @@ static int avi_strf(struct ffavi_audio_info *ai, const char *data, size_t len)
 	return 0;
 }
 
+enum {
+	AVI_MASK_CHUNKID = 0x000000ff,
+};
 
 enum {
 	T_UKN,
@@ -137,21 +142,22 @@ static int avi_chunkfind(const ffavi_bchunk *ctx, const char *name)
 	return -1;
 }
 
-static void avi_chunkinfo(const void *data, const ffavi_bchunk *ctx, struct ffavi_chunk *chunk)
+static void avi_chunkinfo(const void *data, const ffavi_bchunk *ctx, ffavi_chunk *chunk, uint64 off)
 {
 	const struct avi_chunk *ch = data;
 	int i;
 	if (-1 != (i = avi_chunkfind(ctx, ch->id))) {
-		chunk->id = ctx[i].flags & 0xff;
-		chunk->flags = ctx[i].flags & 0xffffff00;
+		chunk->id = ctx[i].flags & AVI_MASK_CHUNKID;
+		chunk->flags = ctx[i].flags & ~AVI_MASK_CHUNKID;
+		chunk->ctx = ctx[i].ctx;
 	} else
 		chunk->id = T_UKN;
 
-	chunk->osize = ffint_ltoh32(ch->size);
-	chunk->size = chunk->osize;
+	chunk->size = ffint_ltoh32(ch->size);
+	chunk->padding = (chunk->size % 2);
 
-	FFDBG_PRINTLN(10, "chunk \"%4s\"  size:%u"
-		, ch->id, chunk->size);
+	FFDBG_PRINTLN(10, "\"%4s\"  size:%u  offset:%U"
+		, ch->id, chunk->size, off);
 }
 
 
@@ -163,6 +169,7 @@ RIFF "AVI "
    strh
    strf
  LIST INFO
+  *
  LIST movi
   NNwb
 */
@@ -250,33 +257,41 @@ void ffavi_close(ffavi *a)
 	ffstr_free(&a->info.asc);
 }
 
-enum { R_GATHER_CHUNKHDR, R_NEXTCHUNK, R_GATHER, R_CHUNK_HDR, R_CHUNK, R_SKIP_PARENT, R_SKIP,
+enum { R_GATHER_CHUNKHDR, R_NEXTCHUNK, R_GATHER, R_CHUNK_HDR, R_CHUNK, R_SKIP_PARENT, R_SKIP, R_PADDING,
 	R_DATA };
 
 void ffavi_init(ffavi *a)
 {
 	a->state = R_GATHER_CHUNKHDR;
-	a->ctx[0] = avi_ctx_global;
+	a->chunks[0].ctx = avi_ctx_global;
+	a->chunks[0].size = (uint)-1;
 }
 
+/* AVI reading algorithm:
+. Gather chunk (ID + size)
+. Search chunk ID in the current context; skip chunk if unknown
+. If it's a LIST chunk, gather its sub-ID; repeat the previous step
+. Process chunk
+*/
 int ffavi_read(ffavi *a)
 {
 	int r;
+	ffavi_chunk *chunk, *parent;
 
 	for (;;) {
 	switch (a->state) {
 
-	case R_SKIP_PARENT: {
-		struct ffavi_chunk *chunk = &a->chunks[a->ictx];
-		a->ctx[a->ictx--] = NULL;
-		struct ffavi_chunk *parent = &a->chunks[a->ictx];
+	case R_SKIP_PARENT:
+		chunk = &a->chunks[a->ictx];
+		parent = &a->chunks[a->ictx - 1];
 		parent->size += chunk->size;
+		ffmem_tzero(chunk);
+		a->ictx--;
 		a->state = R_SKIP;
 		// break
-	}
 
-	case R_SKIP: {
-		struct ffavi_chunk *chunk = &a->chunks[a->ictx];
+	case R_SKIP:
+		chunk = &a->chunks[a->ictx];
 		r = ffmin(chunk->size, a->data.len);
 		ffarr_shift(&a->data, r);
 		chunk->size -= r;
@@ -285,43 +300,48 @@ int ffavi_read(ffavi *a)
 			return FFAVI_RMORE;
 
 		a->state = R_NEXTCHUNK;
+		continue;
+
+	case R_PADDING:
+		if (a->data.len == 0)
+			return FFAVI_RMORE;
+
+		if (a->data.ptr[0] == '\0') {
+			// skip padding byte
+			ffarr_shift(&a->data, 1);
+			a->off += 1;
+			parent = &a->chunks[a->ictx - 1];
+			if (parent->size != 0)
+				parent->size -= 1;
+		}
+
+		a->state = R_NEXTCHUNK;
 		// break
-	}
 
-	case R_NEXTCHUNK: {
-		struct ffavi_chunk *chunk = &a->chunks[a->ictx];
+	case R_NEXTCHUNK:
+		chunk = &a->chunks[a->ictx];
 
-		if (!!(chunk->osize % 2)) {
-
-			if (a->data.len == 0)
-				return (a->fin) ? FFAVI_RDONE : FFAVI_RMORE;
-
-			if (a->data.ptr[0] == '\0') {
-				// skip padding byte
-				ffarr_shift(&a->data, 1);
-				a->off += 1;
-				if (a->ictx >= 1) {
-					struct ffavi_chunk *parent = &a->chunks[a->ictx - 1];
-					if (parent->size != 0)
-						parent->size -= 1;
-				}
+		if (chunk->size == 0) {
+			if (chunk->padding) {
+				chunk->padding = 0;
+				a->state = R_PADDING;
 				continue;
 			}
-		}
 
-		if (a->ictx >= 1) {
-			struct ffavi_chunk *parent = &a->chunks[a->ictx - 1];
-			if (parent->size == 0) {
-				a->ctx[a->ictx--] = NULL;
-				switch (parent->id) {
-				case T_AVI:
-					return FFAVI_RDONE;
-				}
+			uint id = chunk->id;
+			ffmem_tzero(chunk);
+			a->ictx--;
+
+			switch (id) {
+			case T_AVI:
+				return FFAVI_RDONE;
 			}
+
+			continue;
 		}
 
+		FF_ASSERT(chunk->ctx != NULL);
 		// break
-	}
 
 	case R_GATHER_CHUNKHDR:
 		a->gather_size = sizeof(struct avi_chunk);
@@ -341,16 +361,15 @@ int ffavi_read(ffavi *a)
 		a->state = a->nxstate;
 		continue;
 
-	case R_CHUNK_HDR: {
-		struct ffavi_chunk *chunk = &a->chunks[a->ictx];
-		avi_chunkinfo(a->gbuf.ptr, a->ctx[a->ictx], chunk);
+	case R_CHUNK_HDR:
+		parent = &a->chunks[a->ictx];
+		a->ictx++;
+		chunk = &a->chunks[a->ictx];
+		avi_chunkinfo(a->gbuf.ptr, parent->ctx, chunk, a->off - sizeof(struct avi_chunk));
 
-		if (a->ictx != 0) {
-			struct ffavi_chunk *parent = &a->chunks[a->ictx - 1];
-			if (sizeof(struct avi_chunk) + chunk->size > parent->size)
-				return ERR(a, AVI_ELARGE);
-			parent->size -= sizeof(struct avi_chunk) + chunk->size;
-		}
+		if (sizeof(struct avi_chunk) + chunk->size > parent->size)
+			return ERR(a, AVI_ELARGE);
+		parent->size -= sizeof(struct avi_chunk) + chunk->size;
 
 		if (chunk->id == T_UKN) {
 			//unknown chunk
@@ -359,11 +378,13 @@ int ffavi_read(ffavi *a)
 		}
 
 		uint minsize = GET_MINSIZE(chunk->flags);
-		if (minsize != 0 && chunk->size < minsize)
+		if (chunk->size < minsize)
 			return ERR(a, AVI_ESMALL);
+		if (chunk->flags & F_WHOLE)
+			minsize = chunk->size;
 
-		if ((chunk->flags & F_WHOLE) || minsize != 0) {
-			a->gather_size = (chunk->flags & F_WHOLE) ? chunk->size : minsize;
+		if (minsize != 0) {
+			a->gather_size = minsize;
 			chunk->size -= a->gather_size;
 			a->state = R_GATHER,  a->nxstate = R_CHUNK;
 			continue;
@@ -371,10 +392,21 @@ int ffavi_read(ffavi *a)
 
 		a->state = R_CHUNK;
 		continue;
-	}
 
-	case R_CHUNK: {
-		struct ffavi_chunk *chunk = &a->chunks[a->ictx];
+	case R_CHUNK:
+		chunk = &a->chunks[a->ictx];
+
+		if (chunk->flags & F_LIST) {
+			FFDBG_PRINTLN(10, "LIST \"%4s\"", a->gbuf.ptr);
+			r = avi_chunkfind(chunk->ctx, a->gbuf.ptr);
+			if (r != -1) {
+				const ffavi_bchunk *bch = &chunk->ctx[r];
+				chunk->id = bch->flags & AVI_MASK_CHUNKID;
+				chunk->flags = bch->flags & ~AVI_MASK_CHUNKID;
+				chunk->ctx = bch->ctx;
+			} else
+				chunk->ctx = NULL;
+		}
 
 		switch (chunk->id) {
 		case T_STRH: {
@@ -410,6 +442,12 @@ int ffavi_read(ffavi *a)
 			}
 			break;
 
+		case T_MOVI:
+			a->movi_off = a->off;
+			a->movi_size = chunk->size;
+			a->state = R_NEXTCHUNK;
+			return FFAVI_RHDR;
+
 		case T_MOVI_CHUNK: {
 			const struct avi_chunk *ch = (void*)a->gbuf.ptr;
 			uint idx;
@@ -440,32 +478,13 @@ int ffavi_read(ffavi *a)
 			}
 		}
 
-		const ffavi_bchunk *ctx = a->ctx[a->ictx];
-		if (chunk->flags & F_LIST) {
-			int i = avi_chunkfind(ctx->ctx, a->gbuf.ptr);
-			if (i != -1) {
-				ctx = ctx->ctx;
-				chunk->id = ctx[i].flags & 0xff;
-				chunk->flags = ctx[i].flags & 0xffffff00;
-				a->ctx[++a->ictx] = ctx[i].ctx;
-				a->state = R_GATHER_CHUNKHDR;
-
-				switch (chunk->id) {
-				case T_MOVI:
-					a->movi_off = a->off;
-					a->movi_size = chunk->size;
-					return FFAVI_RHDR;
-				}
-
-				continue;
-			}
-		} else if (ctx->ctx != NULL) {
-			a->ctx[++a->ictx] = ctx->ctx;
+		if (chunk->ctx != NULL) {
+			a->state = R_NEXTCHUNK;
+			continue;
 		}
 
 		a->state = R_SKIP;
 		continue;
-	}
 
 	case R_DATA:
 		ffstr_set(&a->out, a->gbuf.ptr, a->gbuf.len);
