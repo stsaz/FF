@@ -904,7 +904,7 @@ int ffmp4_write(ffmp4_cook *m)
 		if (b->ctx != NULL) {
 			FF_ASSERT(m->ictx != FFCNT(m->ctx));
 			m->ctx[++m->ictx] = &b->ctx[0];
-		} else {
+		} else if (m->state == W_META) { // state may be changed in _ffmp4_boxdata()
 			m->state = W_META_NEXT;
 		}
 		break;
@@ -944,7 +944,7 @@ int ffmp4_write(ffmp4_cook *m)
 		if (m->fin) {
 			m->info.total_samples = m->frameno * m->info.frame_samples;
 			m->buf.len = 0;
-			m->state = W_META;
+			m->state = W_META_NEXT;
 			continue;
 		} else if (m->datalen == 0)
 			return FFMP4_RMORE;
