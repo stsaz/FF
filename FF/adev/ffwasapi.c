@@ -181,7 +181,7 @@ static FFINL void _ffwas_getfmt(ffwasapi *w, ffpcm *fmt)
 	CoTaskMemFree(wf);
 }
 
-int ffwas_open(ffwasapi *w, const WCHAR *id, ffpcm *fmt, uint bufsize)
+int ffwas_open(ffwasapi *w, const WCHAR *id, ffpcm *fmt, uint bufsize, uint flags)
 {
 	HRESULT r;
 	IMMDeviceEnumerator *enu = NULL;
@@ -189,6 +189,12 @@ int ffwas_open(ffwasapi *w, const WCHAR *id, ffpcm *fmt, uint bufsize)
 	WAVEFORMATEX wf;
 	unsigned balign = 0;
 	REFERENCE_TIME dur;
+
+	FF_ASSERT((flags & (FFWAS_DEV_RENDER | FFWAS_DEV_CAPTURE)) != (FFWAS_DEV_RENDER | FFWAS_DEV_CAPTURE));
+
+	w->capture = !!(flags & FFWAS_DEV_CAPTURE) || !!(flags & FFWAS_LOOPBACK);
+	w->excl = !!(flags & FFWAS_EXCL);
+	w->autostart = !!(flags & FFWAS_AUTOSTART);
 
 	w->frsize = ffpcm_size(fmt->format, fmt->channels);
 	ffwav_makewfx(&wf, fmt);
@@ -202,7 +208,7 @@ int ffwas_open(ffwasapi *w, const WCHAR *id, ffpcm *fmt, uint bufsize)
 		goto fail;
 
 	if (id == NULL)
-		r = IMMDeviceEnumerator_GetDefaultAudioEndpoint(enu, (!w->capture) ? eRender : eCapture, eConsole, &dev);
+		r = IMMDeviceEnumerator_GetDefaultAudioEndpoint(enu, (flags & FFWAS_DEV_RENDER) ? eRender : eCapture, eConsole, &dev);
 	else
 		r = IMMDeviceEnumerator_GetDevice(enu, id, &dev);
 	if (r != 0)
@@ -212,37 +218,43 @@ int ffwas_open(ffwasapi *w, const WCHAR *id, ffpcm *fmt, uint bufsize)
 		if (0 != (r = IMMDevice_Activate(dev, &IID_IAudioClient, CLSCTX_ALL, NULL, (void**)&w->cli)))
 			goto fail;
 
-		r = IAudioClient_Initialize(w->cli
-			, (w->excl) ? AUDCLNT_SHAREMODE_EXCLUSIVE : AUDCLNT_SHAREMODE_SHARED
-			, AUDCLNT_STREAMFLAGS_EVENTCALLBACK, dur, dur, &wf, NULL);
+		uint aflags = (flags & FFWAS_LOOPBACK) ? AUDCLNT_STREAMFLAGS_LOOPBACK : AUDCLNT_STREAMFLAGS_EVENTCALLBACK;
+		uint mode = (flags & FFWAS_EXCL) ? AUDCLNT_SHAREMODE_EXCLUSIVE : AUDCLNT_SHAREMODE_SHARED;
+		r = IAudioClient_Initialize(w->cli, mode, aflags, dur, dur, &wf, NULL);
 
-		if (r == AUDCLNT_E_UNSUPPORTED_FORMAT && !w->excl) {
-			_ffwas_getfmt(w, fmt);
-			goto fail;
-		}
-
-		if (r != AUDCLNT_E_BUFFER_SIZE_NOT_ALIGNED || balign)
+		if (r == 0)
 			break;
 
-		if (0 != (r = IAudioClient_GetBufferSize(w->cli, &w->bufsize)))
+		else if (r == AUDCLNT_E_UNSUPPORTED_FORMAT && !w->excl) {
+			_ffwas_getfmt(w, fmt);
 			goto fail;
-		IAudioClient_Release(w->cli);
-		w->cli = NULL;
 
-		//get an aligned buffer size
-		dur = (REFERENCE_TIME)((10000.0 * 1000 / fmt->sample_rate * w->bufsize) + 0.5);
-		balign = 1;
+		} else if (r == AUDCLNT_E_BUFFER_SIZE_NOT_ALIGNED) {
+			if (balign)
+				goto fail;
+
+			if (0 != (r = IAudioClient_GetBufferSize(w->cli, &w->bufsize)))
+				goto fail;
+			IAudioClient_Release(w->cli);
+			w->cli = NULL;
+
+			//get an aligned buffer size
+			dur = (REFERENCE_TIME)((10000.0 * 1000 / fmt->sample_rate * w->bufsize) + 0.5);
+			balign = 1;
+			continue;
+
+		} else
+			goto fail;
 	}
 
-	if (r != 0)
-		goto fail;
-
-	if (NULL == (w->evt = CreateEvent(NULL, 0, 0, NULL))) {
-		r = fferr_last();
-		goto fail;
+	if (!(flags & FFWAS_LOOPBACK)) {
+		if (NULL == (w->evt = CreateEvent(NULL, 0, 0, NULL))) {
+			r = fferr_last();
+			goto fail;
+		}
+		if (0 != (r = IAudioClient_SetEventHandle(w->cli, w->evt)))
+			goto fail;
 	}
-	if (0 != (r = IAudioClient_SetEventHandle(w->cli, w->evt)))
-		goto fail;
 
 	if (0 != (r = IAudioClient_GetBufferSize(w->cli, &w->bufsize)))
 		goto fail;
@@ -565,7 +577,7 @@ static FFINL int woh_add(ffwasapi *w)
 int ffwas_start(ffwasapi *w)
 {
 	int r;
-	if (0 != (r = woh_add(w)))
+	if (w->evt != NULL && 0 != (r = woh_add(w)))
 		return r;
 
 	if (w->underflow)
@@ -579,7 +591,8 @@ int ffwas_start(ffwasapi *w)
 
 int ffwas_stop(ffwasapi *w)
 {
-	ffwoh_rm(_ffwas_woh, w->evt);
+	if (w->evt != NULL)
+		ffwoh_rm(_ffwas_woh, w->evt);
 	w->started = 0;
 	return IAudioClient_Stop(w->cli);
 }
@@ -605,10 +618,6 @@ int ffwas_stoplazy(ffwasapi *w)
 }
 
 
-enum {
-	AUDCNT_S_BUFFEREMPTY = 0x8890001,
-};
-
 int ffwas_capt_read(ffwasapi *w, void **data, size_t *len)
 {
 	int r;
@@ -623,12 +632,17 @@ int ffwas_capt_read(ffwasapi *w, void **data, size_t *len)
 		}
 
 		if (0 != (r = IAudioCaptureClient_GetBuffer(w->capt, (byte**)&d.ptr, &w->wpos, &flags, NULL, NULL))) {
-			if (r == AUDCNT_S_BUFFEREMPTY) {
+			if (r == AUDCLNT_S_BUFFER_EMPTY) {
 				*len = 0;
 				return 0;
 			}
 			return r;
 		}
+
+		if (flags != 0) {
+			FFDBG_PRINTLN(10, "IAudioCaptureClient_GetBuffer() flags:%xu", flags);
+		}
+
 		d.len = w->wpos * w->frsize;
 		w->actvbufs = 1;
 		w->nfy_next -= w->wpos;

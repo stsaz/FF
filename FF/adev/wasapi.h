@@ -78,13 +78,28 @@ typedef struct ffwasapi {
 		;
 } ffwasapi;
 
-/** Open device for playback.
+enum FFWAS_F {
+	/* enum FFWAS_DEV{} */
+
+	/** Use exclusive mode rather than shared. */
+	FFWAS_EXCL = 4,
+
+	/** Render: open audio device in a loopback mode.
+	Note: async notifications don't work, so user must keep calling ffwas_capt_read() periodically. */
+	FFWAS_LOOPBACK = 8,
+
+	/** Render: automatically start playing when the whole buffer is filled. */
+	FFWAS_AUTOSTART = 0x10,
+};
+
+/** Open device.
 In shared mode there's only one supported sample rate.  In exclusive mode a device may support different sample rates.
 @dev_id: NULL for a default device.
+@flags: enum FFWAS_F.
 Return AUDCLNT_E* on error.
  AUDCLNT_E_UNSUPPORTED_FORMAT:
   shared mode: 'fmt' is set to the format which is configured for the device. */
-FF_EXTN int ffwas_open(ffwasapi *w, const WCHAR *dev_id, ffpcm *fmt, uint bufsize_msec);
+FF_EXTN int ffwas_open(ffwasapi *w, const WCHAR *dev_id, ffpcm *fmt, uint bufsize_msec, uint flags);
 
 FF_EXTN void ffwas_close(ffwasapi *w);
 
@@ -118,13 +133,6 @@ FF_EXTN void ffwas_clear(ffwasapi *w);
 
 /** Return 1 if stopped. */
 FF_EXTN int ffwas_stoplazy(ffwasapi *w);
-
-
-static FFINL int ffwas_capt_open(ffwasapi *w, const WCHAR *id, ffpcm *fmt, uint bufsize)
-{
-	w->capture = 1;
-	return ffwas_open(w, id, fmt, bufsize);
-}
 
 #define ffwas_capt_close  ffwas_close
 
