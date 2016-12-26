@@ -170,6 +170,11 @@ enum FFPARS_F {
 	/** Key may have more than 1 value: "key val1 val2..." */
 	FFPARS_FLIST = 0x20000,
 
+	/** "*" argument: call handler with keyname as a value. */
+	//FFPARS_FNOKEY = 0,
+	/** "*" argument: save keyname in ps->vals[0].  Don't call handler with keyname. */
+	FFPARS_FWITHKEY = 0x40000,
+
 //ffjson only:
 	/** Allow null value, e.g. "key": null */
 	FFPARS_FNULL = 0x10000,

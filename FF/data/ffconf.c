@@ -524,7 +524,7 @@ static int ffconf_schemval(ffparser_schem *ps)
 				return FFPARS_ESYS;
 			s->ptr = ptr;
 
-			memcpy(s->ptr, v.ptr, v.len);
+			ffmemcpy(s->ptr, v.ptr, v.len);
 			s->len = v.len;
 			r = -1;
 		}
@@ -590,6 +590,19 @@ int ffconf_schemrun(ffparser_schem *ps)
 
 				ps->p->ret = FFPARS_OPEN;
 				break;
+			}
+
+			if (ps->curarg->flags & FFPARS_FWITHKEY) {
+				ffstr v = ps->p->val;
+				ffstr *s = &ps->vals[0];
+				char *ptr = ffmem_realloc(s->ptr, v.len);
+				if (ptr == NULL)
+					return FFPARS_ESYS;
+				s->ptr = ptr;
+
+				ffmemcpy(s->ptr, v.ptr, v.len);
+				s->len = v.len;
+				return 0;
 			}
 
 			/* The first word in a row is KEY, but we handle it like a value, i.e. call "ffpars_val.f_str(..., key_name)".
