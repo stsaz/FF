@@ -10,6 +10,33 @@ Copyright (c) 2014 Simon Zolin
 #include <uxtheme.h>
 
 
+// HOTKEYS
+// POINT
+// CURSOR
+// FONT
+// ICON
+// DIALOG
+// MESSAGE DIALOG
+// CONTROL
+// FILE OPERATIONS
+// EDITBOX
+// COMBOBOX
+// BUTTON
+// CHECKBOX
+// RADIOBUTTON
+// LABEL
+// TRAY
+// PANED
+// STATUS BAR
+// TRACKBAR
+// PROGRESS BAR
+// TAB
+// LISTVIEW
+// TREEVIEW
+// WINDOW
+// MESSAGE LOOP
+// CLIPBOARD
+
 typedef struct ffui_wnd ffui_wnd;
 
 FF_EXTN int ffui_init(void);
@@ -138,6 +165,7 @@ FF_EXTN int ffui_msgdlg_show(const char *title, const char *text, size_t len, ui
 #define ffui_msgdlg_showz(title, text, flags)  ffui_msgdlg_show(title, text, ffsz_len(text), flags)
 
 
+// CONTROL
 enum FFUI_UID {
 	FFUI_UID_WINDOW = 1,
 	FFUI_UID_LABEL,
@@ -207,6 +235,7 @@ FF_EXTN int ffui_ctl_destroy(void *c);
 FF_EXTN void* ffui_ctl_parent(void *c);
 
 
+// FILE OPERATIONS
 typedef struct ffui_fdrop {
 	HDROP hdrop;
 	uint idx;
@@ -222,6 +251,15 @@ FF_EXTN int ffui_openfolder(const char *const *items, size_t selcnt);
 
 /** Create .lnk file. */
 FF_EXTN int ffui_createlink(const char *target, const char *linkname);
+
+
+enum FFUI_FOP_F {
+	FFUI_FOP_ALLOWUNDO = FOF_ALLOWUNDO,
+};
+
+/** Delete a file.
+@flags: enum FFUI_FOP_F */
+FF_EXTN int ffui_fop_del(const char *const *names, size_t cnt, uint flags);
 
 
 FF_EXTN HIMAGELIST ffui_imglist_create(uint width, uint height);
@@ -953,16 +991,8 @@ static FFINL void ffui_run(void)
 }
 
 
+// CLIPBOARD
 /** Return 0 on success. */
 FF_EXTN int ffui_clipbd_set(const char *s, size_t len);
 
 FF_EXTN int ffui_clipbd_setfile(const char *const *names, size_t cnt);
-
-
-enum FFUI_FOP_F {
-	FFUI_FOP_ALLOWUNDO = FOF_ALLOWUNDO,
-};
-
-/** Delete a file.
-@flags: enum FFUI_FOP_F */
-FF_EXTN int ffui_fop_del(const char *const *names, size_t cnt, uint flags);

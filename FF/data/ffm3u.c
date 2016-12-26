@@ -58,6 +58,7 @@ int ffm3u_parse(ffparser *p, ffstr *data)
 		ffstr_shift(&s, FFSLEN("#EXTINF:"));
 
 		uint n = ffs_toint(s.ptr, s.len, &p->intval, FFS_INT64 | FFS_INTSIGN);
+		ffstr_set(&p->val, s.ptr, n);
 		ffstr_shift(&s, n);
 		if (s.len == 0 || s.ptr[0] != ',') {
 			p->state = M3U_LINE,  p->nextst = M3U_URL;

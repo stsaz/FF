@@ -122,6 +122,7 @@ do { \
 
 /** The last element in array. */
 #define ffarr_back(ar)  ((ar)->ptr[(ar)->len - 1])
+#define ffarr_lastT(ar, T)  (&((T*)(ar)->ptr)[(ar)->len - 1])
 
 /** The tail of array. */
 #define ffarr_end(ar)  ((ar)->ptr + (ar)->len)
@@ -190,6 +191,13 @@ FF_EXTN void * _ffarr_push(ffarr *ar, size_t elsz);
 
 #define ffarr_push(ar, T) \
 	(T*)_ffarr_push((ffarr*)ar, sizeof(T))
+
+/** Add 1 element.  Grow by the specified size if needed.
+Return element pointer;  NULL on error. */
+FF_EXTN void* ffarr_pushgrow(ffarr *ar, size_t lowat, size_t elsz);
+
+#define ffarr_pushgrowT(ar, lowat, T) \
+	(T*)ffarr_pushgrow(ar, lowat, sizeof(T))
 
 #define ffarr_add(a, src, n, elsz) \
 	ffarr2_add((ffarr2*)a, (a)->cap, src, n, elsz)

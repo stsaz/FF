@@ -43,7 +43,7 @@ static const char *const ffvorbtag_str[] = {
 	"TRACKTOTAL",
 };
 
-int ffvorbtag_find(const char *name, size_t len)
+static int ffvorbtag_find(const char *name, size_t len)
 {
 	return ffszarr_ifindsorted(ffvorbtag_str, FFCNT(ffvorbtag_str) - 1, name, len);
 }

@@ -79,6 +79,15 @@ void * _ffarr_push(ffarr *ar, size_t elsz)
 	return ar->ptr + (ar->len - 1) * elsz;
 }
 
+void* ffarr_pushgrow(ffarr *ar, size_t lowat, size_t elsz)
+{
+	if (NULL == _ffarr_grow(ar, 1, lowat, elsz))
+		return NULL;
+
+	ar->len += 1;
+	return ar->ptr + (ar->len - 1) * elsz;
+}
+
 void * _ffarr_append(ffarr *ar, const void *src, size_t num, size_t elsz)
 {
 	if (ar->cap < ar->len + num

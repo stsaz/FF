@@ -114,6 +114,8 @@ FF_EXTN void ffmpg_seek(ffmpg *m, uint64 sample);
 /** Get an absolute file offset to seek. */
 #define ffmpg_seekoff(m)  ((m)->off)
 
+#define ffmpg_hdrok(m)  ((m)->fmt.format != 0)
+
 /** Return enum FFMPG_R. */
 FF_EXTN int ffmpg_decode(ffmpg *m);
 

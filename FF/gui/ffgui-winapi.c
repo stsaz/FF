@@ -87,8 +87,9 @@ static void print(const char *cmd, HWND h, size_t w, size_t l) {
 #define call_dl(name) \
 do { \
 	ffdl dl = ffdl_open("user32.dll", 0); \
-	void (*f)() = (void(*)())ffdl_addr(dl, #name); \
-	f(); \
+	void (*f)(); \
+	if (NULL != (f = (void(*)())ffdl_addr(dl, #name))) \
+		f(); \
 	ffdl_close(dl); \
 } while (0)
 
@@ -96,12 +97,10 @@ int ffui_init(void)
 {
 	call_dl(SetProcessDPIAware);
 
-	{
 	HDC hdc = GetDC(NULL);
 	if (hdc != NULL) {
 		_ffui_dpi = GetDeviceCaps(hdc, LOGPIXELSX);
 		ReleaseDC(NULL, hdc);
-	}
 	}
 
 	return 0;
