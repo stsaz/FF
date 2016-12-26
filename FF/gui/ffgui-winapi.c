@@ -114,6 +114,158 @@ void ffui_uninit(void)
 }
 
 
+static const byte _ffui_ikeys[] = {
+	VK_OEM_7,
+	VK_OEM_2,
+	VK_OEM_4,
+	VK_OEM_5,
+	VK_OEM_6,
+	VK_OEM_3,
+	VK_BACK,
+	VK_PAUSE,
+	VK_DELETE,
+	VK_DOWN,
+	VK_END,
+	VK_RETURN,
+	VK_ESCAPE,
+	VK_F1,
+	VK_F10,
+	VK_F11,
+	VK_F12,
+	VK_F2,
+	VK_F3,
+	VK_F4,
+	VK_F5,
+	VK_F6,
+	VK_F7,
+	VK_F8,
+	VK_F9,
+	VK_HOME,
+	VK_INSERT,
+	VK_LEFT,
+	VK_RIGHT,
+	VK_SPACE,
+	VK_TAB,
+	VK_UP,
+};
+
+static const char *const _ffui_keystr[] = {
+	"'",
+	"/",
+	"[",
+	"\\",
+	"]",
+	"`",
+	"backspace",
+	"break",
+	"delete",
+	"down",
+	"end",
+	"enter",
+	"escape",
+	"f1",
+	"f10",
+	"f11",
+	"f12",
+	"f2",
+	"f3",
+	"f4",
+	"f5",
+	"f6",
+	"f7",
+	"f8",
+	"f9",
+	"home",
+	"insert",
+	"left",
+	"right",
+	"space",
+	"tab",
+	"up",
+};
+
+ffui_hotkey ffui_hotkey_parse(const char *s, size_t len)
+{
+	int r = 0, f;
+	const char *end = s + len;
+	ffstr v;
+	enum {
+		fctrl = FCONTROL << 16,
+		fshift = FSHIFT << 16,
+		falt = FALT << 16,
+	};
+
+	if (s == end)
+		goto fail;
+
+	while (s != end) {
+		s += ffstr_nextval(s, end - s, &v, '+');
+
+		if (ffstr_ieqcz(&v, "ctrl"))
+			f = fctrl;
+		else if (ffstr_ieqcz(&v, "alt"))
+			f = falt;
+		else if (ffstr_ieqcz(&v, "shift"))
+			f = fshift;
+		else {
+			if (s != end)
+				goto fail; //the 2nd key is an error
+			break;
+		}
+
+		if (r & f)
+			goto fail;
+		r |= f;
+	}
+
+	if (v.len == 1 && (ffchar_isletter(v.ptr[0]) || ffchar_isdigit(v.ptr[0])))
+		r |= v.ptr[0];
+
+	else {
+		ssize_t ikey = ffszarr_ifindsorted(_ffui_keystr, FFCNT(_ffui_keystr), v.ptr, v.len);
+		if (ikey == -1)
+			goto fail; //unknown key
+		r |= _ffui_ikeys[ikey];
+	}
+
+	return r;
+
+fail:
+	return 0;
+}
+
+int ffui_hotkey_register(void *ctl, ffui_hotkey hk)
+{
+	ffui_ctl *c = ctl;
+	char name[32];
+	ATOM id;
+
+	ffs_fmt(name, name + sizeof(name), "ffhk%xu%xu%Z", (uint)(hk >> 16) & 0xff, (uint)hk & 0xff);
+	id = GlobalAddAtomA(name);
+
+	uint mod = 0;
+	if ((hk >> 16) & FCONTROL)
+		mod |= MOD_CONTROL;
+	if ((hk >> 16) & FALT)
+		mod |= MOD_ALT;
+	if ((hk >> 16) & FSHIFT)
+		mod |= MOD_SHIFT;
+	if (!RegisterHotKey(c->h, id, mod, hk & 0xff)) {
+		GlobalDeleteAtom(id);
+		return 0;
+	}
+
+	return id;
+}
+
+void ffui_hotkey_unreg(void *ctl, int id)
+{
+	ffui_ctl *c = ctl;
+	UnregisterHotKey(c->h, id);
+	GlobalDeleteAtom(id);
+}
+
+
 #define ffui_screenarea(r)  SystemParametersInfo(SPI_GETWORKAREA, 0, r, 0)
 
 #define dpi_descale(x)  (((x) * 96) / _ffui_dpi)
@@ -1033,6 +1185,8 @@ int ffui_wnd_destroy(ffui_wnd *w)
 	if (w->trayicon != NULL)
 		ffui_tray_show(w->trayicon, 0);
 
+	ffui_wnd_ghotkey_unreg(w);
+
 	if (w->acceltbl != NULL)
 		DestroyAcceleratorTable(w->acceltbl);
 
@@ -1126,6 +1280,74 @@ int ffui_wnd_tooltip(ffui_wnd *w, ffui_ctl *ctl, const char *text, size_t len)
 	if (pw != ws)
 		ffmem_free(pw);
 	return 0;
+}
+
+int ffui_wnd_hotkeys(ffui_wnd *w, const struct ffui_wnd_hotkey *hotkeys, size_t n)
+{
+	ACCEL *accels;
+	int r = -1;
+
+	FF_SAFECLOSE(w->acceltbl, NULL, DestroyAcceleratorTable);
+
+	if (NULL == (accels = ffmem_alloc(n * sizeof(ACCEL))))
+		return -1;
+
+	for (size_t i = 0;  i != n;  i++) {
+		ACCEL *a = &accels[i];
+		a->fVirt = (byte)(hotkeys[i].hk >> 16) | FVIRTKEY;
+		a->key = (byte)hotkeys[i].hk;
+		a->cmd = hotkeys[i].cmd;
+	}
+
+	if (NULL == (w->acceltbl = CreateAcceleratorTable(accels, FF_TOINT(n))))
+		r = -1;
+	r = 0;
+
+	ffmem_free(accels);
+	return r;
+}
+
+struct wnd_ghotkey {
+	uint id;
+	uint cmd;
+};
+
+static int wnd_ghotkey_add(ffui_wnd *w, uint hkid, uint cmd)
+{
+	struct wnd_ghotkey *hk;
+	if (NULL == (hk = ffarr_pushgrowT(&w->ghotkeys, 4, struct wnd_ghotkey)))
+		return -1;
+	hk->id = hkid;
+	hk->cmd = cmd;
+	return 0;
+}
+
+int ffui_wnd_ghotkey_reg(ffui_wnd *w, uint hk, uint cmd)
+{
+	uint hkid;
+	if (0 == (hkid = ffui_hotkey_register(w, hk)))
+		return -1;
+	return wnd_ghotkey_add(w, hkid, cmd);
+}
+
+void ffui_wnd_ghotkey_unreg(ffui_wnd *w)
+{
+	struct wnd_ghotkey *hk;
+	FFARR_WALKT(&w->ghotkeys, hk, struct wnd_ghotkey) {
+		ffui_hotkey_unreg(w, hk->id);
+	}
+	ffarr_free(&w->ghotkeys);
+}
+
+static void ffui_wnd_ghotkey_call(ffui_wnd *w, uint hkid)
+{
+	struct wnd_ghotkey *hk;
+	FFARR_WALKT(&w->ghotkeys, hk, struct wnd_ghotkey) {
+		if (hk->id == hkid) {
+			w->on_action(w, hk->cmd);
+			break;
+		}
+	}
 }
 
 static FFINL void wnd_bordstick(uint stick, WINDOWPOS *ws)
@@ -1366,6 +1588,11 @@ int ffui_wndproc(ffui_wnd *wnd, size_t *code, HWND h, uint msg, size_t w, size_t
 			wnd->on_action(wnd, wnd->onmaximize_id);
 			break;
 		}
+		break;
+
+	case WM_HOTKEY:
+		print("WM_HOTKEY", h, w, l);
+		ffui_wnd_ghotkey_call(wnd, w);
 		break;
 
 	case WM_ACTIVATE:

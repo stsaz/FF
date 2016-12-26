@@ -11,7 +11,6 @@ Copyright (c) 2014 Simon Zolin
 
 
 static void* ldr_getctl(ffui_loader *g, const ffstr *name);
-static uint ffui_hotkeyparse(const char *s, size_t len);
 
 // ICON
 static int ico_size(ffparser_schem *ps, void *obj, const ffstr *val);
@@ -373,140 +372,19 @@ static int mi_action(ffparser_schem *ps, void *obj, const ffstr *val)
 	return 0;
 }
 
-static const byte ikeys[] = {
-	VK_OEM_7,
-	VK_OEM_2,
-	VK_OEM_4,
-	VK_OEM_5,
-	VK_OEM_6,
-	VK_OEM_3,
-	VK_PAUSE,
-	VK_DELETE,
-	VK_DOWN,
-	VK_RETURN,
-	VK_ESCAPE,
-	VK_F1,
-	VK_F10,
-	VK_F11,
-	VK_F12,
-	VK_F2,
-	VK_F3,
-	VK_F4,
-	VK_F5,
-	VK_F6,
-	VK_F7,
-	VK_F8,
-	VK_F9,
-	VK_INSERT,
-	VK_LEFT,
-	VK_RIGHT,
-	VK_SPACE,
-	VK_TAB,
-	VK_UP,
-};
-
-static const char *const skeys[] = {
-	"'",
-	"/",
-	"[",
-	"\\",
-	"]",
-	"`",
-	"break",
-	"delete",
-	"down",
-	"enter",
-	"escape",
-	"f1",
-	"f10",
-	"f11",
-	"f12",
-	"f2",
-	"f3",
-	"f4",
-	"f5",
-	"f6",
-	"f7",
-	"f8",
-	"f9",
-	"insert",
-	"left",
-	"right",
-	"space",
-	"tab",
-	"up",
-};
-
-/** Parse hotkey string.
-e.g. "Ctrl+Alt+Shift+Q"
-Return: low-word: char key or vkey.  hi-word: control flags
-Return 0 on error. */
-static uint ffui_hotkeyparse(const char *s, size_t len)
-{
-	int r = 0, f;
-	const char *end = s + len;
-	ffstr v;
-	enum {
-		fctrl = FCONTROL << 16,
-		fshift = FSHIFT << 16,
-		falt = FALT << 16,
-	};
-
-	if (s == end)
-		goto fail;
-
-	while (s != end) {
-		s += ffstr_nextval(s, end - s, &v, '+');
-
-		if (ffstr_ieqcz(&v, "ctrl"))
-			f = fctrl;
-		else if (ffstr_ieqcz(&v, "alt"))
-			f = falt;
-		else if (ffstr_ieqcz(&v, "shift"))
-			f = fshift;
-		else {
-			if (s != end)
-				goto fail; //the 2nd key is an error
-			break;
-		}
-
-		if (r & f)
-			goto fail;
-		r |= f;
-	}
-
-	if (v.len == 1 && (ffchar_isletter(v.ptr[0]) || ffchar_isdigit(v.ptr[0])))
-		r |= v.ptr[0];
-
-	else {
-		ssize_t ikey = ffszarr_ifindsorted(skeys, FFCNT(skeys), v.ptr, v.len);
-		if (ikey == -1)
-			goto fail; //unknown key
-		r |= ikeys[ikey];
-	}
-
-	return r;
-
-fail:
-	return 0;
-}
-
 static int mi_hotkey(ffparser_schem *ps, void *obj, const ffstr *val)
 {
 	ffui_loader *g = obj;
-	ACCEL *a;
+	ffui_wnd_hotkey *a;
 	uint hk;
 
-	if (NULL == ffarr_grow(&g->accels, 1, 3))
+	if (NULL == (a = ffarr_pushgrowT(&g->accels, 4, ffui_wnd_hotkey)))
 		return FFPARS_ESYS;
-	a = ffarr_push(&g->accels, ACCEL);
 
-	if (0 == (hk = ffui_hotkeyparse(val->ptr, val->len)))
+	if (0 == (hk = ffui_hotkey_parse(val->ptr, val->len)))
 		return FFPARS_EBADVAL;
 
-	a->fVirt = (byte)(hk >> 16) | FVIRTKEY;
-	a->key = (byte)hk;
-	a->cmd = 0;
+	a->hk = hk;
 
 	ffui_menu_sethotkey(&g->menuitem.mi, val->ptr, val->len);
 	g->menuitem.iaccel = 1;
@@ -517,8 +395,10 @@ static int mi_done(ffparser_schem *ps, void *obj)
 {
 	ffui_loader *g = obj;
 
-	if (g->menuitem.iaccel && g->menuitem.mi.wID != 0)
-		ffarr_back(&g->accels).cmd = g->menuitem.mi.wID;
+	if (g->menuitem.iaccel && g->menuitem.mi.wID != 0) {
+		ffui_wnd_hotkey *hk = ffarr_lastT(&g->accels, ffui_wnd_hotkey);
+		hk->cmd = g->menuitem.mi.wID;
+	}
 
 	if (0 != ffui_menu_append(g->menu, &g->menuitem.mi))
 		return FFPARS_ESYS;
@@ -1486,11 +1366,10 @@ static int wnd_done(ffparser_schem *ps, void *obj)
 	}
 
 	if (g->accels.len != 0) {
-		HACCEL a = CreateAcceleratorTable(g->accels.ptr, FF_TOINT(g->accels.len));
+		int r = ffui_wnd_hotkeys(g->wnd, (void*)g->accels.ptr, g->accels.len);
 		g->accels.len = 0;
-		if (a == NULL)
+		if (r != 0)
 			return FFPARS_ESYS;
-		g->wnd->acceltbl = a;
 	}
 
 	if (g->vis) {

@@ -16,6 +16,21 @@ FF_EXTN int ffui_init(void);
 FF_EXTN void ffui_uninit(void);
 
 
+// HOTKEYS
+typedef uint ffui_hotkey;
+
+/** Parse hotkey string, e.g. "Ctrl+Alt+Shift+Q".
+Return: low-word: char key or vkey, hi-word: control flags;  0 on error. */
+FF_EXTN ffui_hotkey ffui_hotkey_parse(const char *s, size_t len);
+
+/** Register global hotkey.
+Return 0 on error. */
+FF_EXTN int ffui_hotkey_register(void *ctl, ffui_hotkey hk);
+
+/** Unregister global hotkey. */
+FF_EXTN void ffui_hotkey_unreg(void *ctl, int id);
+
+
 // POINT
 typedef struct ffui_point {
 	int x, y;
@@ -830,6 +845,7 @@ struct ffui_wnd {
 	ffui_paned *paned_first;
 	ffui_stbar *stbar;
 	HACCEL acceltbl;
+	ffarr ghotkeys; //struct wnd_ghotkey[]
 
 	void (*on_create)(ffui_wnd *wnd);
 	void (*on_destroy)(ffui_wnd *wnd);
@@ -872,6 +888,20 @@ FF_EXTN uint ffui_wnd_placement(ffui_wnd *w, ffui_pos *pos);
 FF_EXTN void ffui_wnd_setplacement(ffui_wnd *w, uint showcmd, const ffui_pos *pos);
 
 FF_EXTN int ffui_wnd_tooltip(ffui_wnd *w, ffui_ctl *ctl, const char *text, size_t len);
+
+typedef struct ffui_wnd_hotkey {
+	uint hk;
+	uint cmd;
+} ffui_wnd_hotkey;
+
+/** Set hotkey table. */
+FF_EXTN int ffui_wnd_hotkeys(ffui_wnd *w, const struct ffui_wnd_hotkey *hotkeys, size_t n);
+
+/** Register a global hotkey. */
+FF_EXTN int ffui_wnd_ghotkey_reg(ffui_wnd *w, uint hk, uint cmd);
+
+/** Unregister all global hotkeys associated with this window. */
+FF_EXTN void ffui_wnd_ghotkey_unreg(ffui_wnd *w);
 
 #undef FFUI_CTL
 

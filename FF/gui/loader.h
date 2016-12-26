@@ -27,7 +27,7 @@ struct ffui_loader {
 	void *udata;
 	ffpars_ctx ctx;
 
-	struct { FFARR(ACCEL) } accels;
+	ffarr accels; //ffui_wnd_hotkey[]
 	ffstr path;
 	_ffui_ldr_icon_t ico;
 	ffui_wnd *wnd;
