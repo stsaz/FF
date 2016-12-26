@@ -180,7 +180,7 @@ done:
 
 static int scHdlKey(ffparser_schem *ps, ffpars_ctx *ctx);
 static int scHdlEnum(ffparser_schem *ps, void *obj);
-static void scHdlBits(size_t f, int64 i, union ffpars_val dst);
+static int _ffpars_bits(size_t f, int64 i, union ffpars_val dst);
 static int scSetInt(ffparser_schem *ps, ffpars_ctx *ctx, union ffpars_val dst, union ffpars_val edst, int64 n);
 static int scHdlVal(ffparser_schem *ps, ffpars_ctx *ctx);
 static int scOpenBrace(ffparser_schem *ps);
@@ -223,44 +223,53 @@ static int scHdlEnum(ffparser_schem *ps, void *obj)
 	return -1;
 }
 
-static void scHdlBits(size_t f, int64 i, union ffpars_val dst)
-{
-	uint bit = (f & FFPARS_FBITMASK) >> 24;
 
-	if (f & FFPARS_F64BIT) {
+static const byte pars_width[] = { 32, 64, 16, 8 };
+
+#define PARS_WIDTH(f) \
+	pars_width[((f) >> 8) & 0x03]
+
+static int _ffpars_bits(size_t f, int64 i, union ffpars_val dst)
+{
+	uint bit = (f >> 24) & 0xff;
+
+	switch (PARS_WIDTH(f)) {
+	case 64:
 		if (i != 0)
 			ffbit_set64((uint64*)dst.i64, bit);
 		else
 			ffbit_reset64((uint64*)dst.i64, bit);
-	}
-	//else if (f & FFPARS_F16BIT)
-	//	ffbit_set32((uint*)dst.i16, bit);
-	//else if (f & FFPARS_F8BIT)
-	//	ffbit_set32((uint*)dst.b, bit);
-	else {
+		break;
+	case 32:
 		if (i != 0)
 			ffbit_set32((uint*)dst.i32, bit);
 		else
 			ffbit_reset32((uint*)dst.i32, bit);
+		break;
+	default:
+		return FFPARS_ECONF;
 	}
+	return 0;
 }
 
 static int scSetInt(ffparser_schem *ps, ffpars_ctx *ctx, union ffpars_val dst, union ffpars_val edst, int64 n)
 {
 	size_t f = ps->curarg->flags;
+	uint width = PARS_WIDTH(f);
+	uint64 mask;
 
-	if (!(f & FFPARS_F64BIT)) {
-		int64 i = n;
-		uint shift = 32;
+	switch (width) {
+	case 32:
+		mask = (uint)-1;
+		goto check_width;
+	case 16:
+		mask = 0xffff;
+		goto check_width;
+	case 8:
+		mask = 0xff;
 
-		if (f & FFPARS_F16BIT)
-			shift = 64-16;
-		else if (f & FFPARS_F8BIT)
-			shift = 64-8;
-
-		if (i < 0)
-			i = -i;
-		if ((i >> shift) != 0)
+check_width:
+		if (ffabs(n) & ~mask)
 			return FFPARS_EBIGVAL;
 	}
 
@@ -268,16 +277,18 @@ static int scSetInt(ffparser_schem *ps, ffpars_ctx *ctx, union ffpars_val dst, u
 		return edst.f_int(ps, ctx->obj, &n);
 
 	else if (f & FFPARS_FBIT)
-		scHdlBits(f, n, dst);
+		return _ffpars_bits(f, n, dst);
 
-	else if (f & FFPARS_F64BIT)
-		*dst.i64 = n;
-	else if (f & FFPARS_F16BIT)
-		*dst.i16 = (short)n;
-	else if (f & FFPARS_F8BIT)
-		*dst.b = (char)n;
-	else
-		*dst.i32 = (int)n;
+	switch (width) {
+	case 64:
+		*dst.i64 = n; break;
+	case 32:
+		*dst.i32 = (int)n; break;
+	case 16:
+		*dst.i16 = (short)n; break;
+	case 8:
+		*dst.b = (char)n; break;
+	}
 
 	return 0;
 }
@@ -395,18 +406,23 @@ static int scHdlVal(ffparser_schem *ps, ffpars_ctx *ctx)
 		break;
 
 	case FFPARS_TFLOAT:
-		if (ffpars_arg_isfunc(ps->curarg))
-			return FFPARS_ECONF; //unsupported
+		if ((f & FFPARS_FNOTZERO) && p->fltval == 0)
+			return FFPARS_EVALZERO;
 
 		if (!(f & FFPARS_FSIGN) && p->fltval < 0)
 			return FFPARS_EVALNEG;
 
-		if (!(f & (FFPARS_F64BIT | FFPARS_F16BIT | FFPARS_F8BIT)))
-			*dst.f32 = (float)p->fltval;
-		else if (f & FFPARS_F64BIT)
-			*dst.f64 = p->fltval;
-		else
+		if (func)
+			return edst.f_flt(ps, ctx->obj, &p->fltval);
+
+		switch (PARS_WIDTH(f)) {
+		case 64:
+			*dst.f64 = p->fltval; break;
+		case 32:
+			*dst.f32 = (float)p->fltval; break;
+		default:
 			return FFPARS_ECONF; //invalid bits for a float
+		}
 		break;
 
 	default:
@@ -427,8 +443,7 @@ static int scOpenBrace(ffparser_schem *ps)
 	int er = 0;
 	void *o;
 
-	ctx = ffarr_push(&ps->ctxs, ffpars_ctx);
-	if (ctx == NULL)
+	if (NULL == (ctx = ffarr_pushgrowT((ffarr*)&ps->ctxs, 4, ffpars_ctx)))
 		return FFPARS_ESYS;
 	memset(ctx, 0, sizeof(ffpars_ctx));
 
@@ -494,6 +509,16 @@ static int scCloseBrace(ffparser_schem *ps)
 
 	ps->ctxs.len--;
 	ps->curarg = ffarr_back(&ps->ctxs).args;
+	return 0;
+}
+
+int ffpars_setctx(ffparser_schem *ps, void *o, const ffpars_arg *args, uint nargs)
+{
+	ffpars_ctx *newctx;
+	if (NULL == (newctx = ffarr_pushgrowT((ffarr*)&ps->ctxs, 4, ffpars_ctx)))
+		return FFPARS_ESYS;
+	memset(newctx, 0, sizeof(ffpars_ctx));
+	ffpars_setargs(newctx, o, args, nargs);
 	return 0;
 }
 

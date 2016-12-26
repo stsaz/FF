@@ -124,10 +124,65 @@ static FFINL int _ffpars_addchar2(ffparser *p, const char *src)
 	return _ffpars_copyBuf(p, src, sizeof(char));
 }
 
+enum FFPARS_F {
+	FFPARS_FTYPEMASK = 0x0f,
+
+	/** Data pointer (not a structure's member offset, not a function pointer). */
+	FFPARS_FPTR = 0x10,
+
+	/** The argument must be specified.  Note: up to 63 arguments only. */
+	FFPARS_FREQUIRED = 0x40,
+
+	/** Allow multiple occurences.  Note: up to 63 arguments only. */
+	FFPARS_FMULTI = 0x80,
+
+//FFPARS_TSTR, FFPARS_TCHARPTR:
+	/** Copy string value.
+	Note: call ffmem_free() to free this memory.
+	  If function pointer is used and it returns error, this memory is freed automatically. */
+	FFPARS_FCOPY = 0x100,
+
+	FFPARS_FNOTEMPTY = 0x200, // don't allow empty string
+	FFPARS_FNONULL = 0x400, //don't allow escaped '\0'
+
+	/** Prepare NULL-terminated string.  Must be used only with FFPARS_FCOPY. */
+	FFPARS_FSTRZ = FFPARS_FNONULL | 0x800,
+
+//FFPARS_TINT, FFPARS_TSIZE, FFPARS_TBOOL, FFPARS_TFLOAT:
+	//FFPARS_F32BIT = 0,
+	FFPARS_F64BIT = 0x100, // 64-bit number
+	FFPARS_F16BIT = 0x200, // 16-bit number
+	FFPARS_F8BIT = 0x300, // 8-bit number
+
+//FFPARS_TINT, FFPARS_TSIZE, FFPARS_TFLOAT:
+	FFPARS_FSIGN = 0x400, // Allow negative number
+	FFPARS_FNOTZERO = 0x800, // Don't allow number zero
+
+//FFPARS_TINT:
+	/** Set/reset bit within 32/64-bit integer (see FFPARS_SETBIT()). */
+	FFPARS_FBIT = 0x1000,
+
+//ffconf only:
+	/** String value followed by object start, e.g. "key val {..."
+	"val" is stored in ps->vals[0]. */
+	FFPARS_FOBJ1 = 0x10000,
+
+	/** Key may have more than 1 value: "key val1 val2..." */
+	FFPARS_FLIST = 0x20000,
+
+//ffjson only:
+	/** Allow null value, e.g. "key": null */
+	FFPARS_FNULL = 0x10000,
+
+//ffpsarg only:
+	/** Key without value, e.g. "--help" */
+	FFPARS_FALONE = 0x10000,
+};
+
 enum FFPARS_T {
-	FFPARS_TSTR = 1 ///< string
+	FFPARS_TSTR = 1 // string (ffstr)
 	, FFPARS_TCHARPTR // char*, must be used with FFPARS_FSTRZ
-	, FFPARS_TINT ///< 32-bit or 64-bit integer
+	, FFPARS_TINT // 8/16/32/64-bit integer
 	, FFPARS_TFLOAT // 32/64-bit floating point number
 	, FFPARS_TBOOL ///< byte integer, the possible values are 0 and 1.  Valid input: false|true
 	, FFPARS_TOBJ ///< new context: sub-object
@@ -135,35 +190,11 @@ enum FFPARS_T {
 	, FFPARS_TENUM ///< byte index in the array of possible values of type string
 	, FFPARS_TSIZE ///< integer with suffix k|m|g|t.  e.g. "1m" = 1 * 1024 * 1024
 	, FFPARS_TCLOSE ///< notification on closing the current context.  MUST be the last in list.
-};
 
-enum FFPARS_F {
-	FFPARS_FTYPEMASK = 0x0f
-	, FFPARS_FBITMASK = 0xff000000
-
-	, FFPARS_FPTR = 0x10 ///< direct pointer
-	, FFPARS_FCOPY = 0x20 ///< copy string value.  Note: call ffstr_free() to free this memory.
-	, FFPARS_FREQUIRED = 0x40 ///< the argument must be specified.  note: up to 63 arguments only
-	, FFPARS_FMULTI = 0x80 ///< allow multiple occurences.  note: up to 63 arguments only
-
-	, FFPARS_FNULL = 0x100 ///< allow null value
-
-//TSTR
-	, FFPARS_FNOTEMPTY = 0x200 ///< don't allow empty string
-	, FFPARS_FNONULL = 0x400 //don't allow escaped '\0'
-	, FFPARS_FSTRZ = FFPARS_FNONULL | 0x800 //NULL-terminated string.  Must be used only with FFPARS_FCOPY.
-
-	, FFPARS_FNOTZERO = 0x400 ///< don't allow number zero
-	//, FFPARS_F32BIT = 0
-	, FFPARS_F64BIT = 0x800 ///< 64-bit number
-	, FFPARS_F16BIT = 0x1000 ///< 16-bit number
-	, FFPARS_F8BIT = 0x2000 ///< 8-bit number
-
-	, FFPARS_FSIGN = 0x4000 ///< allow negative number
-	, FFPARS_FBIT = 0x8000
-	, FFPARS_FLIST = 0x10000
-	, FFPARS_FOBJ1 = 0x20000 ///< string value followed by object start. e.g. "name val {..."
-	, FFPARS_FALONE = 0x40000
+	, FFPARS_TINT64 = FFPARS_TINT | FFPARS_F64BIT
+	, FFPARS_TINT16 = FFPARS_TINT | FFPARS_F16BIT
+	, FFPARS_TINT8 = FFPARS_TINT | FFPARS_F8BIT
+	, FFPARS_TBOOL8 = FFPARS_TBOOL | FFPARS_F8BIT
 };
 
 #define FFPARS_SETVAL(i)  ((i) << 24)
@@ -179,6 +210,7 @@ union ffpars_val {
 	int (*f_str)(ffparser_schem *p, void *obj, const ffstr *val);
 	int (*f_charptr)(ffparser_schem *p, void *obj, const char *val);
 	int (*f_int)(ffparser_schem *p, void *obj, const int64 *val);
+	int (*f_flt)(ffparser_schem *p, void *obj, const double *val);
 	int (*f_obj)(ffparser_schem *p, void *obj, ffpars_ctx *ctx);
 	ffpars_enumlist *enum_list;
 
@@ -205,7 +237,7 @@ struct ffpars_enumlist {
 
 typedef struct ffpars_arg {
 	const char *name;
-	size_t flags;
+	size_t flags; // EXT_DATA FLAGS TYPE
 	union ffpars_val dst;
 } ffpars_arg;
 
@@ -249,8 +281,6 @@ FF_EXTN void ffpars_ctx_skip(ffpars_ctx *ctx);
 enum FFPARS_SCHEMFLAG {
 	// internal:
 	FFPARS_SCHAVKEY = 1
-	, FFPARS_SCCTX_ANY = 2
-	, FFPARS_SCCTX = 4
 
 	, FFPARS_KEYICASE = 0x100 // case-insensitive key names
 };
@@ -277,6 +307,9 @@ Return enum FFPARS_E. */
 FF_EXTN int ffpars_schemrun(ffparser_schem *ps, int e);
 
 FF_EXTN int ffpars_skipctx(ffparser_schem *ps);
+
+/** Set the next context. */
+FF_EXTN int ffpars_setctx(ffparser_schem *ps, void *o, const ffpars_arg *args, uint nargs);
 
 /** Get error message. */
 FF_EXTN const char * ffpars_schemerrstr(ffparser_schem *ps, int code, char *buf, size_t cap);

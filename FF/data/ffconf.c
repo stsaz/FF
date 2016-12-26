@@ -5,6 +5,14 @@ Copyright (c) 2013 Simon Zolin
 #include <FF/data/conf.h>
 
 
+enum FFCONF_SCF {
+	// enum FFPARS_SCHEMFLAG{}
+
+	FFPARS_SCCTX_ANY = 2,
+	FFPARS_SCCTX = 4,
+	SCF_RESETCTX = 8,
+};
+
 static int hdlEsc(ffparser *p, int *st, int ch);
 static int unesc(char *dst, size_t cap, const char *text, size_t len);
 static int hdlQuote(ffparser *p, int *st, int *nextst, const char *data);
@@ -563,6 +571,8 @@ int ffconf_schemrun(ffparser_schem *ps)
 		f = 0;
 		if (ps->flags & FFPARS_KEYICASE)
 			f |= FFPARS_CTX_FKEYICASE;
+		if (ps->p->type == FFCONF_TKEYCTX)
+			ps->flags |= SCF_RESETCTX;
 		arg = ffpars_ctx_findarg(ctx, val->ptr, val->len, FFPARS_CTX_FANY | FFPARS_CTX_FDUP | f);
 		if (arg == NULL)
 			return FFPARS_EUKNKEY;
@@ -607,11 +617,11 @@ int ffconf_schemrun(ffparser_schem *ps)
 
 	r = ffpars_schemrun(ps, ps->p->ret);
 
-	if ((ps->flags & FFPARS_SCCTX_ANY) && r == FFPARS_VAL) {
+	if ((ps->flags & SCF_RESETCTX) && r == FFPARS_VAL) {
 		//clear context after the whole line "ctx1.key value" is processed
 		ps->ctxs.len = 1;
 		ps->curarg = NULL;
-		ps->flags &= ~FFPARS_SCCTX_ANY;
+		ps->flags &= ~SCF_RESETCTX;
 	}
 
 	return r;

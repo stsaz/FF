@@ -258,7 +258,7 @@ int ffpsarg_schemrun(ffparser_schem *ps)
 			arg = NULL;
 			uint a = (byte)val->ptr[0];
 			for (i = 0;  i != ctx->nargs;  i++) {
-				uint ch1 = (ctx->args[i].flags & FFPARS_FBITMASK) >> 24;
+				uint ch1 = (ctx->args[i].flags >> 24) & 0xff;
 				if (a == ch1) {
 					arg = &ctx->args[i];
 					break;
