@@ -81,8 +81,12 @@ FF_EXTN void ffflac_close(ffflac *f);
 #define ffflac_totalsamples(f)  ((f)->info.total_samples)
 
 /** Get average bitrate.  May be called when FFFLAC_RHDRFIN is returned. */
-#define ffflac_bitrate(f) \
-	ffpcm_brate((f)->total_size - (f)->framesoff, (f)->info.total_samples, (f)->fmt.sample_rate)
+static FFINL uint ffflac_bitrate(ffflac *f)
+{
+	if (f->total_size == 0)
+		return 0;
+	return ffpcm_brate(f->total_size - f->framesoff, f->info.total_samples, f->fmt.sample_rate);
+}
 
 FF_EXTN void ffflac_seek(ffflac *f, uint64 sample);
 
@@ -128,6 +132,7 @@ typedef struct ffflac_enc {
 	uint min_meta; // minimum size of meta data (add padding block if needed)
 	uint level; //0..8.  Default: 5.
 	uint fin :1;
+	uint seekable :1;
 
 	uint seektable_int; // interval (in samples) for seek table.  Default: 1 sec.  0=disabled.
 	uint iskpt;

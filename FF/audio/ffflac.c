@@ -652,6 +652,7 @@ void ffflac_enc_init(ffflac_enc *f)
 	f->min_meta = 1000;
 	f->seektable_int = (uint)-1;
 	f->level = 5;
+	f->seekable = 1;
 }
 
 void ffflac_enc_close(ffflac_enc *f)
@@ -797,6 +798,10 @@ int ffflac_encode(ffflac_enc *f)
 		break;
 
 	case ENC_SEEK0:
+		if (!f->seekable) {
+			f->datalen = 0;
+			return FFFLAC_RDONE;
+		}
 		f->state = ENC_INFO_WRITE;
 		f->seekoff = 0;
 		return FFFLAC_RSEEK;
