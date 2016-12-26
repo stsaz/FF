@@ -115,6 +115,8 @@ enum FFUI_UID {
 	FFUI_UID_TEXT,
 	FFUI_UID_COMBOBOX,
 	FFUI_UID_BUTTON,
+	FFUI_UID_CHECKBOX,
+	FFUI_UID_RADIO,
 
 	FFUI_UID_TRACKBAR,
 	FFUI_UID_PROGRESSBAR,
@@ -270,6 +272,32 @@ typedef struct ffui_btn {
 } ffui_btn;
 
 FF_EXTN int ffui_btn_create(ffui_ctl *c, ffui_wnd *parent);
+
+
+// CHECKBOX
+typedef struct ffui_chbox {
+	FFUI_CTL;
+	HFONT font;
+	uint action_id;
+} ffui_chbox;
+
+FF_EXTN int ffui_chbox_create(ffui_ctl *c, ffui_wnd *parent);
+
+#define ffui_chbox_check(c, val)  ffui_ctl_send(c, BM_SETCHECK, val, 0)
+#define ffui_chbox_checked(c)  ffui_ctl_send(c, BM_GETCHECK, 0, 0)
+
+
+// RADIOBUTTON
+typedef struct ffui_radio {
+	FFUI_CTL;
+	HFONT font;
+	uint action_id;
+} ffui_radio;
+
+FF_EXTN int ffui_radio_create(ffui_ctl *c, ffui_wnd *parent);
+
+#define ffui_radio_check(c)  ffui_chbox_check(c)
+#define ffui_radio_checked(c)  ffui_chbox_checked(c)
 
 
 // LABEL

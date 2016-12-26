@@ -60,6 +60,8 @@ static const struct ctlinfo ctls[] = {
 		, WS_EX_CLIENTEDGE },
 	{ "combobox",	TEXT("COMBOBOX"), CBS_DROPDOWN | CBS_AUTOHSCROLL, WS_EX_CLIENTEDGE },
 	{ "button",	TEXT("BUTTON"), 0, 0 },
+	{ "checkbox",	TEXT("BUTTON"), BS_AUTOCHECKBOX, 0 },
+	{ "radiobutton",	TEXT("BUTTON"), BS_AUTORADIOBUTTON, 0 },
 
 	{ "trackbar",	TEXT("msctls_trackbar32"), 0, 0 },
 	{ "progressbar",	TEXT("msctls_progress32"), 0, 0 },
@@ -510,6 +512,30 @@ fail:
 int ffui_btn_create(ffui_ctl *c, ffui_wnd *parent)
 {
 	if (0 != ctl_create(c, FFUI_UID_BUTTON, parent->h))
+		return 1;
+
+	if (parent->font != NULL)
+		ffui_ctl_send(c, WM_SETFONT, parent->font, 0);
+
+	return 0;
+}
+
+
+int ffui_chbox_create(ffui_ctl *c, ffui_wnd *parent)
+{
+	if (0 != ctl_create(c, FFUI_UID_CHECKBOX, parent->h))
+		return 1;
+
+	if (parent->font != NULL)
+		ffui_ctl_send(c, WM_SETFONT, parent->font, 0);
+
+	return 0;
+}
+
+
+int ffui_radio_create(ffui_ctl *c, ffui_wnd *parent)
+{
+	if (0 != ctl_create(c, FFUI_UID_RADIO, parent->h))
 		return 1;
 
 	if (parent->font != NULL)

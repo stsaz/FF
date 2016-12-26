@@ -113,6 +113,29 @@ static const ffpars_arg btn_args[] = {
 };
 static int new_button(ffparser_schem *ps, void *obj, ffpars_ctx *ctx);
 
+// CHECKBOX
+static int chbox_style(ffparser_schem *ps, void *obj, const ffstr *val);
+static const ffpars_arg chbox_args[] = {
+	{ "text",	FFPARS_TSTR, FFPARS_DST(&label_text) },
+	{ "style",	FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&chbox_style) },
+	{ "font",	FFPARS_TOBJ, FFPARS_DST(&label_font) },
+	{ "position",	FFPARS_TINT | FFPARS_FSIGN | FFPARS_FLIST, FFPARS_DST(&label_pos) },
+	{ "tooltip",	FFPARS_TSTR, FFPARS_DST(&ctl_tooltip) },
+	{ "action",	FFPARS_TSTR, FFPARS_DST(&btn_action) },
+};
+static int new_checkbox(ffparser_schem *ps, void *obj, ffpars_ctx *ctx);
+
+// RADIOBUTTON
+static const ffpars_arg radio_args[] = {
+	{ "text",	FFPARS_TSTR, FFPARS_DST(&label_text) },
+	{ "style",	FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&chbox_style) },
+	{ "font",	FFPARS_TOBJ, FFPARS_DST(&label_font) },
+	{ "position",	FFPARS_TINT | FFPARS_FSIGN | FFPARS_FLIST, FFPARS_DST(&label_pos) },
+	{ "tooltip",	FFPARS_TSTR, FFPARS_DST(&ctl_tooltip) },
+	{ "action",	FFPARS_TSTR, FFPARS_DST(&btn_action) },
+};
+static int new_radio(ffparser_schem *ps, void *obj, ffpars_ctx *ctx);
+
 // EDITBOX
 static int edit_style(ffparser_schem *ps, void *obj, const ffstr *val);
 static int edit_action(ffparser_schem *ps, void *obj, const ffstr *val);
@@ -256,6 +279,8 @@ static const ffpars_arg wnd_args[] = {
 	{ "text",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&new_editbox) },
 	{ "combobox",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&new_combobox) },
 	{ "button",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&new_button) },
+	{ "checkbox",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&new_checkbox) },
+	{ "radiobutton",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&new_radio) },
 	{ "trackbar",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&new_trkbar) },
 	{ "progressbar",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&new_pgsbar) },
 	{ "tab",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&new_tab) },
@@ -863,6 +888,17 @@ static int btn_action(ffparser_schem *ps, void *obj, const ffstr *val)
 }
 
 
+static int chbox_style(ffparser_schem *ps, void *obj, const ffstr *val)
+{
+	ffui_loader *g = obj;
+	if (ffstr_eqcz(val, "checked"))
+		ffui_chbox_check(g->btn, 1);
+	else
+		return label_style(ps, obj, val);
+	return 0;
+}
+
+
 static int edit_style(ffparser_schem *ps, void *obj, const ffstr *val)
 {
 	ffui_loader *g = obj;
@@ -969,6 +1005,40 @@ static int new_button(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 		return FFPARS_ESYS;
 
 	ffpars_setargs(ctx, g, btn_args, FFCNT(btn_args));
+	return 0;
+}
+
+static int new_checkbox(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
+{
+	ffui_loader *g = obj;
+	void *ctl;
+
+	ctl = ldr_getctl(g, &ps->vals[0]);
+	if (ctl == NULL)
+		return FFPARS_EBADVAL;
+	g->ctl = ctl;
+
+	if (0 != ffui_chbox_create(g->ctl, g->wnd))
+		return FFPARS_ESYS;
+
+	ffpars_setargs(ctx, g, chbox_args, FFCNT(btn_args));
+	return 0;
+}
+
+static int new_radio(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
+{
+	ffui_loader *g = obj;
+	void *ctl;
+
+	ctl = ldr_getctl(g, &ps->vals[0]);
+	if (ctl == NULL)
+		return FFPARS_EBADVAL;
+	g->ctl = ctl;
+
+	if (0 != ffui_radio_create(g->ctl, g->wnd))
+		return FFPARS_ESYS;
+
+	ffpars_setargs(ctx, g, radio_args, FFCNT(btn_args));
 	return 0;
 }
 
