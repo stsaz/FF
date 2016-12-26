@@ -120,6 +120,7 @@ typedef struct ffwav_cook {
 	uint64 off;
 
 	uint fin :1;
+	uint seekable :1;
 } ffwav_cook;
 
 FF_EXTN int ffwav_create(ffwav_cook *w, ffpcm *fmt, uint64 total_samples);

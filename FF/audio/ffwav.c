@@ -465,10 +465,11 @@ int ffwav_create(ffwav_cook *w, ffpcm *fmt, uint64 total_samples)
 	w->state = W_HDR;
 	w->fmt = *fmt;
 	w->total_samples = total_samples;
-	w->dsize = w->total_samples * ffpcm_size1(&w->fmt);
+	w->dsize = (w->total_samples != 0) ? w->total_samples * ffpcm_size1(&w->fmt) : (uint)-1;
 	w->doff = sizeof(struct wav_chunk) + sizeof(struct wav_riff)
 		+ sizeof(struct wav_chunk) + sizeof(struct wav_fmt)
 		+ sizeof(struct wav_chunk);
+	w->seekable = 1;
 	return 0;
 }
 
@@ -528,12 +529,15 @@ int ffwav_write(ffwav_cook *w)
 			if (!w->fin)
 				return FFWAV_RMORE;
 
+			if (w->dsize == w->total_samples * ffpcm_size1(&w->fmt) || !w->seekable)
+				return FFWAV_RDONE; //header already has the correct data size
+
 			w->state = W_HDRFIN;
 			w->off = 0;
 			return FFWAV_RSEEK;
 		}
 
-		if (w->dsize + w->pcmlen > (uint)-1)
+		if ((uint64)w->dsize + w->pcmlen > (uint)-1)
 			return ERR(w, WAV_ELARGE);
 
 		w->dsize += w->pcmlen;
