@@ -60,6 +60,7 @@ typedef struct ffwav {
 	uint64 cursample;
 	uint has_fmt :1
 		, fin :1
+		, inf_data :1
 		;
 
 	int tag; //enum FFMMTAG or -1

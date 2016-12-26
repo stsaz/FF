@@ -330,7 +330,7 @@ int ffwav_decode(ffwav *w)
 		struct ffwav_chunk *chunk = &w->chunks[w->ictx];
 		wav_findchunk(w->gather_buf.ptr, w->ctx[w->ictx], chunk);
 
-		if (w->ictx != 0) {
+		if (w->ictx != 0 && !(chunk->id == T_DATA && chunk->size == (uint)-1)) {
 			struct ffwav_chunk *parent = &w->chunks[w->ictx - 1];
 			if (chunk->size > parent->size)
 				return ERR(w, WAV_ELARGE);
@@ -342,6 +342,9 @@ int ffwav_decode(ffwav *w)
 			w->state = R_SKIP;
 			continue;
 		}
+
+		if (chunk->id == T_DATA && chunk->size == (uint)-1)
+			w->inf_data = 1;
 
 		uint minsize = GET_MINSIZE(chunk->flags);
 		if (minsize != 0 && chunk->size < minsize)
@@ -407,7 +410,8 @@ int ffwav_decode(ffwav *w)
 
 			w->dataoff = w->off;
 			w->datasize = ff_align_floor(chunk->size, ffpcm_size1(&w->fmt));
-			w->total_samples = chunk->size / ffpcm_size1(&w->fmt);
+			if (!w->inf_data)
+				w->total_samples = chunk->size / ffpcm_size1(&w->fmt);
 			w->state = R_DATA;
 			return FFWAV_RHDR;
 		}
