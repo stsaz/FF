@@ -33,11 +33,11 @@ static const byte _ffapetag_id3[] = {
 	FFMMTAG_DATE,
 };
 
-static FFINL int _ffapetag_field(const char *name)
+static FFINL uint _ffapetag_field(const char *name)
 {
 	int r = (int)ffszarr_ifindsorted(ffapetag_str, FFCNT(ffapetag_str), name, ffsz_len(name));
 	if (r == -1)
-		return -1;
+		return 0;
 	return _ffapetag_id3[r];
 }
 

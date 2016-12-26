@@ -234,6 +234,7 @@ static FFINL int wvpk_ape(ffwvpack *w)
 
 	case FFAPETAG_RTAG:
 		w->is_apetag = 1;
+		w->tag = w->apetag.tag;
 		return FFWVPK_RTAG;
 
 	case FFAPETAG_RSEEK:
