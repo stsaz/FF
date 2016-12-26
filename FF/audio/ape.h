@@ -9,8 +9,8 @@ ver <= 3.97: HDR  [WAV_HDR]  SEEK_TBL
 
 #pragma once
 
-#include <FF/audio/apetag.h>
-#include <FF/audio/id3.h>
+#include <FF/mtags/apetag.h>
+#include <FF/mtags/id3.h>
 #include <FF/audio/pcm.h>
 
 #include <mac/MAC-ff.h>

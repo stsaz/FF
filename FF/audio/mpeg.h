@@ -10,8 +10,8 @@ MPEG-HEADER  [CRC16]  ([XING-TAG  LAME-TAG]  |  FRAME-DATA...) ...
 
 #include <FF/audio/mpeg-fmt.h>
 #include <FF/audio/pcm.h>
-#include <FF/audio/id3.h>
-#include <FF/audio/apetag.h>
+#include <FF/mtags/id3.h>
+#include <FF/mtags/apetag.h>
 #include <FF/array.h>
 
 #include <mpg123/mpg123-ff.h>

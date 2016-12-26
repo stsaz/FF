@@ -9,7 +9,7 @@ OGG(VORB_INFO)  OGG(VORB_COMMENTS VORB_CODEBOOK)  OGG(PKT1 PKT2...)...
 #pragma once
 
 #include <FF/audio/pcm.h>
-#include <FF/audio/vorbistag.h>
+#include <FF/mtags/vorbistag.h>
 #include <FF/array.h>
 
 #include <vorbis/vorbis-ff.h>

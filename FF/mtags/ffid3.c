@@ -2,7 +2,7 @@
 Copyright (c) 2013 Simon Zolin
 */
 
-#include <FF/audio/id3.h>
+#include <FF/mtags/id3.h>
 #include <FF/data/utf8.h>
 #include <FF/number.h>
 

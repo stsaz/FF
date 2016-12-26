@@ -89,6 +89,15 @@ $(FF_OBJ_DIR)/%.o: $(FF)/FF/adev/%.c $(FF_HDR) $(FF_ADEV_HDR)
 	$(C) $(FF_CFLAGS)  $< -o$@
 
 
+# mtags
+FF_MTAGS_HDR := $(wildcard $(FF)/FF/mtags/*.h)
+FF_MTAGS_SRC := $(wildcard $(FF)/FF/mtags/*.c)
+FF_MTAGS_OBJ := $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_MTAGS_SRC)))))
+FF_ALL_OBJ += $(FF_MTAGS_OBJ)
+$(FF_OBJ_DIR)/%.o: $(FF)/FF/mtags/%.c $(FF_HDR) $(FF_MTAGS_HDR)
+	$(C) $(FF_CFLAGS)  $< -o$@
+
+
 # pic
 FF_PIC_HDR := $(wildcard $(FF)/FF/pic/*.h)
 FF_PIC_SRC := $(wildcard $(FF)/FF/pic/*.c)

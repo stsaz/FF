@@ -2,7 +2,7 @@
 Copyright (c) 2015 Simon Zolin
 */
 
-#include <FF/audio/vorbistag.h>
+#include <FF/mtags/vorbistag.h>
 #include <FF/data/mmtag.h>
 #include <FF/number.h>
 

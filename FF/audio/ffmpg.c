@@ -4,7 +4,7 @@ Copyright (c) 2013 Simon Zolin
 
 #include <FF/audio/mpeg.h>
 #include <FF/audio/mp3lame.h>
-#include <FF/audio/id3.h>
+#include <FF/mtags/id3.h>
 #include <FF/string.h>
 #include <FF/number.h>
 #include <FF/data/utf8.h>

@@ -2,7 +2,7 @@
 Copyright (c) 2015 Simon Zolin
 */
 
-#include <FF/audio/apetag.h>
+#include <FF/mtags/apetag.h>
 #include <FF/data/mmtag.h>
 #include <FF/number.h>
 

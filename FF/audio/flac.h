@@ -12,7 +12,7 @@ fLaC INFO VORBIS_CMT [PADDING] [SEEKTABLE] (FRAME)...
 #pragma once
 
 #include <FF/audio/flac-fmt.h>
-#include <FF/audio/vorbistag.h>
+#include <FF/mtags/vorbistag.h>
 #include <FF/audio/pcm.h>
 #include <FF/array.h>
 
