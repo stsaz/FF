@@ -825,7 +825,7 @@ static int label_color(ffparser_schem *ps, void *obj, const ffstr *val)
 	ffui_loader *g = obj;
 	uint clr;
 
-	if ((uint)-1 == (clr = ffpic_color(val->ptr, val->len)))
+	if ((uint)-1 == (clr = ffpic_color3(val->ptr, val->len, ffpic_clr_a)))
 		return FFPARS_EBADVAL;
 
 	g->actl.lbl->color = clr;

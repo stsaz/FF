@@ -23,32 +23,66 @@ const char* ffpic_fmtstr(uint fmt)
 
 
 static const char *const _ffpic_clrstr[] = {
+	"aqua",
 	"black",
 	"blue",
+	"fuchsia",
 	"green",
 	"grey",
 	"lime",
 	"maroon",
 	"navy",
+	"olive",
+	"orange",
+	"purple",
 	"red",
 	"silver",
+	"teal",
 	"white",
+	"yellow",
 };
 
-static const uint _ffpic_clr[] = {
+const uint ffpic_clr[] = {
+	/*aqua*/	0x00ffff,
 	/*black*/	0x000000,
 	/*blue*/	0x0000ff,
+	/*fuchsia*/	0xff00ff,
 	/*green*/	0x008000,
 	/*grey*/	0x808080,
 	/*lime*/	0x00ff00,
 	/*maroon*/	0x800000,
 	/*navy*/	0x000080,
+	/*olive*/	0x808000,
+	/*orange*/	0xffa500,
+	/*purple*/	0x800080,
 	/*red*/	0xff0000,
 	/*silver*/	0xc0c0c0,
+	/*teal*/	0x008080,
 	/*white*/	0xffffff,
+	/*yellow*/	0xffff00,
 };
 
-uint ffpic_color(const char *s, size_t len)
+const uint ffpic_clr_a[] = {
+	/*aqua*/	0x7fdbff,
+	/*black*/	0x111111,
+	/*blue*/	0x0074d9,
+	/*fuchsia*/	0xf012be,
+	/*green*/	0x2ecc40,
+	/*grey*/	0xaaaaaa,
+	/*lime*/	0x01ff70,
+	/*maroon*/	0x85144b,
+	/*navy*/	0x001f3f,
+	/*olive*/	0x3d9970,
+	/*orange*/	0xff851b,
+	/*purple*/	0xb10dc9,
+	/*red*/	0xff4136,
+	/*silver*/	0xdddddd,
+	/*teal*/	0x39cccc,
+	/*white*/	0xffffff,
+	/*yellow*/	0xffdc00,
+};
+
+uint ffpic_color3(const char *s, size_t len, const uint *clrs)
 {
 	ssize_t n;
 	uint clr = (uint)-1;
@@ -60,7 +94,7 @@ uint ffpic_color(const char *s, size_t len)
 	} else {
 		if (-1 == (n = ffszarr_ifindsorted(_ffpic_clrstr, FFCNT(_ffpic_clrstr), s, len)))
 			goto err;
-		clr = _ffpic_clr[n];
+		clr = clrs[n];
 	}
 
 	//LE: BGR0 -> RGB0
