@@ -68,6 +68,21 @@ typedef struct ffui_pos {
 } ffui_pos;
 
 
+// ICON
+typedef struct ffui_icon {
+	HICON h;
+} ffui_icon;
+
+#define ffui_icon_destroy(ico)  DestroyIcon((ico)->h)
+
+static FFINL int ffui_icon_load_q(ffui_icon *ico, const ffsyschar *filename, uint index)
+{
+	return !ExtractIconEx(filename, index, &ico->h, NULL, 1);
+}
+
+FF_EXTN int ffui_icon_load(ffui_icon *ico, const char *filename, uint index);
+
+
 // DIALOG
 typedef struct ffui_dialog {
 	OPENFILENAME of;
@@ -187,6 +202,9 @@ FF_EXTN int ffui_ctl_destroy(void *c);
 
 #define ffui_styleclear(h, style_bit) \
 	SetWindowLong(h, GWL_STYLE, GetWindowLong(h, GWL_STYLE) & ~(style_bit))
+
+/** Get parent control object. */
+FF_EXTN void* ffui_ctl_parent(void *c);
 
 
 typedef struct ffui_fdrop {
@@ -437,9 +455,12 @@ typedef struct ffui_trayicon {
 	NOTIFYICONDATA nid;
 	ffui_menu *pmenu;
 	uint lclick_id;
+	uint visible :1;
 } ffui_trayicon;
 
 FF_EXTN void ffui_tray_create(ffui_trayicon *t, ffui_wnd *wnd);
+
+#define ffui_tray_visible(t)  ((t)->visible)
 
 #define ffui_tray_settooltip(t, s, len) \
 do { \
@@ -452,7 +473,7 @@ do { \
 #define ffui_tray_seticon(t, ico) \
 do { \
 	(t)->nid.uFlags |= NIF_ICON; \
-	(t)->nid.hIcon = (HICON)(ico); \
+	(t)->nid.hIcon = (ico)->h; \
 } while (0)
 
 static FFINL int ffui_tray_set(ffui_trayicon *t, uint show)
@@ -460,10 +481,7 @@ static FFINL int ffui_tray_set(ffui_trayicon *t, uint show)
 	return 0 == Shell_NotifyIcon(NIM_MODIFY, &t->nid);
 }
 
-static FFINL int ffui_tray_show(ffui_trayicon *t, uint show)
-{
-	return 0 == Shell_NotifyIcon(show ? NIM_ADD : NIM_DELETE, &t->nid);
-}
+FF_EXTN int ffui_tray_show(ffui_trayicon *t, uint show);
 
 
 // PANED
@@ -867,10 +885,13 @@ FF_EXTN int ffui_wnd_create(ffui_wnd *w);
 
 #define ffui_wnd_setfront(w)  SetForegroundWindow((w)->h)
 
+#define ffui_wnd_icon(w, ico) \
+	((ico)->h = (HICON)ffui_ctl_send((w), WM_GETICON, ICON_BIG, 0))
+
 #define ffui_wnd_seticon(w, ico) \
 do { \
-	ffui_ctl_send(w, WM_SETICON, ICON_SMALL, ico); \
-	ffui_ctl_send(w, WM_SETICON, ICON_BIG, ico); \
+	ffui_ctl_send(w, WM_SETICON, ICON_SMALL, (ico)->h); \
+	ffui_ctl_send(w, WM_SETICON, ICON_BIG, (ico)->h); \
 } while (0)
 
 FF_EXTN void ffui_wnd_opacity(ffui_wnd *w, uint percent);

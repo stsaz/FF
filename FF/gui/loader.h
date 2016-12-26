@@ -11,7 +11,7 @@ Copyright (c) 2014 Simon Zolin
 typedef struct ffui_loader ffui_loader;
 
 typedef struct {
-	HICON h;
+	ffui_icon icon;
 	ffstr fn;
 	int idx;
 	ffui_loader *ldr;

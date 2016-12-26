@@ -309,18 +309,12 @@ static int ico_size(ffparser_schem *ps, void *obj, const ffstr *val)
 static int ico_done(ffparser_schem *ps, void *obj)
 {
 	_ffui_ldr_icon_t *ico = obj;
-	HICON *lrg = &ico->h, *sml = NULL;
-	ffsyschar *p, fn[FF_MAXPATH];
+	char *p, fn[FF_MAXPATH];
 
-	if (ico->small) {
-		lrg = NULL;
-		sml = &ico->h;
-	}
-
-	p = ffq_copys(fn, fn + FFCNT(fn), ico->ldr->path.ptr, ico->ldr->path.len);
-	ffqz_copys(p, fn + FFCNT(fn) - p, ico->fn.ptr, ico->fn.len);
+	p = ffs_copy(fn, fn + FFCNT(fn), ico->ldr->path.ptr, ico->ldr->path.len);
+	ffsz_copy(p, fn + FFCNT(fn) - p, ico->fn.ptr, ico->fn.len);
 	ffstr_free(&ico->fn);
-	if (!ExtractIconEx(fn, ico->idx, lrg, sml, 1))
+	if (0 != ffui_icon_load(&ico->icon, fn, ico->idx))
 		return FFPARS_ESYS;
 	return 0;
 }
@@ -616,8 +610,8 @@ static int tray_done(ffparser_schem *ps, void *obj)
 {
 	ffui_loader *g = obj;
 
-	if (g->tr.ico.h != NULL)
-		ffui_tray_seticon(g->tray, g->tr.ico.h);
+	if (g->tr.ico.icon.h != NULL)
+		ffui_tray_seticon(g->tray, &g->tr.ico.icon);
 
 	if (g->tr.show && 0 != ffui_tray_show(g->tray, 1))
 		return FFPARS_ESYS;
@@ -1346,15 +1340,15 @@ static int wnd_done(ffparser_schem *ps, void *obj)
 {
 	ffui_loader *g = obj;
 
-	if (g->ico.h != NULL) {
-		ffui_wnd_seticon(g->wnd, g->ico.h);
+	if (g->ico.icon.h != NULL) {
+		ffui_wnd_seticon(g->wnd, &g->ico.icon);
 
 	} else {
-		HWND hparent = (HWND)GetWindowLongPtr(g->wnd->h, GWLP_HWNDPARENT);
-		if (hparent != NULL) {
-			ffui_wnd *parent = ffui_getctl(hparent);
-			HICON ico = (HICON)ffui_ctl_send(parent, WM_GETICON, ICON_BIG, 0);
-			ffui_wnd_seticon(g->wnd, ico);
+		ffui_wnd *parent;
+		if (NULL != (parent = ffui_ctl_parent(g->wnd))) {
+			ffui_icon ico;
+			ffui_wnd_icon(parent, &ico);
+			ffui_wnd_seticon(g->wnd, &ico);
 		}
 	}
 

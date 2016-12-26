@@ -410,6 +410,15 @@ fail:
 	return -1;
 }
 
+void* ffui_ctl_parent(void *c)
+{
+	ffui_ctl *ctl = c;
+	HWND h;
+	if (NULL == (h = (HWND)GetWindowLongPtr(ctl->h, GWLP_HWNDPARENT)))
+		return NULL;
+	return ffui_getctl(h);
+}
+
 
 const char* ffui_fdrop_next(ffui_fdrop *df)
 {
@@ -949,6 +958,21 @@ char* ffui_tree_text(ffui_view *t, void *item)
 }
 
 
+int ffui_icon_load(ffui_icon *ico, const char *filename, uint index)
+{
+	ffsyschar *w, ws[255];
+	size_t n = FFCNT(ws) - 1;
+	int r;
+	if (NULL == (w = ffs_utow(ws, &n, filename, ffsz_len(filename))))
+		return -1;
+	w[n] = '\0';
+	r = ffui_icon_load_q(ico, w, index);
+	if (w != ws)
+		ffmem_free(w);
+	return r;
+}
+
+
 void ffui_dlg_destroy(ffui_dialog *d)
 {
 	ffmem_safefree(d->names);
@@ -1082,6 +1106,17 @@ void ffui_tray_create(ffui_trayicon *t, ffui_wnd *wnd)
 	t->nid.uFlags = NIF_MESSAGE;
 	t->nid.uCallbackMessage = WM_USER_TRAY;
 	wnd->trayicon = t;
+}
+
+int ffui_tray_show(ffui_trayicon *t, uint show)
+{
+	uint action = show ? NIM_ADD : NIM_DELETE;
+	if (show && t->visible)
+		action = NIM_MODIFY;
+	if (!Shell_NotifyIcon(action, &t->nid))
+		return -1;
+	t->visible = show;
+	return 0;
 }
 
 static FFINL void tray_nfy(ffui_wnd *wnd, ffui_trayicon *t, size_t l)
