@@ -147,6 +147,42 @@ size_t ffpath_makefn(char *dst, size_t dstcap, const char *src, size_t len, int 
 	return dst - dsto;
 }
 
+ffbool ffpath_isvalidfn(const char *fn, size_t len, uint flags)
+{
+	if (flags == FFPATH_FN_ANY) {
+#if defined FF_UNIX
+		flags = FFPATH_FN_UNIX;
+#elif defined FF_WIN
+		flags = FFPATH_FN_WIN;
+#endif
+	}
+
+	if (flags & FFPATH_FN_WIN) {
+		for (size_t i = 0;  i != len;  i++) {
+			if (!ffbit_testarr(_ffpath_charmask_filename, (byte)fn[i]))
+				return 0;
+		}
+	}
+
+	if (flags & FFPATH_FN_UNIX)
+		return (fn + len == ffs_findof(fn, len, "/\0", 2));
+
+	return 1;
+}
+
+const char* ffpath_split2(const char *fn, size_t len, ffstr *dir, ffstr *name)
+{
+	const char *slash = ffpath_rfindslash(fn, len);
+	if (slash == fn + len) {
+		if (dir != NULL)
+			dir->len = 0;
+		if (name != NULL)
+			ffstr_set(name, fn, len);
+		return NULL;
+	}
+	return ffs_split2(fn, len, slash, dir, name);
+}
+
 const char* ffpath_splitname(const char *fullname, size_t len, ffstr *name, ffstr *ext)
 {
 	char *dot = ffs_rfind(fullname, len, '.');
@@ -159,4 +195,12 @@ const char* ffpath_splitname(const char *fullname, size_t len, ffstr *name, ffst
 		return dot;
 	}
 	return ffs_split2(fullname, len, dot, name, ext);
+}
+
+const char* ffpath_split3(const char *fullname, size_t len, ffstr *path, ffstr *name, ffstr *ext)
+{
+	ffstr nm;
+	const char *slash = ffpath_split2(fullname, len, path, &nm);
+	ffpath_splitname(nm.ptr, nm.len, name, ext);
+	return slash;
 }

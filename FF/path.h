@@ -58,28 +58,26 @@ FF_EXTN size_t ffpath_makefn(char *dst, size_t dstcap, const char *src, size_t l
 /** Find the last slash in path. */
 #define ffpath_rfindslash(path, len)  ffs_rfind(path, len, '/')
 
-/** Return TRUE if the filename is valid. */
-#define ffpath_isvalidfn(fn, len)  ((fn) + (len) == ffs_findof(fn, len, "/\0", 2))
-
 #else
 #define ffpath_findslash(path, len)  ffs_findof(path, len, "/\\", 2)
 #define ffpath_rfindslash(path, len)  ffs_rfindof(path, len, "/\\", 2)
-#define ffpath_isvalidfn(fn, len)  ((fn) + (len) == ffs_findof(fn, len, "/\\\0", 3))
 #endif
 
+enum FFPATH_FN {
+	FFPATH_FN_ANY,
+	FFPATH_FN_UNIX,
+	FFPATH_FN_WIN,
+};
+
+/**
+@flags: enum FFPATH_FN
+Return TRUE if the filename is valid. */
+FF_EXTN ffbool ffpath_isvalidfn(const char *fn, size_t len, uint flags);
+
 /** Get filename and directory (without the last slash). */
-static FFINL const char* ffpath_split2(const char *fn, size_t len, ffstr *dir, ffstr *name)
-{
-	const char *slash = ffpath_rfindslash(fn, len);
-	if (slash == fn + len) {
-		if (dir != NULL)
-			dir->len = 0;
-		if (name != NULL)
-			ffstr_set(name, fn, len);
-		return NULL;
-	}
-	return ffs_split2(fn, len, slash, dir, name);
-}
+FF_EXTN const char* ffpath_split2(const char *fn, size_t len, ffstr *dir, ffstr *name);
 
 /** Get name and extension. */
 FF_EXTN const char* ffpath_splitname(const char *fullname, size_t len, ffstr *name, ffstr *ext);
+
+FF_EXTN const char* ffpath_split3(const char *fullname, size_t len, ffstr *path, ffstr *name, ffstr *ext);
