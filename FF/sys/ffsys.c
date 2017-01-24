@@ -6,15 +6,10 @@ Copyright (c) 2014 Simon Zolin
 #include <FFOS/file.h>
 #include <FF/data/parse.h>
 #include <FF/sys/filemap.h>
-#include <FF/sys/timer-queue.h>
 #include <FF/sys/taskqueue.h>
 #include <FF/dir.h>
 #include <FF/path.h>
 #include <FFOS/error.h>
-
-
-static void tmrq_onfire(void *t);
-static void tree_instimer(fftree_node *nod, fftree_node **root, void *sentl);
 
 
 #ifdef _DEBUG
@@ -122,94 +117,6 @@ int fffile_mapshift(fffilemap *fm, int64 by)
 
 	fffile_mapclose(fm);
 	return 0;
-}
-
-
-static void tree_instimer(fftree_node *nod, fftree_node **root, void *sentl)
-{
-	if (*root == sentl) {
-		*root = nod; // set root node
-		nod->parent = sentl;
-
-	} else {
-		fftree_node **pchild;
-		fftree_node *parent = *root;
-
-		// find parent node and the pointer to its left/right node
-		for (;;) {
-			if (((fftree_node8*)nod)->key < ((fftree_node8*)parent)->key)
-				pchild = &parent->left;
-			else
-				pchild = &parent->right;
-
-			if (*pchild == sentl)
-				break;
-			parent = *pchild;
-		}
-
-		*pchild = nod; // set parent's child
-		nod->parent = parent;
-	}
-
-	nod->left = nod->right = sentl;
-}
-
-void fftmrq_init(fftimer_queue *tq)
-{
-	tq->tmr = FF_BADTMR;
-	ffrbt_init(&tq->items);
-	tq->items.insnode = &tree_instimer;
-	ffkev_init(&tq->kev);
-	tq->kev.oneshot = 0;
-	tq->kev.handler = &tmrq_onfire;
-	tq->kev.udata = tq;
-
-	{
-		fftime now;
-		fftime_now(&now);
-		tq->msec_time = fftime_ms(&now);
-	}
-}
-
-void fftmrq_destroy(fftimer_queue *tq, fffd kq)
-{
-	ffrbt_init(&tq->items);
-	if (tq->tmr != FF_BADTMR) {
-		fftmr_close(tq->tmr, kq);
-		tq->tmr = FF_BADTMR;
-		ffkev_fin(&tq->kev);
-	}
-}
-
-static void tmrq_onfire(void *t)
-{
-	fftimer_queue *tq = t;
-	fftree_node *nod;
-	fftmrq_entry *ent;
-	fftime now;
-	fftime_now(&now);
-
-	tq->msec_time = fftime_ms(&now);
-
-	while (tq->items.len != 0) {
-		nod = fftree_min((fftree_node*)tq->items.root, &tq->items.sentl);
-		ent = FF_GETPTR(fftmrq_entry, tnode, nod);
-		if (((fftree_node8*)nod)->key > tq->msec_time)
-			break;
-
-		fftmrq_rm(tq, ent);
-		if (ent->interval != 0)
-			fftmrq_add(tq, ent, ent->interval);
-
-#ifdef FFDBG_TIMER
-		ffdbg_print(0, "%s(): %u.%06u: %p, interval:%u\n"
-			, FF_FUNC, now.s, now.mcs, ent, ent->interval);
-#endif
-
-		ent->handler(&now, ent->param);
-	}
-
-	fftmr_read(tq->tmr);
 }
 
 
