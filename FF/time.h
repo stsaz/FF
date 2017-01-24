@@ -11,6 +11,9 @@ enum FFTIME_FMT {
 	//date:
 	FFTIME_DATE_YMD = 2	// yyyy-MM-dd
 	, FFTIME_DATE_WDMY = 3	// Wed, 07 Sep 2011
+	, FFTIME_DATE_MDY0 // 09/07/2011
+	, FFTIME_DATE_MDY // 9/7/2011
+	, FFTIME_DATE_DMY // 07.09.2011
 
 	//time:
 	, FFTIME_HMS = 0x20	// hh:mm:ss

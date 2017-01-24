@@ -27,6 +27,21 @@ size_t fftime_tostr(const ffdtm *dt, char *dst, size_t cap, uint flags)
 			, dt->year, dt->month, dt->day);
 		break;
 
+	case FFTIME_DATE_MDY0:
+		dst += ffs_fmt(dst, end, "%02u/%02u/%04u"
+			, dt->month, dt->day, dt->year);
+		break;
+
+	case FFTIME_DATE_MDY:
+		dst += ffs_fmt(dst, end, "%u/%u/%04u"
+			, dt->month, dt->day, dt->year);
+		break;
+
+	case FFTIME_DATE_DMY:
+		dst += ffs_fmt(dst, end, "%02u.%02u.%04u"
+			, dt->day, dt->month, dt->year);
+		break;
+
 	case FFTIME_DATE_WDMY:
 		dst += ffs_fmt(dst, end, "%s, %02u %s %04u"
 			, week_days[dt->weekday], dt->day, month_names[dt->month - 1], dt->year);
@@ -89,6 +104,36 @@ size_t fftime_fromstr(ffdtm *dt, const char *s, size_t len, uint fmt)
 	switch (fmt & 0x0f) {
 	case FFTIME_DATE_YMD:
 		i = ffs_fmatch(s, s_end - s, "%4u-%2u-%2u"
+			, &t.year, &t.month, &t.day);
+		if (i < 0)
+			goto fail;
+		s += i;
+
+		t.weekday = 0;
+		break;
+
+	case FFTIME_DATE_MDY0:
+		i = ffs_fmatch(s, s_end - s, "%2u/%2u/%4u"
+			, &t.year, &t.month, &t.day);
+		if (i < 0)
+			goto fail;
+		s += i;
+
+		t.weekday = 0;
+		break;
+
+	case FFTIME_DATE_MDY:
+		i = ffs_fmatch(s, s_end - s, "%u/%u/%4u"
+			, &t.year, &t.month, &t.day);
+		if (i < 0)
+			goto fail;
+		s += i;
+
+		t.weekday = 0;
+		break;
+
+	case FFTIME_DATE_DMY:
+		i = ffs_fmatch(s, s_end - s, "%2u.%2u.%4u"
 			, &t.year, &t.month, &t.day);
 		if (i < 0)
 			goto fail;
