@@ -95,6 +95,10 @@ typedef struct ffui_pos {
 		, cx, cy;
 } ffui_pos;
 
+#define ffui_screenarea(r)  SystemParametersInfo(SPI_GETWORKAREA, 0, r, 0)
+
+FF_EXTN void ffui_pos_limit(ffui_pos *r, const ffui_pos *screen);
+
 
 // ICON
 typedef struct ffui_icon {

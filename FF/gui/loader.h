@@ -31,6 +31,7 @@ struct ffui_loader {
 	ffarr accels; //ffui_wnd_hotkey[]
 	ffstr path;
 	_ffui_ldr_icon_t ico;
+	ffui_pos screen;
 	ffui_wnd *wnd;
 	int ir;
 	union {

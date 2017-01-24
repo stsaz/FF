@@ -1380,6 +1380,7 @@ static int wnd_position(ffparser_schem *ps, void *obj, const int64 *v)
 		return FFPARS_EBIGVAL;
 	i[ps->list_idx] = (int)*v;
 	if (ps->list_idx == 3) {
+		ffui_pos_limit(&g->r, &g->screen);
 		ffui_setposrect(g->wnd, &g->r, 0);
 	}
 	return 0;
@@ -1398,8 +1399,10 @@ static int wnd_placement(ffparser_schem *ps, void *obj, const int64 *v)
 	int *i = &g->r.x;
 	i[ps->list_idx - 1] = (int)*v;
 
-	if (ps->list_idx == 4)
+	if (ps->list_idx == 4) {
+		ffui_pos_limit(&g->r, &g->screen);
 		ffui_wnd_setplacement(g->wnd, g->showcmd, &g->r);
+	}
 	return 0;
 }
 
@@ -1529,6 +1532,7 @@ void ffui_ldr_init(ffui_loader *g)
 {
 	ffmem_tzero(g);
 	ffpars_setargs(&g->ctx, g, top_args, FFCNT(top_args));
+	ffui_screenarea(&g->screen);
 }
 
 void ffui_ldr_fin(ffui_loader *g)

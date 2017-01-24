@@ -268,8 +268,6 @@ void ffui_hotkey_unreg(void *ctl, int id)
 }
 
 
-#define ffui_screenarea(r)  SystemParametersInfo(SPI_GETWORKAREA, 0, r, 0)
-
 #define dpi_descale(x)  (((x) * 96) / _ffui_dpi)
 #define dpi_scale(x)  (((x) * _ffui_dpi) / 96)
 
@@ -1045,6 +1043,27 @@ char* ffui_tree_text(ffui_view *t, void *item)
 	if (ffui_ctl_send(t, TVM_GETITEM, 0, &it))
 		return ffsz_alcopyqz(buf);
 	return NULL;
+}
+
+
+void ffui_pos_limit(ffui_pos *r, const ffui_pos *screen)
+{
+	if (r->x < 0)
+		r->x = 0;
+	if (r->y < 0)
+		r->y = 0;
+
+	uint cxmax = screen->cx - screen->x;
+	if (r->x + (uint)r->cx > cxmax) {
+		r->cx = ffmin(r->cx, cxmax);
+		r->x = cxmax - r->cx;
+	}
+
+	uint cymax = screen->cy - screen->y;
+	if (r->y + (uint)r->cy > cymax) {
+		r->cy = ffmin(r->cy, cymax);
+		r->y = cymax - r->cy;
+	}
 }
 
 
