@@ -15,6 +15,7 @@ typedef struct fftar_file {
 	uint mode;
 	uint uid;
 	uint gid;
+	uint type;
 	uint64 size;
 	fftime mtime;
 	const char *uid_str;
@@ -31,10 +32,12 @@ enum FFTAR_E {
 	FFTAR_ENOTREADY,
 	FFTAR_EBIG,
 	FFTAR_EFNAME,
+	FFTAR_ELONGNAME,
 };
 
 /** Parse header.
 @filename: must be at least 101 bytes.
+ If not NULL, file name is copied to it and f->name is set.
 @buf: must be at least 512 bytes.
 Return enum FFTAR_E on error. */
 FF_EXTN int fftar_hdr_parse(fftar_file *f, char *filename, const char *buf);
@@ -56,6 +59,9 @@ typedef struct fftar {
 
 	ffstr in;
 	ffstr out;
+
+	uint fin :1;
+	uint long_name :1;
 } fftar;
 
 typedef struct fftar_cook {
@@ -94,6 +100,9 @@ FF_EXTN fftar_file* fftar_nextfile(fftar *t);
 /**
 Return enum FFZIP_R. */
 FF_EXTN int fftar_read(fftar *t);
+
+/** The last block of input data. */
+#define fftar_fin(t)  (t)->fin = 1
 
 
 static FFINL void fftar_wclose(fftar_cook *t)

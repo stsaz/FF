@@ -11,7 +11,11 @@ Copyright (c) 2016 Simon Zolin
 
 enum TAR_TYPE {
 	TAR_FILE = '0',
+	TAR_FILE0 = '\0',
+	TAR_HLINK = '1',
+	TAR_SLINK = '2',
 	TAR_DIR = '5',
+	TAR_LONG = 'L', //the data in this block is the name of the next file
 };
 
 typedef struct tar_hdr {
@@ -48,6 +52,7 @@ typedef struct tar_ustar {
 
 enum {
 	TAR_BLOCK = 512,
+	TAR_MAXLONGNAME = 4 * 1024,
 };
 
 
@@ -63,6 +68,8 @@ static int _tar_num(const char *d, size_t len, void *dst, uint f)
 	uint n = ffs_toint(p, (d + len) - p, dst, FFS_INTOCTAL | f);
 	p += n;
 	const char *p2 = ffs_skipof(p, (d + len) - p, " \0", 2);
+	if (n == 0 && p2 == d + len)
+		return 0;
 	return (n == 0 || p == p2 || p2 != d + len) ? -1 : 0;
 }
 
@@ -84,8 +91,11 @@ int fftar_hdr_parse(fftar_file *f, char *filename, const char *buf)
 {
 	const tar_hdr *h = (void*)buf;
 	uint nlen = ffsz_nlen(h->name, sizeof(h->name));
-	ffsz_fcopy(filename, h->name, nlen);
-	f->name = filename;
+
+	if (filename != NULL) {
+		ffsz_fcopy(filename, h->name, nlen);
+		f->name = filename;
+	}
 
 	if (0 != tar_num(h->mode, sizeof(h->mode), &f->mode)
 		|| 0 != tar_num(h->uid, sizeof(h->uid), &f->uid)
@@ -94,10 +104,15 @@ int fftar_hdr_parse(fftar_file *f, char *filename, const char *buf)
 		|| 0 != tar_num(h->mtime, sizeof(h->mtime), &f->mtime.s))
 		return FFTAR_EHDR;
 
-	if (h->typeflag != TAR_FILE && h->typeflag != TAR_DIR)
+	if (!((h->typeflag >= '0' && h->typeflag <= '7')
+		|| h->typeflag == TAR_FILE0
+		|| h->typeflag == TAR_LONG)) {
+		FFDBG_PRINTLN(1, "%*s: file type: '%c'", (size_t)nlen, h->name, h->typeflag);
 		return FFTAR_ETYPE;
+	}
 	if (h->typeflag == TAR_DIR)
 		f->mode |= 0040000;
+	f->type = h->typeflag;
 
 	uint hchk, chk = tar_checksum((void*)h, TAR_BLOCK);
 	if (0 != tar_num(h->chksum, sizeof(h->chksum), &hchk)
@@ -185,6 +200,7 @@ static const char *const tar_errs[] = {
 	"not ready",
 	"too big name or size",
 	"invalid filename",
+	"too long filename",
 };
 
 const char* fftar_errstr(void *_t)
@@ -202,12 +218,11 @@ const char* fftar_errstr(void *_t)
 
 
 enum {
-	R_GATHER, R_HDR, R_DATA, R_DATA_BLK, R_FDONE, R_FIN, R_FIN2,
+	R_INIT, R_GATHER, R_HDR, R_LONG_NAME, R_DATA, R_DATA_BLK, R_FDONE, R_FIN, R_FIN2,
 };
 
 void fftar_init(fftar *t)
 {
-	t->nxstate = R_HDR;
 }
 
 void fftar_close(fftar *t)
@@ -230,6 +245,12 @@ int fftar_read(fftar *t)
 	for (;;) {
 	switch (t->state) {
 
+	case R_INIT:
+		if (NULL == ffarr_alloc(&t->name, 100 + 1))
+			return ERR(t, FFTAR_ESYS);
+		t->state = R_GATHER,  t->nxstate = R_HDR;
+		continue;
+
 	case R_GATHER:
 		r = ffarr_append_until(&t->buf, t->in.ptr, t->in.len, TAR_BLOCK);
 		if (r == 0)
@@ -241,25 +262,64 @@ int fftar_read(fftar *t)
 		t->state = t->nxstate;
 		continue;
 
-	case R_HDR:
+	case R_HDR: {
+		char *namebuf = t->name.ptr;
+
 		if (t->buf.ptr[0] == '\0') {
 			t->state = R_FIN;
 			continue;
 		}
-		if (NULL == ffarr_realloc(&t->name, 100 + 1))
-			return ERR(t, FFTAR_ESYS);
+
 		ffmem_tzero(&t->file);
-		if (0 != (r = fftar_hdr_parse(&t->file, t->name.ptr, t->buf.ptr)))
+
+		if (t->long_name) {
+			t->long_name = 0;
+			namebuf = NULL;
+			t->file.name = t->name.ptr;
+		}
+
+		if (0 != (r = fftar_hdr_parse(&t->file, namebuf, t->buf.ptr)))
 			return ERR(t, r);
 		t->fsize = t->file.size;
+
+		FFDBG_PRINTLN(10, "hdr: name:%s  type:%c  size:%U"
+			, t->file.name, t->file.type, t->file.size);
+
+		if (t->file.type == TAR_LONG) {
+			if (t->file.size > TAR_MAXLONGNAME)
+				return ERR(t, FFTAR_ELONGNAME);
+			t->state = R_LONG_NAME;
+			continue;
+		}
+
 		if (t->file.size != 0)
 			t->state = R_DATA;
 		else
 			t->state = R_FDONE;
 		return FFTAR_FILEHDR;
+	}
+
+	case R_LONG_NAME:
+		r = ffarr_append_until(&t->name, t->in.ptr, t->in.len, ff_align_ceil2(t->file.size, TAR_BLOCK));
+		if (r == 0)
+			return FFTAR_MORE;
+		else if (r < 0)
+			return ERR(t, FFTAR_ESYS);
+
+		t->name.len = t->file.size;
+		if (NULL == ffarr_append(&t->name, "\0", 1))
+			return ERR(t, FFTAR_ESYS);
+		t->name.len = 0;
+		t->long_name = 1;
+
+		ffstr_shift(&t->in, r);
+		t->state = R_GATHER, t->nxstate = R_HDR;
+		continue;
 
 	case R_DATA:
-		if (t->in.len < TAR_BLOCK) {
+		if (t->in.len == 0)
+			return FFTAR_MORE;
+		else if (t->in.len < TAR_BLOCK) {
 			t->state = R_GATHER, t->nxstate = R_DATA_BLK;
 			continue;
 		}
@@ -274,6 +334,7 @@ int fftar_read(fftar *t)
 			in.ptr = t->buf.ptr;
 			in.len = TAR_BLOCK;
 			n = ffmin64(t->fsize, TAR_BLOCK);
+			t->state = R_DATA;
 		}
 
 		ffstr_set(&t->out, in.ptr, n);
@@ -284,6 +345,7 @@ int fftar_read(fftar *t)
 			t->state = R_FDONE;
 		}
 
+		FFDBG_PRINTLN(10, "data block:+%L (%U left)", t->out.len, t->fsize);
 		return FFTAR_DATA;
 
 	case R_FDONE:
@@ -291,16 +353,20 @@ int fftar_read(fftar *t)
 		return FFTAR_FILEDONE;
 
 	case R_FIN:
-	case R_FIN2:
 		if (t->buf.ptr + TAR_BLOCK != ffs_skip(t->buf.ptr, TAR_BLOCK, 0x00))
 			return ERR(t, FFTAR_EPADDING);
+		t->state = R_FIN2;
+		// break
 
-		if (t->state == R_FIN) {
-			t->state = R_GATHER, t->nxstate = R_FIN2;
-			continue;
+	case R_FIN2:
+		if (t->in.len == 0) {
+			if (t->fin)
+				return FFTAR_DONE;
+			return FFTAR_MORE;
 		}
 
-		return FFTAR_DONE;
+		t->state = R_GATHER, t->nxstate = R_FIN;
+		continue;
 	}
 	}
 }
@@ -327,6 +393,7 @@ int fftar_newfile(fftar_cook *t, const fftar_file *f)
 	if (0 != (r = fftar_hdr_write(f, t->buf)))
 		return ERR(t, r);
 
+	t->fdone = 0;
 	t->state = W_HDR;
 	return 0;
 }
