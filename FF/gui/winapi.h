@@ -25,6 +25,7 @@ Copyright (c) 2014 Simon Zolin
 // CHECKBOX
 // RADIOBUTTON
 // LABEL
+// IMAGE
 // TRAY
 // PANED
 // STATUS BAR
@@ -63,7 +64,7 @@ typedef struct ffui_point {
 	int x, y;
 } ffui_point;
 
-#define ffui_screen2client(h, pt)  ScreenToClient(h, (POINT*)pt)
+#define ffui_screen2client(ctl, pt)  ScreenToClient((ctl)->h, (POINT*)pt)
 
 
 // CURSOR
@@ -104,10 +105,50 @@ typedef struct ffui_icon {
 
 static FFINL int ffui_icon_load_q(ffui_icon *ico, const ffsyschar *filename, uint index)
 {
-	return !ExtractIconEx(filename, index, &ico->h, NULL, 1);
+	return !ExtractIconEx(filename, index, &ico->h, NULL, ICON_BIG);
 }
-
 FF_EXTN int ffui_icon_load(ffui_icon *ico, const char *filename, uint index);
+
+/** Load icon with the specified dimensions (resize if needed). */
+FF_EXTN int ffui_icon_loadimg_q(ffui_icon *ico, const ffsyschar *filename, uint cx, uint cy);
+FF_EXTN int ffui_icon_loadimg(ffui_icon *ico, const char *filename, uint cx, uint cy);
+
+enum FFUI_ICON {
+	_FFUI_ICON_STD = 0x10000,
+	FFUI_ICON_APP = _FFUI_ICON_STD | OIC_SAMPLE,
+	FFUI_ICON_ERR = _FFUI_ICON_STD | OIC_ERROR,
+	FFUI_ICON_QUES = _FFUI_ICON_STD | OIC_QUES,
+	FFUI_ICON_WARN = _FFUI_ICON_STD | OIC_WARNING,
+	FFUI_ICON_INFO = _FFUI_ICON_STD | OIC_INFORMATION,
+#if (FF_WIN >= 0x0600)
+	FFUI_ICON_SHIELD = _FFUI_ICON_STD | OIC_SHIELD,
+#endif
+
+	_FFUI_ICON_IMAGERES = 0x20000,
+	FFUI_ICON_FILE = _FFUI_ICON_IMAGERES | 2,
+	FFUI_ICON_DIR = _FFUI_ICON_IMAGERES | 3,
+};
+
+/** Load system standard icon.
+@tag: enum FFUI_ICON */
+FF_EXTN int ffui_icon_loadstd(ffui_icon *ico, uint tag);
+
+
+// ICON LIST
+typedef struct ffui_iconlist {
+	HIMAGELIST h;
+} ffui_iconlist;
+
+FF_EXTN int ffui_iconlist_create(ffui_iconlist *il, uint width, uint height);
+
+#define ffui_iconlist_add(il, ico)  ImageList_AddIcon((il)->h, (ico)->h)
+
+static FFINL void ffui_iconlist_addstd(ffui_iconlist *il, uint tag)
+{
+	ffui_icon ico;
+	ffui_icon_loadstd(&ico, tag);
+	ffui_iconlist_add(il, &ico);
+}
 
 
 // DIALOG
@@ -169,6 +210,7 @@ FF_EXTN int ffui_msgdlg_show(const char *title, const char *text, size_t len, ui
 enum FFUI_UID {
 	FFUI_UID_WINDOW = 1,
 	FFUI_UID_LABEL,
+	FFUI_UID_IMAGE,
 	FFUI_UID_EDITBOX,
 	FFUI_UID_TEXT,
 	FFUI_UID_COMBOBOX,
@@ -234,6 +276,8 @@ FF_EXTN int ffui_ctl_destroy(void *c);
 /** Get parent control object. */
 FF_EXTN void* ffui_ctl_parent(void *c);
 
+FF_EXTN int ffui_ctl_setcursor(void *c, HCURSOR h);
+
 
 // FILE OPERATIONS
 typedef struct ffui_fdrop {
@@ -260,9 +304,6 @@ enum FFUI_FOP_F {
 /** Delete a file.
 @flags: enum FFUI_FOP_F */
 FF_EXTN int ffui_fop_del(const char *const *names, size_t cnt, uint flags);
-
-
-FF_EXTN HIMAGELIST ffui_imglist_create(uint width, uint height);
 
 
 // EDITBOX
@@ -375,11 +416,28 @@ FF_EXTN int ffui_radio_create(ffui_ctl *c, ffui_wnd *parent);
 typedef struct ffui_label {
 	FFUI_CTL;
 	HFONT font;
+	HCURSOR cursor;
 	uint color;
 	uint click_id;
+	uint click2_id;
+	WNDPROC oldwndproc;
 } ffui_label;
 
-FF_EXTN int ffui_lbl_create(ffui_ctl *c, ffui_wnd *parent);
+FF_EXTN int ffui_lbl_create(ffui_label *c, ffui_wnd *parent);
+
+
+// IMAGE
+typedef struct ffui_img {
+	FFUI_CTL;
+	uint click_id;
+} ffui_img;
+
+FF_EXTN int ffui_img_create(ffui_img *im, ffui_wnd *parent);
+
+static FFINL void ffui_img_set(ffui_img *im, ffui_icon *ico)
+{
+	ffui_send(im->h, STM_SETIMAGE, IMAGE_ICON, ico->h);
+}
 
 
 //MENU
@@ -512,6 +570,14 @@ do { \
 do { \
 	(t)->nid.uFlags |= NIF_ICON; \
 	(t)->nid.hIcon = (ico)->h; \
+} while (0)
+
+#define ffui_tray_setinfo(t, title, title_len, text, text_len) \
+do { \
+	(t)->nid.uFlags |= NIF_INFO; \
+	(t)->nid.dwInfoFlags |= NIIF_INFO; \
+	ffqz_copys((t)->nid.szInfoTitle, FFCNT((t)->nid.szInfoTitle), title, title_len); \
+	ffqz_copys((t)->nid.szInfo, FFCNT((t)->nid.szInfo), text, text_len); \
 } while (0)
 
 static FFINL int ffui_tray_set(ffui_trayicon *t, uint show)
@@ -674,8 +740,10 @@ typedef struct ffui_view {
 	int dblclick_id;
 	int colclick_id; //"col" is set to column #
 	int edit_id; // "text" contains the text edited by user
+	int check_id; //checkbox has been (un)checked
 
 	union {
+	int idx;
 	int col;
 	char *text;
 	};
@@ -685,11 +753,12 @@ FF_EXTN int ffui_view_create(ffui_ctl *c, ffui_wnd *parent);
 
 #define ffui_view_settheme(v)  SetWindowTheme((v)->h, L"Explorer", NULL)
 
-FF_EXTN int ffui_view_hittest(HWND h, const ffui_point *pt, int item);
+FF_EXTN int ffui_view_hittest(ffui_view *v, const ffui_point *pt, int item);
 
 #define ffui_view_makevisible(v, item)  ffui_ctl_send(v, LVM_ENSUREVISIBLE, item, 0)
 
 
+// LISTVIEW COLUMN
 /** Get the number of columns. */
 #define ffui_view_ncols(v) \
 	ffui_send((HWND)ffui_ctl_send(v, LVM_GETHEADER, 0, 0), HDM_GETITEMCOUNT, 0, 0)
@@ -715,6 +784,8 @@ FF_EXTN void ffui_viewcol_settext(ffui_viewcol *vc, const char *text, size_t len
 
 FF_EXTN void ffui_viewcol_setwidth(ffui_viewcol *vc, uint w);
 
+#define ffui_viewcol_width(vc)  ((vc)->col.cx)
+
 #define ffui_viewcol_setalign(vc, a) \
 do { \
 	(vc)->col.mask |= LVCF_FMT; \
@@ -733,6 +804,85 @@ static FFINL void ffui_view_inscol(ffui_view *v, int pos, ffui_viewcol *vc)
 	ffui_viewcol_reset(vc);
 }
 
+#define ffui_view_delcol(v, i)  ListView_DeleteColumn((v)->h, i)
+
+static FFINL void ffui_view_setcol(ffui_view *v, int i, ffui_viewcol *vc)
+{
+	ListView_SetColumn(v->h, i, &vc->col);
+	ffui_viewcol_reset(vc);
+}
+
+static FFINL void ffui_view_col(ffui_view *v, int i, ffui_viewcol *vc)
+{
+	ListView_GetColumn(v->h, i, &vc->col);
+}
+
+
+// LISTVIEW GROUP
+typedef struct ffui_viewgrp {
+	LVGROUP grp;
+	ffsyschar text[255];
+} ffui_viewgrp;
+
+static FFINL void ffui_viewgrp_reset(ffui_viewgrp *vg)
+{
+	vg->grp.cbSize = sizeof(LVGROUP);
+	vg->grp.mask = LVGF_GROUPID;
+}
+
+#define ffui_viewgrp_settext_q(vg, sz) \
+do { \
+	(vg)->grp.mask |= LVGF_HEADER; \
+	(vg)->grp.pszHeader = (sz); \
+} while (0)
+
+#if (FF_WIN >= 0x0600)
+#define ffui_viewgrp_setsubtitle_q(vg, sz) \
+do { \
+	(vg)->grp.mask |= LVGF_SUBTITLE; \
+	(vg)->grp.pszSubtitle = (sz); \
+} while (0)
+#endif
+
+FF_EXTN void ffui_viewgrp_settext(ffui_viewgrp *vg, const char *text, size_t len);
+#define ffui_viewgrp_settextz(c, sz)  ffui_viewgrp_settext(c, sz, ffsz_len(sz))
+#define ffui_viewgrp_settextstr(c, str)  ffui_viewgrp_settext(c, (str)->ptr, (str)->len)
+
+#define ffui_viewgrp_setcollapsible(vg, val) \
+do { \
+	(vg)->grp.mask |= LVGF_STATE; \
+	(vg)->grp.stateMask |= LVGS_COLLAPSIBLE; \
+	(vg)->grp.state |= (val) ? LVGS_COLLAPSIBLE : 0; \
+} while (0)
+
+
+#define ffui_view_cleargroups(v)  ffui_send((v)->h, LVM_REMOVEALLGROUPS, 0, 0)
+
+#define ffui_view_showgroups(v, show)  ffui_send((v)->h, LVM_ENABLEGROUPVIEW, show, 0)
+
+#define ffui_view_ngroups(v)  ffui_send((v)->h, LVM_GETGROUPCOUNT, 0, 0)
+
+#define ffui_view_delgrp(v, i)  ffui_send((v)->h, LVM_REMOVEGROUP, i, 0)
+
+static FFINL int ffui_view_insgrp(ffui_view *v, int pos, ffui_viewgrp *vg)
+{
+	vg->grp.iGroupId = ffui_view_ngroups(v);
+	ffui_send(v->h, LVM_INSERTGROUP, pos, &vg->grp);
+	ffui_viewgrp_reset(vg);
+	return vg->grp.iGroupId;
+}
+
+static FFINL void ffui_view_setgrp(ffui_view *v, int i, ffui_viewgrp *vg)
+{
+	ffui_send(v->h, LVM_GETGROUPINFO, i, &vg->grp);
+	ffui_viewgrp_reset(vg);
+}
+
+static FFINL void ffui_view_grp(ffui_view *v, int i, ffui_viewgrp *vg)
+{
+	ffui_send(v->h, LVM_SETGROUPINFO, i, &vg->grp);
+}
+
 
 #define ffui_view_nitems(v)  ListView_GetItemCount((v)->h)
 
@@ -748,39 +898,49 @@ static FFINL void ffui_view_iteminit(ffui_viewitem *it)
 	it->w = NULL;
 }
 
-static FFINL void ffui_view_itemreset(ffui_viewitem *it)
-{
-	it->item.mask = 0;
-	if (it->w != it->wtext && it->w != NULL) {
-		ffmem_free(it->w);
-		it->w = NULL;
-	}
-}
+FF_EXTN void ffui_view_itemreset(ffui_viewitem *it);
 
 #define ffui_view_setindex(it, idx) \
 	(it)->item.iItem = (idx)
 
+enum {
+	_FFUI_VIEW_UNCHECKED = 0x1000,
+	_FFUI_VIEW_CHECKED = 0x2000,
+};
+
+#define ffui_view_check(it, checked) \
+do { \
+	(it)->item.mask |= LVIF_STATE; \
+	(it)->item.stateMask |= LVIS_STATEIMAGEMASK; \
+	(it)->item.state &= ~LVIS_STATEIMAGEMASK; \
+	(it)->item.state |= (checked) ? _FFUI_VIEW_CHECKED : _FFUI_VIEW_UNCHECKED; \
+} while (0)
+
+#define ffui_view_checked(it)  (((it)->item.state & LVIS_STATEIMAGEMASK) == _FFUI_VIEW_CHECKED)
+
 #define ffui_view_focus(it, focus) \
 do { \
 	(it)->item.mask |= LVIF_STATE; \
-	(it)->item.stateMask = LVIS_FOCUSED; \
-	(it)->item.state = (focus) ? LVIS_FOCUSED : 0; \
+	(it)->item.stateMask |= LVIS_FOCUSED; \
+	(it)->item.state |= (focus) ? LVIS_FOCUSED : 0; \
 } while (0)
 
 #define ffui_view_select(it, select) \
 do { \
 	(it)->item.mask |= LVIF_STATE; \
-	(it)->item.stateMask = LVIS_SELECTED; \
-	(it)->item.state = (select) ? LVIS_SELECTED : 0; \
+	(it)->item.stateMask |= LVIS_SELECTED; \
+	(it)->item.state |= (select) ? LVIS_SELECTED : 0; \
 } while (0)
 
-#define ffui_view_selected(it)  ((it)->item.state & LVIS_SELECTED)
+#define ffui_view_selected(it)  !!((it)->item.state & LVIS_SELECTED)
 
-#define ffui_view_groupid(it, grp) \
+#define ffui_view_setgroupid(it, grp) \
 do { \
 	(it)->item.mask |= LVIF_GROUPID; \
 	(it)->item.iGroupId = grp; \
 } while (0)
+
+#define ffui_view_groupid(it)  ((it)->item.iGroupId)
 
 #define ffui_view_setparam(it, param) \
 do { \
@@ -823,8 +983,8 @@ FF_EXTN int ffui_view_get(ffui_view *v, int sub, ffui_viewitem *it);
 
 #define ffui_view_param(it)  ((it)->item.lParam)
 
+/** Find the first item associated with user data (ffui_view_param()). */
 FF_EXTN int ffui_view_search(ffui_view *v, size_t by);
-
 
 #define ffui_view_focused(v)  (int)ffui_ctl_send(v, LVM_GETNEXTITEM, -1, LVNI_FOCUSED)
 
@@ -835,6 +995,7 @@ FF_EXTN int ffui_view_search(ffui_view *v, size_t by);
 #define ffui_view_selcount(v)  ffui_ctl_send(v, LVM_GETSELECTEDCOUNT, 0, 0)
 #define ffui_view_selnext(v, from)  ffui_ctl_send(v, LVM_GETNEXTITEM, from, LVNI_SELECTED)
 #define ffui_view_sel(v, i)  ListView_SetItemState((v)->h, i, LVIS_SELECTED, LVIS_SELECTED)
+#define ffui_view_selall(v)  ffui_view_sel(v, -1)
 FF_EXTN int ffui_view_sel_invert(ffui_view *v);
 
 #define ffui_view_sort(v, func, udata)  ListView_SortItems((v)->h, func, udata)
@@ -848,24 +1009,68 @@ do { \
 
 #define _ffui_view_edit(v, i)  ((HWND)ffui_send((v)->h, LVM_EDITLABEL, i, 0))
 
-FF_EXTN void ffui_view_edit(ffui_view *v, int i, int sub);
+/** Show edit box with an item's text.
+Listview must have LVS_EDITLABELS.
+When editing is finished, 'ffui_view.edit_id' is sent. */
+FF_EXTN HWND ffui_view_edit(ffui_view *v, uint i, uint sub);
+
+#define ffui_view_seticonlist(v, il)  ListView_SetImageList((v)->h, (il)->h, LVSIL_SMALL)
 
 
 // TREEVIEW
 FF_EXTN int ffui_tree_create(ffui_ctl *c, void *parent);
 
+typedef struct ffui_tvitem {
+	TVITEM ti;
+	ffsyschar wtext[255];
+	ffsyschar *w;
+} ffui_tvitem;
+
+FF_EXTN void ffui_tree_reset(ffui_tvitem *it);
+
+#define ffui_tree_settext_q(it, textz) \
+do { \
+	(it)->ti.mask |= TVIF_TEXT; \
+	(it)->ti.pszText = (ffsyschar*)textz; \
+} while (0)
+
+FF_EXTN void ffui_tree_settext(ffui_tvitem *it, const char *text, size_t len);
+#define ffui_tree_settextstr(it, str)  ffui_tree_settext(it, (str)->ptr, (str)->len)
+#define ffui_tree_settextz(it, sz)  ffui_tree_settext(it, sz, ffsz_len(sz))
+
+#define ffui_tree_setimg(it, img_idx) \
+do { \
+	(it)->ti.mask |= TVIF_IMAGE | TVIF_SELECTEDIMAGE; \
+	(it)->ti.iImage = (img_idx); \
+	(it)->ti.iSelectedImage = (img_idx); \
+} while (0)
+
+#define ffui_tree_setparam(it, param) \
+do { \
+	(it)->ti.mask |= TVIF_PARAM; \
+	(it)->ti.lParam = (LPARAM)(param); \
+} while (0)
+
+#define ffui_tree_setexpand(it, val) \
+do { \
+	(it)->ti.mask |= TVIF_STATE; \
+	(it)->ti.stateMask |= TVIS_EXPANDED; \
+	(it)->ti.state |= (val) ? TVIS_EXPANDED : 0; \
+} while (0)
+
+#define ffui_tree_param(it)  ((void*)(it)->ti.lParam)
+
 //insert after:
 #define FFUI_TREE_FIRST  ((void*)-0x0FFFF)
 #define FFUI_TREE_LAST  ((void*)-0x0FFFE)
 
-FF_EXTN void* ffui_tree_ins_q(HWND h, void *parent, void *after, const ffsyschar *text, int img_idx);
-FF_EXTN void* ffui_tree_ins(HWND h, void *parent, void *after, const char *text, size_t len, int img_idx);
-#define ffui_tree_insstr(h, parent, after, str, img_idx) \
-	ffui_tree_ins(h, parent, after, (str)->ptr, (str)->len, img_idx)
+FF_EXTN void* ffui_tree_ins(ffui_view *v, void *parent, void *after, ffui_tvitem *it);
+#define ffui_tree_append(v, parent, it) \
+	ffui_tree_ins(v, parent, FFUI_TREE_LAST, it)
 
 #define ffui_tree_remove(t, item)  ffui_ctl_send(t, TVM_DELETEITEM, 0, item)
 
-#define ffui_tree_itemfocused(t)  ((void*)ffui_ctl_send(t, TVM_GETNEXTITEM, TVGN_CARET, NULL))
+FF_EXTN void ffui_tree_get(ffui_view *v, void *pitem, ffui_tvitem *it);
 
 FF_EXTN char* ffui_tree_text(ffui_view *t, void *item);
 
@@ -883,7 +1088,10 @@ FF_EXTN char* ffui_tree_text(ffui_view *t, void *item);
 #define ffui_tree_next(t, item)  ((void*)ffui_ctl_send(t, TVM_GETNEXTITEM, TVGN_NEXT, item))
 #define ffui_tree_child(t, item)  ((void*)ffui_ctl_send(t, TVM_GETNEXTITEM, TVGN_CHILD, item))
 
+#define ffui_tree_focused(t)  ((void*)ffui_ctl_send(t, TVM_GETNEXTITEM, TVGN_CARET, NULL))
 #define ffui_tree_select(t, item)  ffui_ctl_send(t, TVM_SELECTITEM, TVGN_CARET, item)
+
+#define ffui_tree_seticonlist(t, il)  TreeView_SetImageList((t)->h, (il)->h, TVSIL_NORMAL)
 
 
 // WINDOW
@@ -967,6 +1175,7 @@ FF_EXTN void ffui_wnd_ghotkey_unreg(ffui_wnd *w);
 union ffui_anyctl {
 	ffui_ctl *ctl;
 	ffui_label *lbl;
+	ffui_img *img;
 	ffui_btn *btn;
 	ffui_edit *edit;
 	ffui_combx *combx;

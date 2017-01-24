@@ -13,12 +13,12 @@ Copyright (c) 2014 Simon Zolin
 static void* ldr_getctl(ffui_loader *g, const ffstr *name);
 
 // ICON
-static int ico_size(ffparser_schem *ps, void *obj, const ffstr *val);
+static int ico_size(ffparser_schem *ps, void *obj, const int64 *val);
 static int ico_done(ffparser_schem *ps, void *obj);
 static const ffpars_arg icon_args[] = {
 	{ "filename",	FFPARS_TSTR | FFPARS_FCOPY, FFPARS_DSTOFF(_ffui_ldr_icon_t, fn) },
 	{ "index",	FFPARS_TINT, FFPARS_DSTOFF(_ffui_ldr_icon_t, idx) },
-	{ "size",	FFPARS_TSTR, FFPARS_DST(&ico_size) },
+	{ "size",	FFPARS_TINT | FFPARS_FLIST, FFPARS_DST(&ico_size) },
 	{ NULL,	FFPARS_TCLOSE, FFPARS_DST(&ico_done) },
 };
 
@@ -88,16 +88,31 @@ static int label_font(ffparser_schem *ps, void *obj, ffpars_ctx *ctx);
 static int label_style(ffparser_schem *ps, void *obj, const ffstr *val);
 static int label_pos(ffparser_schem *ps, void *obj, const int64 *val);
 static int label_color(ffparser_schem *ps, void *obj, const ffstr *val);
+static int label_cursor(ffparser_schem *ps, void *obj, const ffstr *val);
 static int label_action(ffparser_schem *ps, void *obj, const ffstr *val);
 static const ffpars_arg label_args[] = {
 	{ "text",	FFPARS_TSTR, FFPARS_DST(&label_text) },
 	{ "style",	FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&label_style) },
 	{ "font",	FFPARS_TOBJ, FFPARS_DST(&label_font) },
 	{ "color",	FFPARS_TSTR, FFPARS_DST(&label_color) },
+	{ "cursor",	FFPARS_TSTR, FFPARS_DST(&label_cursor) },
 	{ "position",	FFPARS_TINT | FFPARS_FSIGN | FFPARS_FLIST, FFPARS_DST(&label_pos) },
 	{ "onclick",	FFPARS_TSTR, FFPARS_DST(&label_action) },
 };
 static int new_label(ffparser_schem *ps, void *obj, ffpars_ctx *ctx);
+
+// IMAGE
+static int image_icon(ffparser_schem *ps, void *obj, ffpars_ctx *ctx);
+static int image_action(ffparser_schem *ps, void *obj, const ffstr *val);
+static int image_done(ffparser_schem *ps, void *obj);
+static const ffpars_arg image_args[] = {
+	{ "style",	FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&label_style) },
+	{ "position",	FFPARS_TINT | FFPARS_FSIGN | FFPARS_FLIST, FFPARS_DST(&label_pos) },
+	{ "icon",	FFPARS_TOBJ, FFPARS_DST(&image_icon) },
+	{ "onclick",	FFPARS_TSTR, FFPARS_DST(&image_action) },
+	{ NULL,	FFPARS_TCLOSE, FFPARS_DST(&image_done) },
+};
+static int new_image(ffparser_schem *ps, void *obj, ffpars_ctx *ctx);
 
 // BUTTON
 static int btn_action(ffparser_schem *ps, void *obj, const ffstr *val);
@@ -221,8 +236,19 @@ static const ffpars_arg view_args[] = {
 	{ "chsel",	FFPARS_TSTR, FFPARS_DST(&view_chsel) },
 	{ "lclick",	FFPARS_TSTR, FFPARS_DST(&view_lclick) },
 	{ "dblclick",	FFPARS_TSTR, FFPARS_DST(&view_dblclick) },
+	{ "oncheck",	FFPARS_TSTR, FFPARS_DST(&view_lclick) },
 
 	{ "column",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&view_column) },
+};
+static int tview_style(ffparser_schem *ps, void *obj, const ffstr *val);
+static const ffpars_arg tview_args[] = {
+	{ "style",	FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&tview_style) },
+	{ "position",	FFPARS_TINT | FFPARS_FSIGN | FFPARS_FLIST, FFPARS_DST(&label_pos) },
+	{ "color",	FFPARS_TSTR, FFPARS_DST(&view_color) },
+	{ "bgcolor",	FFPARS_TSTR, FFPARS_DST(&view_color) },
+	{ "popupmenu",	FFPARS_TSTR, FFPARS_DST(&view_pmenu) },
+
+	{ "chsel",	FFPARS_TSTR, FFPARS_DST(&view_chsel) },
 };
 static int new_listview(ffparser_schem *ps, void *obj, ffpars_ctx *ctx);
 static int new_treeview(ffparser_schem *ps, void *obj, ffpars_ctx *ctx);
@@ -274,6 +300,7 @@ static const ffpars_arg wnd_args[] = {
 
 	{ "mainmenu",	FFPARS_TOBJ | FFPARS_FOBJ1, FFPARS_DST(&new_mmenu) },
 	{ "label",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&new_label) },
+	{ "image",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&new_image) },
 	{ "editbox",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&new_editbox) },
 	{ "text",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&new_editbox) },
 	{ "combobox",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&new_combobox) },
@@ -298,11 +325,18 @@ static const ffpars_arg top_args[] = {
 };
 
 
-static int ico_size(ffparser_schem *ps, void *obj, const ffstr *val)
+static int ico_size(ffparser_schem *ps, void *obj, const int64 *val)
 {
 	_ffui_ldr_icon_t *ico = obj;
-	if (ffstr_eqcz(val, "small"))
-		ico->small = 1;
+
+	switch (ps->list_idx) {
+	case 0:
+		ico->cx = *val; break;
+	case 1:
+		ico->cy = *val; break;
+	default:
+		return FFPARS_EBADVAL;
+	}
 	return 0;
 }
 
@@ -314,8 +348,13 @@ static int ico_done(ffparser_schem *ps, void *obj)
 	p = ffs_copy(fn, fn + FFCNT(fn), ico->ldr->path.ptr, ico->ldr->path.len);
 	ffsz_copy(p, fn + FFCNT(fn) - p, ico->fn.ptr, ico->fn.len);
 	ffstr_free(&ico->fn);
-	if (0 != ffui_icon_load(&ico->icon, fn, ico->idx))
-		return FFPARS_ESYS;
+	if (ico->cx != 0) {
+		if (0 != ffui_icon_loadimg(&ico->icon, fn, ico->cx, ico->cy))
+			return FFPARS_ESYS;
+	} else {
+		if (0 != ffui_icon_load(&ico->icon, fn, ico->idx))
+			return FFPARS_ESYS;
+	}
 	return 0;
 }
 
@@ -710,10 +749,10 @@ static int label_pos(ffparser_schem *ps, void *obj, const int64 *val)
 {
 	ffui_loader *g = obj;
 	int *i = &g->r.x;
-	if (ps->p->type == FFCONF_TVAL)
-		g->ir = 0;
-	i[g->ir++] = (int)*val;
-	if (g->ir == 4) {
+	if (ps->list_idx == 4)
+		return FFPARS_EBADVAL;
+	i[ps->list_idx] = (int)*val;
+	if (ps->list_idx == 3) {
 		ffui_setposrect(g->ctl, &g->r, 0);
 	}
 	return 0;
@@ -731,6 +770,17 @@ static int label_color(ffparser_schem *ps, void *obj, const ffstr *val)
 	return 0;
 }
 
+static int label_cursor(ffparser_schem *ps, void *obj, const ffstr *val)
+{
+	ffui_loader *g = obj;
+
+	if (ffstr_ieqcz(val, "hand"))
+		ffui_ctl_setcursor(g->actl.lbl, LoadCursor(NULL, IDC_HAND));
+	else
+		return FFPARS_EBADVAL;
+	return 0;
+}
+
 static int label_action(ffparser_schem *ps, void *obj, const ffstr *val)
 {
 	ffui_loader *g = obj;
@@ -739,6 +789,35 @@ static int label_action(ffparser_schem *ps, void *obj, const ffstr *val)
 		return FFPARS_EBADVAL;
 
 	g->actl.lbl->click_id = id;
+	return 0;
+}
+
+
+static int image_icon(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
+{
+	ffui_loader *g = obj;
+	ffmem_zero(&g->tr.ico, sizeof(_ffui_ldr_icon_t));
+	g->tr.ico.ldr = g;
+	ffpars_setargs(ctx, &g->tr.ico, icon_args, FFCNT(icon_args));
+	return 0;
+}
+
+static int image_action(ffparser_schem *ps, void *obj, const ffstr *val)
+{
+	ffui_loader *g = obj;
+	int id = g->getcmd(g->udata, val);
+	if (id == 0)
+		return FFPARS_EBADVAL;
+
+	g->actl.img->click_id = id;
+	return 0;
+}
+
+static int image_done(ffparser_schem *ps, void *obj)
+{
+	ffui_loader *g = obj;
+	if (g->tr.ico.icon.h != NULL)
+		ffui_img_set(g->actl.img, &g->tr.ico.icon);
 	return 0;
 }
 
@@ -823,10 +902,25 @@ static int new_label(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 	if (g->ctl == NULL)
 		return FFPARS_EBADVAL;
 
-	if (0 != ffui_lbl_create(g->ctl, g->wnd))
+	if (0 != ffui_lbl_create(g->actl.lbl, g->wnd))
 		return FFPARS_ESYS;
 
 	ffpars_setargs(ctx, g, label_args, FFCNT(label_args));
+	return 0;
+}
+
+static int new_image(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
+{
+	ffui_loader *g = obj;
+
+	g->ctl = ldr_getctl(g, &ps->vals[0]);
+	if (g->ctl == NULL)
+		return FFPARS_EBADVAL;
+
+	if (0 != ffui_img_create(g->actl.img, g->wnd))
+		return FFPARS_ESYS;
+
+	ffpars_setargs(ctx, g, image_args, FFCNT(image_args));
 	return 0;
 }
 
@@ -942,6 +1036,7 @@ static int tab_onchange(ffparser_schem *ps, void *obj, const ffstr *val)
 
 
 enum {
+	VIEW_STYLE_CHECKBOXES,
 	VIEW_STYLE_EDITLABELS,
 	VIEW_STYLE_EXPLORER_THEME,
 	VIEW_STYLE_FULL_ROW_SELECT,
@@ -954,6 +1049,7 @@ enum {
 };
 
 static const char *const view_styles[] = {
+	"checkboxes",
 	"edit_labels",
 	"explorer_theme",
 	"full_row_select",
@@ -968,7 +1064,9 @@ static const char *const view_styles[] = {
 static int view_style(ffparser_schem *ps, void *obj, const ffstr *val)
 {
 	ffui_loader *g = obj;
+
 	switch (ffszarr_ifindsorted(view_styles, FFCNT(view_styles), val->ptr, val->len)) {
+
 	case VIEW_STYLE_VISIBLE:
 		ffui_show(g->ctl, 1);
 		break;
@@ -985,8 +1083,39 @@ static int view_style(ffparser_schem *ps, void *obj, const ffstr *val)
 		ListView_SetExtendedListViewStyleEx(g->ctl->h, LVS_EX_GRIDLINES, LVS_EX_GRIDLINES);
 		break;
 
+	case VIEW_STYLE_CHECKBOXES:
+		ListView_SetExtendedListViewStyleEx(g->ctl->h, LVS_EX_CHECKBOXES, LVS_EX_CHECKBOXES);
+		break;
+
 	case VIEW_STYLE_EXPLORER_THEME:
 		ffui_view_settheme(g->ctl);
+		break;
+
+	default:
+		return FFPARS_EVALUKN;
+	}
+	return 0;
+}
+
+static int tview_style(ffparser_schem *ps, void *obj, const ffstr *val)
+{
+	ffui_loader *g = obj;
+
+	switch (ffszarr_ifindsorted(view_styles, FFCNT(view_styles), val->ptr, val->len)) {
+
+	case VIEW_STYLE_VISIBLE:
+		ffui_show(g->ctl, 1);
+		break;
+
+	case VIEW_STYLE_CHECKBOXES:
+		ffui_styleset(g->ctl->h, TVS_CHECKBOXES);
+		break;
+
+	case VIEW_STYLE_EXPLORER_THEME:
+		ffui_view_settheme(g->ctl);
+#if FF_WIN >= 0x0600
+		TreeView_SetExtendedStyle(g->ctl->h, TVS_EX_FADEINOUTEXPANDOS, TVS_EX_FADEINOUTEXPANDOS);
+#endif
 		break;
 
 	case VIEW_STYLE_FULL_ROW_SELECT:
@@ -1054,7 +1183,10 @@ static int view_lclick(ffparser_schem *ps, void *obj, const ffstr *val)
 	if (id == 0)
 		return FFPARS_EBADVAL;
 
-	g->vi->lclick_id = id;
+	if (!ffsz_cmp(ps->curarg->name, "lclick"))
+		g->vi->lclick_id = id;
+	else
+		g->vi->check_id = id;
 	return 0;
 }
 
@@ -1143,7 +1275,7 @@ static int new_treeview(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 	if (0 != ffui_tree_create(g->ctl, g->wnd))
 		return FFPARS_ESYS;
 
-	ffpars_setargs(ctx, g, view_args, FFCNT(view_args));
+	ffpars_setargs(ctx, g, tview_args, FFCNT(tview_args));
 	return 0;
 }
 
@@ -1244,12 +1376,10 @@ static int wnd_position(ffparser_schem *ps, void *obj, const int64 *v)
 {
 	ffui_loader *g = obj;
 	int *i = &g->r.x;
-	if (ps->p->type == FFCONF_TVAL)
-		g->ir = 0;
-	else if (g->ir == 4)
+	if (ps->list_idx == 4)
 		return FFPARS_EBIGVAL;
-	i[g->ir++] = (int)*v;
-	if (g->ir == 4) {
+	i[ps->list_idx] = (int)*v;
+	if (ps->list_idx == 3) {
 		ffui_setposrect(g->wnd, &g->r, 0);
 	}
 	return 0;
@@ -1259,17 +1389,16 @@ static int wnd_placement(ffparser_schem *ps, void *obj, const int64 *v)
 {
 	ffui_loader *g = obj;
 
-	if (ps->p->type == FFCONF_TVAL) {
-		g->ir = 0;
+	if (ps->list_idx == 0) {
 		g->showcmd = *v;
 		return 0;
-	} else if (g->ir == 4)
+	} else if (ps->list_idx == 5)
 		return FFPARS_EBIGVAL;
 
 	int *i = &g->r.x;
-	i[g->ir++] = (int)*v;
+	i[ps->list_idx - 1] = (int)*v;
 
-	if (g->ir == 4)
+	if (ps->list_idx == 4)
 		ffui_wnd_setplacement(g->wnd, g->showcmd, &g->r);
 	return 0;
 }

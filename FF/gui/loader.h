@@ -15,7 +15,8 @@ typedef struct {
 	ffstr fn;
 	int idx;
 	ffui_loader *ldr;
-	uint small :1;
+	uint cx;
+	uint cy;
 } _ffui_ldr_icon_t;
 
 typedef void* (*ffui_ldr_getctl_t)(void *udata, const ffstr *name);
@@ -89,6 +90,8 @@ struct ffui_ldr_ctl {
 
 #define FFUI_LDR_CTL3(struct_name, ctl, children) \
 	{ #ctl, FFOFF(struct_name, ctl), children }
+
+#define FFUI_LDR_CTL_END  {NULL, 0, NULL}
 
 /** Find control by its name in structured hierarchy.
 @name: e.g. "window.control" */
