@@ -21,32 +21,82 @@ enum FFMPG_O {
 	FFMPG_O_NOXING = 1, //don't parse Xing and LAME tags
 	FFMPG_O_ID3V1 = 2,
 	FFMPG_O_ID3V2 = 4,
-	FFMPG_O_INT16 = 8, //libmpg123: produce 16-bit integer output
-	FFMPG_O_APETAG = 0x10,
+	FFMPG_O_APETAG = 8,
 };
 
-typedef struct ffmpg {
+/** MPEG frame reader. */
+typedef struct ffmpgr {
 	uint state;
-	uint state2;
-
-	mpg123 *m123;
+	uint err;
 
 	ffpcmex fmt;
 	ffmpg_hdr firsthdr;
-	uint err;
-	uint e;
 	ffstr3 buf; //holds 1 incomplete frame
-	uint dlen; //number of bytes of input data copied to 'buf'
 	uint64 seek_sample
 		, total_samples
 		, total_len //msec
 		, cur_sample;
+	uint frsamps;
 	uint64 dataoff //offset of the first MPEG header
 		, total_size
 		, off;
 	struct ffmpg_info xing;
 	struct ffmpg_lame lame;
 	uint skip_samples;
+	uint frno;
+
+	ffstr input;
+	ffarr buf2;
+	uint bytes_skipped;
+
+	uint options; //enum FFMPG_O
+	uint fr_body :1
+		, lostsync :1
+		, frame2 :1
+		;
+} ffmpgr;
+
+FF_EXTN void ffmpg_rinit(ffmpgr *m);
+FF_EXTN void ffmpg_rclose(ffmpgr *m);
+FF_EXTN void ffmpg_rseek(ffmpgr *m, uint64 sample);
+
+#define ffmpg_input(m, data, len)  ffstr_set(&(m)->input, data, len)
+
+/** Get the last error as a string. */
+FF_EXTN const char* ffmpg_rerrstr(ffmpgr *m);
+
+/** Get stream bitrate. */
+static FFINL uint ffmpg_bitrate(ffmpgr *m)
+{
+	if (m->total_size == 0)
+		return ffmpg_hdr_bitrate(&m->firsthdr);
+	return ffpcm_brate(m->total_size - m->dataoff, m->total_samples, m->fmt.sample_rate);
+}
+
+#define ffmpg_fmt(m)  ((m)->fmt)
+
+#define ffmpg_setsize(m, size)  (m)->total_size = (size)
+
+#define ffmpg_length(m)  ((m)->total_samples)
+
+/** Get an absolute sample number. */
+static FFINL uint64 ffmpg_cursample(ffmpgr *m)
+{
+	return (m->cur_sample >= m->skip_samples) ? m->cur_sample - m->frsamps - m->skip_samples : 0;
+}
+
+#define ffmpg_isvbr(m)  ((m)->xing.vbr)
+
+/** Read MPEG frame.  Parse Xing tag.
+Return enum FFMPG_R. */
+FF_EXTN int ffmpg_readframe(ffmpgr *m, ffstr *frame);
+
+
+/** MPEG file reader. */
+typedef struct ffmpgfile {
+	uint state;
+	uint err;
+	ffmpgr rdr;
 
 	union {
 	ffid31ex id31tag;
@@ -56,27 +106,16 @@ typedef struct ffmpg {
 	int tag;
 	ffarr tagval;
 	uint codepage; //codepage for non-Unicode meta tags
+	ffarr buf;
 
-	size_t datalen;
-	const void *data;
-	ffarr buf2;
-	uint bytes_skipped;
+	ffstr input;
 	ffstr frame;
-
-	size_t pcmlen;
-	union {
-	float *pcm[2];
-	void *pcmi; //libmpg123: float | short
-	};
 
 	uint options; //enum FFMPG_O
 	uint is_id32tag :1
 		, is_apetag :1
-		, fr_body :1
-		, lostsync :1
-		, frame2 :1
 		;
-} ffmpg;
+} ffmpgfile;
 
 enum FFMPG_R {
 	FFMPG_RWARN = -2
@@ -86,14 +125,18 @@ enum FFMPG_R {
 	, FFMPG_RFRAME
 	, FFMPG_RMORE
 	, FFMPG_RSEEK
-	, FFMPG_RTAG
 	, FFMPG_RDONE
+	,
+	FFMPG_RID32,
+	FFMPG_RID31,
+	FFMPG_RAPETAG,
+	FFMPG_ROUTSEEK,
+	FFMPG_RFRAME1,
 };
 
 enum FFMPG_E {
 	FFMPG_EOK,
 	FFMPG_ESYS,
-	FFMPG_EMPG123,
 	FFMPG_EFMT,
 	FFMPG_ETAG,
 	FFMPG_EAPETAG,
@@ -102,41 +145,94 @@ enum FFMPG_E {
 	FFMPG_ESYNC,
 };
 
-/** Get the last error as a string. */
+FF_EXTN const char* ffmpg_ferrstr(ffmpgfile *m);
+
+FF_EXTN void ffmpg_init(ffmpgfile *m);
+
+FF_EXTN void ffmpg_fclose(ffmpgfile *m);
+
+/** Get an absolute file offset to seek. */
+#define ffmpg_seekoff(m)  ((m)->rdr.off)
+
+#define ffmpg_hdrok(m)  ((m)->rdr.fmt.format != 0)
+
+FF_EXTN int ffmpg_read(ffmpgfile *m);
+
+
+/** MPEG decoder. */
+typedef struct ffmpg {
+	int err;
+	mpg123 *m123;
+	ffpcmex fmt;
+	ffstr input;
+	size_t pcmlen;
+	void *pcmi; //libmpg123: float | short
+} ffmpg;
+
 FF_EXTN const char* ffmpg_errstr(ffmpg *m);
 
-FF_EXTN void ffmpg_init(ffmpg *m);
+enum FFMPG_DEC_O {
+	FFMPG_O_INT16 = 1, //libmpg123: produce 16-bit integer output
+};
+
+/** Open decoder.
+@options: enum FFMPG_DEC_O. */
+FF_EXTN int ffmpg_open(ffmpg *m, uint options);
 
 FF_EXTN void ffmpg_close(ffmpg *m);
 
-FF_EXTN void ffmpg_seek(ffmpg *m, uint64 sample);
-
-/** Get an absolute file offset to seek. */
-#define ffmpg_seekoff(m)  ((m)->off)
-
-#define ffmpg_hdrok(m)  ((m)->fmt.format != 0)
-
-/** Return enum FFMPG_R. */
+/** Decode 1 frame.
+Return enum FFMPG_R. */
 FF_EXTN int ffmpg_decode(ffmpg *m);
 
-/** Get an absolute sample number. */
-#define ffmpg_cursample(m) \
-	(((m)->cur_sample >= (m)->skip_samples) ? (m)->cur_sample - (m)->skip_samples : 0)
 
-/** Get stream bitrate. */
-#define ffmpg_bitrate(m) \
-	ffpcm_brate((m)->total_size, (m)->total_samples, (m)->fmt.sample_rate)
+enum FFMPG_ENC_OPT {
+	FFMPG_WRITE_ID3V1 = 1,
+	FFMPG_WRITE_ID3V2 = 2,
+	FFMPG_WRITE_XING = 4,
+};
 
-#define ffmpg_isvbr(m)  ((m)->xing.vbr)
+/** MPEG frame writer. */
+typedef struct ffmpgw {
+	uint state;
+	int err;
+	uint options; //enum FFMPG_ENC_OPT
+	uint off;
+	struct ffmpg_info xing;
+	ffarr buf;
+	uint fin :1;
+} ffmpgw;
+
+FF_EXTN void ffmpg_winit(ffmpgw *m);
+FF_EXTN void ffmpg_wclose(ffmpgw *m);
+
+#define ffmpg_wframes(m)  ((m)->xing.frames)
+
+/** Pass MPEG frame as-is.  Write Xing frame on finish. */
+FF_EXTN int ffmpg_writeframe(ffmpgw *m, const char *fr, uint len, ffstr *data);
 
 
-/** Read MPEG frame.  Parse Xing tag.
-Note: it doesn't account for encoder/decoder delays.
-Return enum FFMPG_R. */
-FF_EXTN int ffmpg_readframe(ffmpg *m);
+typedef struct ffmpgcopy {
+	uint state;
+	uint options; //enum FFMPG_ENC_OPT
+	ffmpgr rdr;
+	ffmpgw writer;
+	uint gstate;
+	uint gsize;
+	uint wdataoff;
+	uint64 off;
+	ffid31 id31;
+	ffarr buf;
+	ffstr input;
+} ffmpgcopy;
 
-/** Get frame data. */
-static FFINL ffstr ffmpg_framedata(ffmpg *m)
-{
-	return m->frame;
-}
+FF_EXTN void ffmpg_copy_close(ffmpgcopy *m);
+
+#define ffmpg_copy_errstr(m)  ffmpg_rerrstr(&(m)->rdr)
+#define ffmpg_copy_fmt(m)  ffmpg_fmt(&(m)->rdr)
+#define ffmpg_copy_seekoff(m)  ((m)->off)
+FF_EXTN void ffmpg_copy_seek(ffmpgcopy *m, uint64 sample);
+FF_EXTN void ffmpg_copy_fin(ffmpgcopy *m);
+
+/** Copy tags and frames. */
+FF_EXTN int ffmpg_copy(ffmpgcopy *m, ffstr *output);
