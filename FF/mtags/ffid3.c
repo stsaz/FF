@@ -305,7 +305,11 @@ static FFINL uint _ffid3_frsize(const void *fr, uint majver)
 }
 
 
-enum { I_HDR, I_FR, I_TXTENC, I_DATA, I_TRKTOTAL, I_UNSYNC_00, I_FRDONE, I_PADDING };
+enum {
+	I_HDR, I_GATHER, I_EXTHDR_SIZE, I_EXTHDR_DATA,
+	I_FR, I_FR_DATALEN, I_TXTENC, I_DATA, I_TRKTOTAL, I_UNSYNC_00, I_FRDONE,
+	I_PADDING
+};
 
 /*replace: FF 00 -> FF*/
 static FFINL int _ffid3_unsync(ffid3 *p, const char *data, size_t len)
@@ -376,12 +380,50 @@ int ffid3_parse(ffid3 *p, const char *data, size_t *len)
 			end = data + p->size;
 
 			if (p->h.ver[0] < 2 || p->h.ver[0] > 4 //v2.2-v2.4
-				|| (p->h.flags & ~0x80) != 0) //not supported
-				goto done;
+				|| (p->h.ver[0] == 3 && (p->h.flags & ~(FFID3_FHDR_UNSYNC | FFID3_FHDR_EXTHDR)) != 0)
+				|| (p->h.ver[0] != 3 && (p->h.flags & ~FFID3_FHDR_UNSYNC) != 0))
+				goto done; //not supported
 
 			p->state = I_FR;
+			if (p->h.ver[0] == 3 && (p->h.flags & FFID3_FHDR_EXTHDR)) {
+				p->gsize = sizeof(ffid3_exthdr);
+				p->state = I_GATHER,  p->gstate = I_EXTHDR_SIZE;
+			}
+
 			r = FFID3_RHDR;
 			goto done;
+
+		case I_GATHER:
+			if (p->data.len == 0 && p->size < p->gsize)
+				return FFID3_RERR;
+
+			r = ffarr_append_until(&p->data, data, end - data, p->gsize);
+			switch (r) {
+			case 0:
+				data += end - data;
+				p->size -= end - data;
+				return FFID3_RMORE;
+			case -1:
+				return FFID3_RERR;
+			}
+			data += r;
+			p->size -= r;
+			p->gsize = 0;
+			p->state = p->gstate;
+			continue;
+
+		case I_EXTHDR_SIZE: {
+			p->data.len = 0;
+			ffid3_exthdr *eh = (void*)p->data.ptr;
+			p->gsize = ffint_ntoh32(eh->size);
+			p->state = I_GATHER,  p->gstate = I_EXTHDR_DATA;
+			continue;
+		}
+
+		case I_EXTHDR_DATA:
+			p->data.len = 0;
+			p->state = I_FR;
+			continue;
 
 		case I_FR:
 			if (*data == 0x00) {
@@ -411,7 +453,8 @@ int ffid3_parse(ffid3 *p, const char *data, size_t *len)
 			else
 				p->frame = _ffid3_frame(&p->fr);
 
-			if ((p->fr.flags[1] & ~0x02) != 0)
+			if (((p->h.ver[0] == 4) && (p->fr.flags[1] & ~(FFID324_FFR1_DATALEN | FFID324_FFR1_UNSYNC)) != 0)
+				|| ((p->h.ver[0] != 4) && p->fr.flags[1] != 0))
 				goto done; //not supported
 
 			if (p->fr.id[0] == 'T' || p->frame == FFMMTAG_COMMENT)
@@ -419,8 +462,20 @@ int ffid3_parse(ffid3 *p, const char *data, size_t *len)
 			else
 				p->state = I_DATA;
 
+			if ((p->h.ver[0] == 4) && (p->fr.flags[1] & FFID324_FFR1_DATALEN)) {
+				p->gsize = 4;
+				p->nxstate = p->state;
+				p->state = I_GATHER,  p->gstate = I_FR_DATALEN;
+			}
+
 			r = FFID3_RFRAME;
 			goto done;
+
+		case I_FR_DATALEN:
+			p->frsize -= 4;
+			p->data.len = 0;
+			p->state = p->nxstate;
+			continue;
 
 		case I_TXTENC:
 			p->txtenc = (byte)*data;
@@ -433,7 +488,7 @@ int ffid3_parse(ffid3 *p, const char *data, size_t *len)
 		case I_DATA:
 		case I_UNSYNC_00:
 			n = (uint)ffmin(p->frsize, end - data);
-			if (p->fr.unsync || p->h.unsync) {
+			if ((p->fr.flags[1] & FFID324_FFR1_UNSYNC) || (p->h.flags & FFID3_FHDR_UNSYNC)) {
 				if (0 != _ffid3_unsync(p, data, n))
 					goto done;
 

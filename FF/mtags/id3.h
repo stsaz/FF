@@ -6,7 +6,7 @@ Copyright (c) 2013 Simon Zolin
 [ID3v2]  DATA...  [ID3v1]
 
 ID3v2:
-ID3-HEADER  (FRAME-HEADER  [TEXT-ENCODING]  DATA...)...  PADDING
+ID3-HEADER  [EXT-HDR]  (FRAME-HEADER  [TEXT-ENCODING]  DATA...)...  PADDING
 */
 
 #pragma once
@@ -69,21 +69,26 @@ FF_EXTN const char* ffid31_genre(uint id);
 typedef struct ffid3_hdr {
 	char id3[3]; //"ID3"
 	byte ver[2]; //e.g. \3 \0
-	union {
-	byte flags;
-	struct {
-		byte unsupported :7
-			, unsync :1;
-	};
-	};
+	byte flags; //enum FFID3_FHDR
 	byte size[4]; //7-bit numbers
 } ffid3_hdr;
+
+enum FFID3_FHDR {
+	FFID3_FHDR_EXTHDR = 0x40, // extended header follows
+	FFID3_FHDR_UNSYNC = 0x80,
+};
 
 /** Return TRUE if valid ID3v2 header. */
 FF_EXTN ffbool ffid3_valid(const ffid3_hdr *h);
 
 /** Get length of ID3v2 data. */
 FF_EXTN uint ffid3_size(const ffid3_hdr *h);
+
+
+typedef struct ffid3_exthdr {
+	byte size[4];
+	//...
+} ffid3_exthdr;
 
 
 enum FFID3_FRAME {
@@ -94,16 +99,13 @@ enum FFID3_FRAME {
 typedef struct ffid3_frhdr {
 	char id[4];
 	byte size[4]; //v2.4: 7-bit numbers.
-	union {
-	byte flags[2];
-	struct {
-		byte unsupported1;
-		byte unsupported2 :1
-			, unsync :1
-			, unsupported3 :6;
-	};
-	};
+	byte flags[2]; //[1]: enum FFID324_FFR1
 } ffid3_frhdr;
+
+enum FFID324_FFR1 {
+	FFID324_FFR1_DATALEN = 1, //4 bytes follow the frame header
+	FFID324_FFR1_UNSYNC = 2,
+};
 
 //6 bytes
 typedef struct ffid3_frhdr22 {
@@ -130,6 +132,9 @@ typedef struct ffid3 {
 	ffid3_frhdr22 fr22;
 	};
 	uint state;
+	uint nxstate;
+	uint gstate;
+	uint gsize;
 	uint size //bytes left in the whole ID3v2
 		, frsize; //bytes left in the frame
 	int txtenc; //enum FFID3_TXTENC
