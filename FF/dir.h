@@ -14,11 +14,14 @@ typedef struct ffdirexp {
 
 	char *path_fn; //storage for path+fn
 	size_t pathlen;
+
+	uint flags;
 } ffdirexp;
 
 enum FFDIR_EXP {
 	FFDIR_EXP_NOSORT = 1,
 	FFDIR_EXP_DOT12 = 2, //include "." and ".."
+	FFDIR_EXP_REL = 4, //output relative filenames
 };
 
 /** Get file names by a wildcard pattern.
@@ -32,12 +35,6 @@ FF_EXTN int ffdir_expopen(ffdirexp *dex, char *pattern, uint flags);
 
 /** Get the next file.
 Return NULL if no more files. */
-static FFINL const char * ffdir_expread(ffdirexp *dex)
-{
-	if (dex->cur == dex->size)
-		return NULL;
-	strcpy(dex->path_fn + dex->pathlen, dex->names[dex->cur++]);
-	return dex->path_fn;
-}
+FF_EXTN const char* ffdir_expread(ffdirexp *dex);
 
 FF_EXTN void ffdir_expclose(ffdirexp *dex);

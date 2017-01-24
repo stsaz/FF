@@ -390,6 +390,7 @@ int ffdir_expopen(ffdirexp *dex, char *pattern, uint flags)
 		ff_qsort(names.ptr, names.len, sizeof(char*), &_ffdir_cmpfilename, NULL);
 	}
 
+	dex->flags = flags;
 	rc = 0;
 
 done:
@@ -408,8 +409,20 @@ void ffdir_expclose(ffdirexp *dex)
 	for (i = 0;  i < dex->size;  i++) {
 		ffmem_free(dex->names[i]);
 	}
-	ffmem_free(dex->names);
+	ffmem_safefree(dex->names);
 	ffmem_safefree(dex->path_fn);
+}
+
+const char* ffdir_expread(ffdirexp *dex)
+{
+	if (dex->cur == dex->size)
+		return NULL;
+
+	if (dex->flags & FFDIR_EXP_REL)
+		return dex->names[dex->cur++];
+
+	ffsz_fcopyz(dex->path_fn + dex->pathlen, dex->names[dex->cur++]);
+	return dex->path_fn;
 }
 
 
