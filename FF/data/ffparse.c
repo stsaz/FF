@@ -30,6 +30,8 @@ static const char *const _ffpars_serr[] = {
 	, "zero value"
 	, "negative value"
 	, "unexpected value"
+	, "unknown value"
+	, "unsupported value"
 	, "parser misuse"
 };
 
@@ -179,10 +181,11 @@ done:
 
 
 static int scHdlKey(ffparser_schem *ps, ffpars_ctx *ctx);
-static int scHdlEnum(ffparser_schem *ps, void *obj);
+static int _ffpars_enum(const ffpars_arg *a, const ffstr *val, void *obj, void *ps);
 static int _ffpars_bits(size_t f, int64 i, union ffpars_val dst);
-static int scSetInt(ffparser_schem *ps, ffpars_ctx *ctx, union ffpars_val dst, union ffpars_val edst, int64 n);
-static int scHdlVal(ffparser_schem *ps, ffpars_ctx *ctx);
+static int _ffpars_int(const ffpars_arg *a, int64 val, void *obj, void *ps);
+static int _ffpars_intval(const ffpars_arg *a, int64 n, void *obj, void *ps);
+static int _ffpars_str(const ffpars_arg *a, const ffstr *val, void *obj, void *ps);
 static int scOpenBrace(ffparser_schem *ps);
 static int scCloseBrace(ffparser_schem *ps);
 
@@ -210,19 +213,94 @@ static int scHdlKey(ffparser_schem *ps, ffpars_ctx *ctx)
 	return 0;
 }
 
-static int scHdlEnum(ffparser_schem *ps, void *obj)
+static int _ffpars_str(const ffpars_arg *a, const ffstr *val, void *obj, void *ps)
 {
-	ffpars_enumlist *en = ps->curarg->dst.enum_list;
-	uint i;
+	uint f, t;
+	ffbool func;
+	ffstr tmp;
+	int er = 0;
+	union ffpars_val dst;
 
-	for (i = 0;  i < en->nvals;  ++i) {
-		if (ffstr_eqz(&ps->p->val, en->vals[i]))
-			return i;
+	f = a->flags;
+	t = f & FFPARS_FTYPEMASK;
+	func = ffpars_arg_isfunc(a);
+	dst.b = ffpars_arg_ptr(a, obj);
+
+	if (val->len == 0 && (f & FFPARS_FNOTEMPTY))
+		return FFPARS_EVALEMPTY;
+
+	if ((f & FFPARS_FNONULL)
+		&& NULL != ffs_findc(val->ptr, val->len, '\0'))
+		return FFPARS_EBADCHAR;
+
+	if (f & FFPARS_FCOPY) {
+
+		if (f & FFPARS_FSTRZ) {
+			if (NULL == ffstr_alloc(&tmp, val->len + 1))
+				return FFPARS_ESYS;
+			tmp.len = ffsz_fcopy(tmp.ptr, val->ptr, val->len) - tmp.ptr;
+
+		} else if (val->len == 0)
+			ffstr_null(&tmp);
+
+		else if (NULL == ffstr_alcopystr(&tmp, val))
+			return FFPARS_ESYS;
+
+	} else {
+
+		if (f & FFPARS_FSTRZ)
+			return FFPARS_ECONF;
+
+		tmp = *val;
 	}
 
-	return -1;
+	if (t == FFPARS_TCHARPTR) {
+
+		if (!(f & FFPARS_FSTRZ))
+			return FFPARS_ECONF;
+
+		if (func)
+			er = a->dst.f_charptr(ps, obj, tmp.ptr);
+		else {
+			if (f & FFPARS_FRECOPY)
+				ffmem_safefree(*dst.charptr);
+
+			*dst.charptr = tmp.ptr;
+		}
+
+	} else {
+		if (func)
+			er = a->dst.f_str(ps, obj, &tmp);
+		else {
+			if (f & FFPARS_FRECOPY)
+				ffmem_safefree(dst.s->ptr);
+
+			*dst.s = tmp;
+		}
+	}
+
+	if (func && er != 0 && (f & FFPARS_FCOPY))
+		ffstr_free(&tmp);
+	return er;
 }
 
+static int _ffpars_enum(const ffpars_arg *a, const ffstr *val, void *obj, void *ps)
+{
+	const ffpars_enumlist *en = a->dst.enum_list;
+	uint i;
+	for (i = 0;  i != en->nvals;  i++) {
+		if (ffstr_eqz(val, en->vals[i]))
+			break;
+	}
+
+	if (i == en->nvals)
+		return FFPARS_EVALUKN;
+
+	ffpars_arg aint;
+	aint.flags = FFPARS_TINT | (a->flags & ~FFPARS_FTYPEMASK);
+	aint.dst = a->dst.enum_list->dst;
+	return _ffpars_intval(&aint, i, obj, ps);
+}
 
 static const byte pars_width[] = { 32, 64, 16, 8 };
 
@@ -240,44 +318,93 @@ static int _ffpars_bits(size_t f, int64 i, union ffpars_val dst)
 		else
 			ffbit_reset64((uint64*)dst.i64, bit);
 		break;
+
 	case 32:
 		if (i != 0)
 			ffbit_set32((uint*)dst.i32, bit);
 		else
 			ffbit_reset32((uint*)dst.i32, bit);
 		break;
+
 	default:
 		return FFPARS_ECONF;
 	}
 	return 0;
 }
 
-static int scSetInt(ffparser_schem *ps, ffpars_ctx *ctx, union ffpars_val dst, union ffpars_val edst, int64 n)
+static int _ffpars_bitmask(size_t f, int64 i, union ffpars_val dst)
 {
-	size_t f = ps->curarg->flags;
-	uint width = PARS_WIDTH(f);
-	uint64 mask;
+	uint mask = (f >> 24) & 0xff;
 
-	switch (width) {
+	switch (PARS_WIDTH(f)) {
+	case 64:
+		if (i != 0)
+			*(uint64*)dst.i64 |= mask;
+		else
+			*(uint64*)dst.i64 &= ~mask;
+		break;
+
 	case 32:
-		mask = (uint)-1;
-		goto check_width;
-	case 16:
-		mask = 0xffff;
-		goto check_width;
-	case 8:
-		mask = 0xff;
+		if (i != 0)
+			*(uint*)dst.i32 |= mask;
+		else
+			*(uint*)dst.i32 &= ~mask;
+		break;
 
-check_width:
-		if (ffabs(n) & ~mask)
-			return FFPARS_EBIGVAL;
+	default:
+		return FFPARS_ECONF;
 	}
+	return 0;
+}
 
-	if (ffpars_arg_isfunc(ps->curarg))
-		return edst.f_int(ps, ctx->obj, &n);
+static int _ffpars_size(const ffpars_arg *a, const ffstr *val, void *obj, void *ps)
+{
+	uint64 intval;
+	ffstr s = *val;
+	if (s.len == 0)
+		return FFPARS_EVALEMPTY;
 
-	else if (f & FFPARS_FBIT)
+	uint shift = ffchar_sizesfx(ffarr_back(&s));
+	if (shift != 0)
+		s.len--;
+	if (!ffstr_toint(&s, &intval, FFS_INT64))
+		return FFPARS_EBADINT;
+	intval <<= shift;
+	return _ffpars_int(a, intval, obj, ps);
+}
+
+static int _ffpars_int(const ffpars_arg *a, int64 val, void *obj, void *ps)
+{
+	size_t f = a->flags;
+
+	if ((f & FFPARS_FNOTZERO) && val == 0)
+		return FFPARS_EVALZERO;
+
+	if (!(f & FFPARS_FSIGN) && val < 0)
+		return FFPARS_EVALNEG;
+
+	return _ffpars_intval(a, val, obj, ps);
+}
+
+static int _ffpars_intval(const ffpars_arg *a, int64 n, void *obj, void *ps)
+{
+	size_t f = a->flags;
+	uint width = PARS_WIDTH(f);
+	union ffpars_val dst;
+
+	if (width != 64 && 0 != (ffabs(n) >> width))
+		return FFPARS_EBIGVAL;
+
+	if (ffpars_arg_isfunc(a))
+		return a->dst.f_int(ps, obj, &n);
+
+	dst.b = ffpars_arg_ptr(a, obj);
+
+	if (f & FFPARS_FBIT)
 		return _ffpars_bits(f, n, dst);
+
+	else if (f & FFPARS_FBITMASK)
+		return _ffpars_bitmask(f, n, dst);
 
 	switch (width) {
 	case 64:
@@ -293,136 +420,73 @@ check_width:
 	return 0;
 }
 
-static int scHdlVal(ffparser_schem *ps, ffpars_ctx *ctx)
+static int _ffpars_flt(const ffpars_arg *a, double val, void *obj, void *ps)
 {
-	const ffpars_arg *curarg = ps->curarg;
-	int t;
-	size_t f;
-	ffparser *p = ps->p;
-	int er = 0;
-	ffbool func = 0;
 	union ffpars_val dst;
-	union ffpars_val edst;
-	ffstr tmp;
+	size_t f = a->flags;
 
-	f = curarg->flags;
-	t = f & FFPARS_FTYPEMASK;
-	edst = curarg->dst;
+	if ((f & FFPARS_FNOTZERO) && val == 0)
+		return FFPARS_EVALZERO;
 
-	if (t == FFPARS_TENUM)
-		edst = curarg->dst.enum_list->dst;
+	if (!(f & FFPARS_FSIGN) && val < 0)
+		return FFPARS_EVALNEG;
 
-	if (f & FFPARS_FPTR)
-		dst.s = edst.s;
-	else if (ffpars_arg_isfunc(curarg)) {
-		func = 1;
-		dst.s = NULL;
+	if (ffpars_arg_isfunc(a))
+		return a->dst.f_flt(ps, obj, &val);
+
+	dst.b = ffpars_arg_ptr(a, obj);
+
+	switch (PARS_WIDTH(f)) {
+	case 64:
+		*dst.f64 = val; break;
+	case 32:
+		*dst.f32 = (float)val; break;
+	default:
+		return FFPARS_ECONF; //invalid bits for a float
 	}
-	else
-		dst.b = (byte*)ctx->obj + edst.off;
 
-	switch (t) {
+	return 0;
+}
+
+int ffpars_arg_process(const ffpars_arg *a, const ffstr *val, void *obj, void *ps)
+{
+	int er = 0;
+	int64 intval;
+	double fltval;
+
+	switch (a->flags & FFPARS_FTYPEMASK) {
+
 	case FFPARS_TSTR:
 	case FFPARS_TCHARPTR:
-		if (p->val.len == 0 && (f & FFPARS_FNOTEMPTY))
-			return FFPARS_EVALEMPTY;
-
-		if ((f & FFPARS_FNONULL)
-			&& NULL != ffs_findc(p->val.ptr, p->val.len, '\0'))
-			return FFPARS_EBADCHAR;
-
-		if (f & FFPARS_FCOPY) {
-
-			if (f & FFPARS_FSTRZ) {
-				if (NULL == ffstr_alloc(&tmp, p->val.len + 1))
-					return FFPARS_ESYS;
-				tmp.len = ffsz_fcopy(tmp.ptr, p->val.ptr, p->val.len) - tmp.ptr;
-
-			} else if (p->val.len == 0)
-				ffstr_null(&tmp);
-
-			else if (NULL == ffstr_copy(&tmp, p->val.ptr, p->val.len))
-				return FFPARS_ESYS;
-
-		} else {
-
-			if (f & FFPARS_FSTRZ)
-				return FFPARS_ECONF;
-
-			tmp = p->val;
-		}
-
-		if (t == FFPARS_TCHARPTR) {
-
-			if (!(f & FFPARS_FSTRZ))
-				return FFPARS_ECONF;
-
-			if (func)
-				er = edst.f_charptr(ps, ctx->obj, tmp.ptr);
-			else
-				*dst.charptr = tmp.ptr;
-
-		} else {
-			if (func)
-				er = edst.f_str(ps, ctx->obj, &tmp);
-			else
-				*dst.s = tmp;
-		}
-
-		if (func && er != 0 && (f & FFPARS_FCOPY))
-			ffstr_free(&tmp);
+		er = _ffpars_str(a, val, obj, ps);
 		break;
 
 	case FFPARS_TENUM:
-		p->intval = scHdlEnum(ps, ctx->obj);
-		if (p->intval == -1)
-			return FFPARS_EBADVAL;
-		er = scSetInt(ps, ctx, dst, edst, p->intval);
+		er = _ffpars_enum(a, val, obj, ps);
 		break;
 
 	case FFPARS_TSIZE:
-		if (p->val.len == 0)
-			return FFPARS_EVALEMPTY;
-		{
-			uint shift = ffchar_sizesfx(ffarr_back(&p->val));
-			if (shift != 0)
-				p->val.len--;
-			if (p->val.len != ffs_toint(p->val.ptr, p->val.len, &p->intval, FFS_INT64))
-				return FFPARS_EBADVAL;
-			p->intval <<= shift;
-		}
-		//break;
+		er = _ffpars_size(a, val, obj, ps);
+		break;
 
 	case FFPARS_TINT:
-		if (p->intval == 0 && (f & FFPARS_FNOTZERO))
-			return FFPARS_EVALZERO;
-
-		if (p->intval < 0 && !(f & FFPARS_FSIGN))
-			return FFPARS_EVALNEG;
-		//break;
+		if (val->len > FFINT_MAXCHARS
+			|| !ffstr_toint(val, &intval, FFS_INT64 | FFS_INTSIGN))
+			return FFPARS_EBADINT;
+		er = _ffpars_int(a, intval, obj, ps);
+		break;
 
 	case FFPARS_TBOOL:
-		er = scSetInt(ps, ctx, dst, edst, p->intval);
+		if (val->len > 1
+			|| !ffstr_toint(val, &intval, FFS_INT64))
+			return FFPARS_EBADINT;
+		er = _ffpars_intval(a, intval, obj, ps);
 		break;
 
 	case FFPARS_TFLOAT:
-		if ((f & FFPARS_FNOTZERO) && p->fltval == 0)
-			return FFPARS_EVALZERO;
-
-		if (!(f & FFPARS_FSIGN) && p->fltval < 0)
-			return FFPARS_EVALNEG;
-
-		if (func)
-			return edst.f_flt(ps, ctx->obj, &p->fltval);
-
-		switch (PARS_WIDTH(f)) {
-		case 64:
-			*dst.f64 = p->fltval; break;
-		case 32:
-			*dst.f32 = (float)p->fltval; break;
-		default:
-			return FFPARS_ECONF; //invalid bits for a float
-		}
+		if (val->len != ffs_tofloat(val->ptr, val->len, &fltval, 0))
+			return FFPARS_EBADVAL;
+		er = _ffpars_flt(a, fltval, obj, ps);
 		break;
 
 	default:
@@ -570,7 +634,20 @@ int ffpars_schemrun(ffparser_schem *ps, int e)
 		if (ps->ctxs.len == 0)
 			return FFPARS_ECONF;
 
-		rc = scHdlVal(ps, &ffarr_back(&ps->ctxs));
+		switch (ps->curarg->flags & FFPARS_FTYPEMASK) {
+		case FFPARS_TINT:
+			rc = _ffpars_int(ps->curarg, ps->p->intval, ffarr_back(&ps->ctxs).obj, ps);
+			break;
+		case FFPARS_TBOOL:
+			rc = _ffpars_intval(ps->curarg, ps->p->intval, ffarr_back(&ps->ctxs).obj, ps);
+			break;
+		case FFPARS_TFLOAT:
+			rc = _ffpars_flt(ps->curarg, ps->p->fltval, ffarr_back(&ps->ctxs).obj, ps);
+			break;
+		default:
+			rc = ffpars_arg_process(ps->curarg, &ps->p->val, ffarr_back(&ps->ctxs).obj, ps);
+			break;
+		}
 		break;
 
 	case FFPARS_OPEN:

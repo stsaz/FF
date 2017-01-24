@@ -41,6 +41,8 @@ enum FFPARS_E {
 	, FFPARS_EVALZERO
 	, FFPARS_EVALNEG
 	, FFPARS_EVALUNEXP
+	, FFPARS_EVALUKN
+	, FFPARS_EVALUNSUPP
 	, FFPARS_ECONF
 
 	, FFPARS_ELAST
@@ -148,6 +150,9 @@ enum FFPARS_F {
 	/** Prepare NULL-terminated string.  Must be used only with FFPARS_FCOPY. */
 	FFPARS_FSTRZ = FFPARS_FNONULL | 0x800,
 
+	/** Reallocate memory if target pointer is not NULL. */
+	FFPARS_FRECOPY = FFPARS_FCOPY | 0x1000,
+
 //FFPARS_TINT, FFPARS_TSIZE, FFPARS_TBOOL, FFPARS_TFLOAT:
 	//FFPARS_F32BIT = 0,
 	FFPARS_F64BIT = 0x100, // 64-bit number
@@ -161,6 +166,7 @@ enum FFPARS_F {
 //FFPARS_TINT:
 	/** Set/reset bit within 32/64-bit integer (see FFPARS_SETBIT()). */
 	FFPARS_FBIT = 0x1000,
+	FFPARS_FBITMASK = 0x2000,
 
 //ffconf only:
 	/** String value followed by object start, e.g. "key val {..."
@@ -204,6 +210,7 @@ enum FFPARS_T {
 
 #define FFPARS_SETVAL(i)  ((i) << 24)
 #define FFPARS_SETBIT(bit)  (FFPARS_FBIT | FFPARS_SETVAL(bit))
+#define FFPARS_SETBITMASK(n)  (FFPARS_FBITMASK | FFPARS_SETVAL(n))
 
 typedef struct ffpars_ctx ffpars_ctx;
 typedef struct ffparser_schem ffparser_schem;
@@ -254,6 +261,17 @@ static FFINL ffbool ffpars_arg_isfunc(const ffpars_arg *a)
 		&& a->dst.off >= 64 * 1024;
 }
 
+/** Get target pointer. */
+static FFINL void* ffpars_arg_ptr(const ffpars_arg *a, void *obj)
+{
+	return (a->flags & FFPARS_FPTR) ? a->dst.b : obj + a->dst.off;
+}
+
+/** Call handler function or set target value.
+@ps: will be passed to handler function (optional)
+Return 0 or enum FFPARS_E. */
+FF_EXTN int ffpars_arg_process(const ffpars_arg *a, const ffstr *val, void *obj, void *ps);
+
 
 struct ffpars_ctx {
 	void *obj;
@@ -297,6 +315,7 @@ struct ffparser_schem {
 	struct { FFARR(ffpars_ctx) } ctxs;
 	const ffpars_arg *curarg;
 	ffstr vals[1];
+	uint list_idx; //for FFPARS_FLIST
 };
 
 /** Initialize parser with a scheme. */
