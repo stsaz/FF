@@ -58,7 +58,7 @@ int flac_info(const char *data, size_t size, ffflac_info *info, ffpcm *fmt, uint
 	if (len < sizeof(struct flac_streaminfo))
 		return -1;
 	data += sizeof(struct flac_hdr);
-	if (end - data < len)
+	if ((uint)(end - data) < len)
 		return 0;
 
 	const struct flac_streaminfo *sinfo = (void*)data;

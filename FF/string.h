@@ -305,6 +305,8 @@ static FFINL char * ffsz_fcopy(char *dst, const char *src, size_t len) {
 	return dst;
 }
 
+#define ffsz_fcopyz(dst, src)  strcpy(dst, src)
+
 #define ffsz_copycz(dst, csz)  ffmemcpy(dst, csz, sizeof(csz))
 
 /** Allocate memory and copy string. */
@@ -317,6 +319,7 @@ static FFINL char* ffsz_alcopy(const char *src, size_t len)
 }
 
 #define ffsz_alcopyz(src)  ffsz_alcopy(src, ffsz_len(src))
+#define ffsz_alcopystr(src)  ffsz_alcopy((src)->ptr, (src)->len)
 
 /** Convert case (ANSI).
 Return the number of bytes written. */

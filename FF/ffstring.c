@@ -828,7 +828,7 @@ uint ffs_fromint(uint64 i, char *dst, size_t cap, int flags)
 		int nsep = len / 3 - ((len % 3) == 0);
 		if (nsep > 0) {
 			uint k, idst = len + nsep - 1;
-			if (idst >= end - dst)
+			if (idst >= (uint)(end - dst))
 				return end - dst;
 
 			for (k = 1;  k != len;  k++) {
@@ -1211,6 +1211,7 @@ format:
 			break;
 		}
 
+#ifndef FFS_FMT_NO_e
 		case 'e': {
 			int e = va_arg(va, int);
 			const char *se = fferr_opstr((enum FFERR)e);
@@ -1219,6 +1220,7 @@ format:
 			len += (buf != end) ? (size_t)(buf - p) : ffsz_len(se);
 			break;
 		}
+#endif
 
 		case 'E': {
 			int e = va_arg(va, int);
@@ -1230,7 +1232,11 @@ format:
 
 			if (buf != end) {
 				buf += r;
-				fferr_str(e, buf, end - buf);
+				if (0 != fferr_str(e, buf, end - buf)) {
+					buf = end;
+					len += 255;
+					break;
+				}
 				uint n = ffsz_len(buf);
 				buf += n;
 				len += r + n;

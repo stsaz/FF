@@ -57,6 +57,15 @@ do { \
 	ffarr2_free(a); \
 } while (0)
 
+#define FFARR2_FREE_ALL_PTR(a, func, T) \
+do { \
+	T *__it; \
+	FFARR_WALKT(a, __it, T) { \
+		func(*__it); \
+	} \
+	ffarr2_free(a); \
+} while (0)
+
 /** Append data to an array. */
 static FFINL size_t ffarr2_addf(ffarr2 *a, const void *src, size_t n, size_t elsz)
 {
@@ -120,6 +129,8 @@ do { \
 	(src)->cap = 0; \
 } while (0)
 
+#define ffarr_itemT(ar, idx, T)  (&((T*)(ar)->ptr)[idx])
+
 /** The last element in array. */
 #define ffarr_back(ar)  ((ar)->ptr[(ar)->len - 1])
 #define ffarr_lastT(ar, T)  (&((T*)(ar)->ptr)[(ar)->len - 1])
@@ -145,6 +156,9 @@ do { \
 	for (it = (ar)->ptr;  it != (ar)->ptr + (ar)->len;  it++)
 
 /** Reverse walk. */
+#define FFARR_RWALKT(ar, it, T) \
+	for (it = ffarr_lastT(ar, T);  it - (T*)(ar)->ptr >= 0;  it--)
+
 #define FFARR_RWALK(ar, it) \
 	if ((ar)->len != 0) \
 		for (it = (ar)->ptr + (ar)->len - 1;  it >= (ar)->ptr;  it--)
@@ -183,6 +197,15 @@ FF_EXTN void _ffarr_free(ffarr *ar);
 
 /** Deallocate array memory. */
 #define ffarr_free(ar)  _ffarr_free((ffarr*)ar)
+
+#define FFARR_FREE_ALL_PTR(a, func, T) \
+do { \
+	T *__it; \
+	FFARR_WALKT(a, __it, T) { \
+		func(*__it); \
+	} \
+	ffarr_free(a); \
+} while (0)
 
 /** Add 1 item into array.
 Return the item pointer.
@@ -367,6 +390,7 @@ static FFINL ffbool ffstr_imatch(const ffstr *s1, const char *s2, size_t n) {
 
 #define ffstr_matchcz(s, csz)  ffstr_match(s, csz, FFSLEN(csz))
 #define ffstr_imatchcz(s, csz)  ffstr_imatch(s, csz, FFSLEN(csz))
+#define ffstr_matchstr(s, s2)  ffstr_match(s, (s2)->ptr, (s2)->len)
 
 
 #define ffstr_alloc(s, cap)  ffarr2_alloc((ffarr2*)s, cap, sizeof(char))
@@ -430,6 +454,9 @@ static FFINL ssize_t ffstr_ifind(const ffstr *s, const char *search, size_t sear
 		return -1;
 	return r - s->ptr;
 }
+
+#define ffstr_findstr(s, search)  ffstr_find(s, (search)->ptr, (search)->len)
+#define ffstr_ifindstr(s, search)  ffstr_ifind(s, (search)->ptr, (search)->len)
 
 /** Find string in an array of strings.
 Return array index.

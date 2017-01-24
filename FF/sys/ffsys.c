@@ -12,30 +12,6 @@ Copyright (c) 2014 Simon Zolin
 #include <FFOS/error.h>
 
 
-#ifdef _DEBUG
-#include <FFOS/atomic.h>
-
-static ffatomic counter;
-int ffdbg_mask = 1;
-int ffdbg_print(int t, const char *fmt, ...)
-{
-	char buf[4096];
-	size_t n;
-	va_list va;
-	va_start(va, fmt);
-
-	n = ffs_fmt(buf, buf + FFCNT(buf), "%p#%L "
-		, &counter, (size_t)ffatom_incret(&counter));
-
-	n += ffs_fmtv(buf + n, buf + FFCNT(buf), fmt, va);
-	fffile_write(ffstdout, buf, n);
-
-	va_end(va);
-	return 0;
-}
-#endif
-
-
 size_t fffile_fmt(fffd fd, ffarr *buf, const char *fmt, ...)
 {
 	size_t r;
@@ -146,7 +122,7 @@ void fftask_run(fftaskmgr *mgr)
 }
 
 
-int ffdir_make_path(char *fn)
+int ffdir_make_path(char *fn, size_t off)
 {
 	ffstr dir;
 	int r, c;
@@ -156,7 +132,7 @@ int ffdir_make_path(char *fn)
 
 	c = dir.ptr[dir.len];
 	dir.ptr[dir.len] = '\0';
-	r = ffdir_make(dir.ptr);
+	r = ffdir_rmake(dir.ptr, off);
 	dir.ptr[dir.len] = c;
 	return r;
 }
