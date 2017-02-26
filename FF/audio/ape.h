@@ -79,6 +79,9 @@ typedef struct ffape {
 
 	uint state;
 	int err;
+
+	uint gstate;
+	size_t gsize;
 } ffape;
 
 FF_EXTN const char ffape_comp_levelstr[][8];

@@ -347,7 +347,7 @@ int ffid3_parse(ffid3 *p, const char *data, size_t *len)
 {
 	const char *dstart = data, *end = data + *len;
 	uint n, frsz;
-	uint r = FFID3_RERR;
+	int r = FFID3_RERR;
 
 	*len = 0;
 	if (p->size != 0)
@@ -397,17 +397,13 @@ int ffid3_parse(ffid3 *p, const char *data, size_t *len)
 			if (p->data.len == 0 && p->size < p->gsize)
 				return FFID3_RERR;
 
-			r = ffarr_append_until(&p->data, data, end - data, p->gsize);
-			switch (r) {
-			case 0:
-				data += end - data;
-				p->size -= end - data;
-				return FFID3_RMORE;
-			case -1:
+			r = ffarr_gather(&p->data, data, end - data, p->gsize);
+			if (r < 0)
 				return FFID3_RERR;
-			}
 			data += r;
 			p->size -= r;
+			if (p->data.len != p->gsize)
+				return FFID3_RMORE;
 			p->gsize = 0;
 			p->state = p->gstate;
 			continue;

@@ -303,6 +303,10 @@ FF_EXTN int ffui_openfolder(const char *const *items, size_t selcnt);
 /** Create .lnk file. */
 FF_EXTN int ffui_createlink(const char *target, const char *linkname);
 
+/**
+@flags: SW_* */
+FF_EXTN int ffui_shellexec(const char *filename, uint flags);
+
 
 enum FFUI_FOP_F {
 	FFUI_FOP_ALLOWUNDO = FOF_ALLOWUNDO,
@@ -760,7 +764,7 @@ FF_EXTN int ffui_view_create(ffui_ctl *c, ffui_wnd *parent);
 
 #define ffui_view_settheme(v)  SetWindowTheme((v)->h, L"Explorer", NULL)
 
-FF_EXTN int ffui_view_hittest(ffui_view *v, const ffui_point *pt, int item);
+FF_EXTN int ffui_view_hittest(ffui_view *v, const ffui_point *pt, int *subitem);
 
 #define ffui_view_makevisible(v, item)  ffui_ctl_send(v, LVM_ENSUREVISIBLE, item, 0)
 

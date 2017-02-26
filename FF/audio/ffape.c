@@ -113,7 +113,7 @@ const char* ffape_errstr(ffape *a)
 
 
 enum {
-	I_HDR, I_SEEKTAB, I_HDR2, I_TAGSEEK, I_FTRTAGS, I_ID31, I_APE2, I_APE2_MORE, I_TAGSFIN, I_HDRFIN,
+	I_HDR, I_GATHER, I_SEEKTAB, I_HDR2, I_TAGSEEK, I_ID31, I_APE2, I_APE2_MORE, I_TAGSFIN, I_HDRFIN,
 	I_INIT, I_FR, I_NEXT, I_SEEK,
 };
 
@@ -459,20 +459,26 @@ int ffape_decode(ffape *a)
 	case I_HDR:
 		if (0 != (r = _ffape_hdr(a)))
 			return r;
-		a->state = I_SEEKTAB;
+		a->gsize = a->info.seekpoints * sizeof(uint);
+		a->state = I_GATHER,  a->gstate = I_SEEKTAB;
 		// break
 
-	case I_SEEKTAB:
-		r = ffarr_append_until(&a->buf, a->data, a->datalen, a->info.seekpoints * sizeof(uint));
-		if (r == 0)
-			return FFAPE_RMORE;
-		else if (r == -1) {
+	case I_GATHER:
+		r = ffarr_gather(&a->buf, a->data, a->datalen, a->gsize);
+		if (r < 0) {
 			a->err = APE_ESYS;
 			return FFAPE_RERR;
 		}
 		FFARR_SHIFT(a->data, a->datalen, r);
-		a->off += a->info.seekpoints * sizeof(uint);
+		a->off += r;
 
+		if (a->buf.len != a->gsize)
+			return FFAPE_RMORE;
+
+		a->state = a->gstate;
+		continue;
+
+	case I_SEEKTAB:
 		r = ape_seektab(a->buf.ptr, a->buf.len, &a->seektab, &a->info, a->total_size);
 		a->buf.len = 0;
 		if (r < 0) {
@@ -503,26 +509,13 @@ int ffape_decode(ffape *a)
 
 	case I_TAGSEEK:
 		if (a->options & (FFAPE_O_ID3V1 | FFAPE_O_APETAG)) {
-			a->state = I_FTRTAGS;
+			a->gsize = ffmin(APE_FTRTAGS_CHKSIZE, a->total_size);
+			a->state = I_GATHER,  a->gstate = I_ID31;
 			a->off = a->total_size - ffmin(APE_FTRTAGS_CHKSIZE, a->total_size);
 			return FFAPE_RSEEK;
 		}
 		a->state = I_HDRFIN;
 		continue;
-
-	case I_FTRTAGS:
-		r = ffarr_append_until(&a->buf, a->data, a->datalen, ffmin(APE_FTRTAGS_CHKSIZE, a->total_size));
-		if (r < 0) {
-			a->err = APE_ESYS;
-			return FFAPE_RERR;
-		} else if (r == 0) {
-			a->off += a->datalen;
-			return FFAPE_RMORE;
-		}
-		FFARR_SHIFT(a->data, a->datalen, r);
-		a->off += r;
-		a->state = I_ID31;
-		// break
 
 	case I_ID31:
 		if ((a->options & FFAPE_O_ID3V1) && 0 != (r = _ffape_id31(a)))
@@ -599,12 +592,6 @@ int ffape_decode(ffape *a)
 		uint off = frame_offset(a, frame);
 		uint off_next = frame_offset(a, frame + 1);
 		_ffarr_rmleft(&a->buf, off_next - off, sizeof(char));
-		if (a->buf.cap == 0) {
-			// a->buf points to memory region of a->data
-			FFARR_SHIFT(a->data, a->datalen, -(ssize_t)a->buf.len);
-			a->off -= a->buf.len;
-			a->buf.len = 0;
-		}
 
 		if (r < 0) {
 			a->state = I_NEXT;

@@ -490,15 +490,16 @@ int ffmpg_readframe(ffmpgr *m, ffstr *frame)
 		m->buf.len = 0;
 		m->frsamps = ffmpg_hdr_frame_samples((void*)frame->ptr);
 		m->cur_sample += m->frsamps;
-		return FFMPG_RFRAME;
+		r = FFMPG_RFRAME;
+		goto fr;
 	}
 	}
 
 	return FFMPG_RERR;
 
 fr:
-	FFDBG_PRINTLN(10, "frame #%u  size:%L  bitrate:%u"
-		, m->frno++, frame->len, ffmpg_hdr_bitrate((void*)frame->ptr));
+	FFDBG_PRINTLN(10, "frame #%u  size:%L  bitrate:%u  offset:%xU"
+		, m->frno++, frame->len, ffmpg_hdr_bitrate((void*)frame->ptr), m->off - frame->len);
 	return r;
 }
 

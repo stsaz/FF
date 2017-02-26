@@ -508,13 +508,13 @@ int ffflac_decode(ffflac *f)
 		}
 
 		FFARR_SHIFT(f->data, f->datalen, r);
+		f->off += f->blksize;
 		f->buf.len = 0;
 		if (0 > flac_seektab(f->buf.ptr, f->blksize, &f->sktab, f->info.total_samples)) {
 			f->st = I_SKIPMETA;
 			f->errtype = FLAC_ESEEKTAB;
 			return FFFLAC_RWARN;
 		}
-		f->off += f->blksize;
 		f->st = (f->hdrlast) ? I_METALAST : I_META;
 		break;
 

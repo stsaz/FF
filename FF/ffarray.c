@@ -99,9 +99,10 @@ void * _ffarr_append(ffarr *ar, const void *src, size_t num, size_t elsz)
 	return ar->ptr + ar->len * elsz;
 }
 
-ssize_t ffarr_append_until(ffarr *ar, const char *d, size_t len, size_t until)
+ssize_t ffarr_gather(ffarr *ar, const char *d, size_t len, size_t until)
 {
-	FF_ASSERT(ar->len <= until);
+	if (ar->len >= until)
+		return 0;
 
 	if (ar->len == 0 && len >= until) {
 		ffarr_free(ar);
@@ -121,7 +122,7 @@ ssize_t ffarr_append_until(ffarr *ar, const char *d, size_t len, size_t until)
 
 	len = ffmin(len, until - ar->len);
 	ffarr_append(ar, d, len);
-	return (ar->len == until) ? len : 0;
+	return len;
 }
 
 void _ffarr_rm(ffarr *ar, size_t off, size_t n, size_t elsz)

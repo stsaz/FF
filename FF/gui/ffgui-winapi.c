@@ -90,8 +90,8 @@ static void print(const char *cmd, HWND h, size_t w, size_t l) {
 #define call_dl(name) \
 do { \
 	ffdl dl = ffdl_open("user32.dll", 0); \
-	void (*f)(); \
-	if (NULL != (f = (void(*)())ffdl_addr(dl, #name))) \
+	void __stdcall (*f)(); \
+	if (NULL != (f = (void __stdcall (*)())ffdl_addr(dl, #name))) \
 		f(); \
 	ffdl_close(dl); \
 } while (0)
@@ -933,14 +933,27 @@ int ffui_view_sel_invert(ffui_view *v)
 	return cnt;
 }
 
-int ffui_view_hittest(ffui_view *v, const ffui_point *pt, int item)
+int ffui_view_hittest(ffui_view *v, const ffui_point *pt, int *subitem)
 {
-	LVHITTESTINFO ht = {0};
-	ht.pt.x = pt->x;
-	ht.pt.y = pt->y;
-	ht.iItem = item;
-	ListView_SubItemHitTest(v->h, &ht);
-	return ht.iSubItem;
+	LVHITTESTINFO ht;
+	ffui_point cpt = *pt;
+
+	ffui_screen2client(v, &cpt);
+
+	ht.pt.x = cpt.x;
+	ht.pt.y = cpt.y;
+	ht.flags = LVHT_ONITEM;
+	ht.iItem = -1;
+	ht.iSubItem = -1;
+#if FF_WIN >= 0x0600
+	ht.iGroup = -1;
+#endif
+	ffui_ctl_send(v, LVM_SUBITEMHITTEST, -1, &ht);
+	if (!(ht.flags & LVHT_ONITEM))
+		return -1;
+	if (subitem != NULL)
+		*subitem = ht.iSubItem;
+	return ht.iItem;
 }
 
 HWND ffui_view_edit(ffui_view *v, uint i, uint sub)
@@ -2127,4 +2140,20 @@ end:
 	if (pf != NULL)
 		IPersistFile_Release(pf);
 	return r;
+}
+
+int ffui_shellexec(const char *filename, uint flags)
+{
+	int r;
+	ffsyschar *w, ws[FF_MAXFN];
+	size_t n = FFCNT(ws);
+	if (NULL == (w = ffs_utow(ws, &n, filename, -1)))
+		return -1;
+
+	r = (size_t)ShellExecute(NULL, TEXT("open"), w, NULL, NULL, flags);
+	if (w != ws)
+		ffmem_free(w);
+	if (r <= 32)
+		return -1;
+	return 0;
 }

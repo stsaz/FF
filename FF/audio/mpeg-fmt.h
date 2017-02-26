@@ -31,7 +31,24 @@ FF_EXTN const char ffmpg_strchannel[4][8];
 typedef struct ffmpg_hdr {
 	byte sync1 :8; //0xff
 
-#if defined FF_LITTLE_ENDIAN
+#if defined FF_BIG_ENDIAN
+	byte sync2 :3 //0x07
+		, ver :2 //enum FFMPG_VER
+		, layer :2 //enum FFMPG_LAYER
+		, noprotect :1; //0: protected by CRC
+
+	byte bitrate :4
+		, sample_rate :2
+		, padding :1 //for L3 +1 byte in frame
+		, priv :1;
+
+	byte channel :2 //enum FFMPG_CHANNEL
+		, modeext :2 //mode extension (for Joint Stereo)
+		, copyright :1
+		, original :1
+		, emphasis :2;
+
+#else
 	byte noprotect :1 //0: protected by CRC
 		, layer :2 //enum FFMPG_LAYER
 		, ver :2 //enum FFMPG_VER

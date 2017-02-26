@@ -105,6 +105,12 @@ do { \
 	(ar)->cap = _cap; \
 } while(0)
 
+#define ffarr_setshift(a, p, n, shift) \
+do { \
+	ssize_t _by = (shift); \
+	(a)->ptr = (p) + (_by),  (a)->len = (n) - (_by); \
+} while (0)
+
 #define FFARR_SHIFT(ptr, len, by) \
 do { \
 	ssize_t _by = (by); \
@@ -198,6 +204,15 @@ FF_EXTN void _ffarr_free(ffarr *ar);
 /** Deallocate array memory. */
 #define ffarr_free(ar)  _ffarr_free((ffarr*)ar)
 
+#define FFARR_FREE_ALL(a, func, T) \
+do { \
+	T *__it; \
+	FFARR_WALKT(a, __it, T) { \
+		func(__it); \
+	} \
+	ffarr_free(a); \
+} while (0)
+
 #define FFARR_FREE_ALL_PTR(a, func, T) \
 do { \
 	T *__it; \
@@ -214,6 +229,9 @@ FF_EXTN void * _ffarr_push(ffarr *ar, size_t elsz);
 
 #define ffarr_push(ar, T) \
 	(T*)_ffarr_push((ffarr*)ar, sizeof(T))
+
+#define ffarr_pushT(ar, T) \
+	(T*)_ffarr_push(ar, sizeof(T))
 
 /** Add 1 element.  Grow by the specified size if needed.
 Return element pointer;  NULL on error. */
@@ -235,8 +253,19 @@ FF_EXTN void * _ffarr_append(ffarr *ar, const void *src, size_t num, size_t elsz
 
 /** Add data into array until its size reaches the specified amount.
 Don't copy any data if the required size is already available.
+Return the number of bytes processed;  -1 on error. */
+FF_EXTN ssize_t ffarr_gather(ffarr *ar, const char *d, size_t len, size_t until);
+
+/**
 Return the number of bytes processed;  0 if more data is needed;  -1 on error. */
-FF_EXTN ssize_t ffarr_append_until(ffarr *ar, const char *d, size_t len, size_t until);
+static FFINL ssize_t ffarr_append_until(ffarr *ar, const char *d, size_t len, size_t until)
+{
+	ssize_t r = ffarr_gather(ar, d, len, until);
+	FF_ASSERT(r != 0 || len == 0);
+	if (r > 0 && ar->len < until)
+		return 0;
+	return r;
+}
 
 static FFINL void * _ffarr_copy(ffarr *ar, const void *src, size_t num, size_t elsz) {
 	ar->len = 0;
@@ -352,6 +381,7 @@ FF_EXTN const char* ffs_split2(const char *s, size_t len, const char *at, ffstr 
 
 /** Compare ANSI strings.  Case-insensitive. */
 #define ffstr_icmp(str1, s2, len2)  ffs_icmp4((str1)->ptr, (str1)->len, s2, len2)
+#define ffstr_icmp2(s1, s2)  ffs_icmp4((s1)->ptr, (s1)->len, (s2)->ptr, (s2)->len)
 
 #define ffstr_eq(s, d, n) \
 	((s)->len == (n) && 0 == ffmemcmp((s)->ptr, d, n))
