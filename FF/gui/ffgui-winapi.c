@@ -1081,13 +1081,17 @@ int ffui_icon_load(ffui_icon *ico, const char *filename, uint index)
 	return r;
 }
 
-int ffui_icon_loadimg_q(ffui_icon *ico, const ffsyschar *filename, uint cx, uint cy)
+int ffui_icon_loadimg_q(ffui_icon *ico, const ffsyschar *filename, uint cx, uint cy, uint flags)
 {
+	if (flags & FFUI_ICON_DPISCALE) {
+		cx = dpi_scale(cx);
+		cy = dpi_scale(cy);
+	}
 	ico->h = LoadImage(NULL, filename, IMAGE_ICON, cx, cy, LR_LOADFROMFILE);
 	return (ico->h == NULL);
 }
 
-int ffui_icon_loadimg(ffui_icon *ico, const char *filename, uint cx, uint cy)
+int ffui_icon_loadimg(ffui_icon *ico, const char *filename, uint cx, uint cy, uint flags)
 {
 	ffsyschar *w, ws[255];
 	size_t n = FFCNT(ws) - 1;
@@ -1095,7 +1099,7 @@ int ffui_icon_loadimg(ffui_icon *ico, const char *filename, uint cx, uint cy)
 	if (NULL == (w = ffs_utow(ws, &n, filename, ffsz_len(filename))))
 		return -1;
 	w[n] = '\0';
-	r = ffui_icon_loadimg_q(ico, w, cx, cy);
+	r = ffui_icon_loadimg_q(ico, w, cx, cy, flags);
 	if (w != ws)
 		ffmem_free(w);
 	return r;

@@ -113,9 +113,14 @@ static FFINL int ffui_icon_load_q(ffui_icon *ico, const ffsyschar *filename, uin
 }
 FF_EXTN int ffui_icon_load(ffui_icon *ico, const char *filename, uint index);
 
-/** Load icon with the specified dimensions (resize if needed). */
-FF_EXTN int ffui_icon_loadimg_q(ffui_icon *ico, const ffsyschar *filename, uint cx, uint cy);
-FF_EXTN int ffui_icon_loadimg(ffui_icon *ico, const char *filename, uint cx, uint cy);
+enum FFUI_ICON_FLAGS {
+	FFUI_ICON_DPISCALE = 1,
+};
+
+/** Load icon with the specified dimensions (resize if needed).
+@flags: enum FFUI_ICON_FLAGS */
+FF_EXTN int ffui_icon_loadimg_q(ffui_icon *ico, const ffsyschar *filename, uint cx, uint cy, uint flags);
+FF_EXTN int ffui_icon_loadimg(ffui_icon *ico, const char *filename, uint cx, uint cy, uint flags);
 
 enum FFUI_ICON {
 	_FFUI_ICON_STD = 0x10000,
