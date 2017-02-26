@@ -676,17 +676,25 @@ uint ffid3_addframe(ffid3_cook *id3, const char id[4], const char *data, size_t 
 	}
 
 	size_t n = sizeof(ffid3_frhdr) + 1 + len;
+
+	if (!ffs_cmp(id, "COMM", 4))
+		n += FFSLEN("LNG\0");
+
 	if (n > (uint)-1 || NULL == ffarr_grow(&id3->buf, n, 0))
 		return 0;
 
 	char *p = ffarr_end(&id3->buf);
 	ffid3_frhdr *fr = (void*)p;
 	ffmemcpy(fr->id, id, 4);
-	i32_i28(fr->size, 1 + (uint)len);
+	i32_i28(fr->size, n - sizeof(ffid3_frhdr));
 	fr->flags[0] = 0; fr->flags[1] = 0;
 	p += sizeof(ffid3_frhdr);
 
 	*p++ = FFID3_UTF8;
+
+	if (!ffs_cmp(id, "COMM", 4))
+		p = ffmem_copy(p, "eng\0", 4);
+
 	ffmemcpy(p, data, len);
 
 	id3->buf.len += n;
