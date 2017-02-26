@@ -107,15 +107,13 @@ typedef struct ffui_icon {
 
 #define ffui_icon_destroy(ico)  DestroyIcon((ico)->h)
 
-static FFINL int ffui_icon_load_q(ffui_icon *ico, const ffsyschar *filename, uint index)
-{
-	return !ExtractIconEx(filename, index, &ico->h, NULL, ICON_BIG);
-}
-FF_EXTN int ffui_icon_load(ffui_icon *ico, const char *filename, uint index);
-
 enum FFUI_ICON_FLAGS {
 	FFUI_ICON_DPISCALE = 1,
+	FFUI_ICON_SMALL = 2,
 };
+
+FF_EXTN int ffui_icon_load_q(ffui_icon *ico, const ffsyschar *filename, uint index, uint flags);
+FF_EXTN int ffui_icon_load(ffui_icon *ico, const char *filename, uint index, uint flags);
 
 /** Load icon with the specified dimensions (resize if needed).
 @flags: enum FFUI_ICON_FLAGS */
@@ -1140,14 +1138,17 @@ FF_EXTN int ffui_wnd_create(ffui_wnd *w);
 
 #define ffui_wnd_setfront(w)  SetForegroundWindow((w)->h)
 
-#define ffui_wnd_icon(w, ico) \
-	((ico)->h = (HICON)ffui_ctl_send((w), WM_GETICON, ICON_BIG, 0))
+static FFINL void ffui_wnd_icon(ffui_wnd *w, ffui_icon *big_ico, ffui_icon *small_ico)
+{
+	big_ico->h = (HICON)ffui_ctl_send(w, WM_GETICON, ICON_BIG, 0);
+	small_ico->h = (HICON)ffui_ctl_send(w, WM_GETICON, ICON_SMALL, 0);
+}
 
-#define ffui_wnd_seticon(w, ico) \
-do { \
-	ffui_ctl_send(w, WM_SETICON, ICON_SMALL, (ico)->h); \
-	ffui_ctl_send(w, WM_SETICON, ICON_BIG, (ico)->h); \
-} while (0)
+static FFINL void ffui_wnd_seticon(ffui_wnd *w, const ffui_icon *big_ico, const ffui_icon *small_ico)
+{
+	ffui_ctl_send(w, WM_SETICON, ICON_SMALL, small_ico->h);
+	ffui_ctl_send(w, WM_SETICON, ICON_BIG, big_ico->h);
+}
 
 FF_EXTN void ffui_wnd_opacity(ffui_wnd *w, uint percent);
 

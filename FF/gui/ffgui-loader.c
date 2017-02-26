@@ -352,7 +352,9 @@ static int ico_done(ffparser_schem *ps, void *obj)
 		if (0 != ffui_icon_loadimg(&ico->icon, fn, ico->cx, ico->cy, FFUI_ICON_DPISCALE))
 			return FFPARS_ESYS;
 	} else {
-		if (0 != ffui_icon_load(&ico->icon, fn, ico->idx))
+		if (0 != ffui_icon_load(&ico->icon, fn, 0, 0))
+			return FFPARS_ESYS;
+		if (ico->load_small && 0 != ffui_icon_load(&ico->icon_small, fn, 0, FFUI_ICON_SMALL))
 			return FFPARS_ESYS;
 	}
 	return 0;
@@ -1411,6 +1413,7 @@ static int wnd_icon(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 	ffui_loader *g = obj;
 	ffmem_zero(&g->ico, sizeof(_ffui_ldr_icon_t));
 	g->ico.ldr = g;
+	g->ico.load_small = 1;
 	ffpars_setargs(ctx, &g->ico, icon_args, FFCNT(icon_args));
 	return 0;
 }
@@ -1473,14 +1476,14 @@ static int wnd_done(ffparser_schem *ps, void *obj)
 	ffui_loader *g = obj;
 
 	if (g->ico.icon.h != NULL) {
-		ffui_wnd_seticon(g->wnd, &g->ico.icon);
+		ffui_wnd_seticon(g->wnd, &g->ico.icon, &g->ico.icon_small);
 
 	} else {
 		ffui_wnd *parent;
 		if (NULL != (parent = ffui_ctl_parent(g->wnd))) {
-			ffui_icon ico;
-			ffui_wnd_icon(parent, &ico);
-			ffui_wnd_seticon(g->wnd, &ico);
+			ffui_icon ico, ico_small;
+			ffui_wnd_icon(parent, &ico, &ico_small);
+			ffui_wnd_seticon(g->wnd, &ico, &ico_small);
 		}
 	}
 

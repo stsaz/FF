@@ -12,11 +12,13 @@ typedef struct ffui_loader ffui_loader;
 
 typedef struct {
 	ffui_icon icon;
+	ffui_icon icon_small;
 	ffstr fn;
 	int idx;
 	ffui_loader *ldr;
 	uint cx;
 	uint cy;
+	uint load_small :1;
 } _ffui_ldr_icon_t;
 
 typedef void* (*ffui_ldr_getctl_t)(void *udata, const ffstr *name);

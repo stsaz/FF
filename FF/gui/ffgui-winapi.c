@@ -1067,7 +1067,17 @@ void ffui_pos_limit(ffui_pos *r, const ffui_pos *screen)
 }
 
 
-int ffui_icon_load(ffui_icon *ico, const char *filename, uint index)
+int ffui_icon_load_q(ffui_icon *ico, const ffsyschar *filename, uint index, uint flags)
+{
+	HICON *big = NULL, *small = NULL;
+	if (flags & FFUI_ICON_SMALL)
+		small = &ico->h;
+	else
+		big = &ico->h;
+	return !ExtractIconEx(filename, 0, big, small, 1);
+}
+
+int ffui_icon_load(ffui_icon *ico, const char *filename, uint index, uint flags)
 {
 	ffsyschar *w, ws[255];
 	size_t n = FFCNT(ws) - 1;
@@ -1075,7 +1085,7 @@ int ffui_icon_load(ffui_icon *ico, const char *filename, uint index)
 	if (NULL == (w = ffs_utow(ws, &n, filename, ffsz_len(filename))))
 		return -1;
 	w[n] = '\0';
-	r = ffui_icon_load_q(ico, w, index);
+	r = ffui_icon_load_q(ico, w, index, flags);
 	if (w != ws)
 		ffmem_free(w);
 	return r;
@@ -1121,7 +1131,7 @@ int ffui_icon_loadstd(ffui_icon *ico, uint tag)
 	default:
 		return -1;
 	}
-	return ffui_icon_load_q(ico, fn, n);
+	return ffui_icon_load_q(ico, fn, n, 0);
 }
 
 
