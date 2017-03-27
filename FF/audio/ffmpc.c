@@ -67,6 +67,9 @@ enum {
 #define ERR(m, r) \
 	(m)->err = (r),  FFMPC_RERR
 
+#define WARN(m, r) \
+	(m)->err = (r),  FFMPC_RWARN
+
 static const char* const mpc_errs[] = {
 	"",
 	"bad header",
@@ -75,7 +78,6 @@ static const char* const mpc_errs[] = {
 	"bad block header",
 	"too large block",
 	"too small block",
-	"bad SO block",
 	"bad APE tag",
 };
 
@@ -392,19 +394,34 @@ int ffmpc_read(ffmpcr *m)
 		continue;
 
 	case R_BLOCK_HDR_MAX:
-		if (-1 == (r = mpc_int(m->gbuf.ptr + 2, m->gbuf.len - 2, &m->blk_size)))
+		if (-1 == (r = mpc_int(m->gbuf.ptr + 2, m->gbuf.len - 2, &m->blk_size))) {
+			if (m->hdrok) {
+				ffmpc_streamerr(m);
+				return WARN(m, FFMPC_EBLOCKHDR);
+			}
 			return ERR(m, FFMPC_EBLOCKHDR);
+		}
 		m->blk_off = 2 + r;
 		// break
 
 	case R_BLOCK_HDR:
 		FFDBG_PRINTLN(10, "block:%2s size:%U offset:%xU", m->gbuf.ptr, m->blk_size, m->off);
 
-		if (m->blk_size < m->blk_off)
+		if (m->blk_size < m->blk_off) {
+			if (m->hdrok) {
+				ffmpc_streamerr(m);
+				return WARN(m, FFMPC_ESMALLBLOCK);
+			}
 			return ERR(m, FFMPC_ESMALLBLOCK);
+		}
 
-		if (m->blk_size > MAX_BLOCK)
+		if (m->blk_size > MAX_BLOCK) {
+			if (m->hdrok) {
+				ffmpc_streamerr(m);
+				return WARN(m, FFMPC_ELARGEBLOCK);
+			}
 			return ERR(m, FFMPC_ELARGEBLOCK);
+		}
 
 		m->gsize = m->blk_size;
 		r = mpc_block(m->gbuf.ptr);
@@ -637,8 +654,10 @@ int ffmpc_decode(ffmpc *m)
 	if (r == 0) {
 		m->need_data = 1;
 		return FFMPC_RMORE;
-	} else if (r < 0)
+	} else if (r < 0) {
+		m->need_data = 1;
 		return ERR(m, r);
+	}
 
 	m->pcmlen = r * sizeof(float) * m->fmt.channels;
 	m->frsamples = r;
