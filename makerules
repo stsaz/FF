@@ -43,6 +43,10 @@ FF_OBJ += $(FF_OBJ_DIR)/ffsys.o
 $(FF_OBJ_DIR)/%.o: $(FF)/FF/sys/%.c $(FF_HDR)
 	$(C) $(FF_CFLAGS)  $< -o$@
 
+ifeq ($(OS),win)
+FFOS_WREG += $(FF_OBJ_DIR)/ffwreg2.o
+endif
+
 
 # data
 FF_DATA_HDR := $(wildcard $(FF)/FF/data/*.h)

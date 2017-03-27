@@ -369,27 +369,3 @@ char* ffenv_expand(char *dst, size_t cap, const char *src)
 	return out;
 }
 #endif
-
-
-#ifdef FF_WIN
-#include <FFOS/win/reg.h>
-
-int ffwreg_readbuf(ffwreg k, const char *name, ffarr *buf)
-{
-	int r;
-	size_t cap = buf->cap;
-	if (-1 == (r = ffwreg_readstr(k, name, buf->ptr, &cap))
-		&& fferr_last() == ERROR_MORE_DATA) {
-
-		if (NULL == ffarr_alloc(buf, cap))
-			return -1;
-
-		cap = buf->cap;
-		r = ffwreg_readstr(k, name, buf->ptr, &cap);
-	}
-
-	if (r != -1)
-		buf->len = r;
-	return r;
-}
-#endif
