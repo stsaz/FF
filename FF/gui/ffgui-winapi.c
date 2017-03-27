@@ -1087,7 +1087,7 @@ int ffui_icon_load_q(ffui_icon *ico, const ffsyschar *filename, uint index, uint
 		small = &ico->h;
 	else
 		big = &ico->h;
-	return !ExtractIconEx(filename, 0, big, small, 1);
+	return !ExtractIconEx(filename, index, big, small, 1);
 }
 
 int ffui_icon_load(ffui_icon *ico, const char *filename, uint index, uint flags)
