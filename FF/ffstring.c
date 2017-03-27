@@ -775,6 +775,44 @@ fail:
 	return 0;
 }
 
+static FFINL char* _ffs_fromint_dec(char *ps, uint64 i, uint flags)
+{
+	if (i <= 0xffffffff) {
+		uint i4 = (uint)i;
+		do {
+			*(--ps) = (byte)(i4 % 10 + '0');
+			i4 /= 10;
+		} while (i4 != 0);
+
+	} else {
+		do {
+			*(--ps) = (byte)(i % 10 + '0');
+			i /= 10;
+		} while (i != 0);
+	}
+
+	return ps;
+}
+
+static FFINL char* _ffs_fromint_oct(char *ps, uint64 i, uint flags)
+{
+	do {
+		*(--ps) = (byte)(i % 8 + '0');
+		i /= 8;
+	} while (i != 0);
+	return ps;
+}
+
+static FFINL char* _ffs_fromint_hex(char *ps, uint64 i, uint flags)
+{
+	const char *phex = (flags & FFINT_HEXUP) ? ffHEX : ffhex;
+	do {
+		*(--ps) = phex[i & 0x0f];
+		i >>= 4;
+	} while (i != 0);
+	return ps;
+}
+
 uint ffs_fromint(uint64 i, char *dst, size_t cap, int flags)
 {
 	const char *end = dst + cap;
@@ -782,52 +820,29 @@ uint ffs_fromint(uint64 i, char *dst, size_t cap, int flags)
 	uint len;
 	char s[64];
 	char *ps = s + FFCNT(s);
+	ffbool minus = 0;
 
 	if ((flags & FFINT_SIGNED) && (int64)i < 0) {
-		if (dst != end)
-			*dst++ = '-';
 		i = -(int64)i;
+		minus = 1;
 	}
 
-	if (flags & FFINT_OCTAL) {
-		do {
-			*(--ps) = (byte)(i % 8 + '0');
-			i /= 8;
-		} while (i != 0);
-
-	} else if ((flags & (FFINT_HEXUP | FFINT_HEXLOW)) == 0) {
-		//decimal
-		if (i <= 0xffffffff) {
-			uint i4 = (uint)i;
-			do {
-				*(--ps) = (byte)(i4 % 10 + '0');
-				i4 /= 10;
-			} while (i4 != 0);
-		}
-		else {
-			do {
-				*(--ps) = (byte)(i % 10 + '0');
-				i /= 10;
-			} while (i != 0);
-		}
-	}
-	else {
-		//hex
-		const char *phex = ffhex;
-		if (flags & FFINT_HEXUP)
-			phex = ffHEX;
-		do {
-			*(--ps) = phex[i & 0x0f];
-			i >>= 4;
-		}
-		while (i != 0);
-	}
+	if (flags & FFINT_OCTAL)
+		ps = _ffs_fromint_hex(ps, i, flags);
+	else if (flags & (FFINT_HEXUP | FFINT_HEXLOW))
+		ps = _ffs_fromint_hex(ps, i, flags);
+	else
+		ps = _ffs_fromint_dec(ps, i, flags);
+	len = (uint)(s + FFCNT(s) - ps);
 
 	if ((flags & FFINT_SEP1000) && (flags & _FFINT_WIDTH_MASK) == 0) {
-		len = (uint)(s + sizeof(s) - ps);
 		int nsep = len / 3 - ((len % 3) == 0);
 		if (nsep > 0) {
 			uint k, idst = len + nsep - 1;
+
+			if (minus && dst != end)
+				*(dst++) = '-';
+
 			if (idst >= (uint)(end - dst))
 				return end - dst;
 
@@ -842,18 +857,30 @@ uint ffs_fromint(uint64 i, char *dst, size_t cap, int flags)
 	}
 
 	if ((flags & _FFINT_WIDTH_MASK) != 0) {
-		uint width = flags >> 24;
-		char fill = ' ';
-		if (flags & FFINT_ZEROWIDTH)
-			fill = '0';
-		len = (uint)(s + FFCNT(s) - ps);
-		while (len < width && dst != end) {
-			*(dst++) = fill;
-			len++;
+		// %4d:  "  -1"
+		// %04d: "-001"
+		uint width = (flags >> 24) & 0xff;
+		uint n = ffmin(width - (minus + len), end - dst);
+		if (width > minus + len && n != 0) {
+			char fill = ' ';
+			if (flags & FFINT_ZEROWIDTH) {
+				fill = '0';
+				if (minus) {
+					minus = 0;
+					if (dst != end)
+						*(dst++) = '-';
+				}
+			}
+
+			memset(dst, fill, n);
+			dst += n;
 		}
 	}
 
-	len = (uint)ffmin(end - dst, s + FFCNT(s) - ps);
+	if (minus && dst != end)
+		*(dst++) = '-';
+
+	len = (uint)ffmin(len, end - dst);
 	ffmemcpy(dst, ps, len);
 	dst += len;
 	return (uint)(dst - dsto);
@@ -970,16 +997,19 @@ uint ffs_fromfloat(double d, char *dst, size_t cap, uint flags)
 	char *buf = dst;
 	uint64 num, frac = 0;
 	uint width = ((flags & _FFINT_WIDTH_MASK) >> 24), wfrac = ((flags & _FFS_FLT_FRAC_WIDTH_MASK) >> 16), n, scale;
+	ffbool minus = 0;
 
 	if (cap == 0)
 		return 0;
 
 	if (d < 0) {
-		buf = ffs_copyc(buf, end, '-');
 		d = -d;
+		minus = 1;
 	}
 
 	if (isinf(d)) {
+		if (minus)
+			buf = ffs_copyc(buf, end, '-');
 		buf = ffs_copycz(buf, end, "inf");
 		return buf - dst;
 	}
@@ -998,7 +1028,12 @@ uint ffs_fromfloat(double d, char *dst, size_t cap, uint flags)
 		}
 	}
 
-	buf += ffs_fromint(num, buf, end - buf, (flags & FFINT_ZEROWIDTH) | FFINT_WIDTH(width));
+	if (minus) {
+		if (num == 0) // "-0.x"
+			buf = ffs_copyc(buf, end, '-');
+		num = -num;
+	}
+	buf += ffs_fromint(num, buf, end - buf, (flags & FFINT_ZEROWIDTH) | FFINT_SIGNED | FFINT_WIDTH(width));
 
 	if (wfrac != 0) {
 		buf = ffs_copyc(buf, end, '.');

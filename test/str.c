@@ -201,6 +201,12 @@ int test_inttostr()
 	ss.len = ffs_fromint(0xabc1, s, FFCNT(s), FFINT_HEXLOW | FFINT_WIDTH(8));
 	x(ffstr_eqcz(&ss, "    abc1"));
 
+	ss.len = ffs_fromint(-1234, s, FFCNT(s), FFINT_SIGNED | FFINT_WIDTH(8));
+	x(ffstr_eqcz(&ss, "   -1234"));
+
+	ss.len = ffs_fromint(-1234, s, FFCNT(s), FFINT_SIGNED | FFINT_ZEROWIDTH | FFINT_WIDTH(8));
+	x(ffstr_eqcz(&ss, "-0001234"));
+
 	ss.len = ffs_fromint(1000, s, FFCNT(s), FFINT_SEP1000);
 	x(ffstr_eqcz(&ss, "1,000"));
 
@@ -318,7 +324,7 @@ static int test_strf()
 			&& !ffsz_cmp(ss, "31323132StrinStrinCccccc%"));
 
 	x(0 != ffstr_catfmt(&s, "%03D %03xI %3d 0x%p", (int64)-9, (size_t)-0x543fe, (int)-5, (void*)0xab1234));
-	x(ffstr_eqcz(&s, "-009 -543fe -  5 0x00ab1234")),  s.len = 0;
+	x(ffstr_eqcz(&s, "-09 -543fe  -5 0x00ab1234")),  s.len = 0;
 
 	x(0 != ffstr_catfmt(&s, "%06.5F", (double)12345.6789) && ffstr_eqcz(&s, "012345.67890")),  s.len = 0;
 
