@@ -110,11 +110,13 @@ typedef struct ffmpc {
 	ffpcmex fmt;
 	uint frsamples;
 	uint64 cursample;
+	uint64 seek_sample;
 	uint need_data :1;
 
 	ffstr input;
 
 	float *pcm;
+	uint pcmoff;
 	uint pcmlen;
 } ffmpc;
 
@@ -124,5 +126,11 @@ FF_EXTN void ffmpc_close(ffmpc *m);
 
 /** Decode 1 frame. */
 FF_EXTN int ffmpc_decode(ffmpc *m);
+
+#define ffmpc_audiodata(m, dst) \
+	ffstr_set(dst, (char*)(m)->pcm + (m)->pcmoff, (m)->pcmlen)
+
+#define ffmpc_seek(m, sample) \
+	((m)->seek_sample = (sample))
 
 #define ffmpc_cursample(m)  ((m)->cursample - (m)->frsamples)

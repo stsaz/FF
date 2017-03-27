@@ -650,17 +650,33 @@ int ffmpc_decode(ffmpc *m)
 		m->input.len = 0;
 	}
 
-	r = mpc_decode(m->mpc, m->pcm);
-	if (r == 0) {
-		m->need_data = 1;
-		return FFMPC_RMORE;
-	} else if (r < 0) {
-		m->need_data = 1;
-		return ERR(m, r);
+	m->pcmoff = 0;
+
+	for (;;) {
+
+		r = mpc_decode(m->mpc, m->pcm);
+		if (r == 0) {
+			m->need_data = 1;
+			return FFMPC_RMORE;
+		} else if (r < 0) {
+			m->need_data = 1;
+			return ERR(m, r);
+		}
+
+		m->cursample += r;
+		if (m->seek_sample != 0) {
+			FF_ASSERT(m->seek_sample >= m->cursample - r);
+			if (m->seek_sample >= m->cursample)
+				continue;
+			uint skip = m->cursample - m->seek_sample;
+			m->pcmoff = skip * m->channels * sizeof(float);
+			r -= skip;
+			m->seek_sample = 0;
+		}
+		break;
 	}
 
-	m->pcmlen = r * sizeof(float) * m->fmt.channels;
+	m->pcmlen = r * m->channels * sizeof(float);
 	m->frsamples = r;
-	m->cursample += r;
 	return FFMPC_RDATA;
 }
