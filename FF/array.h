@@ -279,7 +279,8 @@ static FFINL void * _ffarr_copy(ffarr *ar, const void *src, size_t num, size_t e
 #define ffarr_copyself(a) \
 do { \
 	FF_ASSERT((a)->cap == 0); \
-	ffarr_realloc(a, (a)->len); \
+	if ((a)->len != 0) \
+		ffarr_realloc(a, (a)->len); \
 } while (0)
 
 #define _ffarr_swap(p1, p2, n, elsize) \
