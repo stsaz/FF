@@ -731,8 +731,9 @@ void ffmpg_copy_close(ffmpgcopy *m)
 . Read and return ID3v2 (FFMPG_RID32)
 . Read the first frame (FFMPG_RHDR)
   User may call ffmpg_copy_seek() now.
-. Seek input to the end (FFMPG_RSEEK), read ID3v1
-. Seek input to the needed audio position (FFMPG_RSEEK)
+. If input is seekable:
+  . Seek input to the end (FFMPG_RSEEK), read ID3v1
+  . Seek input to the needed audio position (FFMPG_RSEEK)
 . Return empty Xing frame (FFMPG_RFRAME)
 . Read and return MPEG frames (FFMPG_RFRAME) until:
   . User calls ffmpg_copy_fin()
@@ -812,6 +813,11 @@ int ffmpg_copy(ffmpgcopy *m, ffstr *output)
 
 
 	case CPY_FTRTAGS_SEEK:
+		if (m->rdr.total_size == 0) {
+			m->state = CPY_DATA,  m->gstate = CPY_FR;
+			continue;
+		}
+
 		m->gsize = ffmin64(MPG_FTRTAGS_CHKSIZE, m->rdr.total_size);
 		m->state = CPY_GATHER,  m->gstate = CPY_FTRTAGS;
 		m->off = ffmin64(m->rdr.total_size - MPG_FTRTAGS_CHKSIZE, m->rdr.total_size);
