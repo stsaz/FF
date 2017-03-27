@@ -270,3 +270,56 @@ int ffbuf_gather(ffarr *buf, struct ffbuf_gather *d)
 	}
 	}
 }
+
+
+/*
+CTGLEN: length of contiguous data
+BUFFER: temporary buffer
+INPUT: input buffer
+. If BUFFER contains data (partially filled up to <CTGLEN - 1>):
+  . Append up to <CTGLEN - 1> from INPUT
+  . If BUFFER is less than <CTGLEN>, wait for more
+  . Return data in BUFFER to user
+  . If user calls ffbuf_contig_store():
+    . If BUFFER is less than <(CTGLEN - 1) * 2>, store only the last <CTGLEN - 1> bytes, wait for more
+    . or clear BUFFER
+. Return data in INPUT to user
+. If user calls ffbuf_contig_store(), store the last chunk from INPUT (<CTGLEN - 1>) and wait for more
+*/
+int ffbuf_contig(ffarr *buf, const ffstr *in, size_t ctglen, ffstr *s)
+{
+	s->len = 0;
+
+	if (buf->len != 0) {
+		FF_ASSERT(buf->len < ctglen);
+		size_t n = ffmin(ctglen - 1, in->len);
+		if (NULL == ffarr_append(buf, in->ptr, n))
+			return -1;
+		if (buf->len < ctglen)
+			return 0;
+		ffstr_set2(s, buf);
+		return n;
+	}
+
+	if (in->len < ctglen)
+		return 0;
+	ffstr_set2(s, in);
+	return 0;
+}
+
+int ffbuf_contig_store(ffarr *buf, const ffstr *in, size_t ctglen)
+{
+	if (buf->len != 0) {
+		if (buf->len < (ctglen - 1) * 2) {
+			_ffarr_rmleft(buf, buf->len - (ctglen - 1), sizeof(char));
+			return 0;
+		}
+		buf->len = 0;
+		return 0;
+	}
+
+	FF_ASSERT(in->len >= ctglen);
+	if (NULL == ffarr_append(buf, ffarr_end(in) - (ctglen - 1), ctglen - 1))
+		return -1;
+	return in->len;
+}

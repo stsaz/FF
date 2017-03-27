@@ -565,6 +565,11 @@ Result: "DATA"
 Return enum FFBUF_R. */
 FF_EXTN int ffbuf_gather(ffarr *buf, struct ffbuf_gather *d);
 
+/**
+Return the number of input bytes processed;  <0 on error. */
+FF_EXTN int ffbuf_contig(ffarr *buf, const ffstr *in, size_t ctglen, ffstr *s);
+FF_EXTN int ffbuf_contig_store(ffarr *buf, const ffstr *in, size_t ctglen);
+
 
 typedef struct ffbstr {
 	ushort len;
