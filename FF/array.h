@@ -6,6 +6,7 @@ Copyright (c) 2013 Simon Zolin
 
 #include <FFOS/mem.h>
 #include <FF/string.h>
+#include <FF/chain.h>
 
 
 /** FOREACH() for array pointer, e.g. int *ptr */
@@ -187,6 +188,23 @@ static FFINL void * _ffarr_alloc(ffarr *ar, size_t len, size_t elsz) {
 
 #define ffarr_allocT(ar, len, T) \
 	_ffarr_alloc(ar, len, sizeof(T))
+
+#define ffarr_reallocT(ar, len, T) \
+	_ffarr_realloc(ar, len, sizeof(T))
+
+/** Reallocate only if new size is larger. */
+static FFINL char* _ffarr_realloc_grow(ffarr *ar, size_t len, size_t elsz)
+{
+	if (ar->cap >= len)
+		return ar->ptr;
+	return _ffarr_realloc(ar, len, elsz);
+}
+
+#define ffarr_realloc_growT(ar, len, T) \
+	_ffarr_realloc_grow(ar, len, sizeof(T))
+
+#define ffarr_realloc_grow(ar, len) \
+	_ffarr_realloc_grow(ar, len, sizeof(char))
 
 enum { FFARR_GROWQUARTER = 0x80000000 };
 
@@ -570,6 +588,32 @@ FF_EXTN int ffbuf_gather(ffarr *buf, struct ffbuf_gather *d);
 Return the number of input bytes processed;  <0 on error. */
 FF_EXTN int ffbuf_contig(ffarr *buf, const ffstr *in, size_t ctglen, ffstr *s);
 FF_EXTN int ffbuf_contig_store(ffarr *buf, const ffstr *in, size_t ctglen);
+
+
+/** Memory block that can be linked with another block.
+BLK0 <-> BLK1 <-> ... */
+typedef struct ffmblk {
+	ffarr buf;
+	ffchain_item sib;
+} ffmblk;
+
+/** Allocate and add new block into the chain. */
+FF_EXTN ffmblk* ffmblk_chain_push(ffchain *blocks);
+
+/** Get the last block in chain. */
+static FFINL ffmblk* ffmblk_chain_last(ffchain *blocks)
+{
+	if (ffchain_empty(blocks))
+		return NULL;
+	ffchain_item *blk = ffchain_last(blocks);
+	return FF_GETPTR(ffmblk, sib, blk);
+}
+
+static FFINL void ffmblk_free(ffmblk *m)
+{
+	ffarr_free(&m->buf);
+	ffmem_free(m);
+}
 
 
 typedef struct ffbstr {

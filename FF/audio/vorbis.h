@@ -107,6 +107,9 @@ typedef struct ffvorbis_enc {
 
 #define ffvorbis_enc_errstr(v)  _ffvorbis_errstr((v)->err)
 
+/**
+@quality: q*10
+*/
 FF_EXTN int ffvorbis_create(ffvorbis_enc *v, const ffpcm *fmt, int quality);
 
 FF_EXTN void ffvorbis_enc_close(ffvorbis_enc *v);

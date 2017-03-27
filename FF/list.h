@@ -54,6 +54,9 @@ static FFINL void fflist_init(fflist *ls) {
 #define FFLIST_FOREACH(lst, it) \
 	for (it = (lst)->first;  it != fflist_sentl(lst);  it = it->next)
 
+#define FFLIST_FOR(lst, it) \
+	for (it = (lst)->first;  it != fflist_sentl(lst);  )
+
 /** Traverse a list.
 @p: pointer to a structure containing @member_name. */
 #define FFLIST_WALK(lst, p, member_name) \

@@ -137,9 +137,9 @@ static int test_path()
 	x(FN + FFSLEN(FN) == ffpath_rfindslash(FN, FFSLEN(FN)));
 #undef FN
 
-	x(0 != ffpath_isvalidfn("filename", FFSLEN("filename")));
-	x(0 == ffpath_isvalidfn("filename/withslash", FFSLEN("filename/withslash")));
-	x(0 == ffpath_isvalidfn("filename\0withzero", FFSLEN("filename\0withzero")));
+	x(0 != ffpath_isvalidfn("filename", FFSLEN("filename"), FFPATH_FN_ANY));
+	x(0 == ffpath_isvalidfn("filename/withslash", FFSLEN("filename/withslash"), FFPATH_FN_ANY));
+	x(0 == ffpath_isvalidfn("filename\0withzero", FFSLEN("filename\0withzero"), FFPATH_FN_ANY));
 
 	ffpath_splitname("file.txt", FFSLEN("file.txt"), NULL, &s);
 	x(ffstr_eqcz(&s, "txt"));

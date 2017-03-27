@@ -323,3 +323,14 @@ int ffbuf_contig_store(ffarr *buf, const ffstr *in, size_t ctglen)
 		return -1;
 	return in->len;
 }
+
+
+ffmblk* ffmblk_chain_push(ffchain *blocks)
+{
+	ffmblk *mblk;
+	if (NULL == (mblk = ffmem_allocT(1, ffmblk)))
+		return NULL;
+	ffarr_null(&mblk->buf);
+	ffchain_add(blocks, &mblk->sib);
+	return mblk;
+}

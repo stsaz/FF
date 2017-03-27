@@ -28,7 +28,8 @@ typedef struct ffmpcr {
 	int err;
 	uint options; //enum FFMPC_O
 
-	ffpcm fmt;
+	uint sample_rate;
+	uint channels;
 	uint64 total_samples;
 	uint64 delay;
 	uint blk_samples;
@@ -89,14 +90,12 @@ static FFINL uint ffmpc_bitrate(ffmpcr *m)
 {
 	if (m->total_size == 0)
 		return 0;
-	return ffpcm_brate(m->total_size - m->dataoff, m->total_samples, m->fmt.sample_rate);
+	return ffpcm_brate(m->total_size - m->dataoff, m->total_samples, m->sample_rate);
 }
 
-/** Set input data.
-Note: decoder may overread up to MPC_FRAME_MAXSIZE bytes. */
+/** Set input data. */
 #define ffmpc_input(m, d, len)  ffstr_set(&(m)->input, d, len)
 
-#define ffmpc_fmt(m)  ((m)->fmt)
 #define ffmpc_setsize(m, size)  ((m)->total_size = (size))
 #define ffmpc_length(m)  ((m)->total_samples - (m)->delay)
 #define ffmpc_off(m)  ((m)->off)
@@ -107,7 +106,7 @@ Note: decoder may overread up to MPC_FRAME_MAXSIZE bytes. */
 typedef struct ffmpc {
 	mpc_ctx *mpc;
 	int err;
-	ffpcmex fmt;
+	uint channels;
 	uint frsamples;
 	uint64 cursample;
 	uint64 seek_sample;
@@ -121,8 +120,14 @@ typedef struct ffmpc {
 } ffmpc;
 
 FF_EXTN const char* ffmpc_errstr(ffmpc *m);
-FF_EXTN int ffmpc_open(ffmpc *m, uint channels, const char *conf, size_t len);
+FF_EXTN int ffmpc_open(ffmpc *m, ffpcmex *fmt, const char *conf, size_t len);
 FF_EXTN void ffmpc_close(ffmpc *m);
+
+static FFINL void ffmpc_inputblock(ffmpc *m, const char *block, size_t len, uint64 audio_pos)
+{
+	ffstr_set(&m->input, block, len);
+	m->cursample = audio_pos;
+}
 
 /** Decode 1 frame. */
 FF_EXTN int ffmpc_decode(ffmpc *m);

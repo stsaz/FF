@@ -346,7 +346,8 @@ ssize_t ffcharr_findsorted(const void *ar, size_t n, size_t m, const char *searc
 	size_t i, start = 0;
 	int r;
 
-	FF_ASSERT(search_len <= m);
+	if (search_len > m)
+		return -1; //the string's too large for this array
 
 	while (start != n) {
 		i = start + (n - start) / 2;

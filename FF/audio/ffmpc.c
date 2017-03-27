@@ -219,8 +219,8 @@ static int mpc_sh_parse(ffmpcr *m, const ffstr *body)
 	if (end - d != 2)
 		return FFMPC_EHDR;
 
-	m->fmt.sample_rate = mpc_rates[((byte)d[0] & 0xe0) >> 5];
-	m->fmt.channels = (((byte)d[1] & 0xf0) >> 4) + 1;
+	m->sample_rate = mpc_rates[((byte)d[0] & 0xe0) >> 5];
+	m->channels = (((byte)d[1] & 0xf0) >> 4) + 1;
 	m->blk_samples = MPC_FRAME_SAMPLES << (2 * ((byte)d[1] & 0x07));
 	return 0;
 }
@@ -441,7 +441,7 @@ int ffmpc_read(ffmpcr *m)
 		switch (r) {
 
 		case R_AP:
-			if (m->fmt.sample_rate == 0)
+			if (m->sample_rate == 0)
 				return ERR(m, FFMPC_ENOHDR);
 			m->dataoff = m->off - m->gbuf.len;
 			if ((m->options & FFMPC_O_SEEKTABLE) && (m->ST_off != 0))
@@ -619,15 +619,15 @@ const char* ffmpc_errstr(ffmpc *m)
 	return _ffmpc_errstr(m->err);
 }
 
-int ffmpc_open(ffmpc *m, uint channels, const char *conf, size_t len)
+int ffmpc_open(ffmpc *m, ffpcmex *fmt, const char *conf, size_t len)
 {
 	if (0 != (m->err = mpc_decode_open(&m->mpc, conf, len)))
 		return -1;
 	if (NULL == (m->pcm = ffmem_alloc(MPC_ABUF_CAP)))
 		return m->err = FFMPC_ESYS,  -1;
-	m->fmt.format = FFPCM_FLOAT;
-	m->fmt.channels = channels;
-	m->fmt.ileaved = 1;
+	fmt->format = FFPCM_FLOAT;
+	fmt->ileaved = 1;
+	m->channels = fmt->channels;
 	m->need_data = 1;
 	return 0;
 }
