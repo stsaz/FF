@@ -20,6 +20,7 @@ enum {
 
 enum FFMPC_O {
 	FFMPC_O_APETAG = 1,
+	FFMPC_O_SEEKTABLE = 2,
 };
 
 typedef struct ffmpcr {
@@ -30,12 +31,18 @@ typedef struct ffmpcr {
 	ffpcm fmt;
 	uint64 total_samples;
 	uint64 delay;
+	uint blk_samples;
 
 	uint64 dataoff;
 	uint64 total_size;
 	uint64 off;
 	uint blk_off;
 	uint64 blk_size;
+	uint64 blk_apos;
+
+	mpc_seekctx *seekctx;
+	uint64 ST_off;
+	uint64 seek_sample;
 
 	char sh_block[FFMPC_SH_MAXSIZE];
 	uint sh_block_len;
@@ -72,6 +79,12 @@ FF_EXTN void ffmpc_ropen(ffmpcr *m);
 FF_EXTN void ffmpc_rclose(ffmpcr *m);
 FF_EXTN int ffmpc_read(ffmpcr *m);
 
+/** Seek to the block containing the specified audio sample.
+Note: inaccurate if seek table isn't used. */
+FF_EXTN void ffmpc_blockseek(ffmpcr *m, uint64 sample);
+
+FF_EXTN void ffmpc_streamerr(ffmpcr *m);
+
 static FFINL uint ffmpc_bitrate(ffmpcr *m)
 {
 	if (m->total_size == 0)
@@ -88,6 +101,7 @@ Note: decoder may overread up to MPC_FRAME_MAXSIZE bytes. */
 #define ffmpc_length(m)  ((m)->total_samples - (m)->delay)
 #define ffmpc_off(m)  ((m)->off)
 #define ffmpc_blockdata(m, blk)  (*(blk) = (m)->block)
+#define ffmpc_blockpos(m)  ((m)->blk_apos - (m)->blk_samples)
 
 
 typedef struct ffmpc {

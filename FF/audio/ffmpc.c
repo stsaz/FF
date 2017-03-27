@@ -23,6 +23,8 @@ static int mpc_sh_parse(ffmpcr *m, const ffstr *body);
 static int mpc_ei_parse(ffmpcr *m, const ffstr *body);
 static int mpc_rg_parse(ffmpcr *m, const ffstr *body);
 static int mpc_apetag(ffmpcr *m, ffarr *buf);
+static int64 mpc_getseekoff(ffmpcr *m);
+static int mpc_findAP(ffmpcr *m);
 
 
 /* (0x80 | x)... x */
@@ -56,6 +58,7 @@ enum {
 	FFMPC_EBLOCKHDR,
 	FFMPC_ELARGEBLOCK,
 	FFMPC_ESMALLBLOCK,
+	FFMPC_EBADSO,
 	FFMPC_EAPETAG,
 
 	FFMPC_ESYS,
@@ -68,10 +71,11 @@ static const char* const mpc_errs[] = {
 	"",
 	"bad header",
 	"no header",
+	"unsupported version",
 	"bad block header",
 	"too large block",
 	"too small block",
-	"unsupported version",
+	"bad SO block",
 	"bad APE tag",
 };
 
@@ -91,14 +95,17 @@ const char* ffmpc_rerrstr(ffmpcr *m)
 }
 
 enum {
-	R_START, R_GATHER, R_HDR, R_NXTBLOCK, R_BLOCK_HDR_MIN, R_BLOCK_HDR_MAX, R_BLOCK_HDR, R_BLOCK_SKIP,
-	R_TAGS_SEEK, R_APETAG, R_APETAG_MORE, R_TAGS_DONE,
+	R_START, R_GATHER, R_HDR, R_NXTBLOCK, R_BLOCK_HDR_MIN, R_BLOCK_HDR_MAX, R_BLOCK_HDR, R_BLOCK_SKIP, R_AFRAME_SEEK,
+	R_ST_SEEK, R_SEEK, R_FIND_AP,
+	R_TAGS_SEEK, R_APETAG, R_APETAG_MORE,
 
 	R_AP = 0x100,
 	R_EI,
 	R_RG,
 	R_SE,
 	R_SH,
+	R_SO,
+	R_ST,
 };
 
 void ffmpc_ropen(ffmpcr *m)
@@ -107,6 +114,8 @@ void ffmpc_ropen(ffmpcr *m)
 
 void ffmpc_rclose(ffmpcr *m)
 {
+	if (m->seekctx != NULL)
+		mpc_seekfree(m->seekctx);
 	ffarr_free(&m->gbuf);
 }
 
@@ -142,7 +151,7 @@ static int mpc_apetag(ffmpcr *m, ffarr *buf)
 		return FFMPC_RMORE;
 
 	case FFAPETAG_RERR:
-		m->state = R_TAGS_DONE;
+		m->state = R_AFRAME_SEEK;
 		m->err = FFMPC_EAPETAG;
 		return FFMPC_RWARN;
 
@@ -159,6 +168,8 @@ static const char block_ids[][2] = {
 	"RG",
 	"SE",
 	"SH",
+	"SO",
+	"ST",
 };
 
 static int mpc_block(const char *name)
@@ -180,7 +191,7 @@ byte rate :3
 byte max_band :5 // +1
 byte channels :4 // +1
 byte midside_stereo :1
-byte block_frames_pwr :3 // block_frames = 2^x
+byte block_frames_pwr :3 // block_frames = 2^(2*x)
 */
 static int mpc_sh_parse(ffmpcr *m, const ffstr *body)
 {
@@ -205,8 +216,10 @@ static int mpc_sh_parse(ffmpcr *m, const ffstr *body)
 
 	if (end - d != 2)
 		return FFMPC_EHDR;
+
 	m->fmt.sample_rate = mpc_rates[((byte)d[0] & 0xe0) >> 5];
 	m->fmt.channels = (((byte)d[1] & 0xf0) >> 4) + 1;
+	m->blk_samples = MPC_FRAME_SAMPLES << (2 * ((byte)d[1] & 0x07));
 	return 0;
 }
 
@@ -239,11 +252,94 @@ static int mpc_rg_parse(ffmpcr *m, const ffstr *body)
 }
 
 
+/* Seeking in .mpc:
+. Seek to the needed audio position (FFMPC_RSEEK)
+. Find the first AP block
+  If seek table is used, AP block should be at the beginning of input buffer
+. If decoding was unsuccessful (user reports this), find the next AP block
+*/
+void ffmpc_blockseek(ffmpcr *m, uint64 sample)
+{
+	sample += m->delay;
+	if (sample >= m->total_samples)
+		return;
+	m->seek_sample = sample;
+	if (m->hdrok)
+		m->state = R_SEEK;
+}
+
+void ffmpc_streamerr(ffmpcr *m)
+{
+	m->gbuf.len = 0;
+	m->state = R_FIND_AP;
+}
+
+static FFINL int64 mpc_getseekoff(ffmpcr *m)
+{
+	uint64 off = 0;
+
+	if (m->seekctx != NULL) {
+		uint blk;
+		blk = m->seek_sample / m->blk_samples;
+		off = mpc_seek(m->seekctx, &blk);
+		FFDBG_PRINTLN(10, "block:%u offset:%xU"
+			, blk, off);
+		m->blk_apos = blk * m->blk_samples;
+	}
+
+	if (off == 0) {
+		struct ffpcm_seek sk = {0};
+		struct ffpcm_seekpt pt[2];
+		pt[0].sample = 0;
+		pt[0].off = m->dataoff;
+		pt[1].sample = m->total_samples;
+		pt[1].off = m->total_size;
+		sk.target = m->seek_sample;
+		sk.pt = pt;
+		ffpcm_seek(&sk);
+		m->blk_apos = m->seek_sample - (m->seek_sample % m->blk_samples);
+		off = sk.off;
+	}
+
+	return off;
+}
+
+static FFINL int mpc_findAP(ffmpcr *m)
+{
+	int r;
+	ffstr s;
+
+	for (;;) {
+		r = ffbuf_contig(&m->gbuf, &m->input, FFSLEN("AP"), &s);
+		if (r < 0)
+			return ERR(m, FFMPC_ESYS);
+		ffarr_shift(&m->input, r);
+		m->off += r;
+		if (s.len < FFSLEN("AP"))
+			return FFMPC_RMORE;
+
+		if (0 <= (r = ffstr_find(&s, "AP", 2))) {
+			ffarr_shift(&m->input, r);
+			m->off += r;
+			break;
+		}
+
+		r = ffbuf_contig_store(&m->gbuf, &m->input, FFSLEN("AP"));
+		if (r < 0)
+			return ERR(m, FFMPC_ESYS);
+		ffarr_shift(&m->input, r);
+		m->off += r;
+	}
+	return 0;
+}
+
 /* .mpc reader:
 . Check Musepack ID
 . Gather block header (id & size)
 . Gather and process or skip block body until the first AP block is met
+. Store ST block offset from SO block
 . Return SH block body (FFMPC_RHDR)
+. Seek to ST block (FFMPC_RSEEK); parse it
 . Seek to the end and parse APE tag (FFMPC_RSEEK, FFMPC_RTAG)
 . Seek to audio data (FFMPC_RSEEK)
 . Gather and return AP blocks until SE block is met (FFMPC_RBLOCK)
@@ -330,11 +426,15 @@ int ffmpc_read(ffmpcr *m)
 		case R_AP:
 			if (m->fmt.sample_rate == 0)
 				return ERR(m, FFMPC_ENOHDR);
-			m->hdrok = 1;
-			m->state = R_AP;
-			if (m->options & FFMPC_O_APETAG)
-				m->state = R_TAGS_SEEK;
 			m->dataoff = m->off - m->gbuf.len;
+			if ((m->options & FFMPC_O_SEEKTABLE) && (m->ST_off != 0))
+				m->state = R_ST_SEEK;
+			else if (m->options & FFMPC_O_APETAG)
+				m->state = R_TAGS_SEEK;
+			else {
+				m->hdrok = 1;
+				m->state = R_AP;
+			}
 			return FFMPC_RHDR;
 
 		case R_BLOCK_SKIP:
@@ -345,6 +445,18 @@ int ffmpc_read(ffmpcr *m)
 			m->state = R_GATHER,  m->gstate = r;
 		}
 		continue;
+
+	case R_AFRAME_SEEK:
+		m->gbuf.len = 0;
+		m->hdrok = 1;
+		if (m->seek_sample != 0) {
+			m->state = R_SEEK;
+			continue;
+		}
+		m->off = m->dataoff;
+		m->gsize = BLKHDR_MINSIZE;
+		m->state = R_GATHER,  m->gstate = R_BLOCK_HDR_MIN;
+		return FFMPC_RSEEK;
 
 	case R_BLOCK_SKIP:
 		if (m->gbuf.len != 0) {
@@ -371,6 +483,7 @@ int ffmpc_read(ffmpcr *m)
 		if (0 != (r = mpc_sh_parse(m, &s)))
 			return ERR(m, r);
 
+		m->seek_sample = m->delay;
 		ffmemcpy(m->sh_block, s.ptr, s.len);
 		m->sh_block_len = s.len;
 		m->state = R_NXTBLOCK;
@@ -391,12 +504,72 @@ int ffmpc_read(ffmpcr *m)
 		continue;
 
 	case R_AP:
+		m->blk_apos += m->blk_samples;
+		if (m->seek_sample != 0) {
+			if (m->seek_sample >= m->blk_apos) {
+				m->state = R_NXTBLOCK;
+				continue;
+			}
+			m->seek_sample = 0;
+		}
 		ffarr_setshift(&m->block, m->gbuf.ptr, m->blk_size, m->blk_off);
 		m->state = R_NXTBLOCK;
 		return FFMPC_RBLOCK;
 
+	case R_SO:
+		/* SO block:
+		varint ST_block_offset
+		*/
+		ffarr_setshift(&s, m->gbuf.ptr, m->blk_size, m->blk_off);
+		if (-1 == (r = mpc_int(s.ptr, s.len, &m->ST_off)))
+			return ERR(m, FFMPC_EBADSO);
+		m->ST_off += m->off - m->blk_size;
+		m->state = R_NXTBLOCK;
+		continue;
+
+	case R_ST_SEEK:
+		m->gbuf.len = 0;
+		m->off = m->ST_off;
+		m->gsize = BLKHDR_MINSIZE;
+		m->state = R_GATHER,  m->gstate = R_BLOCK_HDR_MIN;
+		return FFMPC_RSEEK;
+
+	case R_ST:
+		if (!(m->options & FFMPC_O_SEEKTABLE)) {
+			m->state = R_NXTBLOCK;
+			continue;
+		}
+
+		ffarr_setshift(&s, m->gbuf.ptr, m->blk_size, m->blk_off);
+		// use libmpc to parse ST block
+		if (0 != (r = mpc_seekinit(&m->seekctx, m->sh_block, m->sh_block_len, s.ptr, s.len)))
+			return ERR(m, r);
+
+		if (m->options & FFMPC_O_APETAG) {
+			m->state = R_TAGS_SEEK;
+			continue;
+		}
+
+		m->state = R_AFRAME_SEEK;
+		continue;
+
 	case R_SE:
 		return FFMPC_RDONE;
+
+
+	case R_SEEK:
+		m->off = mpc_getseekoff(m);
+		m->gbuf.len = 0;
+		m->state = R_FIND_AP;
+		return FFMPC_RSEEK;
+
+	case R_FIND_AP:
+		if (0 != (r = mpc_findAP(m)))
+			return r;
+
+		m->gsize = BLKHDR_MINSIZE;
+		m->state = R_GATHER,  m->gstate = R_BLOCK_HDR_MIN;
+		continue;
 
 
 	case R_TAGS_SEEK:
@@ -415,15 +588,8 @@ int ffmpc_read(ffmpcr *m)
 	case R_APETAG:
 		if (0 != (r = mpc_apetag(m, &m->gbuf)))
 			return r;
-		m->state = R_TAGS_DONE;
+		m->state = R_AFRAME_SEEK;
 		continue;
-
-	case R_TAGS_DONE:
-		m->gsize = BLKHDR_MINSIZE;
-		m->state = R_GATHER,  m->gstate = R_BLOCK_HDR_MIN;
-		m->off = m->dataoff;
-		m->gbuf.len = 0;
-		return FFMPC_RSEEK;
 	}
 	}
 }
