@@ -82,7 +82,8 @@ static FFINL uint ffmpg_bitrate(ffmpgr *m)
 /** Get an absolute sample number. */
 static FFINL uint64 ffmpg_cursample(ffmpgr *m)
 {
-	return (m->cur_sample >= m->skip_samples) ? m->cur_sample - m->frsamps - m->skip_samples : 0;
+	int64 n = m->cur_sample - m->frsamps - m->skip_samples;
+	return ffmax(n, 0);
 }
 
 #define ffmpg_isvbr(m)  ((m)->xing.vbr)
