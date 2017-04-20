@@ -193,7 +193,7 @@ enum FFMPG_ENC_OPT {
 	FFMPG_WRITE_XING = 4,
 };
 
-/** MPEG frame writer. */
+/** .mp3 writer. */
 typedef struct ffmpgw {
 	uint state;
 	int err;
@@ -202,14 +202,23 @@ typedef struct ffmpgw {
 	struct ffmpg_info xing;
 	ffarr buf;
 	uint fin :1;
+	uint lametag :1; //set before passing LAME tag data
+
+	ffid3_cook id3;
+	ffid31 id31;
+	uint min_meta;
 } ffmpgw;
+
+FF_EXTN const char* ffmpg_werrstr(ffmpgw *m);
 
 FF_EXTN void ffmpg_winit(ffmpgw *m);
 FF_EXTN void ffmpg_wclose(ffmpgw *m);
 
+FF_EXTN int ffmpg_addtag(ffmpgw *m, uint id, const char *val, size_t vallen);
+
+#define ffmpg_wseekoff(m)  ((m)->off)
 #define ffmpg_wframes(m)  ((m)->xing.frames)
 
-/** Pass MPEG frame as-is.  Write Xing frame on finish. */
 FF_EXTN int ffmpg_writeframe(ffmpgw *m, const char *fr, uint len, ffstr *data);
 
 

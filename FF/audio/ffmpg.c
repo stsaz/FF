@@ -35,23 +35,33 @@ static const char *const _ffmpg_errs[] = {
 	"unrecognized data before frame header",
 };
 
-const char* ffmpg_rerrstr(ffmpgr *m)
+static const char* _ffmpg_errstr(int e)
 {
-	switch (m->err) {
+	switch (e) {
 	case FFMPG_ESYS:
 		return fferr_strp(fferr_last());
 	}
-	if (m->err < FFMPG_EFMT)
+	if (e < FFMPG_EFMT)
 		return "";
-	m->err -= FFMPG_EFMT;
-	FF_ASSERT(m->err < FFCNT(_ffmpg_errs));
-	return _ffmpg_errs[m->err];
+	e -= FFMPG_EFMT;
+	FF_ASSERT((uint)e < FFCNT(_ffmpg_errs));
+	return _ffmpg_errs[e];
+}
+
+const char* ffmpg_rerrstr(ffmpgr *m)
+{
+	return _ffmpg_errstr(m->err);
 }
 
 const char* ffmpg_ferrstr(ffmpgfile *m)
 {
 	m->rdr.err = m->err;
 	return ffmpg_rerrstr(&m->rdr);
+}
+
+const char* ffmpg_werrstr(ffmpgw *m)
+{
+	return _ffmpg_errstr(m->err);
 }
 
 
@@ -649,17 +659,34 @@ int ffmpg_decode(ffmpg *m)
 }
 
 
-enum { W_FRAME1, W_FRAME, W_XING_SEEK, W_XING, W_DONE };
+enum { W_ID32, W_ID32_DONE, W_ID31,
+	W_FRAME1, W_FRAME, W_XING_SEEK, W_XING, W_LAMETAG, W_DONE };
 
 void ffmpg_winit(ffmpgw *m)
 {
-	m->state = W_FRAME1;
+	m->state = W_ID32;
 	m->xing.vbr_scale = -1;
+
+	ffid31_init(&m->id31);
+	m->min_meta = 1000;
 }
 
 void ffmpg_wclose(ffmpgw *m)
 {
 	ffarr_free(&m->buf);
+	ffarr_free(&m->id3.buf);
+}
+
+int ffmpg_addtag(ffmpgw *m, uint id, const char *val, size_t vallen)
+{
+	if ((m->options & FFMPG_WRITE_ID3V2)
+		&& 0 == ffid3_add(&m->id3, id, val, vallen))
+		return m->err = FFMPG_ESYS,  FFMPG_RERR;
+
+	if (m->options & FFMPG_WRITE_ID3V1)
+		ffid31_add(&m->id31, id, val, vallen);
+
+	return 0;
 }
 
 int ffmpg_writeframe(ffmpgw *m, const char *fr, uint frlen, ffstr *data)
@@ -668,11 +695,33 @@ int ffmpg_writeframe(ffmpgw *m, const char *fr, uint frlen, ffstr *data)
 	case W_FRAME1:
 	case W_FRAME:
 		if (m->fin)
-			m->state = (m->options & FFMPG_WRITE_XING) ? W_XING_SEEK : W_DONE;
+			m->state = W_ID31;
+		else if (frlen == 0)
+			return FFMPG_RMORE;
 		break;
 	}
 
 	switch (m->state) {
+
+	case W_ID32:
+		if (m->options & FFMPG_WRITE_ID3V2) {
+			ffid3_flush(&m->id3);
+			if (m->min_meta > m->id3.buf.len
+				&& 0 != ffid3_padding(&m->id3, m->min_meta - m->id3.buf.len))
+				return m->err = FFMPG_ESYS,  FFMPG_RERR;
+			ffid3_fin(&m->id3);
+			ffstr_set2(data, &m->id3.buf);
+			m->off = m->id3.buf.len;
+			m->state = W_ID32_DONE;
+			return FFMPG_RID32;
+		}
+		// break
+
+	case W_ID32_DONE:
+		ffarr_free(&m->id3.buf);
+		m->state = W_FRAME1;
+		// break
+
 	case W_FRAME1:
 		m->state = W_FRAME;
 		if (m->options & FFMPG_WRITE_XING) {
@@ -691,14 +740,32 @@ int ffmpg_writeframe(ffmpgw *m, const char *fr, uint frlen, ffstr *data)
 	case W_FRAME:
 		break;
 
+	case W_ID31:
+		m->state = W_XING_SEEK;
+		if (m->options & FFMPG_WRITE_ID3V1) {
+			ffstr_set(data, &m->id31, sizeof(m->id31));
+			return FFMPG_RID31;
+		}
+		// break
+
 	case W_XING_SEEK:
-		m->off = 0;
+		if (m->lametag) {
+			m->state = W_LAMETAG;
+			return FFMPG_RSEEK;
+		}
+		if (!(m->options & FFMPG_WRITE_XING))
+			return FFMPG_RDONE;
 		m->state = W_XING;
 		return FFMPG_RSEEK;
 
 	case W_XING:
 		ffmpg_xing_write(&m->xing, m->buf.ptr);
 		ffstr_set2(data, &m->buf);
+		m->state = W_DONE;
+		return FFMPG_RDATA;
+
+	case W_LAMETAG:
+		ffstr_set(data, fr, frlen);
 		m->state = W_DONE;
 		return FFMPG_RDATA;
 
@@ -904,7 +971,7 @@ int ffmpg_copy(ffmpgcopy *m, ffstr *output)
 			return FFMPG_RERR;
 
 		case FFMPG_RSEEK:
-			m->off = m->wdataoff + ffmpg_enc_seekoff(&m->writer);
+			m->off = m->wdataoff + ffmpg_wseekoff(&m->writer);
 			return FFMPG_ROUTSEEK;
 		}
 		FF_ASSERT(0);

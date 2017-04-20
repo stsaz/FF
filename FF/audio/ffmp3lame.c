@@ -56,29 +56,14 @@ int ffmpg_create(ffmpg_enc *m, ffpcm *pcm, int qual)
 
 	m->fmt = *pcm;
 	m->samp_size = ffpcm_size1(pcm);
-	ffid31_init(&m->id31);
-	m->min_meta = 1000;
 	m->qual = qual;
 	return FFMPG_EOK;
 }
 
 void ffmpg_enc_close(ffmpg_enc *m)
 {
-	ffarr_free(&m->id3.buf);
 	ffarr_free(&m->buf);
 	FF_SAFECLOSE(m->lam, NULL, lame_free);
-}
-
-int ffmpg_addtag(ffmpg_enc *m, uint id, const char *val, size_t vallen)
-{
-	if ((m->options & FFMPG_WRITE_ID3V2)
-		&& 0 == ffid3_add(&m->id3, id, val, vallen)) {
-		m->err = FFMPG_ESYS;
-		return FFMPG_RERR;
-	}
-	if (m->options & FFMPG_WRITE_ID3V1)
-		ffid31_add(&m->id31, id, val, vallen);
-	return 0;
 }
 
 static const byte vbitrate[] = {
@@ -88,66 +73,24 @@ static const byte vbitrate[] = {
 uint64 ffmpg_enc_size(ffmpg_enc *m, uint64 total_samples)
 {
 	uint kbrate = (m->qual <= 9) ? vbitrate[m->qual] * m->fmt.channels / 2 : m->qual;
-	return m->min_meta + (total_samples / m->fmt.sample_rate + 1) * (kbrate * 1000 / 8);
+	return (total_samples / m->fmt.sample_rate + 1) * (kbrate * 1000 / 8);
 }
 
 int ffmpg_encode(ffmpg_enc *m)
 {
-	enum { I_ID32, I_ID32_AFTER, I_ID31,
-		I_DATA, I_LAMETAG_SEEK, I_LAMETAG, I_DONE };
+	enum { I_DATA, I_LAMETAG };
 	size_t nsamples;
 	int r = 0;
 
-	for (;;) {
 	switch (m->state) {
-	case I_ID32:
-		if (m->options & FFMPG_WRITE_ID3V2) {
-			ffid3_flush(&m->id3);
-			if (m->min_meta > m->id3.buf.len
-				&& 0 != ffid3_padding(&m->id3, m->min_meta - m->id3.buf.len)) {
-				m->err = FFMPG_ESYS;
-				return FFMPG_RERR;
-			}
-			ffid3_fin(&m->id3);
-			m->data = m->id3.buf.ptr;
-			m->datalen = m->id3.buf.len;
-			m->off = m->datalen;
-			m->state = I_ID32_AFTER;
-			return FFMPG_RDATA;
-		}
-		// break
-
-	case I_ID32_AFTER:
-		ffarr_free(&m->id3.buf);
-		m->state = I_DATA;
-		// break
-
-	case I_DATA:
-		break;
-
-	case I_ID31:
-		m->state = I_LAMETAG_SEEK;
-		if (m->options & FFMPG_WRITE_ID3V1) {
-			m->data = &m->id31;
-			m->datalen = sizeof(m->id31);
-			return FFMPG_RDATA;
-		}
-		// break
-
-	case I_LAMETAG_SEEK:
-		m->state = I_LAMETAG;
-		return FFMPG_RSEEK;
-
 	case I_LAMETAG:
 		r = lame_lametag(m->lam, m->buf.ptr, m->buf.cap);
 		m->data = m->buf.ptr;
 		m->datalen = ((uint)r <= m->buf.cap) ? r : 0;
-		m->state = I_DONE;
-		return FFMPG_RDATA;
-
-	case I_DONE:
 		return FFMPG_RDONE;
 	}
+
+	for (;;) {
 
 	nsamples = m->pcmlen / m->samp_size;
 	nsamples = ffmin(nsamples, 8 * 1152);
@@ -185,7 +128,7 @@ int ffmpg_encode(ffmpg_enc *m)
 			m->err = r;
 			return FFMPG_RERR;
 		}
-		m->state = I_ID31;
+		m->state = I_LAMETAG;
 	}
 
 	m->data = m->buf.ptr;
