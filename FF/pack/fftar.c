@@ -111,7 +111,7 @@ int fftar_hdr_parse(fftar_file *f, char *filename, const char *buf)
 		return FFTAR_ETYPE;
 	}
 	if (h->typeflag == TAR_DIR)
-		f->mode |= 0040000;
+		f->mode |= FFUNIX_FILE_DIR;
 	f->type = h->typeflag;
 
 	uint hchk, chk = tar_checksum((void*)h, TAR_BLOCK);
@@ -132,12 +132,9 @@ int fftar_hdr_write(const fftar_file *f, char *buf)
 	uint addslash = 0;
 
 	uint mode = f->mode;
-#ifdef FF_WIN
-	mode = fffile_isdir(f->mode) ? 0755 : 0644;
-#endif
 
 	h->typeflag = TAR_FILE;
-	if (fffile_isdir(f->mode)) {
+	if (f->mode & FFUNIX_FILE_DIR) {
 		h->typeflag = TAR_DIR;
 		if (!ffpath_slash(f->name[namelen - 1]))
 			addslash = 1;

@@ -50,18 +50,6 @@ enum FFZIP_SYS {
 	FFZIP_UNIX = 3,
 };
 
-enum FAT_ATTR {
-	FAT_READONLY = 1,
-	FAT_HIDDEN = 2,
-	FAT_SYSTEM = 4,
-	FAT_DIR = 0x10,
-	FAT_ARCHIVE = 0x20,
-};
-
-enum UNIX_TYPE {
-	UNIX_DIR = 0040000,
-};
-
 /** Central directory header. */
 typedef struct zip_cdir {
 	char sig[4]; //"PK\1\2"
@@ -80,7 +68,7 @@ typedef struct zip_cdir {
 	byte commentlen[2];
 	byte disknum[2];
 	byte attrs_int[2]; // bit 0: is text file
-	byte attrs[4]; // [0]: enum FAT_ATTR; [2..3]: TTTTSSSRWXRWXRWX (TTTT: enum UNIX_TYPE)
+	byte attrs[4]; // [0]: enum FFWIN_FILE_ATTR; [2..3]: enum FFUNIX_FILEATTR
 	byte offset[4];
 	char filename[0];
 	// char extra[0];
@@ -106,7 +94,7 @@ enum {
 
 static int zip_cdir_parse(ffzip_file *f, const char *buf);
 static int zip_fhdr_parse(ffzip_file *f, const char *buf, ffzip_file *cdir);
-static int zip_fhdr_write(char *buf, char *cdir_buf, ffstr *name, const fftime *mtime, uint attrs, uint64 total_out);
+static int zip_fhdr_write(char *buf, char *cdir_buf, ffstr *name, const fftime *mtime, const ffzip_fattr *attrs, uint64 total_out);
 
 
 static FFINL void time_fromdos(ffdtm *dt, uint date, uint time)
@@ -153,7 +141,8 @@ static int zip_cdir_parse(ffzip_file *f, const char *buf)
 
 	f->zsize = ffint_ltoh32(cdir->size);
 	f->osize = ffint_ltoh32(cdir->size_orig);
-	f->attrs = ffint_ltoh32(cdir->attrs);
+	f->attrs.win = cdir->attrs[0];
+	f->attrs.unix = ffint_ltoh16(&cdir->attrs[2]);
 	f->crc = ffint_ltoh32(cdir->crc32);
 	f->offset = ffint_ltoh32(cdir->offset);
 	return sizeof(zip_cdir) + ffint_ltoh16(cdir->filenamelen) + ffint_ltoh16(cdir->extralen) + ffint_ltoh16(cdir->commentlen);
@@ -189,7 +178,7 @@ static int zip_fhdr_parse(ffzip_file *f, const char *buf, ffzip_file *cdir)
 
 /** Write file header.
 Return file header size;  <0 on error. */
-static int zip_fhdr_write(char *buf, char *cdir_buf, ffstr *name, const fftime *mtime, uint attrs, uint64 total_out)
+static int zip_fhdr_write(char *buf, char *cdir_buf, ffstr *name, const fftime *mtime, const ffzip_fattr *attrs, uint64 total_out)
 {
 	uint modtime, moddate;
 	ffdtm dt;
@@ -206,7 +195,7 @@ static int zip_fhdr_write(char *buf, char *cdir_buf, ffstr *name, const fftime *
 		return -FFZIP_EFNAME;
 	name->ptr = h->filename;
 
-	if (fffile_isdir(attrs) && !ffpath_slash(h->filename[name->len - 1]))
+	if (ffzip_isdir(attrs) && !ffpath_slash(h->filename[name->len - 1]))
 		h->filename[name->len++] = '/'; //add trailing slash
 
 	ffint_htol16(h->filenamelen, name->len);
@@ -218,14 +207,11 @@ static int zip_fhdr_write(char *buf, char *cdir_buf, ffstr *name, const fftime *
 
 #ifdef FF_WIN
 	cdir->sysver = FFZIP_FAT;
-	cdir->attrs[0] = (byte)attrs;
-
 #else
 	cdir->sysver = FFZIP_UNIX;
-	if (fffile_isdir(attrs))
-		cdir->attrs[0] |= FAT_DIR;
-	ffint_htol16(&cdir->attrs[2], attrs);
 #endif
+	cdir->attrs[0] = (byte)attrs->win;
+	ffint_htol16(&cdir->attrs[2], attrs->unix);
 
 	ffint_htol16(cdir->modtime, modtime);
 	ffint_htol16(cdir->moddate, moddate);
@@ -524,7 +510,7 @@ int ffzip_winit(ffzip_cook *z, uint level, uint mem)
 	return 0;
 }
 
-int ffzip_wfile(ffzip_cook *z, const char *name, const fftime *mtime, uint attrs)
+int ffzip_wfile(ffzip_cook *z, const char *name, const fftime *mtime, const ffzip_fattr *attrs)
 {
 	int r;
 	if (z->state != W_NEWFILE)

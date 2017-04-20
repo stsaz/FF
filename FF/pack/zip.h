@@ -9,6 +9,7 @@ Copyright (c) 2016 Simon Zolin
 #include <FF/array.h>
 #include <FF/chain.h>
 #include <FFOS/time.h>
+#include <FFOS/file.h>
 
 #include <zlib/zlib-ff.h>
 
@@ -38,13 +39,34 @@ FF_EXTN const char* _ffzip_errstr(int err, z_ctx *lz);
 #define ffzip_errstr(z)  _ffzip_errstr((z)->err, (z)->lz)
 
 
+typedef struct ffzip_fattr {
+	ushort win; //enum FFWIN_FILEATTR
+	ushort unix; //enum FFUNIX_FILEATTR
+} ffzip_fattr;
+
+static FFINL void ffzip_setsysattr(ffzip_fattr *a, uint sysattr)
+{
+	a->win = a->unix = 0;
+#ifdef FF_WIN
+	a->win = sysattr;
+#else
+	a->unix = sysattr;
+#endif
+}
+
+static FFINL ffbool ffzip_isdir(const ffzip_fattr *a)
+{
+	return (a->win & FFWIN_FILE_DIR) || (a->unix & FFUNIX_FILE_DIR);
+}
+
+
 typedef struct ffzip_file {
 	char *fn;
 	uint osize;
 	uint zsize;
 	uint crc;
 	fftime mtime;
-	uint attrs;
+	ffzip_fattr attrs;
 	uint offset;
 	byte comp;
 
@@ -129,7 +151,7 @@ Return 0 on success. */
 FF_EXTN int ffzip_winit(ffzip_cook *z, uint level, uint mem);
 
 /** Prepare info for a new file. */
-FF_EXTN int ffzip_wfile(ffzip_cook *z, const char *name, const fftime *mtime, uint attrs);
+FF_EXTN int ffzip_wfile(ffzip_cook *z, const char *name, const fftime *mtime, const ffzip_fattr *attrs);
 
 FF_EXTN int ffzip_write(ffzip_cook *z, char *dst, size_t cap);
 

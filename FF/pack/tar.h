@@ -12,7 +12,7 @@ Copyright (c) 2016 Simon Zolin
 
 typedef struct fftar_file {
 	const char *name;
-	uint mode;
+	uint mode; //enum FFUNIX_FILE_DIR
 	uint uid;
 	uint gid;
 	uint type;
