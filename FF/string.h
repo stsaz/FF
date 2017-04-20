@@ -156,6 +156,9 @@ static FFINL ffbool ffsz_imatch(const char *sz, const char *starts_with, size_t 
 	return r == 0 || (r < 0 && (size_t)(-r) - 1 == n);
 }
 
+/** Return NULL if not found. */
+#define ffsz_findc(sz, ch)  strchr(sz, ch)
+
 
 /** Search for a byte in buffer. */
 FF_EXTN void * ffmemchr(const void *d, int b, size_t len);

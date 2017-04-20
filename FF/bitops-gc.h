@@ -68,3 +68,17 @@ static FFINL ffbool ffbit_reset64(uint64 *p, uint bit)
 #ifdef FF_64
 #define ffbit_ffs64(i)  __builtin_ffsll(i)
 #endif
+
+#define ffbit_find32(n) \
+({ \
+	__typeof__(n) N = (n); \
+	(N == 0) ? 0 : __builtin_clz(N) + 1; \
+})
+
+#if defined FF_64
+#define ffbit_find64(n) \
+({ \
+	__typeof__(n) N = (n); \
+	(N == 0) ? 0 : __builtin_clzll(N) + 1; \
+})
+#endif

@@ -40,3 +40,22 @@ static FFINL uint ffbit_ffs64(uint64 i) {
 	return idx + 1;
 }
 #endif
+
+
+static FFINL uint ffbit_find32(uint i)
+{
+	DWORD idx;
+	if (!BitScanReverse(&idx, i))
+		return 0;
+	return 32 - idx;
+}
+
+#ifdef FF_64
+static FFINL uint ffbit_find64(uint64 i)
+{
+	DWORD idx;
+	if (!BitScanReverse64(&idx, i))
+		return 0;
+	return 64 - idx;
+}
+#endif

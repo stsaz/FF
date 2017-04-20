@@ -825,6 +825,15 @@ int ffui_view_create(ffui_ctl *c, ffui_wnd *parent)
 	return 0;
 }
 
+int ffui_view_itempos(ffui_view *v, uint idx, ffui_pos *pos)
+{
+	RECT r = {0};
+	r.left = LVIR_BOUNDS;
+	int ret = ffui_ctl_send(v, LVM_GETITEMRECT, idx, &r);
+	ffui_pos_fromrect(pos, &r);
+	return ret;
+}
+
 void ffui_viewcol_settext(ffui_viewcol *vc, const char *text, size_t len)
 {
 	size_t n;

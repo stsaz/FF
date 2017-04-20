@@ -28,7 +28,9 @@ static int _ffmpg_frame2(ffmpgr *m, ffarr *buf);
 
 static const char *const _ffmpg_errs[] = {
 	"PCM format error",
-	"tags error",
+	"ID3v1 tag data error",
+	"ID3v2 tag data error",
+	"ID3v2 tag error",
 	"APE tag error",
 	"seek sample is too large",
 	"can't find a valid MPEG frame",
@@ -122,7 +124,7 @@ static FFINL int mpg_id31(ffmpgfile *m)
 			ffarr_set(&m->tagval, m->id31tag.val.ptr, m->id31tag.val.len);
 
 		} else if (0 == ffutf8_strencode(&m->tagval, m->id31tag.val.ptr, m->id31tag.val.len, m->codepage)) {
-			m->err = FFMPG_ETAG;
+			m->err = FFMPG_EID31DATA;
 			return FFMPG_RWARN;
 		}
 		return FFMPG_RID31;
@@ -221,7 +223,7 @@ static FFINL int mpg_id32(ffmpgfile *m)
 
 		m->tag = (m->id32tag.frame < _FFMMTAG_N) ? m->id32tag.frame : 0;
 		if (0 > ffid3_getdata(m->id32tag.frame, m->id32tag.data.ptr, m->id32tag.data.len, m->id32tag.txtenc, m->codepage, &m->tagval)) {
-			m->err = FFMPG_ETAG;
+			m->err = FFMPG_EID32DATA;
 			return FFMPG_RWARN;
 		}
 
@@ -235,7 +237,7 @@ static FFINL int mpg_id32(ffmpgfile *m)
 	case FFID3_RERR:
 		ffarr_free(&m->tagval);
 		m->state = I_FTRTAGS_CHECK;
-		m->err = FFMPG_ETAG;
+		m->err = FFMPG_EID32;
 		return FFMPG_RWARN;
 
 	default:

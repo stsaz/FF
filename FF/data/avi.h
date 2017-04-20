@@ -17,7 +17,6 @@ struct ffavi_chunk {
 	uint id;
 	uint size;
 	uint flags;
-	uint padding :1;
 	const struct ffavi_bchunk *ctx;
 };
 

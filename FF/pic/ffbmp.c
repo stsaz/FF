@@ -49,6 +49,9 @@ const char* ffbmp_errstr(void *_b)
 	return errs[(uint)b->e - 1];
 }
 
+#define ERR(b, r) \
+	(b)->e = (r),  FFBMP_ERR
+
 
 enum { R_GATHER, R_HDR, R_SEEK, R_DATA, R_DONE };
 
@@ -81,7 +84,7 @@ int ffbmp_read(ffbmp *b)
 		case 0:
 			return FFBMP_MORE;
 		case -1:
-			return b->e = BMP_ESYS,  FFBMP_ERR;
+			return ERR(b, BMP_ESYS);
 		}
 		ffstr_shift(&b->data, r);
 		b->inbuf.len = 0;
@@ -91,13 +94,13 @@ int ffbmp_read(ffbmp *b)
 	case R_HDR: {
 		const struct bmp_hdr *h = (void*)b->inbuf.ptr;
 		if (!!memcmp(h->bm, "BM", 2))
-			return b->e = BMP_EFMT,  FFBMP_ERR;
+			return ERR(b, BMP_EFMT);
 		b->info.width = ffint_ltoh32(h->width);
 		b->info.height = ffint_ltoh32(h->height);
 
 		uint bpp = ffint_ltoh16(h->bpp);
 		if (bpp != 24 && bpp != 32)
-			return b->e = BMP_EFMT,  FFBMP_ERR;
+			return ERR(b, BMP_EFMT);
 		b->info.bpp = bpp | _FFPIC_BGR;
 
 		uint hdrsize = ffint_ltoh32(h->headersize);
@@ -147,12 +150,12 @@ int ffbmp_write(ffbmp_cook *b)
 
 	case W_HDR: {
 		if (b->info.bpp != FFPIC_BGR && b->info.bpp != FFPIC_BGRA)
-			return b->e = BMP_EFMT,  FFBMP_ERR;
+			return ERR(b, BMP_EFMT);
 		uint bpp = ffpic_bits(b->info.bpp);
 		b->linesize = b->info.width * bpp / 8;
 
 		if (NULL == ffarr_alloc(&b->buf, sizeof(struct bmp_hdr)))
-			return b->e = BMP_ESYS,  FFBMP_ERR;
+			return ERR(b, BMP_ESYS);
 
 		struct bmp_hdr *h = (void*)b->buf.ptr;
 		ffmem_tzero(h);
@@ -178,7 +181,7 @@ int ffbmp_write(ffbmp_cook *b)
 	case W_DATA:
 		if (b->rgb.len != b->linesize) {
 			if (b->rgb.len != 0)
-				return b->e = BMP_ELINE,  FFBMP_ERR;
+				return ERR(b, BMP_ELINE);
 			return FFBMP_MORE;
 		}
 

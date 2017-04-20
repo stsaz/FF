@@ -6,6 +6,8 @@ Copyright (c) 2016 Simon Zolin
 (STM_HDR  [(BLK_HDR  DATA  [BLK_PADDING]  [CHECK])...]  IDX  STM_FTR)...
 */
 
+#pragma once
+
 #include <FF/array.h>
 #include <FFOS/error.h>
 

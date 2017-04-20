@@ -97,7 +97,7 @@ FF_EXTN int ffpcm_convert(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm
 	(((pos) != 0) ? (log10(pos) * (db_min)/2 /*log10(100)*/ - (db_min)) : -100)
 
 #define ffpcm_vol2db_inc(pos, pos_max, db_max) \
-	((pow(10, (double)(pos) / (pos_max)) - 1) / 10 * (db_max))
+	(pow(10, (double)(pos) / (pos_max)) / 10 * (db_max))
 
 /* gain = 10 ^ (db / 20) */
 #define ffpcm_db2gain(db)  pow(10, (double)(db) / 20)

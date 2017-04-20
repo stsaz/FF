@@ -8,6 +8,7 @@ HDR (ROW#HEIGHT..ROW#1(BGR#1..BGR#WIDTH))
 
 #pragma once
 
+#include <FF/pic/pic.h>
 #include <FF/array.h>
 #include <FF/number.h>
 

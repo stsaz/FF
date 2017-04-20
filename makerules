@@ -62,7 +62,7 @@ FF_PACK_HDR := $(wildcard $(FF)/FF/pack/*.h)
 FF_PACK_SRC := $(wildcard $(FF)/FF/pack/*.c)
 FF_PACK_OBJ := $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_PACK_SRC)))))
 FF_ALL_OBJ += $(FF_PACK_OBJ)
-$(FF_OBJ_DIR)/%.o: $(FF)/FF/pack/%.c $(FF_HDR)
+$(FF_OBJ_DIR)/%.o: $(FF)/FF/pack/%.c $(FF_HDR) $(FF_PACK_HDR)
 	$(C) $(FF_CFLAGS)  $< -o$@
 
 

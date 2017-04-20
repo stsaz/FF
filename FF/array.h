@@ -189,6 +189,17 @@ static FFINL void * _ffarr_alloc(ffarr *ar, size_t len, size_t elsz) {
 #define ffarr_allocT(ar, len, T) \
 	_ffarr_alloc(ar, len, sizeof(T))
 
+static FFINL void* _ffarr_allocz(ffarr *ar, size_t len, size_t elsz)
+{
+	void *r;
+	if (NULL != (r = _ffarr_alloc(ar, len, elsz)))
+		ffmem_zero(ar->ptr, len * elsz);
+	return r;
+}
+
+#define ffarr_alloczT(ar, len, T) \
+	_ffarr_allocz(ar, len, sizeof(T))
+
 #define ffarr_reallocT(ar, len, T) \
 	_ffarr_realloc(ar, len, sizeof(T))
 
@@ -535,6 +546,10 @@ static FFINL size_t ffstr_nextval3(ffstr *src, ffstr *dst, int spl)
 
 #define ffstr_toint(s, dst, flags) \
 	((s)->len == ffs_toint((s)->ptr, (s)->len, dst, flags))
+
+/** Trim data by absolute bounds.
+Return the number of bytes processed from the beginning. */
+FF_EXTN size_t ffstr_crop_abs(ffstr *data, uint64 data_start, uint64 off, uint64 size);
 
 
 static FFINL void ffstr3_cat(ffstr3 *s, const char *d, size_t len) {

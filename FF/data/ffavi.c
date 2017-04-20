@@ -111,6 +111,7 @@ enum AVI_F {
 	F_WHOLE = 0x100,
 	F_LAST = 0x200,
 	F_LIST = 0x400,
+	F_PADD = 0x1000,
 };
 
 #define MINSIZE(n)  ((n) << 24)
@@ -154,7 +155,7 @@ static void avi_chunkinfo(const void *data, const ffavi_bchunk *ctx, ffavi_chunk
 		chunk->id = T_UKN;
 
 	chunk->size = ffint_ltoh32(ch->size);
-	chunk->padding = (chunk->size % 2);
+	chunk->flags |= (chunk->size % 2) ? F_PADD : 0;
 
 	FFDBG_PRINTLN(10, "\"%4s\"  size:%u  offset:%U"
 		, ch->id, chunk->size, off);
@@ -195,7 +196,7 @@ static const ffavi_bchunk avi_ctx_avi[] = {
 static const ffavi_bchunk avi_ctx_avi_list[] = {
 	{ "hdrl", T_ANY, avi_ctx_hdrl },
 	{ "INFO", T_INFO, avi_ctx_info },
-	{ "movi", T_MOVI, avi_ctx_movi },
+	{ "movi", T_MOVI | F_LAST, avi_ctx_movi },
 };
 
 static const ffavi_bchunk avi_ctx_hdrl[] = {
@@ -322,8 +323,8 @@ int ffavi_read(ffavi *a)
 		chunk = &a->chunks[a->ictx];
 
 		if (chunk->size == 0) {
-			if (chunk->padding) {
-				chunk->padding = 0;
+			if (chunk->flags & F_PADD) {
+				chunk->flags &= ~F_PADD;
 				a->state = R_PADDING;
 				continue;
 			}

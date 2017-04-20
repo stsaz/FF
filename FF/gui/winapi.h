@@ -764,9 +764,16 @@ FF_EXTN int ffui_view_create(ffui_ctl *c, ffui_wnd *parent);
 
 #define ffui_view_settheme(v)  SetWindowTheme((v)->h, L"Explorer", NULL)
 
+/** Get index of the item by screen coordinates. */
 FF_EXTN int ffui_view_hittest(ffui_view *v, const ffui_point *pt, int *subitem);
 
-#define ffui_view_makevisible(v, item)  ffui_ctl_send(v, LVM_ENSUREVISIBLE, item, 0)
+/** Get top visible item index. */
+#define ffui_view_topindex(v)  ffui_ctl_send(v, LVM_GETTOPINDEX, 0, 0)
+
+#define ffui_view_makevisible(v, idx)  ffui_ctl_send(v, LVM_ENSUREVISIBLE, idx, /*partial_ok*/ 0)
+#define ffui_view_scroll(v, dx, dy)  ffui_ctl_send(v, LVM_SCROLL, dx, dy)
+
+FF_EXTN int ffui_view_itempos(ffui_view *v, uint idx, ffui_pos *pos);
 
 
 // LISTVIEW COLUMN

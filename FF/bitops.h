@@ -12,22 +12,6 @@ Copyright (c) 2013 Simon Zolin
 #include <FF/bitops-vc.h>
 #endif
 
-#if !defined FF_MSVC
-#define ffbit_find32(n) \
-({ \
-	__typeof__(n) N = (n); \
-	(N == 0) ? 0 : __builtin_clz(N) + 1; \
-})
-
-#if defined FF_64
-#define ffbit_find64(n) \
-({ \
-	__typeof__(n) N = (n); \
-	(N == 0) ? 0 : __builtin_clzll(N) + 1; \
-})
-#endif
-
-#endif //!FF_MSVC
 
 #if defined FF_64
 /** bit: 0-63 */

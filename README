@@ -49,6 +49,7 @@ FEATURES
 		. Direct Sound playback/capture
 		. WASAPI playback/capture
 		. ALSA playback/capture
+		. Pulse Audio playback
 
 	. Audio:
 		. ICY
@@ -60,6 +61,7 @@ FEATURES
 		. Vorbis (libvorbis), Vorbis comments
 		. Opus (libopus)
 		. MPEG (libmpg123, libmp3lame), ID3v1, ID3v2
+		. Musepack (libmpc)
 		. FLAC (libflac)
 		. ALAC (libalac)
 		. WavPack (libwavpack)
