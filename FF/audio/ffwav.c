@@ -432,7 +432,9 @@ int ffwav_decode(ffwav *w)
 	case R_DATA: {
 		uint chunk_size = w->dataoff + w->datasize - w->off;
 		if (chunk_size == 0) {
-			w->state = R_NEXTCHUNK;
+			chunk = &w->chunks[w->ictx];
+			chunk->size -= w->datasize;
+			w->state = R_SKIP;
 			continue;
 		}
 		uint n = (uint)ffmin(chunk_size, w->datalen);
