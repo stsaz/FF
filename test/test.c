@@ -210,6 +210,17 @@ static int test_bits()
 	x(0 == ffbit_ffs32(i4));
 	i = 0;
 	x(0 == ffbit_ffs(i));
+
+	x(4 == ffbit_find64(0x0880000000000000ULL) - 1);
+	x(4 == ffbit_find32(0x08800000) - 1);
+	x(31 == ffbit_find32(0x00000001) - 1);
+
+	char d[] = {"\xf0\xf0\xf0"};
+	x(8 == ffbit_count(d, 2));
+	x(0 == ffbit_findarr(d, 2 * 8, 0));
+	x(8 == ffbit_findarr(d, 2 * 8, 4));
+
+	x(7 == ffbit_max[3]);
 	return 0;
 }
 
