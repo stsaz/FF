@@ -5,6 +5,7 @@ Copyright (c) 2013 Simon Zolin
 #include <FF/mtags/id3.h>
 #include <FF/data/utf8.h>
 #include <FF/number.h>
+#include <FFOS/error.h>
 
 
 static const char *const id3_genres[] = {
@@ -306,8 +307,38 @@ static FFINL uint _ffid3_frsize(const void *fr, uint majver)
 
 
 enum {
+	ID3_EOK,
+	ID3_ESYS,
+	ID3_EVER,
+	ID3_EFLAGS,
+	ID3_ESMALL,
+	ID3_EFRFLAGS,
+	ID3_EFRBIG,
+};
+
+static const char* const _ffid3_errs[] = {
+	"",
+	"",
+	"unsupported version",
+	"unsupported header flags",
+	"tag is too small",
+	"unsupported frame flags",
+	"frame is too large",
+};
+
+const char* ffid3_errstr(int e)
+{
+	if (e == ID3_ESYS)
+		return fferr_strp(fferr_last());
+	if ((uint)e >= FFCNT(_ffid3_errs))
+		return "";
+	return _ffid3_errs[e];
+}
+
+
+enum {
 	I_HDR, I_GATHER, I_EXTHDR_SIZE, I_EXTHDR_DATA,
-	I_FR, I_FR_DATALEN, I_TXTENC, I_DATA, I_TRKTOTAL, I_UNSYNC_00, I_FRDONE,
+	I_FR, I_FRHDR, I_FR_DATALEN, I_TXTENC, I_DATA, I_TRKTOTAL, I_UNSYNC_00, I_FRDONE,
 	I_PADDING
 };
 
@@ -346,8 +377,8 @@ static FFINL int _ffid3_unsync(ffid3 *p, const char *data, size_t len)
 int ffid3_parse(ffid3 *p, const char *data, size_t *len)
 {
 	const char *dstart = data, *end = data + *len;
-	uint n, frsz;
-	int r = FFID3_RERR;
+	uint n;
+	int r = FFID3_RERR, rr;
 
 	*len = 0;
 	if (p->size != 0)
@@ -379,10 +410,15 @@ int ffid3_parse(ffid3 *p, const char *data, size_t *len)
 			p->size = ffid3_size(&p->h);
 			end = data + p->size;
 
-			if (p->h.ver[0] < 2 || p->h.ver[0] > 4 //v2.2-v2.4
-				|| (p->h.ver[0] == 3 && (p->h.flags & ~(FFID3_FHDR_UNSYNC | FFID3_FHDR_EXTHDR)) != 0)
-				|| (p->h.ver[0] != 3 && (p->h.flags & ~FFID3_FHDR_UNSYNC) != 0))
-				goto done; //not supported
+			if (p->h.ver[0] < 2 || p->h.ver[0] > 4) /*v2.2-v2.4*/ {
+				p->err = ID3_EVER;
+				goto done;
+			}
+			if ((p->h.ver[0] == 3 && (p->h.flags & ~(FFID3_FHDR_UNSYNC | FFID3_FHDR_EXTHDR)) != 0)
+				|| (p->h.ver[0] != 3 && (p->h.flags & ~FFID3_FHDR_UNSYNC) != 0)) {
+				p->err = ID3_EFLAGS;
+				goto done;
+			}
 
 			p->state = I_FR;
 			if (p->h.ver[0] == 3 && (p->h.flags & FFID3_FHDR_EXTHDR)) {
@@ -394,14 +430,18 @@ int ffid3_parse(ffid3 *p, const char *data, size_t *len)
 			goto done;
 
 		case I_GATHER:
-			if (p->data.len == 0 && p->size < p->gsize)
+			if (p->data.len == 0 && p->size < p->gsize) {
+				p->err = ID3_ESMALL;
 				return FFID3_RERR;
+			}
 
-			r = ffarr_gather(&p->data, data, end - data, p->gsize);
-			if (r < 0)
+			rr = ffarr_gather(&p->data, data, end - data, p->gsize);
+			if (rr < 0) {
+				p->err = ID3_ESYS;
 				return FFID3_RERR;
-			data += r;
-			p->size -= r;
+			}
+			data += rr;
+			p->size -= rr;
 			if (p->data.len != p->gsize)
 				return FFID3_RMORE;
 			p->gsize = 0;
@@ -426,23 +466,24 @@ int ffid3_parse(ffid3 *p, const char *data, size_t *len)
 				p->state = I_PADDING;
 				break;
 			}
-			frsz = (p->h.ver[0] == 2) ? sizeof(ffid3_frhdr22) : sizeof(ffid3_frhdr);
+			p->gsize = (p->h.ver[0] == 2) ? sizeof(ffid3_frhdr22) : sizeof(ffid3_frhdr);
+			p->state = I_GATHER,  p->gstate = I_FRHDR;
+			continue;
 
-			n = ffs_append(&p->fr, p->frsize, frsz, data, end - data);
-			if (n > p->size)
-				goto done; //no space for frame header within the tag
-			p->frsize += n;
-			data += n;
-			p->size -= n;
-
-			if (p->frsize != frsz) {
-				r = FFID3_RMORE; //frame header is split between the 2 data chunks
-				goto done;
-			}
-
+		case I_FRHDR:
+			ffmemcpy(&p->fr, p->data.ptr, p->data.len);
+			p->data.len = 0;
 			p->frsize = _ffid3_frsize(&p->fr, p->h.ver[0]);
-			if (p->frsize > p->size)
+
+			FFDBG_PRINTLN(10, "frame %*s  size:%u  flags:%2xb"
+				, (p->h.ver[0] == 2) ? (size_t)3 : (size_t)4, p->fr.id
+				, p->frsize
+				, (p->h.ver[0] == 2) ? "\0\0" : (char*)p->fr.flags);
+
+			if (p->frsize > p->size) {
+				p->err = ID3_EFRBIG;
 				goto done; //frame size is too large
+			}
 
 			if (p->h.ver[0] == 2)
 				p->frame = _ffid3_frame22(&p->fr22);
@@ -450,8 +491,10 @@ int ffid3_parse(ffid3 *p, const char *data, size_t *len)
 				p->frame = _ffid3_frame(&p->fr);
 
 			if (((p->h.ver[0] == 4) && (p->fr.flags[1] & ~(FFID324_FFR1_DATALEN | FFID324_FFR1_UNSYNC)) != 0)
-				|| ((p->h.ver[0] != 4) && p->fr.flags[1] != 0))
-				goto done; //not supported
+				|| ((p->h.ver[0] != 4) && p->fr.flags[1] != 0)) {
+				p->err = ID3_EFRFLAGS;
+				goto done;
+			}
 
 			if (p->fr.id[0] == 'T' || p->frame == FFMMTAG_COMMENT)
 				p->state = I_TXTENC;
@@ -485,12 +528,16 @@ int ffid3_parse(ffid3 *p, const char *data, size_t *len)
 		case I_UNSYNC_00:
 			n = (uint)ffmin(p->frsize, end - data);
 			if ((p->fr.flags[1] & FFID324_FFR1_UNSYNC) || (p->h.flags & FFID3_FHDR_UNSYNC)) {
-				if (0 != _ffid3_unsync(p, data, n))
+				if (0 != _ffid3_unsync(p, data, n)) {
+					p->err = ID3_ESYS;
 					goto done;
+				}
 
 			} else if ((p->flags & FFID3_FWHOLE) && (n != p->frsize || p->data.len != 0)) {
-				if (NULL == ffarr_append(&p->data, (char*)data, n))
-					goto done; //no mem
+				if (NULL == ffarr_append(&p->data, (char*)data, n)) {
+					p->err = ID3_ESYS;
+					goto done;
+				}
 
 			} else {
 				ffarr_free(&p->data);

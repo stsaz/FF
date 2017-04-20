@@ -140,6 +140,7 @@ typedef struct ffid3 {
 	int txtenc; //enum FFID3_TXTENC
 	uint flags; //enum FFID3_F
 	int frame; //enum FFMMTAG or enum FFID3_FRAME (<0)
+	int err;
 	ffstr3 data; //frame data
 } ffid3;
 
@@ -168,6 +169,8 @@ static FFINL void ffid3_parsefin(ffid3 *p)
 {
 	ffarr_free(&p->data);
 }
+
+FF_EXTN const char* ffid3_errstr(int e);
 
 
 /** Get data from ID3v2 frame.  Convert to UTF-8 if necessary.
