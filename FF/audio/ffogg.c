@@ -167,7 +167,6 @@ static int _ffogg_getbody(ffogg *o)
 		o->pagenum_err = 1;
 	o->page_num = pagenum;
 
-	o->cursample = o->page_gpos;
 	o->page_gpos = ffint_ltoh64(h->granulepos);
 	o->segoff = 0;
 	o->bodyoff = 0;

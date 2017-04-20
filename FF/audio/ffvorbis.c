@@ -195,9 +195,8 @@ int ffvorbis_decode(ffvorbis *v, const char *pkt, size_t len)
 		r -= skip;
 	}
 
-	if (v->cursample + r >= v->total_samples)
-		r = v->total_samples - v->cursample;
-
+	if (v->total_samples != (uint64)-1)
+		r = ffmin(r, v->total_samples - v->cursample);
 	v->pkt_samples = r;
 	v->pcmlen = r * sizeof(float) * v->info.channels;
 	v->cursample += r;
