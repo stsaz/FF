@@ -29,21 +29,20 @@ static FFINL void ffwav_makewfx(WAVEFORMATEX *wf, ffpcm *f)
 }
 #endif
 
+struct wav_bchunk;
 struct ffwav_chunk {
 	uint id;
 	uint size;
 	uint flags;
+	const struct wav_bchunk *ctx;
 };
-
-struct wav_bchunk;
 
 typedef struct ffwav {
 	uint state;
 	uint nxstate;
 	uint err;
 
-	struct ffwav_chunk chunks[3];
-	const struct wav_bchunk* ctx[3];
+	struct ffwav_chunk chunks[4];
 	uint ictx;
 
 	ffarr buf;
@@ -53,6 +52,7 @@ typedef struct ffwav {
 	ffpcm fmt;
 	uint bitrate;
 	uint64 total_samples;
+	uint sampsize;
 
 	uint64 datasize
 		, dataoff

@@ -13,10 +13,6 @@ struct wav_chunk {
 	byte size[4];
 };
 
-struct wav_riff {
-	char wave[4]; //"WAVE"
-};
-
 enum WAV_FMT {
 	WAV_PCM = 1,
 	WAV_IEEE_FLOAT = 3,
@@ -41,10 +37,6 @@ struct wav_fmtext {
 	byte subformat[16]; //[0..1]: enum WAV_FMT
 };
 
-struct wav_list {
-	char info[4]; //"INFO"
-};
-
 enum WAV_E {
 	WAV_EOK,
 	WAV_ENOFMT,
@@ -61,6 +53,7 @@ enum WAV_E {
 
 static int wav_fmt(const void *data, size_t len, ffpcm *format, uint *bitrate);
 static int wav_fmt_write(void *data, const ffpcm *fmt);
+static int wav_findchunk(const void *data, const struct wav_bchunk *ctx, struct ffwav_chunk *chunk, uint64 off);
 
 
 uint ffwav_fmt(uint pcm_fmt)
@@ -138,25 +131,28 @@ static int wav_fmt_write(void *data, const ffpcm *fmt)
 }
 
 
+/* Supported chunks:
+
+RIFF WAVE
+ "fmt "
+ data
+ LIST INFO
+  *
+*/
+
 enum {
 	T_RIFF = 1,
 	T_FMT,
 	T_LIST,
 	T_DATA,
 
-	T_TAG_ARTIST,
-	_T_TAG_FIRST = T_TAG_ARTIST,
-	T_TAG_COPYRIGHT,
-	T_TAG_DATE,
-	T_TAG_GENRE,
-	T_TAG_TITLE,
-	T_TAG_ALBUM,
-	T_TAG_TRACKNO,
-	T_TAG_VENDOR,
+	T_TAG = 0x80,
 };
 
 enum {
 	F_WHOLE = 0x100,
+	F_LAST = 0x200,
+	F_PADD = 0x1000,
 };
 
 #define MINSIZE(n)  ((n) << 24)
@@ -168,56 +164,44 @@ struct wav_bchunk {
 };
 
 static const struct wav_bchunk wav_ctx_global[] = {
-	{ "RIFF", T_RIFF | MINSIZE(sizeof(struct wav_riff)) },
-	{ "", 0 }
+	{ "RIFF", T_RIFF | MINSIZE(4) | F_LAST },
 };
 static const struct wav_bchunk wav_ctx_riff[] = {
 	{ "fmt ", T_FMT | F_WHOLE },
-	{ "LIST", T_LIST | MINSIZE(sizeof(struct wav_list)) },
-	{ "data", T_DATA },
-	{ "", 0 }
+	{ "LIST", T_LIST | MINSIZE(4) },
+	{ "data", T_DATA | F_LAST },
 };
 static const struct wav_bchunk wav_ctx_list[] = {
-	{ "IART", T_TAG_ARTIST | F_WHOLE },
-	{ "ICOP", T_TAG_COPYRIGHT | F_WHOLE },
-	{ "ICRD", T_TAG_DATE | F_WHOLE },
-	{ "IGNR", T_TAG_GENRE | F_WHOLE },
-	{ "INAM", T_TAG_TITLE | F_WHOLE },
-	{ "IPRD", T_TAG_ALBUM | F_WHOLE },
-	{ "IPRT", T_TAG_TRACKNO | F_WHOLE },
-	{ "ISFT", T_TAG_VENDOR | F_WHOLE },
-	{ "", 0 }
-};
-
-/* "T_TAG_*" -> "FFMMTAG_*" */
-static const byte wav_tag[] = {
-	FFMMTAG_ARTIST,
-	FFMMTAG_COPYRIGHT,
-	FFMMTAG_DATE,
-	FFMMTAG_GENRE,
-	FFMMTAG_TITLE,
-	FFMMTAG_ALBUM,
-	FFMMTAG_TRACKNO,
-	FFMMTAG_VENDOR,
+	{ "IART", T_TAG | FFMMTAG_ARTIST | F_WHOLE },
+	{ "ICOP", T_TAG | FFMMTAG_COPYRIGHT | F_WHOLE },
+	{ "ICRD", T_TAG | FFMMTAG_DATE | F_WHOLE },
+	{ "IGNR", T_TAG | FFMMTAG_GENRE | F_WHOLE },
+	{ "INAM", T_TAG | FFMMTAG_TITLE | F_WHOLE },
+	{ "IPRD", T_TAG | FFMMTAG_ALBUM | F_WHOLE },
+	{ "IPRT", T_TAG | FFMMTAG_TRACKNO | F_WHOLE },
+	{ "ISFT", T_TAG | FFMMTAG_VENDOR | F_WHOLE | F_LAST },
 };
 
 /** Find chunk within the specified context. */
-static int wav_findchunk(const void *data, const struct wav_bchunk *ctx, struct ffwav_chunk *chunk)
+static int wav_findchunk(const void *data, const struct wav_bchunk *ctx, struct ffwav_chunk *chunk, uint64 off)
 {
 	const struct wav_chunk *ch = (void*)data;
 	chunk->id = 0;
-	for (uint i = 0;  ctx[i].id[0] != '\0';  i++) {
+	for (uint i = 0;  ;  i++) {
 		if (!ffs_cmp(ch->id, ctx[i].id, 4)) {
 			chunk->id = ctx[i].flags & 0xff;
 			chunk->flags = ctx[i].flags & 0xffffff00;
 			break;
 		}
+		if (ctx[i].flags & F_LAST)
+			break;
 	}
 
 	chunk->size = ffint_ltoh32(ch->size);
+	chunk->flags |= (chunk->size % 2) ? F_PADD : 0;
 
-	FFDBG_PRINTLN(10, "chunk \"%4s\"  size:%u"
-		, ch->id, chunk->size);
+	FFDBG_PRINTLN(10, "chunk \"%4s\"  size:%u  off:%xU"
+		, ch->id, chunk->size, off);
 	return 0;
 }
 
@@ -250,7 +234,7 @@ void ffwav_close(ffwav *w)
 	ffarr_free(&w->buf);
 }
 
-enum { R_FIRSTCHUNK, R_NEXTCHUNK, R_GATHER, R_CHUNKHDR, R_CHUNK, R_SKIP,
+enum { R_FIRSTCHUNK, R_NEXTCHUNK, R_GATHER, R_CHUNKHDR, R_CHUNK, R_SKIP, R_PADDING,
 	R_DATA, R_DATAOK, R_BUFDATA, R_SEEK };
 
 void ffwav_seek(ffwav *w, uint64 sample)
@@ -262,18 +246,20 @@ void ffwav_seek(ffwav *w, uint64 sample)
 void ffwav_init(ffwav *w)
 {
 	w->state = R_FIRSTCHUNK;
-	w->ctx[0] = wav_ctx_global;
+	w->chunks[0].ctx = wav_ctx_global;
+	w->chunks[0].size = (uint)-1;
 }
 
 int ffwav_decode(ffwav *w)
 {
 	int r;
+	struct ffwav_chunk *chunk, *parent;
 
 	for (;;) {
 	switch (w->state) {
 
-	case R_SKIP: {
-		struct ffwav_chunk *chunk = &w->chunks[w->ictx];
+	case R_SKIP:
+		chunk = &w->chunks[w->ictx];
 		r = ffmin(chunk->size, w->datalen);
 		FFARR_SHIFT(w->data, w->datalen, r);
 		chunk->size -= r;
@@ -282,30 +268,47 @@ int ffwav_decode(ffwav *w)
 			return FFWAV_RMORE;
 
 		w->state = R_NEXTCHUNK;
-		// break
-	}
+		continue;
 
-	case R_NEXTCHUNK:
+	case R_PADDING:
 		if (w->datalen == 0)
-			return (w->fin) ? FFWAV_RDONE : FFWAV_RMORE;
+			return FFWAV_RMORE;
 
 		if (((char*)w->data)[0] == '\0') {
 			// skip padding byte
 			FFARR_SHIFT(w->data, w->datalen, 1);
 			w->off += 1;
-			if (w->ictx >= 1) {
-				struct ffwav_chunk *parent = &w->chunks[w->ictx - 1];
-				if (parent->size != 0)
-					parent->size -= 1;
+			parent = &w->chunks[w->ictx - 1];
+			if (parent->size != 0)
+				parent->size -= 1;
+		}
+
+		w->state = R_NEXTCHUNK;
+		// break
+
+	case R_NEXTCHUNK:
+		chunk = &w->chunks[w->ictx];
+
+		if (chunk->size == 0) {
+			if (chunk->flags & F_PADD) {
+				chunk->flags &= ~F_PADD;
+				w->state = R_PADDING;
+				continue;
 			}
+
+			uint id = chunk->id;
+			ffmem_tzero(chunk);
+			w->ictx--;
+
+			switch (id) {
+			case T_RIFF:
+				return FFWAV_RDONE;
+			}
+
 			continue;
 		}
 
-		if (w->ictx >= 1) {
-			struct ffwav_chunk *parent = &w->chunks[w->ictx - 1];
-			if (parent->size == 0)
-				w->ctx[w->ictx--] = NULL;
-		}
+		FF_ASSERT(chunk->ctx != NULL);
 		// break
 
 	case R_FIRSTCHUNK:
@@ -327,11 +330,11 @@ int ffwav_decode(ffwav *w)
 		continue;
 
 	case R_CHUNKHDR: {
-		struct ffwav_chunk *chunk = &w->chunks[w->ictx];
-		wav_findchunk(w->gather_buf.ptr, w->ctx[w->ictx], chunk);
+		parent = &w->chunks[w->ictx];
+		chunk = &w->chunks[++w->ictx];
+		wav_findchunk(w->gather_buf.ptr, parent->ctx, chunk, w->off - w->gather_buf.len);
 
-		if (w->ictx != 0 && !(chunk->id == T_DATA && chunk->size == (uint)-1)) {
-			struct ffwav_chunk *parent = &w->chunks[w->ictx - 1];
+		if (!(chunk->id == T_DATA && chunk->size == (uint)-1)) {
 			if (chunk->size > parent->size)
 				return ERR(w, WAV_ELARGE);
 			parent->size -= sizeof(struct wav_chunk) + chunk->size;
@@ -361,25 +364,23 @@ int ffwav_decode(ffwav *w)
 		continue;
 	}
 
-	case R_CHUNK: {
-		struct ffwav_chunk *chunk = &w->chunks[w->ictx];
+	case R_CHUNK:
+		chunk = &w->chunks[w->ictx];
 
-		if (chunk->id >= _T_TAG_FIRST) {
-			w->tag = wav_tag[chunk->id - _T_TAG_FIRST];
+		if (chunk->id & T_TAG) {
+			w->tag = chunk->id & ~T_TAG;
 			ffstr_setz(&w->tagval, w->gather_buf.ptr);
 			w->state = R_NEXTCHUNK;
 			return FFWAV_RTAG;
 		}
 
 		switch (chunk->id) {
-		case T_RIFF: {
-			const struct wav_riff *riff = (void*)w->gather_buf.ptr;
-			if (!!ffs_cmp(riff->wave, "WAVE", 4))
+		case T_RIFF:
+			if (!!ffs_cmp(w->gather_buf.ptr, "WAVE", 4))
 				return ERR(w, WAV_ERIFF);
 
-			w->ctx[++w->ictx] = wav_ctx_riff;
+			w->chunks[w->ictx].ctx = wav_ctx_riff;
 			break;
-		}
 
 		case T_FMT:
 			if (w->has_fmt)
@@ -389,44 +390,42 @@ int ffwav_decode(ffwav *w)
 			if (0 > (r = wav_fmt(w->gather_buf.ptr, w->gather_buf.len, &w->fmt, &w->bitrate)))
 				return ERR(w, -r);
 
-			if (NULL == ffarr_realloc(&w->buf, ffpcm_size1(&w->fmt)))
+			w->sampsize = ffpcm_size1(&w->fmt);
+			if (NULL == ffarr_realloc(&w->buf, w->sampsize))
 				return ERR(w, WAV_ESYS);
 			break;
 
-		case T_LIST: {
-			const struct wav_list *list = (void*)w->gather_buf.ptr;
-			if (!!ffs_cmp(list->info, "INFO", 4)) {
+		case T_LIST:
+			if (!!ffs_cmp(w->gather_buf.ptr, "INFO", 4)) {
 				w->state = R_SKIP;
 				continue;
 			}
 
-			w->ctx[++w->ictx] = wav_ctx_list;
+			w->chunks[w->ictx].ctx = wav_ctx_list;
 			break;
-		}
 
 		case T_DATA:
 			if (!w->has_fmt)
 				return ERR(w, WAV_ENOFMT);
 
 			w->dataoff = w->off;
-			w->datasize = ff_align_floor(chunk->size, ffpcm_size1(&w->fmt));
+			w->datasize = ff_align_floor(chunk->size, w->sampsize);
 			if (!w->inf_data)
-				w->total_samples = chunk->size / ffpcm_size1(&w->fmt);
+				w->total_samples = chunk->size / w->sampsize;
 			w->state = R_DATA;
 			return FFWAV_RHDR;
 		}
 
 		w->state = R_NEXTCHUNK;
 		continue;
-	}
 
 	case R_SEEK:
-		w->off = w->dataoff + w->datasize * w->cursample / w->total_samples;
+		w->off = w->dataoff + w->cursample * w->sampsize;
 		w->state = R_DATA;
 		return FFWAV_RSEEK;
 
 	case R_DATAOK:
-		w->cursample += w->pcmlen / ffpcm_size1(&w->fmt);
+		w->cursample += w->pcmlen / w->sampsize;
 		w->state = R_DATA;
 		// break
 
@@ -437,10 +436,10 @@ int ffwav_decode(ffwav *w)
 			continue;
 		}
 		uint n = (uint)ffmin(chunk_size, w->datalen);
-		n = ff_align_floor(n, ffpcm_size1(&w->fmt));
+		n = ff_align_floor(n, w->sampsize);
 
 		if (n == 0) {
-			w->gather_size = ffpcm_size1(&w->fmt);
+			w->gather_size = w->sampsize;
 			w->state = R_GATHER,  w->nxstate = R_BUFDATA;
 			continue; //not even 1 complete PCM sample
 		}
@@ -470,7 +469,7 @@ int ffwav_create(ffwav_cook *w, ffpcm *fmt, uint64 total_samples)
 	w->fmt = *fmt;
 	w->total_samples = total_samples;
 	w->dsize = (w->total_samples != 0) ? w->total_samples * ffpcm_size1(&w->fmt) : (uint)-1;
-	w->doff = sizeof(struct wav_chunk) + sizeof(struct wav_riff)
+	w->doff = sizeof(struct wav_chunk) + FFSLEN("WAVE")
 		+ sizeof(struct wav_chunk) + sizeof(struct wav_fmt)
 		+ sizeof(struct wav_chunk);
 	w->seekable = 1;
@@ -494,7 +493,7 @@ int ffwav_write(ffwav_cook *w)
 			return ERR(w, WAV_ESYS);
 
 		ffmemcpy(w->buf.ptr, "RIFF\0\0\0\0WAVE", 12);
-		p = w->buf.ptr + sizeof(struct wav_chunk) + sizeof(struct wav_riff);
+		p = w->buf.ptr + 12;
 
 		ch = p;
 		p += sizeof(struct wav_chunk);
