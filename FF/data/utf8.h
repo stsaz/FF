@@ -77,3 +77,9 @@ static FFINL size_t ffutf8_encodewhole(char *dst, size_t cap, const char *src, s
 }
 
 FF_EXTN size_t ffutf8_strencode(ffstr3 *dst, const char *src, size_t len, uint flags);
+
+
+/** Find a character.
+@len: length of buffer in bytes
+Return -1 if NULL-character isn't found. */
+FF_EXTN ssize_t ffutf16_findc(const char *s, size_t len, int ch);

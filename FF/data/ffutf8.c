@@ -371,3 +371,15 @@ size_t ffutf8_strencode(ffstr3 *dst, const char *src, size_t len, uint flags)
 	dst->len = r;
 	return r;
 }
+
+
+ssize_t ffutf16_findc(const char *s, size_t len, int ch)
+{
+	const short *p = (void*)s;
+	len /= 2;
+	for (uint i = 0;  i != len;  i++) {
+		if (p[i] == ch)
+			return i * 2;
+	}
+	return -1;
+}
