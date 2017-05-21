@@ -947,7 +947,10 @@ do { \
 do { \
 	(it)->item.mask |= LVIF_STATE; \
 	(it)->item.stateMask |= LVIS_SELECTED; \
-	(it)->item.state |= (select) ? LVIS_SELECTED : 0; \
+	if (select) \
+		(it)->item.state |= LVIS_SELECTED; \
+	else \
+		(it)->item.state &= ~LVIS_SELECTED; \
 } while (0)
 
 #define ffui_view_selected(it)  !!((it)->item.state & LVIS_SELECTED)
