@@ -19,10 +19,10 @@ const char* ffpsarg_next(ffpsarg *a)
 {
 	ffstr arg;
 	char *q, *q2, *p, *end;
-	if (a->cmdln.len == a->cmdln.cap)
-		return NULL;
 	size_t n = ffstr_nextval(ffarr_end(&a->cmdln), ffarr_unused(&a->cmdln), &arg, ' ' | FFSTR_NV_DBLQUOT);
 	a->cmdln.len += n;
+	if (a->cmdln.len == a->cmdln.cap && arg.len == 0)
+		return NULL;
 
 	if (ffarr_end(&arg) != (q = ffs_finds(arg.ptr, arg.len, "=\"", 2))) {
 		// --key="value with space" -> --key=value with space
