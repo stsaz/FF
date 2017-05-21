@@ -261,6 +261,13 @@ void ffmpg_rclose(ffmpgr *m)
 	ffarr_free(&m->buf2);
 }
 
+uint ffmpg_bitrate(ffmpgr *m)
+{
+	if (m->total_size == 0 || !ffmpg_isvbr(m))
+		return ffmpg_hdr_bitrate(&m->firsthdr);
+	return ffpcm_brate(m->total_size - m->dataoff, m->total_samples, m->fmt.sample_rate);
+}
+
 void ffmpg_rseek(ffmpgr *m, uint64 sample)
 {
 	if (m->total_size == 0 || m->total_samples == 0)

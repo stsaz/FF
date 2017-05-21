@@ -66,12 +66,7 @@ FF_EXTN void ffmpg_rseek(ffmpgr *m, uint64 sample);
 FF_EXTN const char* ffmpg_rerrstr(ffmpgr *m);
 
 /** Get stream bitrate. */
-static FFINL uint ffmpg_bitrate(ffmpgr *m)
-{
-	if (m->total_size == 0)
-		return ffmpg_hdr_bitrate(&m->firsthdr);
-	return ffpcm_brate(m->total_size - m->dataoff, m->total_samples, m->fmt.sample_rate);
-}
+FF_EXTN uint ffmpg_bitrate(ffmpgr *m);
 
 #define ffmpg_fmt(m)  ((m)->fmt)
 
