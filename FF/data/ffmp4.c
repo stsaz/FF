@@ -949,8 +949,8 @@ int ffmp4_write(ffmp4_cook *m)
 		} else if (m->datalen == 0)
 			return FFMP4_RMORE;
 
-		if (NULL == ffarr_growT(&m->stsz, 1, 128 | FFARR_GROWQUARTER, int)
-			|| NULL == ffarr_growT(&m->stco, 1, 4 | FFARR_GROWQUARTER, int))
+		if (NULL == ffarr_grow(&m->stsz, sizeof(int), (128 * sizeof(int)) | FFARR_GROWQUARTER)
+			|| NULL == ffarr_grow(&m->stco, sizeof(int), (4 * sizeof(int)) | FFARR_GROWQUARTER))
 			return ERR(m, MP4_ESYS);
 		goto fr;
 
