@@ -152,7 +152,7 @@ FF_EXTN void ffmpg_fclose(ffmpgfile *m);
 /** Get an absolute file offset to seek. */
 #define ffmpg_seekoff(m)  ((m)->rdr.off)
 
-#define ffmpg_hdrok(m)  ((m)->rdr.fmt.format != 0)
+#define ffmpg_hdrok(m)  ((m)->rdr.fmt.channels != 0)
 
 FF_EXTN int ffmpg_read(ffmpgfile *m);
 

@@ -16,6 +16,7 @@ struct opus_hdr {
 	//byte unused[3];
 };
 
+#define FFOPUS_TAGS_STR  "OpusTags"
 
 #define ERR(o, n) \
 	(o)->err = n,  FFOPUS_RERR
@@ -69,7 +70,7 @@ int ffopus_decode(ffopus *o, const void *pkt, size_t len)
 	case R_HDR: {
 		const struct opus_hdr *h = pkt;
 		if (len < sizeof(struct opus_hdr)
-			|| memcmp(h->id, "OpusHead", 8))
+			|| memcmp(h->id, FFOPUS_HEAD_STR, 8))
 			return ERR(o, FFOPUS_EHDR);
 
 		if (h->ver != 1)
@@ -95,7 +96,7 @@ int ffopus_decode(ffopus *o, const void *pkt, size_t len)
 	}
 
 	case R_TAGS:
-		if (len < 8 || memcmp(pkt, "OpusTags", 8))
+		if (len < 8 || memcmp(pkt, FFOPUS_TAGS_STR, 8))
 			return ERR(o, FFOPUS_ETAG);
 		o->vtag.data = pkt + 8,  o->vtag.datalen = len - 8;
 		o->state = R_TAG;
@@ -163,7 +164,7 @@ int ffopus_create(ffopus_enc *o, const ffpcm *fmt, int bitrate)
 
 	if (NULL == ffarr_alloc(&o->vtag.out, 4096))
 		return ERR(o, FFOPUS_ESYS);
-	o->vtag.out.len = FFSLEN("OpusTags");
+	o->vtag.out.len = FFSLEN(FFOPUS_TAGS_STR);
 	const char *vendor = opus_vendor();
 	ffvorbtag_add(&o->vtag, NULL, vendor, ffsz_len(vendor));
 
@@ -192,8 +193,8 @@ static int _ffopus_tags(ffopus_enc *o, ffstr *pkt)
 {
 	ffarr *vt = &o->vtag.out;
 	ffvorbtag_fin(&o->vtag);
-	uint taglen = vt->len - FFSLEN("OpusTags");
-	ffmemcpy(vt->ptr, "OpusTags", 8);
+	uint taglen = vt->len - FFSLEN(FFOPUS_TAGS_STR);
+	ffmemcpy(vt->ptr, FFOPUS_TAGS_STR, 8);
 	uint npadding = (taglen < o->min_tagsize) ? o->min_tagsize - taglen : 0;
 	if (NULL == ffarr_grow(vt, npadding, 0))
 		return FFOPUS_ESYS;
@@ -215,7 +216,7 @@ int ffopus_encode(ffopus_enc *o)
 	switch (o->state) {
 	case W_HDR: {
 		struct opus_hdr *h = (void*)o->buf.ptr;
-		ffmemcpy(h->id, "OpusHead", 8);
+		ffmemcpy(h->id, FFOPUS_HEAD_STR, 8);
 		h->ver = 1;
 		h->channels = o->channels;
 		ffint_htol32(h->orig_sample_rate, o->orig_sample_rate);

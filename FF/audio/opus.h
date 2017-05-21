@@ -29,6 +29,8 @@ enum FFOPUS_R {
 FF_EXTN const char* _ffopus_errstr(int e);
 
 
+#define FFOPUS_HEAD_STR  "OpusHead"
+
 typedef struct ffopus {
 	uint state;
 	int err;
@@ -61,8 +63,8 @@ static FFINL void ffopus_seek(ffopus *o, uint64 sample)
 	o->seek_sample = sample + o->info.preskip;
 }
 
-/** Decode OGG stream.
-Return enum FFOGG_R. */
+/** Decode Opus packet.
+Return enum FFOPUS_R. */
 FF_EXTN int ffopus_decode(ffopus *o, const void *pkt, size_t len);
 
 /** Get an absolute sample number. */
