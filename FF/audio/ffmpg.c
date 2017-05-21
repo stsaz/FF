@@ -315,7 +315,7 @@ static int _ffmpg_streaminfo(ffmpgr *m, const char *p, uint datalen)
 	}
 
 	if (m->total_len == 0)
-		m->total_len = m->total_size * 1000 / (ffmpg_hdr_bitrate(h) / 8);
+		m->total_len = (m->total_size - m->dataoff) * 1000 / (ffmpg_hdr_bitrate(h) / 8);
 
 	m->total_samples = ffpcm_samples(m->total_len, ffmpg_hdr_sample_rate(h));
 	return 0;
