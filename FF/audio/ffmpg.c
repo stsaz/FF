@@ -477,13 +477,11 @@ int ffmpg_readframe(ffmpgr *m, ffstr *frame)
 				r = FFMPG_RHDR;
 				goto fr;
 			}
-			m->cur_sample += m->frsamps;
 			m->dataoff = m->off - m->buf.len;
 			r = FFMPG_RFRAME1;
 			goto fr;
 		}
 
-		m->cur_sample += m->frsamps;
 		m->state = R_FR2;
 		r = FFMPG_RFRAME;
 		goto fr;
@@ -493,6 +491,7 @@ int ffmpg_readframe(ffmpgr *m, ffstr *frame)
 		uint off = ffmpg_hdr_framelen((void*)m->buf.ptr);
 		ffstr_set2(frame, &m->buf);
 		ffstr_shift(frame, off);
+		m->frsamps = ffmpg_hdr_frame_samples((void*)frame->ptr);
 		m->buf.len = 0;
 		m->state = R_FR;
 		r = FFMPG_RFRAME;
@@ -508,7 +507,6 @@ int ffmpg_readframe(ffmpgr *m, ffstr *frame)
 		ffstr_set(frame, m->buf.ptr, m->buf.len);
 		m->buf.len = 0;
 		m->frsamps = ffmpg_hdr_frame_samples((void*)frame->ptr);
-		m->cur_sample += m->frsamps;
 		r = FFMPG_RFRAME;
 		goto fr;
 	}
@@ -517,6 +515,7 @@ int ffmpg_readframe(ffmpgr *m, ffstr *frame)
 	return FFMPG_RERR;
 
 fr:
+	m->cur_sample += m->frsamps;
 	FFDBG_PRINTLN(10, "frame #%u  size:%L  bitrate:%u  offset:%xU"
 		, m->frno++, frame->len, ffmpg_hdr_bitrate((void*)frame->ptr), m->off - frame->len);
 	return r;
@@ -637,6 +636,7 @@ int ffmpg_open(ffmpg *m, uint options)
 	}
 	m->fmt.format = (options & FFMPG_O_INT16) ? FFPCM_16 : FFPCM_FLOAT;
 	m->fmt.ileaved = 1;
+	m->seek = (uint64)-1;
 	return 0;
 }
 
@@ -649,6 +649,7 @@ void ffmpg_close(ffmpg *m)
 void ffmpg_seek(ffmpg *m, uint64 sample)
 {
 	mpg123_decode(m->m123, (void*)-1, (size_t)-1, NULL); //reset bufferred data
+	m->seek = sample;
 }
 
 int ffmpg_decode(ffmpg *m)
@@ -663,7 +664,21 @@ int ffmpg_decode(ffmpg *m)
 		m->err = r;
 		return FFMPG_RWARN;
 	}
+
+	if (m->seek != (uint64)-1) {
+		FF_ASSERT(m->seek >= m->pos);
+		uint skip = m->seek - m->pos;
+		if (skip >= (uint)r)
+			return FFMPG_RMORE;
+
+		m->seek = (uint64)-1;
+		m->pcmi = (void*)((char*)m->pcmi + skip * ffpcm_size1(&m->fmt));
+		r -= skip;
+		m->pos += skip;
+	}
+
 	m->pcmlen = r;
+	m->pos += m->pcmlen / ffpcm_size1(&m->fmt);
 	return FFMPG_RDATA;
 }
 

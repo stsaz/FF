@@ -162,6 +162,9 @@ typedef struct ffmpg {
 	int err;
 	mpg123 *m123;
 	ffpcmex fmt;
+	uint64 pos;
+	uint64 seek;
+
 	ffstr input;
 	size_t pcmlen;
 	void *pcmi; //libmpg123: float | short
@@ -182,6 +185,10 @@ FF_EXTN void ffmpg_close(ffmpg *m);
 /** Decode 1 frame.
 Return enum FFMPG_R. */
 FF_EXTN int ffmpg_decode(ffmpg *m);
+
+FF_EXTN void ffmpg_seek(ffmpg *m, uint64 sample);
+
+#define ffmpg_pos(m)  ((m)->pos - (m)->pcmlen / ffpcm_size1(&(m)->fmt))
 
 
 enum FFMPG_ENC_OPT {
