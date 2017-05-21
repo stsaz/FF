@@ -494,6 +494,7 @@ enum FFINT_TOSTR {
 	, FFINT_OCTAL = 0x20
 	, FFINT_ZEROWIDTH = 8
 	, FFINT_SEP1000 = 0x10 // use thousands separator, e.g. "1,000"
+	, FFINT_NEG = 0x40 // value is always negative
 
 	, _FFINT_WIDTH_MASK = 0xff000000
 	, _FFS_FLT_FRAC_WIDTH_MASK = 0x00ff0000

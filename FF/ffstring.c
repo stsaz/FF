@@ -827,6 +827,8 @@ uint ffs_fromint(uint64 i, char *dst, size_t cap, int flags)
 		i = -(int64)i;
 		minus = 1;
 	}
+	if (flags & FFINT_NEG)
+		minus = 1;
 
 	if (flags & FFINT_OCTAL)
 		ps = _ffs_fromint_hex(ps, i, flags);
@@ -999,6 +1001,7 @@ uint ffs_fromfloat(double d, char *dst, size_t cap, uint flags)
 	uint64 num, frac = 0;
 	uint width = ((flags & _FFINT_WIDTH_MASK) >> 24), wfrac = ((flags & _FFS_FLT_FRAC_WIDTH_MASK) >> 16), n, scale;
 	ffbool minus = 0;
+	flags &= FFINT_ZEROWIDTH;
 
 	if (cap == 0)
 		return 0;
@@ -1006,6 +1009,7 @@ uint ffs_fromfloat(double d, char *dst, size_t cap, uint flags)
 	if (d < 0) {
 		d = -d;
 		minus = 1;
+		flags |= FFINT_NEG;
 	}
 
 	if (isinf(d)) {
@@ -1029,12 +1033,7 @@ uint ffs_fromfloat(double d, char *dst, size_t cap, uint flags)
 		}
 	}
 
-	if (minus) {
-		if (num == 0) // "-0.x"
-			buf = ffs_copyc(buf, end, '-');
-		num = -num;
-	}
-	buf += ffs_fromint(num, buf, end - buf, (flags & FFINT_ZEROWIDTH) | FFINT_SIGNED | FFINT_WIDTH(width));
+	buf += ffs_fromint(num, buf, end - buf, flags | FFINT_SIGNED | FFINT_WIDTH(width));
 
 	if (wfrac != 0) {
 		buf = ffs_copyc(buf, end, '.');
@@ -1102,7 +1101,7 @@ ssize_t ffs_fmtv2(char *buf_o, size_t cap, const char *fmt, va_list va)
 		}
 		fmt++; //skip %
 
-		wfrac = 0;
+		wfrac = -1;
 		itoaFlags = 0;
 		hexstr_flags = 0;
 
@@ -1181,6 +1180,8 @@ format:
 		case 'F':
 			d = va_arg(va, double);
 			width = ffmin(width, 255);
+			if (wfrac == (uint)-1)
+				wfrac = 6;
 			wfrac = ffmin(wfrac, 255);
 			float_flags = (itoaFlags & FFINT_ZEROWIDTH) | FFINT_WIDTH(width) | FFS_INT_WFRAC(wfrac);
 			uint n = ffs_fromfloat(d, buf, end - buf, float_flags);

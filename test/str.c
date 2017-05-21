@@ -327,6 +327,10 @@ static int test_strf()
 	x(ffstr_eqcz(&s, "-09 -543fe  -5 0x00ab1234")),  s.len = 0;
 
 	x(0 != ffstr_catfmt(&s, "%06.5F", (double)12345.6789) && ffstr_eqcz(&s, "012345.67890")),  s.len = 0;
+	x(0 != ffstr_catfmt(&s, "%3.02F", (double)-0.123) && ffstr_eqcz(&s, " -0.12")),  s.len = 0;
+	x(0 != ffstr_catfmt(&s, "%3.02F", (double)-12.12) && ffstr_eqcz(&s, "-12.12")),  s.len = 0;
+	x(0 != ffstr_catfmt(&s, "%F", (double)-0.005) && ffstr_eqcz(&s, "-0.005000")),  s.len = 0;
+	x(0 != ffstr_catfmt(&s, "%.0F", (double)-0.005) && ffstr_eqcz(&s, "-0")),  s.len = 0;
 
 	s.len = 0;
 	ffstr_setcz(&s1, "hello");
