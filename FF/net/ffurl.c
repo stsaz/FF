@@ -283,6 +283,24 @@ ffstr ffurl_get(const ffurl *url, const char *base, int comp)
 	return s;
 }
 
+int ffurl_parse_ip(ffurl *u, const char *base, ffip6 *dst)
+{
+	ffstr s = ffurl_get(u, base, FFURL_HOST);
+	if (u->ipv4) {
+		if (0 != ffip4_parse((void*)dst, s.ptr, s.len))
+			return -1;
+		return AF_INET;
+
+	} else if (u->ipv6) {
+		if (0 != ffip6_parse((void*)dst, s.ptr, s.len))
+			return -1;
+		return AF_INET6;
+	}
+
+	return 0;
+}
+
+
 size_t ffuri_decode(char *dst, size_t dstcap, const char *d, size_t len)
 {
 	enum { iUri, iQuoted1, iQuoted2 };
@@ -550,187 +568,66 @@ int ffurlqs_schemfin(ffparser_schem *ps)
 }
 
 
-int ffip4_parse(struct in_addr *a, const char *s, size_t len)
+int ffip_next(ffip_iter *it, void **ip)
 {
-	byte *adr = (byte*)a;
-	uint nadr = 0;
-	uint ndig = 0;
-	uint b = 0;
-	uint i;
+	if (it->list != NULL) {
 
-	for (i = 0;  i < len;  i++) {
-		uint ch = (byte)s[i];
-
-		if (ffchar_isdigit(ch) && ndig != 3) {
-			b = b * 10 + ffchar_tonum(ch);
-			if (b > 0xff)
-				return -1;
-			ndig++;
+		if (it->idx < it->list->ip4.len) {
+			*ip = ffarr_itemT(&it->list->ip4, it->idx, ffip4);
+			it->idx++;
+			return AF_INET;
 		}
-		else if (ch == '.' && nadr != 4 && ndig != 0) {
-			adr[nadr++] = b;
-			b = 0;
-			ndig = 0;
+		if (it->idx - it->list->ip4.len < it->list->ip6.len) {
+			*ip = ffarr_itemT(&it->list->ip6, it->idx - it->list->ip4.len, ffip6);
+			it->idx++;
+			return AF_INET6;
 		}
-		else
-			return -1;
+		it->list = NULL;
 	}
 
-	if (nadr == 4-1 && ndig != 0) {
-		adr[nadr] = b;
-		return 0;
+	if (it->ai != NULL) {
+		uint family = it->ai->ai_family;
+		union {
+			struct sockaddr_in *a;
+			struct sockaddr_in6 *a6;
+		} u;
+		u.a = (void*)it->ai->ai_addr;
+		*ip = (family == AF_INET) ? (void*)&u.a->sin_addr : (void*)&u.a6->sin6_addr;
+		it->ai = it->ai->ai_next;
+		return family;
 	}
-
-	return -1;
-}
-
-size_t ffip4_tostr(char *dst, size_t cap, const void *addr, size_t addrlen, int port)
-{
-	const byte *a = addr;
-	if (addrlen != 4)
-		return 0;
-	return ffs_fmt(dst, dst + cap, (port != 0 ? "%u.%u.%u.%u:%u" : "%u.%u.%u.%u")
-		, (byte)a[0], (byte)a[1], (byte)a[2], (byte)a[3], port);
-}
-
-int ffip6_parse(struct in6_addr *a, const char *s, size_t len)
-{
-	uint i;
-	uint chunk = 0;
-	uint ndigs = 0;
-	char *dst = (char*)a;
-	const char *end = (char*)a + 16;
-	int hx;
-	const char *zr = NULL;
-
-	for (i = 0;  i < len;  i++) {
-		int b = s[i];
-
-		if (dst == end)
-			return -1; // too large input
-
-		if (b == ':') {
-
-			if (ndigs == 0) { // "::"
-				uint k;
-
-				if (i == 0) {
-					i++;
-					if (i == len || s[i] != ':')
-						return -1; // ":" or ":?"
-				}
-
-				if (zr != NULL)
-					return -1; // second "::"
-
-				// count the number of chunks after zeros
-				zr = end;
-				if (i != len - 1)
-					zr -= 2;
-				for (k = i + 1;  k < len;  k++) {
-					if (s[k] == ':')
-						zr -= 2;
-				}
-
-				// fill with zeros
-				while (dst != zr)
-					*dst++ = '\0';
-
-				continue;
-			}
-
-			*dst++ = chunk >> 8;
-			*dst++ = chunk & 0xff;
-			ndigs = 0;
-			chunk = 0;
-			continue;
-		}
-
-		if (ndigs == 4)
-			return -1; // ":12345"
-
-		hx = ffchar_tohex(b);
-		if (hx == -1)
-			return -1; // invalid hex char
-
-		chunk = (chunk << 4) | hx;
-		ndigs++;
-	}
-
-	if (ndigs != 0) {
-		*dst++ = chunk >> 8;
-		*dst++ = chunk & 0xff;
-	}
-
-	if (dst != end)
-		return -1; // too small input
 
 	return 0;
 }
 
-size_t ffip6_tostr(char *dst, size_t cap, const void *addr, size_t addrlen, int port)
+
+uint ffip_tostr(char *buf, size_t cap, uint family, const void *ip, uint port)
 {
-	const byte *a = addr;
-	char *p = dst;
-	const char *end = dst + cap;
-	int i;
-	int cut_from = -1
-		, cut_len = 0;
-	int zrbegin = 0
-		, nzr = 0;
+	char *end = buf + cap, *p = buf;
+	uint n;
 
-	if (addrlen != 16)
-		return 0;
+	if (family == AF_INET) {
+		if (0 == (n = ffip4_tostr(buf, cap, ip)))
+			return 0;
+		p += n;
 
-	// get the maximum length of zeros to cut off
-	for (i = 0;  i < 16;  i += 2) {
-		if (a[i] == '\0' && a[i + 1] == '\0') {
-			if (nzr == 0)
-				zrbegin = i;
-			nzr += 2;
-
-		} else if (nzr != 0) {
-			if (nzr > cut_len) {
-				cut_from = zrbegin;
-				cut_len = nzr;
-			}
-			nzr = 0;
-		}
-	}
-
-	if (nzr > cut_len) {
-		// zeros at the end of address
-		cut_from = zrbegin;
-		cut_len = nzr;
+	} else {
+		if (port != 0)
+			p = ffs_copyc(p, end, '[');
+		if (0 == (n = ffip6_tostr(p, end - p, ip)))
+			return 0;
+		p += n;
+		if (port != 0)
+			p = ffs_copyc(p, end, ']');
 	}
 
 	if (port != 0)
-		p = ffs_copyc(p, end, '[');
+		p += ffs_fmt(p, end, ":%u", port);
 
-	for (i = 0;  i < 16; ) {
-		if (i == cut_from) {
-			// cut off the sequence of zeros
-			p = ffs_copyc(p, end, ':');
-			i = cut_from + cut_len;
-			if (i == 16)
-				p = ffs_copyc(p, end, ':');
-			continue;
-		}
-
-		if (i != 0)
-			p = ffs_copyc(p, end, ':');
-		p += ffs_fromint(ffint_ntoh16(a + i), p, end - p, FFINT_HEXLOW); //convert 16-bit number to string
-		i += 2;
-	}
-
-	if (port != 0)
-		p += ffs_fmt(p, end, "]:%u", port);
-
-	return p - dst;
+	return p - buf;
 }
 
-
-int ffaddr_split(const char *data, size_t len, ffstr *ip, ffstr *port)
+int ffip_split(const char *data, size_t len, ffstr *ip, ffstr *port)
 {
 	if (NULL == ffs_rsplit2by(data, len, ':', ip, port) || port->len == 0)
 		return -1;
@@ -745,18 +642,19 @@ int ffaddr_split(const char *data, size_t len, ffstr *ip, ffstr *port)
 	return 0;
 }
 
+
 int ffaddr_set(ffaddr *a, const char *ip, size_t iplen, const char *port, size_t portlen)
 {
 	ushort nport;
-	struct in6_addr a6;
-	struct in_addr a4;
+	ffip6 a6;
+	ffip4 a4;
 
 	if (iplen == 0) {
 		ffaddr_setany(a, AF_INET6);
 	} else if (0 == ffip4_parse(&a4, ip, iplen))
-		ffip4_set(a, &a4);
+		ffip4_set(a, (void*)&a4);
 	else if (0 == ffip6_parse(&a6, ip, iplen))
-		ffip6_set(a, &a6);
+		ffip6_set(a, (void*)&a6);
 	else
 		return 1; //invalid IP
 

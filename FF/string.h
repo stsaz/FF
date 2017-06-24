@@ -462,9 +462,9 @@ FF_EXTN const char ffHEX[16];
 
 /** Convert a byte into 2-byte hex string.
 @hex: alphabet to use. */
-static FFINL int ffs_hexbyte(char *dst, uint b, const char *hex) {
-	dst[0] = hex[b >> 4];
-	dst[1] = hex[b & 0x0f];
+static FFINL int ffs_hexbyte(char *dst, int b, const char *hex) {
+	dst[0] = hex[(byte)b >> 4];
+	dst[1] = hex[(byte)b & 0x0f];
 	return 2;
 }
 

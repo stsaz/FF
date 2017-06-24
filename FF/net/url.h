@@ -1,4 +1,4 @@
-/** URL.  IPv4, IPv6.
+/** URL.
 Copyright (c) 2013 Simon Zolin
 */
 
@@ -6,6 +6,7 @@ Copyright (c) 2013 Simon Zolin
 
 #include <FF/array.h>
 #include <FF/data/parse.h>
+#include <FF/net/proto.h>
 #include <FFOS/socket.h>
 
 
@@ -74,6 +75,11 @@ enum FFURL_COMP {
 /** Get a component of the URL. */
 FF_EXTN ffstr ffurl_get(const ffurl *url, const char *base, int comp);
 
+/**
+Return address family;  0 if not an IP address;  -1 on error */
+FF_EXTN int ffurl_parse_ip(ffurl *u, const char *base, ffip6 *dst);
+
+
 /** Decode %xx in URI.
 Normalize path: /./ and /../
 Return the number of bytes written into dst.
@@ -117,31 +123,44 @@ FF_EXTN int ffurlqs_scheminit(ffparser_schem *ps, ffparser *p, const ffpars_ctx 
 FF_EXTN int ffurlqs_schemfin(ffparser_schem *ps);
 
 
-/** Parse IPv4 address.
-Return 0 on success. */
-FF_EXTN int ffip4_parse(struct in_addr *a, const char *s, size_t len);
+typedef struct ffiplist {
+	ffarr2 ip4; //ffip4[]
+	ffarr2 ip6; //ffip6[]
+} ffiplist;
 
-/** Convert IPv4 address to string, e.g. "127.0.0.1:80" or "127.0.0.1"
-'port': optional parameter.
-Return the number of characters written. */
-FF_EXTN size_t ffip4_tostr(char *dst, size_t cap, const void *addr, size_t addrlen, int port);
+typedef struct ffip_iter {
+	uint idx;
+	ffiplist *list;
+	ffaddrinfo *ai;
+} ffip_iter;
 
-/** Parse IPv6 address.
-Return 0 on success.
-Note: v4-mapped address is not supported. */
-FF_EXTN int ffip6_parse(struct in6_addr *a, const char *s, size_t len);
+static FFINL void ffip_list_set(ffiplist *l, uint family, const void *ip)
+{
+	ffarr2 *a = (family == AF_INET) ? &l->ip4 : &l->ip6;
+	a->len = 1;
+	a->ptr = (void*)ip;
+}
 
-/** Convert IPv6 address to string, e.g. "[::1]:80" or "::1"
-'port': optional parameter.
-Return the number of characters written.
-Note: v4-mapped address is not supported. */
-FF_EXTN size_t ffip6_tostr(char *dst, size_t cap, const void *addr, size_t addrlen, int port);
+#define ffip_iter_set(a, iplist, ainfo) \
+do { \
+	(a)->idx = 0; \
+	(a)->list = iplist; \
+	(a)->ai = ainfo; \
+} while (0)
 
+/** Get next address.
+Return address family;  0 if no next address. */
+FF_EXTN int ffip_next(ffip_iter *it, void **ip);
+
+
+/** Convert IP address to string
+'port': optional parameter (e.g. "127.0.0.1:80", "[::1]:80"). */
+FF_EXTN uint ffip_tostr(char *buf, size_t cap, uint family, const void *ip, uint port);
 
 /** Split "IP:PORT" address string.
 e.g.: "127.0.0.1:80", "[::1]:80", ":80".
 Return 0 on success. */
-FF_EXTN int ffaddr_split(const char *s, size_t len, ffstr *ip, ffstr *port);
+FF_EXTN int ffip_split(const char *s, size_t len, ffstr *ip, ffstr *port);
 
 enum FFADDR_FLAGS {
 	FFADDR_USEPORT = 1
@@ -150,14 +169,8 @@ enum FFADDR_FLAGS {
 /** Convert IPv4/IPv6 address to string.
 @flags: enum FFADDR_FLAGS. */
 static FFINL size_t ffaddr_tostr(const ffaddr *a, char *dst, size_t cap, int flags) {
-	int port = 0;
-	if (flags & FFADDR_USEPORT)
-		port = ffip_port(a);
-
-	if (ffaddr_family(a) == AF_INET)
-		return ffip4_tostr(dst, cap, &a->ip4.sin_addr, 4, port);
-	else //AF_INET6
-		return ffip6_tostr(dst, cap, &a->ip6.sin6_addr, 16, port);
+	const void *ip = (ffaddr_family(a) == AF_INET) ? (void*)&a->ip4.sin_addr : (void*)&a->ip6.sin6_addr;
+	return ffip_tostr(dst, cap, ffaddr_family(a), ip, (flags & FFADDR_USEPORT) ? ffip_port(a) : 0);
 }
 
 /** Set address and port.

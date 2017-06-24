@@ -54,7 +54,7 @@ static int test_urldecode()
 
 int test_ip4()
 {
-	struct in_addr a4;
+	ffip4 a4;
 	char buf[64];
 	ffstr sip;
 
@@ -65,17 +65,26 @@ int test_ip4()
 	x(0 == ffip4_parse(&a4, FFSTR("1.65.192.255")));
 	x(!memcmp(&a4, FFSTR("\x01\x41\xc0\xff")));
 
-	x(0 != ffip4_parse(&a4, FFSTR(".1.65.192.255")));
-	x(0 != ffip4_parse(&a4, FFSTR("1.65.192.255.")));
-	x(0 != ffip4_parse(&a4, FFSTR("1.65..192.255")));
-	x(0 != ffip4_parse(&a4, FFSTR("1.65.192.256")));
-	x(0 != ffip4_parse(&a4, FFSTR("1.65.192.255.1")));
-	x(0 != ffip4_parse(&a4, FFSTR("1.65,192.255")));
+	x(FFSLEN("1.65.192.255") == ffip4_parse(&a4, FFSTR("1.65.192.255.")));
+	x(!memcmp(&a4, "\x01\x41\xc0\xff", 4));
+	x(FFSLEN("1.65.192.2") == ffip4_parse(&a4, FFSTR("1.65.192.2/")));
+	x(!memcmp(&a4, "\x01\x41\xc0\x02", 4));
 
-	sip.len = ffip4_tostr(buf, FFCNT(buf), "\x7f\0\0\x01", 4, 0);
+	x(0 > ffip4_parse(&a4, FFSTR(".1.65.192.255")));
+	x(0 > ffip4_parse(&a4, FFSTR("1.65..192.255")));
+	x(0 > ffip4_parse(&a4, FFSTR("1.65.192.256")));
+	x(0 > ffip4_parse(&a4, FFSTR("1.65,192.255")));
+
+	x(24 == ffip4_parse_subnet(&a4, FFSTR("1.65.192.0/24")));
+	x(!memcmp(&a4, "\x01\x41\xc0\x00", 4));
+	x(0 > ffip4_parse_subnet(&a4, FFSTR("1.65.192.0/33")));
+	x(0 > ffip4_parse_subnet(&a4, FFSTR("1.65.192.0/0")));
+	x(0 > ffip4_parse_subnet(&a4, FFSTR("1.65.192.0/")));
+
+	sip.len = ffip4_tostr(buf, FFCNT(buf), (void*)"\x7f\0\0\x01");
 	x(ffstr_eqz(&sip, "127.0.0.1"));
 
-	sip.len = ffip4_tostr(buf, FFCNT(buf), "\x7f\0\0\x01", 4, 8080);
+	sip.len = ffip_tostr(buf, FFCNT(buf), AF_INET, (void*)"\x7f\0\0\x01", 8080);
 	x(ffstr_eqz(&sip, "127.0.0.1:8080"));
 
 	return 0;
@@ -116,7 +125,7 @@ int test_ip6()
 	char buf[64];
 	ffstr sip;
 	size_t i;
-	struct in6_addr a6;
+	ffip6 a6;
 
 	FFTEST_FUNC;
 
@@ -126,13 +135,13 @@ int test_ip6()
 		const char *ip6 = ip6_data[i];
 		const char *sip6 = ip6_data[i + 1];
 
-		sip.len = ffip6_tostr(buf, FFCNT(buf), ip6, 16, 0);
+		sip.len = ffip6_tostr(buf, FFCNT(buf), ip6);
 		x(ffstr_eqz(&sip, sip6));
 	}
 
 	ffmem_zero(a, 16);
 	a[15] = '\x01';
-	sip.len = ffip6_tostr(buf, FFCNT(buf), a, 16, 8080);
+	sip.len = ffip_tostr(buf, FFCNT(buf), AF_INET6, a, 8080);
 	x(ffstr_eqz(&sip, "[::1]:8080"));
 
 
@@ -237,6 +246,16 @@ static int test_qs_parse(void)
 	return 0;
 }
 
+static void test_eth(void)
+{
+	FFTEST_FUNC;
+	ffeth mac;
+	char smac[FFETH_STRLEN];
+	x(0 > ffeth_parse(&mac, "12:34:56:78:ab:XX", FFETH_STRLEN));
+	x(FFETH_STRLEN == ffeth_parse(&mac, "12:34:56:78:ab:CD12345", FFETH_STRLEN + 5));
+	x(FFETH_STRLEN == ffeth_tostr(smac, sizeof(smac), &mac));
+	x(!ffmemcmp(smac, "12:34:56:78:AB:CD", FFETH_STRLEN));
+}
 
 int test_url()
 {
@@ -456,6 +475,7 @@ int test_url()
 	test_ip6();
 	test_addr();
 	test_qs_parse();
+	test_eth();
 
 	return 0;
 }
