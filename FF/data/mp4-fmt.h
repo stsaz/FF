@@ -20,6 +20,8 @@ enum MP4_E {
 	MP4_EACODEC,
 	MP4_ENFRAMES,
 	MP4_ECO64,
+
+	MP4_ESEEK,
 };
 
 

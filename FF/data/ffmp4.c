@@ -31,6 +31,8 @@ static const char *const mp4_errs[] = {
 	"unsupported audio codec",
 	"trying to add more frames than expected",
 	"co64 output isn't supported",
+
+	"invalid seek position",
 };
 
 const char* ffmp4_errstr(ffmp4 *m)
@@ -183,13 +185,17 @@ static int mp4_box_close(ffmp4 *m, struct mp4_box *box)
 enum {
 	R_BOXREAD, R_BOX_PARSE, R_BOXSKIP, R_WHOLEDATA, R_BOXPROCESS, R_TRKTOTAL, R_METAFIN,
 	R_DATA, R_DATAREAD, R_DATAOK,
+	R_ERR,
 };
 
 void ffmp4_seek(ffmp4 *m, uint64 sample)
 {
 	int r = mp4_seek((void*)m->sktab.ptr, m->sktab.len, sample);
-	if (r == -1)
+	if (r == -1) {
+		m->err = MP4_ESEEK;
+		m->state = R_ERR;
 		return;
+	}
 	m->isamp = r;
 	m->state = R_DATA;
 }
@@ -368,8 +374,9 @@ int ffmp4_read(ffmp4 *m)
 			//m->data points to the next box
 		} else {
 			if (m->datalen < box->size) {
-				box->size -= m->datalen;
-				return FFMP4_RMORE;
+				m->off += box->size;
+				box->size = 0;
+				return FFMP4_RSEEK;
 			}
 			FFARR_SHIFT(m->data, m->datalen, box->size);
 			m->off += box->size;
@@ -522,6 +529,9 @@ int ffmp4_read(ffmp4 *m)
 			, m->isamp - 1, m->outlen, ((struct seekpt*)m->sktab.ptr)[m->isamp - 1].chunk_id, m->cursample, m->off - m->frsize);
 
 		return FFMP4_RDATA;
+
+	case R_ERR:
+		return FFMP4_RERR;
 	}
 	}
 

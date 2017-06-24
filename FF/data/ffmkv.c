@@ -408,6 +408,12 @@ int ffmkv_read(ffmkv *m)
 
 	case R_SKIP: {
 		mkv_el *el = &m->els[m->ictx];
+		if (el->size > m->data.len) {
+			m->off += el->size;
+			el->size = 0;
+			m->state = R_NEXTCHUNK;
+			return FFMKV_RSEEK;
+		}
 		r = ffmin(el->size, m->data.len);
 		ffarr_shift(&m->data, r);
 		el->size -= r;
