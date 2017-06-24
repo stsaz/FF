@@ -10,7 +10,7 @@ Copyright (c) 2015 Simon Zolin
 #include <alsa/asoundlib.h>
 
 
-#define ffalsa_errstr  snd_strerror
+FF_EXTN const char* ffalsa_errstr(int e);
 
 
 /**
@@ -20,11 +20,18 @@ FF_EXTN void ffalsa_uninit(fffd kq);
 
 
 typedef struct ffalsa_dev {
+	uint st;
 	int sc;
+	int idev;
+	snd_ctl_t *sctl;
+	snd_ctl_card_info_t *scinfo;
 
 	char id[32]; //device ID that can be passed to ffalsa_open()
 	char *name;
 } ffalsa_dev;
+
+/** "plughw:0,0" -> "hw:0,0" */
+#define FFALSA_DEVID_HW(id)  ((id) + FFSLEN("plug"))
 
 enum FFALSA_DEV {
 	FFALSA_DEV_PLAYBACK = 1,
@@ -62,15 +69,26 @@ typedef struct ffalsa_buf {
 	snd_pcm_uframes_t off
 		, frames;
 
+	const char *errfunc;
+
 	uint callback :1 //set when audio event has been received but user isn't expecting it
 		, callback_wait :1 //set while user is expecting an event from kernel
 		, capture :1
 		, silence :1
 		, autostart :1 //start automatically when the buffer is full
+		, ileaved :1
 		;
 } ffalsa_buf;
 
-FF_EXTN int ffalsa_open(ffalsa_buf *snd, const char *dev, ffpcm *fmt, uint bufsize_msec);
+enum {
+	FFALSA_EFMT = 0x10000,
+};
+
+/**
+Return <0 on error.
+ -FFALSA_EFMT: 'fmt' contains supported settings.
+  For "hw" device this may indicate that "plughw" should be used. */
+FF_EXTN int ffalsa_open(ffalsa_buf *snd, const char *dev, ffpcmex *fmt, uint bufsize_msec);
 
 FF_EXTN void ffalsa_close(ffalsa_buf *snd);
 
@@ -109,7 +127,7 @@ FF_EXTN int ffalsa_clear(ffalsa_buf *snd);
 FF_EXTN int ffalsa_stoplazy(ffalsa_buf *snd);
 
 
-static FFINL int ffalsa_capt_open(ffalsa_buf *snd, const char *dev, ffpcm *fmt, uint bufsize_msec)
+static FFINL int ffalsa_capt_open(ffalsa_buf *snd, const char *dev, ffpcmex *fmt, uint bufsize_msec)
 {
 	snd->capture = 1;
 	return ffalsa_open(snd, dev, fmt, bufsize_msec);
@@ -117,4 +135,6 @@ static FFINL int ffalsa_capt_open(ffalsa_buf *snd, const char *dev, ffpcm *fmt, 
 
 #define ffalsa_capt_close  ffalsa_close
 
+/**
+Interleaved: only data[0] is set. */
 FF_EXTN int ffalsa_capt_read(ffalsa_buf *snd, void **data, size_t *len);
