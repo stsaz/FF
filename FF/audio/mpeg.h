@@ -162,6 +162,7 @@ typedef struct ffmpg {
 	int err;
 	mpg123 *m123;
 	ffpcmex fmt;
+	uint delay;
 	uint64 pos;
 	uint64 seek;
 

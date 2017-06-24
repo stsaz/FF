@@ -650,21 +650,27 @@ void ffmpg_seek(ffmpg *m, uint64 sample)
 {
 	mpg123_decode(m->m123, (void*)-1, (size_t)-1, NULL); //reset bufferred data
 	m->seek = sample;
+	m->delay = 0;
 }
 
 int ffmpg_decode(ffmpg *m)
 {
 	int r;
+	if (m->input.len == 0)
+		return FFMPG_RMORE;
 	r = mpg123_decode(m->m123, m->input.ptr, m->input.len, (byte**)&m->pcmi);
 	m->input.len = 0;
 	if (r == 0) {
+		m->delay += ffmpg_hdr_frame_samples((void*)m->input.ptr);
 		return FFMPG_RMORE;
 
 	} else if (r < 0) {
 		m->err = r;
+		m->delay = 0;
 		return FFMPG_RWARN;
 	}
 
+	m->pos -= m->delay;
 	if (m->seek != (uint64)-1) {
 		FF_ASSERT(m->seek >= m->pos);
 		uint skip = m->seek - m->pos;
@@ -673,7 +679,7 @@ int ffmpg_decode(ffmpg *m)
 
 		m->seek = (uint64)-1;
 		m->pcmi = (void*)((char*)m->pcmi + skip * ffpcm_size1(&m->fmt));
-		r -= skip;
+		r -= skip * ffpcm_size1(&m->fmt);
 		m->pos += skip;
 	}
 
