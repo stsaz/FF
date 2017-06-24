@@ -92,7 +92,7 @@ int ffpsarg_parse(ffparser *p, const char *a, int *processed)
 				const char *eqch;
 				a += FFSLEN("--");
 
-				eqch = strchr(a, '=');
+				eqch = ffsz_findc(a, '=');
 				if (eqch != NULL) { //--arg1=val
 					alen = eqch - a;
 					p->ch = (uint)(eqch + FFSLEN("=") - (a - FFSLEN("--")));
@@ -100,7 +100,7 @@ int ffpsarg_parse(ffparser *p, const char *a, int *processed)
 					st = iArgVal;
 
 				} else {
-					alen = strlen(a);
+					alen = ffsz_len(a);
 					*processed = 1;
 					st = iArgDone;
 				}
@@ -181,7 +181,7 @@ int ffpsarg_schemfin(ffparser_schem *ps)
 
 /*
 . Process an argument without the preceding option
-. Convert a string to integer */
+. Convert a string to number */
 static int ffpsarg_schemval(ffparser_schem *ps)
 {
 	ffparser *p = ps->p;

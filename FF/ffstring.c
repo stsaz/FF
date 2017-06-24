@@ -831,7 +831,7 @@ uint ffs_fromint(uint64 i, char *dst, size_t cap, int flags)
 		minus = 1;
 
 	if (flags & FFINT_OCTAL)
-		ps = _ffs_fromint_hex(ps, i, flags);
+		ps = _ffs_fromint_oct(ps, i, flags);
 	else if (flags & (FFINT_HEXUP | FFINT_HEXLOW))
 		ps = _ffs_fromint_hex(ps, i, flags);
 	else

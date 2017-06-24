@@ -37,12 +37,12 @@ static const uint *const idxs[] = {
 int test_cue(void)
 {
 	ffcue cu;
-	ffparser p;
+	ffcuep p;
 	ffcuetrk *trk;
 	char buf[4096];
 	ffstr s, s1;
 	int r;
-	uint i, k;
+	uint i, k, last;
 
 	FFTEST_FUNC;
 
@@ -56,21 +56,28 @@ int test_cue(void)
 		ffmem_tzero(&cu);
 		cu.options = i;
 		s1 = s;
+		last = 0;
 
 		FFDBG_PRINT(5, "%s(): ffcue.options=%u\n", FF_FUNC, cu.options);
 
 		for (;;) {
 			size_t n = s1.len;
 			r = ffcue_parse(&p, s1.ptr, &n);
-			if (r == FFPARS_MORE)
-				break;
+			if (r == FFPARS_MORE) {
+				last = 1;
+				n = 1;
+				r = ffcue_parse(&p, "\n", &n);
+			}
 			ffstr_shift(&s1, n);
 
-			if (NULL == (trk = ffcue_index(&cu, r, p.intval)))
+			if (NULL == (trk = ffcue_index(&cu, r, p.pars.intval)))
 				continue;
 			x(trk->from == idxs[i][k]);
 			x(trk->to == idxs[i][k + 1]);
 			k += 2;
+
+			if (last)
+				break;
 		}
 		x(k == FFCNT(idx_prev));
 	}

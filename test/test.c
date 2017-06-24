@@ -30,7 +30,9 @@ size_t _test_readfile(const char *fn, char *buf, size_t n)
 	f = fffile_open(fn, O_RDONLY);
 	x(f != FF_BADFD);
 	n = fffile_read(f, buf, n);
-	x(n != 0 && n != (size_t)-1);
+	fffile_close(f);
+	if (!x(n != 0 && n != (size_t)-1))
+		return 0;
 	return n;
 }
 

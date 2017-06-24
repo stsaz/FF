@@ -49,11 +49,11 @@ static FFINL const char* ffpsarg_next(ffpsarg *a)
 
 
 enum FFPSARG_TYPE {
-	FFPSARG_VAL = 1
+	FFPSARG_VAL = 1 //-s VAL | --key VAL
 	, FFPSARG_KVAL //--key=VAL
 	, FFPSARG_INPUTVAL //value without a key
-	, FFPSARG_SHORT
-	, FFPSARG_LONG
+	, FFPSARG_SHORT //-s
+	, FFPSARG_LONG //--long
 };
 
 /** Initialize command-line arguments parser.

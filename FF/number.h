@@ -12,11 +12,14 @@ Copyright (c) 2015 Simon Zolin
 
 
 /** Protect against division by zero. */
-#define FF_SAFEDIV(val, by) \
+#define FFINT_DIVSAFE(val, by) \
 	((by) != 0 ? (val) / (by) : 0)
 
 /** Increment and reset to 0 on reaching the limit. */
 #define ffint_cycleinc(n, lim)  (((n) + 1) % (lim))
+
+#define ffint_cmp(a, b) \
+	((a) == (b)) ? 0 : ((a) < (b)) ? -1 : 1
 
 
 /** Unaligned memory access. */

@@ -75,10 +75,10 @@ FF_EXTN int ffpcm_channels(const char *s, size_t len);
 
 /** Return bits/sec. */
 #define ffpcm_brate(bytes, samples, rate) \
-	FF_SAFEDIV((uint64)(bytes) * 8 * (rate), samples)
+	FFINT_DIVSAFE((uint64)(bytes) * 8 * (rate), samples)
 
 #define ffpcm_brate_ms(bytes, time_ms) \
-	FF_SAFEDIV((uint64)(bytes) * 8 * 1000, time_ms)
+	FFINT_DIVSAFE((uint64)(bytes) * 8 * 1000, time_ms)
 
 /** Combine two streams together. */
 FF_EXTN void ffpcm_mix(const ffpcmex *pcm, void *stm1, const void *stm2, size_t samples);
