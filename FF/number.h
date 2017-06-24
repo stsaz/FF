@@ -185,6 +185,8 @@ do { \
 		*(pn) &= ~(mask); \
 } while (0)
 
+#define ffint_mask_test(n, mask)  (((n) & (mask)) == (mask))
+
 /** Check whether a number is within range [from, to). */
 #define ffint_within(n, from, to) \
 	((from) <= (n) && (n) < (to))

@@ -3,6 +3,8 @@ Copyright (c) 2013 Simon Zolin
 */
 
 #include <FF/data/parse.h>
+#include <FF/number.h>
+
 
 static const char *const _ffpars_serr[] = {
 	""
@@ -235,7 +237,7 @@ static int _ffpars_str(const ffpars_arg *a, const ffstr *val, void *obj, void *p
 
 	if (f & FFPARS_FCOPY) {
 
-		if (f & FFPARS_FSTRZ) {
+		if (ffint_mask_test(f, FFPARS_FSTRZ)) {
 			if (NULL == ffstr_alloc(&tmp, val->len + 1))
 				return FFPARS_ESYS;
 			tmp.len = ffsz_fcopy(tmp.ptr, val->ptr, val->len) - tmp.ptr;
@@ -248,7 +250,7 @@ static int _ffpars_str(const ffpars_arg *a, const ffstr *val, void *obj, void *p
 
 	} else {
 
-		if (f & FFPARS_FSTRZ)
+		if (ffint_mask_test(f, FFPARS_FSTRZ))
 			return FFPARS_ECONF;
 
 		tmp = *val;
@@ -256,13 +258,13 @@ static int _ffpars_str(const ffpars_arg *a, const ffstr *val, void *obj, void *p
 
 	if (t == FFPARS_TCHARPTR) {
 
-		if (!(f & FFPARS_FSTRZ))
+		if (!ffint_mask_test(f, FFPARS_FSTRZ))
 			return FFPARS_ECONF;
 
 		if (func)
 			er = a->dst.f_charptr(ps, obj, tmp.ptr);
 		else {
-			if (f & FFPARS_FRECOPY)
+			if (ffint_mask_test(f, FFPARS_FRECOPY))
 				ffmem_safefree(*dst.charptr);
 
 			*dst.charptr = tmp.ptr;
@@ -272,7 +274,7 @@ static int _ffpars_str(const ffpars_arg *a, const ffstr *val, void *obj, void *p
 		if (func)
 			er = a->dst.f_str(ps, obj, &tmp);
 		else {
-			if (f & FFPARS_FRECOPY)
+			if (ffint_mask_test(f, FFPARS_FRECOPY))
 				ffmem_safefree(dst.s->ptr);
 
 			*dst.s = tmp;
