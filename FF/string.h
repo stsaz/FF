@@ -72,6 +72,10 @@ static FFINL int ffchar_tohex(int ch) {
 FF_EXTN uint ffchar_sizesfx(int suffix);
 
 
+enum {
+	FF_TEXT_LINE_MAX = 64 * 1024, //max line size
+};
+
 #define ffsz_len(sz)  strlen(sz)
 #define ffsz_findof(sz, accept)  strpbrk(sz, accept)
 #define ffsz_cmp(sz1, sz2)  strcmp(sz1, sz2)

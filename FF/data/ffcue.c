@@ -30,15 +30,17 @@ enum {
 	CUE_FILE_TRACK, CUE_FILE_TRACK_NXLINE,
 };
 
-void ffcue_init(ffparser *p)
+void ffcue_init(ffcuep *c)
 {
+	ffparser *p = &c->pars;
 	ffpars_init(p);
 	p->line = 0;
 	p->state = CUE_LINE,  p->nextst = CUE_GLOB;
 }
 
-int ffcue_parse(ffparser *p, const char *data, size_t *len)
+int ffcue_parse(ffcuep *c, const char *data, size_t *len)
 {
+	ffparser *p = &c->pars;
 	ssize_t r;
 	int cmd = 0;
 	ffstr s = p->tmp;
@@ -49,6 +51,8 @@ int ffcue_parse(ffparser *p, const char *data, size_t *len)
 
 	case CUE_LINE:
 		pos = ffs_find(d, end - d, '\n');
+		if (p->buf.len + pos - d > FF_TEXT_LINE_MAX)
+			return -FFPARS_EBIGVAL;
 		r = ffarr_append_until(&p->buf, d, end - d, p->buf.len + pos - d + 1);
 		if (r == 0)
 			return FFPARS_MORE;

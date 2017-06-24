@@ -26,6 +26,8 @@ int ffpls_parse(ffpls *p, ffstr *data)
 
 	case PLS_LINE:
 		pos = ffs_find(data->ptr, data->len, '\n');
+		if (p->pars.buf.len + pos - data->ptr > FF_TEXT_LINE_MAX)
+			return -FFPARS_EBIGVAL;
 		r = ffarr_append_until(&p->pars.buf, data->ptr, data->len, p->pars.buf.len + pos - data->ptr + 1);
 		if (r == 0)
 			return FFPARS_MORE;

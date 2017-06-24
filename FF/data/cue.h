@@ -34,11 +34,15 @@ enum FFCUE_T {
 	FFCUE_FIN, // for ffcue_index()
 };
 
-FF_EXTN void ffcue_init(ffparser *p);
+typedef struct ffcuep {
+	ffparser pars;
+} ffcuep;
+
+FF_EXTN void ffcue_init(ffcuep *c);
 
 /**
 Return enum FFCUE_T;  <0 on error (enum FFPARS_E). */
-FF_EXTN int ffcue_parse(ffparser *p, const char *data, size_t *len);
+FF_EXTN int ffcue_parse(ffcuep *c, const char *data, size_t *len);
 
 
 typedef struct ffcuetrk {

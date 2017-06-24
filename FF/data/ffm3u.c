@@ -7,15 +7,17 @@ Copyright (c) 2015 Simon Zolin
 
 enum { M3U_LINE, M3U_HDR, M3U_EXTINF, M3U_TITLE, M3U_ARTIST, M3U_URL };
 
-void ffm3u_init(ffparser *p)
+void ffm3u_init(ffm3u *m)
 {
+	ffparser *p = &m->pars;
 	ffpars_init(p);
 	p->nextst = M3U_HDR;
 	p->line = 0;
 }
 
-int ffm3u_parse(ffparser *p, ffstr *data)
+int ffm3u_parse(ffm3u *m, ffstr *data)
 {
+	ffparser *p = &m->pars;
 	ssize_t r;
 	const char *pos;
 	ffstr s = p->tmp;
@@ -25,6 +27,8 @@ int ffm3u_parse(ffparser *p, ffstr *data)
 
 	case M3U_LINE:
 		pos = ffs_find(data->ptr, data->len, '\n');
+		if (p->buf.len + pos - data->ptr > FF_TEXT_LINE_MAX)
+			return -FFPARS_EBIGVAL;
 		r = ffarr_append_until(&p->buf, data->ptr, data->len, p->buf.len + pos - data->ptr + 1);
 		if (r == 0)
 			return FFPARS_MORE;

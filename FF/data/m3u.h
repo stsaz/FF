@@ -20,11 +20,15 @@ enum FFM3U_T {
 	FFM3U_TITLE,
 };
 
-FF_EXTN void ffm3u_init(ffparser *p);
+typedef struct ffm3u {
+	ffparser pars;
+} ffm3u;
+
+FF_EXTN void ffm3u_init(ffm3u *m);
 
 /**
 Return enum FFM3U_T;  <0 on error (enum FFPARS_E). */
-FF_EXTN int ffm3u_parse(ffparser *p, ffstr *data);
+FF_EXTN int ffm3u_parse(ffm3u *m, ffstr *data);
 
 
 enum FFM3U_OPT {
