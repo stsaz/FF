@@ -195,7 +195,9 @@ static int ffpsarg_schemval(ffparser_schem *ps)
 			return FFPARS_EVALUNEXP;
 		ps->curarg = &ctx->args[0];
 
-	} else if (p->type == FFPSARG_KVAL && (ps->curarg->flags & FFPARS_FALONE))
+	} else if (p->type == FFPSARG_KVAL
+		&& (ps->curarg->flags & FFPARS_FALONE)
+		&& (ps->curarg->flags & FFPARS_FTYPEMASK) == FFPARS_TBOOL)
 		return FFPARS_EVALUNEXP;
 
 	if ((ps->curarg->flags & FFPARS_FTYPEMASK) == FFPARS_TINT) {
@@ -242,6 +244,18 @@ int ffpsarg_schemrun(ffparser_schem *ps)
 	if (ps->p->ret >= 0)
 		return ps->p->ret;
 
+	if (ps->flags & _FFPARS_SCALONE) {
+		ps->flags &= ~_FFPARS_SCALONE;
+		if (ps->p->ret == FFPARS_KEY) {
+			ps->flags &= ~FFPARS_SCHAVKEY;
+			if (!ffpars_arg_isfunc(ps->curarg))
+				return FFPARS_ECONF;
+			r = ps->curarg->dst.f_str(ps, ctx->obj, NULL);
+			if (r != 0)
+				return r;
+		}
+	}
+
 	if (ps->flags & FFPARS_SCHAVKEY) {
 		ps->flags &= ~FFPARS_SCHAVKEY;
 		if (ps->p->ret != FFPARS_VAL)
@@ -285,7 +299,15 @@ int ffpsarg_schemrun(ffparser_schem *ps)
 			return FFPARS_EDUPKEY;
 		ps->curarg = arg;
 
-		if ((arg->flags & FFPARS_FALONE) || !ffsz_cmp(arg->name, "*")) {
+		int alone = 0;
+		if (arg->flags & FFPARS_FALONE) {
+			if ((ps->curarg->flags & FFPARS_FTYPEMASK) == FFPARS_TBOOL)
+				alone = 1;
+			else
+				ps->flags |= _FFPARS_SCALONE;
+		}
+
+		if (alone || ffsz_eq(arg->name, "*")) {
 			ps->p->intval = 1;
 			ps->p->ret = FFPARS_VAL;
 			if (FFPARS_VAL != (r = ffpars_schemrun(ps, ps->p->ret)))

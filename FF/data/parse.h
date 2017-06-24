@@ -186,7 +186,8 @@ enum FFPARS_F {
 	FFPARS_FNULL = 0x10000,
 
 //ffpsarg only:
-	/** Key without value, e.g. "--help" */
+	/** Key without value, e.g. "--help"
+	If type is not TBOOL, ffpars_arg.dst must be a function pointer, which will receive NULL value. */
 	FFPARS_FALONE = 0x10000,
 };
 
@@ -303,9 +304,10 @@ FF_EXTN void ffpars_ctx_skip(ffpars_ctx *ctx);
 
 enum FFPARS_SCHEMFLAG {
 	// internal:
-	FFPARS_SCHAVKEY = 1
+	FFPARS_SCHAVKEY = 1,
+	_FFPARS_SCALONE = 2,
 
-	, FFPARS_KEYICASE = 0x100 // case-insensitive key names
+	FFPARS_KEYICASE = 0x100, // case-insensitive key names
 };
 
 struct ffparser_schem {
