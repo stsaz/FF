@@ -50,6 +50,7 @@ FEATURES
 		. WASAPI playback/capture
 		. ALSA playback/capture
 		. Pulse Audio playback
+		. OSS playback
 
 	. Audio:
 		. ICY
