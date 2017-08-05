@@ -97,7 +97,9 @@ int ffm3u_parse(ffm3u *m, ffstr *data)
 		ffstr_set2(&p->val, &s);
 		p->state = M3U_LINE,  p->nextst = M3U_EXTINF;
 		r = FFM3U_URL;
-		goto done;
+		if (s.len != 0)
+			goto done;
+		continue;
 	}
 	}
 

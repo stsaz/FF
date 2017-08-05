@@ -117,6 +117,8 @@ int ffpls_entry_get(ffpls_entry *ent, uint type, const ffstr *val)
 		// break
 	case FFPLS_READY:
 		ent->clear = 1;
+		if (ent->url.len == 0)
+			return 0;
 		return 1;
 	}
 
