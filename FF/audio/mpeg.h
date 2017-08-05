@@ -126,7 +126,7 @@ enum FFMPG_R {
 	FFMPG_RID31,
 	FFMPG_RAPETAG,
 	FFMPG_ROUTSEEK,
-	FFMPG_RFRAME1,
+	FFMPG_RXING,
 };
 
 enum FFMPG_E {
@@ -169,6 +169,7 @@ typedef struct ffmpg {
 	ffstr input;
 	size_t pcmlen;
 	void *pcmi; //libmpg123: float | short
+	uint fin :1;
 } ffmpg;
 
 FF_EXTN const char* ffmpg_errstr(ffmpg *m);

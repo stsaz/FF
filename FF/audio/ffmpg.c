@@ -22,7 +22,7 @@ enum {
 static int mpg_id31(ffmpgfile *m);
 static int mpg_id32(ffmpgfile *m);
 static int _ffmpg_apetag(ffmpgfile *m, ffarr *buf);
-static int _ffmpg_streaminfo(ffmpgr *m, const char *data, uint len);
+static int _ffmpg_streaminfo(ffmpgr *m, const char *data, uint len, const char *next);
 static int _ffmpg_frame(ffmpgr *m, ffarr *buf);
 static int _ffmpg_frame2(ffmpgr *m, ffarr *buf);
 
@@ -93,7 +93,7 @@ enum { I_START, I_FR,
  . 'total samples' and 'total size' values (linear) */
 static FFINL uint64 mpg_getseekoff(ffmpgr *m)
 {
-	uint64 sk = ffmax((int64)m->seek_sample - ffmpg_hdr_frame_samples(m->firsthdr), 0);
+	uint64 sk = ffmax((int64)m->seek_sample - ffmpg_hdr_frame_samples(&m->firsthdr), 0);
 	uint64 datasize = m->total_size - m->dataoff;
 	if (m->xing.vbr && m->xing.toc[98] != 0)
 		return m->dataoff + ffmpg_xing_seekoff(m->xing.toc, sk, m->total_samples, datasize);
@@ -250,7 +250,7 @@ static FFINL int mpg_id32(ffmpgfile *m)
 }
 
 
-enum { R_HDR, R_FRAME2, R_SEEK, R_FR, R_FR2 };
+enum { R_HDR, R_HDR2, R_FRAME2, R_SEEK, R_FR, R_FR2 };
 
 void ffmpg_rinit(ffmpgr *m)
 {
@@ -286,19 +286,18 @@ Total samples number is estimated from:
  . encoder/decoder delays from LAME tag
  . TLEN frame from ID3v2
  . bitrate from the first header and total stream size */
-static int _ffmpg_streaminfo(ffmpgr *m, const char *p, uint datalen)
+static int _ffmpg_streaminfo(ffmpgr *m, const char *p, uint datalen, const char *next)
 {
-	const ffmpg_hdr *h = (void*)p;
 	uint n;
 	int r;
+	const ffmpg_hdr *h = (void*)next;
 
 	if (!(m->options & FFMPG_O_NOXING)
 		&& 0 < (r = ffmpg_xing_parse(&m->xing, p, datalen))) {
 
 		m->total_samples = m->xing.frames * ffmpg_hdr_frame_samples(h);
 
-		p += r,  datalen -= r;
-		if (0 < ffmpg_lame_parse(&m->lame, p, datalen)) {
+		if (0 < ffmpg_lame_parse(&m->lame, p + r, datalen - r)) {
 			n = m->lame.enc_delay + DEC_DELAY + 1;
 			if (m->lame.enc_padding != 0)
 				n += m->lame.enc_padding - (DEC_DELAY + 1);
@@ -313,6 +312,8 @@ static int _ffmpg_streaminfo(ffmpgr *m, const char *p, uint datalen)
 		m->total_samples = m->xing.frames * ffmpg_hdr_frame_samples(h);
 		return 2;
 	}
+
+	h = (void*)p;
 
 	if (m->total_len == 0)
 		m->total_len = (m->total_size - m->dataoff) * 1000 / (ffmpg_hdr_bitrate(h) / 8);
@@ -449,55 +450,58 @@ int ffmpg_readframe(ffmpgr *m, ffstr *frame)
 			m->err = FFMPG_ESEEK;
 			return FFMPG_RERR;
 		}
-		m->seek_sample = ffmax((int64)m->seek_sample - SEEK_SKIPFRAMES * ffmpg_hdr_frame_samples(m->firsthdr), 0) + m->delay;
+		m->seek_sample = ffmax((int64)m->seek_sample - SEEK_SKIPFRAMES * ffmpg_hdr_frame_samples(&m->firsthdr), 0) + m->delay;
 		m->off = mpg_getseekoff(m);
 		m->cur_sample = m->seek_sample;
 		m->state = R_FRAME2;
 		return FFMPG_RSEEK;
 
-	case R_HDR:
-	case R_FRAME2: {
+	case R_HDR: {
 		if (0 != (r = _ffmpg_frame2(m, &m->buf)))
 			return r;
 
 		const ffmpg_hdr *h = (void*)m->buf.ptr;
-		ffstr_set(frame, h, ffmpg_hdr_framelen(h));
-		m->frsamps = ffmpg_hdr_frame_samples(h);
+		ffstr next;
+		ffstr_set(frame, m->buf.ptr, ffmpg_hdr_framelen(h));
+		ffarr_setshift(&next, m->buf.ptr, m->buf.len, ffmpg_hdr_framelen(h));
 
-		if (m->state == R_HDR) {
-			m->firsthdr = *h;
-
-			m->fmt.sample_rate = ffmpg_hdr_sample_rate(h);
-			m->fmt.channels = ffmpg_hdr_channels(h);
-			r = _ffmpg_streaminfo(m, (char*)h, frame->len);
-
-			m->state = R_FR2;
-			if (r != 0) {
-				m->frsamps = 0;
-				m->dataoff = m->off - (m->buf.len - frame->len);
-				r = FFMPG_RHDR;
-				goto fr;
-			}
+		r = _ffmpg_streaminfo(m, (char*)frame->ptr, frame->len, next.ptr);
+		if (r != 0) {
+			m->dataoff = m->off - next.len;
+			m->firsthdr = *(ffmpg_hdr*)next.ptr;
+			r = FFMPG_RXING;
+			m->state = R_HDR2;
+		} else {
 			m->dataoff = m->off - m->buf.len;
-			r = FFMPG_RFRAME1;
-			goto fr;
+			m->firsthdr = *(ffmpg_hdr*)frame->ptr;
+			r = FFMPG_RHDR;
+			m->state = R_FR2;
 		}
+
+		m->fmt.sample_rate = ffmpg_hdr_sample_rate(&m->firsthdr);
+		m->fmt.channels = ffmpg_hdr_channels(&m->firsthdr);
+		return r;
+	}
+
+	case R_HDR2:
+		m->state = R_FR2;
+		return FFMPG_RHDR;
+
+	case R_FRAME2:
+		if (0 != (r = _ffmpg_frame2(m, &m->buf)))
+			return r;
 
 		m->state = R_FR2;
 		r = FFMPG_RFRAME;
 		goto fr;
-	}
 
-	case R_FR2: {
-		uint off = ffmpg_hdr_framelen((void*)m->buf.ptr);
-		ffstr_set2(frame, &m->buf);
-		ffstr_shift(frame, off);
+	case R_FR2:
+		ffarr_setshift(frame, m->buf.ptr, m->buf.len, ffmpg_hdr_framelen((void*)m->buf.ptr));
 		m->frsamps = ffmpg_hdr_frame_samples((void*)frame->ptr);
 		m->buf.len = 0;
 		m->state = R_FR;
 		r = FFMPG_RFRAME;
 		goto fr;
-	}
 
 	case R_FR:
 		m->input.len = ffmin(m->input.len, m->total_size - m->off);
@@ -658,7 +662,8 @@ void ffmpg_seek(ffmpg *m, uint64 sample)
 int ffmpg_decode(ffmpg *m)
 {
 	int r;
-	if (m->input.len == 0)
+
+	if (!m->fin && m->input.len == 0)
 		return FFMPG_RMORE;
 
 	r = mpg123_decode(m->m123, m->input.ptr, m->input.len, (byte**)&m->pcmi);
@@ -976,9 +981,11 @@ int ffmpg_copy(ffmpgcopy *m, ffstr *output)
 			m->state = CPY_FTRTAGS_OUT;
 			continue;
 
-		case FFMPG_RHDR:
+		case FFMPG_RXING:
 			m->writer.xing.vbr = m->rdr.xing.vbr;
-		case FFMPG_RFRAME1:
+			return FFMPG_RXING;
+
+		case FFMPG_RHDR:
 			m->state = CPY_FTRTAGS_SEEK;
 			return FFMPG_RHDR;
 
