@@ -1537,53 +1537,24 @@ ffbstr * ffbstr_push(ffstr *buf, const char *data, size_t len)
 }
 
 
-const byte ffbit_max[] = { 0x00, 0x01, 0x03, 0x07, 0x0f, 0x1f, 0x3f, 0x7f, 0xff };
-
-ssize_t ffbit_findarr(const void *d, size_t bitlen, size_t bitoff)
-{
-	uint set, n;
-	const byte *b = (byte*)d + bitoff / 8, *e = (byte*)d + ffbit_nbytes(bitlen);
-
-	for (;;) {
-		b = (void*)ffs_skip((char*)b, e - b, 0x00);
-		if (b == e)
-			return -1;
-
-		n = (uint)(*b & ffbit_max[8 - bitoff % 8]) << 24;
-		set = ffbit_find32(n);
-		if (set != 0)
-			break;
-		b++;
-		bitoff = 0;
-	}
-
-	set--;
-	set += (b - (byte*)d) * 8;
-	if (set >= bitlen)
-		return -1;
-	return set;
-}
-
 size_t ffbit_count(const void *d, size_t len)
 {
-	const void *e = d + len;
-	const size_t *pn;
-	uint i;
+	const size_t *pn = d;
+	const byte *b = d;
+	uint i, k;
 	size_t r = 0;
 
-	for (pn = (void*)d;  (void*)(pn + 1) < e;  pn++) {
-		size_t n = *pn;
-		while (n != 0) {
-			i = ffbit_ffs(n) - 1;
+	for (k = 0;  k + sizeof(void*) < len;  k += sizeof(void*)) {
+		size_t n = pn[k / sizeof(void*)];
+		while (0 <= (int)(i = ffbit_ffs(n) - 1)) {
 			r++;
 			ffbit_reset(&n, i);
 		}
 	}
 
-	for (d = (void*)pn;  d != e;  d++) {
-		uint n = *(byte*)d;
-		while (n != 0) {
-			i = ffbit_ffs32(n) - 1;
+	for (;  k != len;  k++) {
+		uint n = b[k];
+		while (0 <= (int)(i = ffbit_ffs32(n) - 1)) {
 			r++;
 			ffbit_reset32(&n, i);
 		}

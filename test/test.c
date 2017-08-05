@@ -219,10 +219,8 @@ static int test_bits()
 
 	char d[] = {"\xf0\xf0\xf0"};
 	x(8 == ffbit_count(d, 2));
-	x(0 == ffbit_findarr(d, 2 * 8, 0));
-	x(8 == ffbit_findarr(d, 2 * 8, 4));
 
-	x(7 == ffbit_max[3]);
+	x(0x1ffff == ffbit_max(17));
 	return 0;
 }
 

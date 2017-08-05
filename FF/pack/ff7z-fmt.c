@@ -83,7 +83,7 @@ int z7_varint(const char *data, size_t len, uint64 *val)
 		return 0;
 
 	ffmem_zero(b, sizeof(b));
-	b[size - 1] = (byte)data[0] & ffbit_max[8 - size];
+	b[size - 1] = (byte)data[0] & ffbit_max(8 - size);
 	ffmemcpy(b, data + 1, size - 1);
 
 	*val = ffint_ltoh64(b);
@@ -496,30 +496,34 @@ bit IsEmptyStream[NumFiles]
 static int z7_emptystms_read(ffarr *stms, ffstr *d)
 {
 	const z7_stream *s = (void*)stms->ptr;
-	size_t all = 0;
-	ssize_t i = 0;
+	size_t all = 0, i;
+	uint bit, bit_abs;
 
-	for (;;) {
-		i = ffbit_findarr(d->ptr, d->len * 8, i);
-		if (i < 0)
-			break;
-		FFDBG_PRINTLN(10, "empty stream:%u", i);
+	for (i = 0;  i != d->len;  i++) {
+		uint n = ffint_ntoh32(d->ptr + i) & 0xff000000;
 
-		for (;;) {
-			if (s == ffarr_endT(stms, z7_stream))
-				return FF7Z_EDATA; // bit index is larger than total files number
-			if ((size_t)i < all + s->files.len) {
-				if (s->off != 0)
-					return FF7Z_EUNSUPP; // empty file within non-empty stream
-				break;
+		while (0 <= (int)(bit = ffbit_find32(n) - 1)) {
+			bit_abs = i * 8 + bit;
+			FFDBG_PRINTLN(10, "empty stream:%u", bit_abs);
+
+			for (;;) {
+				if (s == ffarr_endT(stms, z7_stream))
+					return FF7Z_EDATA; // bit index is larger than total files number
+				if ((size_t)bit_abs < all + s->files.len) {
+					if (s->off != 0)
+						return FF7Z_EUNSUPP; // empty file within non-empty stream
+					goto done;
+				}
+
+				all += s->files.len;
+				s++;
 			}
 
-			all += s->files.len;
-			s++;
+			ffbit_reset32(&n, bit);
 		}
-		i++;
 	}
 
+done:
 	ffarr_shift(d, d->len);
 	return 0;
 }

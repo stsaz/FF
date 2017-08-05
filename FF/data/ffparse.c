@@ -531,6 +531,8 @@ static int scOpenBrace(ffparser_schem *ps)
 			ps->ctxs.len--;
 	}
 
+	if (er == 0)
+		ps->curarg = NULL;
 	return er;
 }
 
@@ -574,7 +576,7 @@ static int scCloseBrace(ffparser_schem *ps)
 	}
 
 	ps->ctxs.len--;
-	ps->curarg = ffarr_back(&ps->ctxs).args;
+	ps->curarg = NULL;
 	return 0;
 }
 

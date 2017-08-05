@@ -83,13 +83,11 @@ static FFINL ffbool ffbit_setarr(uint *ar, uint bit) {
 	return ffbit_set32(&ar[bit / 32], bit % 32);
 }
 
-FF_EXTN ssize_t ffbit_findarr(const void *d, size_t bitlen, size_t bitoff);
-
 /** Get the number of bits set */
 FF_EXTN size_t ffbit_count(const void *d, size_t len);
 
 /** Get the number of bytes needed to hold the specified number of bits */
 #define ffbit_nbytes(bits)  (((bits) + 7) / 8)
 
-/** Get maximum value by bits number. */
-FF_EXTN const byte ffbit_max[];
+/** Get maximum value by bits number (16 -> 0xffff). */
+#define ffbit_max(bits)  ((1ULL << (bits)) - 1)
