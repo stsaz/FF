@@ -68,7 +68,7 @@ const char* ffmpg_werrstr(ffmpgw *m)
 }
 
 
-void ffmpg_init(ffmpgfile *m)
+void ffmpg_fopen(ffmpgfile *m)
 {
 	ffid3_parseinit(&m->id32tag);
 	ffmpg_rinit(&m->rdr);
@@ -635,7 +635,7 @@ int ffmpg_open(ffmpg *m, uint delay, uint options)
 {
 	int r;
 	uint opt = (options & FFMPG_O_INT16) ? 0 : MPG123_FORCE_FLOAT;
-	if (0 != (r = mpg123_init(&m->m123, opt))) {
+	if (0 != (r = mpg123_open(&m->m123, opt))) {
 		m->err = r;
 		return FFMPG_RERR;
 	}

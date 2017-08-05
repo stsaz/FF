@@ -144,7 +144,7 @@ enum FFMPG_E {
 
 FF_EXTN const char* ffmpg_ferrstr(ffmpgfile *m);
 
-FF_EXTN void ffmpg_init(ffmpgfile *m);
+FF_EXTN void ffmpg_fopen(ffmpgfile *m);
 
 FF_EXTN void ffmpg_fclose(ffmpgfile *m);
 
@@ -177,6 +177,8 @@ FF_EXTN const char* ffmpg_errstr(ffmpg *m);
 enum FFMPG_DEC_O {
 	FFMPG_O_INT16 = 1, //libmpg123: produce 16-bit integer output
 };
+
+#define ffmpg_init()  mpg123_init()
 
 /** Open decoder.
 @options: enum FFMPG_DEC_O. */
