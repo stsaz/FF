@@ -16,8 +16,17 @@ enum { FFETH_STRLEN = FFSLEN("00:00:00:00:00:00") };
 Return number of bytes written;  0 if not enough space. */
 FF_EXTN uint ffeth_tostr(char *buf, size_t cap, const ffeth *eth);
 
+static FFINL uint ffeth_tostrz(char *buf, size_t cap, const ffeth *eth)
+{
+	uint r = ffeth_tostr(buf, cap, eth);
+	if (r == 0 || r == cap)
+		return 0;
+	buf[r] = '\0';
+	return r;
+}
+
 /** Parse Ethernet address from string.
-Return the number of bytes processed;  <0 on error. */
+Return 0 if the whole input is parsed;  >0 number of processed bytes;  <0 on error. */
 FF_EXTN int ffeth_parse(ffeth *addr, const char *s, size_t len);
 
 typedef struct ffeth_hdr {
@@ -61,6 +70,15 @@ FF_EXTN int ffip4_parse_subnet(ffip4 *ip4, const char *s, size_t len);
 Return the number of characters written. */
 FF_EXTN size_t ffip4_tostr(char *dst, size_t cap, const ffip4 *ip4);
 
+static FFINL uint ffip4_tostrz(char *dst, size_t cap, const ffip4 *ip4)
+{
+	uint r = ffip4_tostr(dst, cap, ip4);
+	if (r == 0 || r == cap)
+		return 0;
+	dst[r] = '\0';
+	return r;
+}
+
 typedef struct ffip4hdr {
 #ifdef FF_BIG_ENDIAN
 	byte version :4 //=4
@@ -100,6 +118,8 @@ enum FFIP4_PROTO {
 
 #define ffip4_datalen(ip4)  ffint_ntoh16((ip4)->total_len) - ffip4_hdrlen(ip4)
 
+FF_EXTN int ffip4hdr_tostr(ffip4hdr *h, char *buf, size_t cap);
+
 
 typedef struct { char a[16]; } ffip6;
 
@@ -115,6 +135,15 @@ Return the number of characters written.
 Note: v4-mapped address is not supported. */
 FF_EXTN size_t ffip6_tostr(char *dst, size_t cap, const void *addr);
 
+static FFINL uint ffip6_tostrz(char *dst, size_t cap, const ffip6 *ip6)
+{
+	uint r = ffip6_tostr(dst, cap, ip6);
+	if (r == 0 || r == cap)
+		return 0;
+	dst[r] = '\0';
+	return r;
+}
+
 typedef struct ffip6hdr {
 	byte ver_tc_fl[4]; // ver[4] traf_class[8] flow_label[20]
 	byte payload_len[2];
@@ -127,3 +156,50 @@ typedef struct ffip6hdr {
 #define ffip6_ver(ip6)  ((ip6)->ver_tc_fl[0] >> 4)
 
 #define ffip6_datalen(ip6)  ffint_ntoh16((ip6)->payload_len)
+
+FF_EXTN int ffip6hdr_tostr(ffip6hdr *h, char *buf, size_t cap);
+
+
+enum FFARP_HW {
+	FFARP_ETH = 1,
+};
+
+enum FFARP_OP {
+	FFARP_REQ = 1,
+	FFARP_RESP,
+};
+
+typedef struct ffarphdr {
+	byte hwtype[2]; //enum FFARP_HW
+	byte proto[2];
+	byte hlen; //6 for ethernet
+	byte plen; //4 for ipv4
+	byte op[2]; //enum FFARP_OP
+
+	ffeth sha;
+	ffip4 spa;
+	ffeth tha;
+	ffip4 tpa;
+} ffarphdr;
+
+FF_EXTN int ffarp_tostr(ffarphdr *h, char *buf, size_t cap);
+
+
+enum FFICMP_TYPE {
+	FFICMP_ECHO_REPLY = 0,
+	FFICMP_ECHO_REQ = 8,
+};
+
+typedef struct fficmphdr {
+	byte type; //enum FFICMP_TYPE
+	byte code;
+	byte crc[2];
+
+	union {
+	byte hdrdata[4];
+	struct {
+		byte id[2];
+		byte seq[2];
+	} echo;
+	};
+} fficmphdr;

@@ -37,7 +37,7 @@ int ffeth_parse(ffeth *eth, const char *s, size_t len)
 			return -1;
 	}
 
-	return FFETH_STRLEN;
+	return (len == FFETH_STRLEN) ? 0 : FFETH_STRLEN;
 }
 
 
@@ -113,6 +113,19 @@ size_t ffip4_tostr(char *dst, size_t cap, const ffip4 *ip4)
 	}
 
 	return p - dst;
+}
+
+int ffip4hdr_tostr(ffip4hdr *ip4, char *buf, size_t cap)
+{
+	size_t n, n2;
+	char src[FFIP4_STRLEN], dst[FFIP4_STRLEN];
+
+	n = ffip4_tostr(src, sizeof(src), &ip4->saddr);
+	n2 = ffip4_tostr(dst, sizeof(dst), &ip4->daddr);
+
+	return ffs_fmt(buf, buf + cap, "%*s -> %*s  len:%xu  ttl:%u  proto:%xu"
+		, n, src, n2, dst
+		, ffint_ntoh16(ip4->total_len), ip4->ttl, ip4->proto);
 }
 
 
@@ -241,4 +254,35 @@ size_t ffip6_tostr(char *dst, size_t cap, const void *addr)
 	}
 
 	return p - dst;
+}
+
+int ffip6hdr_tostr(ffip6hdr *ip6, char *buf, size_t cap)
+{
+	size_t n, n2;
+	char src[FFIP6_STRLEN], dst[FFIP6_STRLEN];
+
+	n = ffip6_tostr(src, sizeof(src), &ip6->saddr);
+	n2 = ffip6_tostr(dst, sizeof(dst), &ip6->daddr);
+
+	return ffs_fmt(buf, buf + cap, "%*s -> %*s  len:%xu  proto:%xu"
+		, n, src, n2, dst
+		, ffint_ntoh16(ip6->payload_len), ip6->nexthdr);
+}
+
+
+int ffarp_tostr(ffarphdr *h, char *buf, size_t cap)
+{
+	size_t n0, n1;
+	char eth[2][FFETH_STRLEN], ip[2][FFIP4_STRLEN];
+
+	ffeth_tostr(eth[0], sizeof(eth[0]), &h->sha);
+	ffeth_tostr(eth[1], sizeof(eth[1]), &h->tha);
+
+	n0 = ffip4_tostr(ip[0], sizeof(ip[0]), &h->spa);
+	n1 = ffip4_tostr(ip[1], sizeof(ip[1]), &h->tpa);
+
+	return ffs_fmt(buf, buf + cap, "op:%u  srchw:%*s  src-ip:%*s  dsthw:%*s  dst-ip:%*s"
+		, ffint_ntoh16(h->op)
+		, (size_t)FFETH_STRLEN, eth[0], n0, ip[0]
+		, (size_t)FFETH_STRLEN, eth[1], n1, ip[1]);
 }
