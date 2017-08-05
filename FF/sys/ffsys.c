@@ -7,7 +7,7 @@ Copyright (c) 2014 Simon Zolin
 #include <FF/data/parse.h>
 #include <FF/sys/filemap.h>
 #include <FF/sys/taskqueue.h>
-#include <FF/dir.h>
+#include <FF/sys/dir.h>
 #include <FF/path.h>
 #include <FFOS/process.h>
 #include <FFOS/error.h>
