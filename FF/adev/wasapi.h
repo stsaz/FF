@@ -3,7 +3,7 @@ Copyright (c) 2015 Simon Zolin
 */
 
 #include <FF/audio/pcm.h>
-#include <FF/array.h>
+#include <FF/sys/wohandler.h>
 #include <FFOS/mem.h>
 #include <FFOS/atomic.h>
 
@@ -46,9 +46,6 @@ FF_EXTN void ffwas_devdestroy(ffwas_dev *dev);
 typedef void (*ffsnd_handler)(void *udata);
 
 typedef struct ffwasapi {
-	ffsnd_handler handler;
-	void *udata;
-
 	IAudioClient *cli;
 	union {
 	IAudioRenderClient *rend;
@@ -56,15 +53,16 @@ typedef struct ffwasapi {
 	};
 	uint bufsize;
 	uint frsize;
-	int nfy_next;
-	uint nfy_interval; //shared mode: how often user handler is called (in samples)
-	HANDLE evt;
 
 	fflock lk;
 	byte *wptr;
 	uint wpos;
 	uint actvbufs;
-	ffarr buf;
+	uint evt_recvd;
+	ffwoh *woh;
+	HANDLE evt;
+	ffsnd_handler handler;
+	void *udata;
 
 	unsigned excl :1 //exclusive mode
 		, capture :1
@@ -73,7 +71,7 @@ typedef struct ffwasapi {
 		, started :1
 		, callback :1
 		, callback_wait :1
-		, underflow :1
+		, have_buf :1
 		, last :1
 		;
 } ffwasapi;
@@ -92,6 +90,15 @@ enum FFWAS_F {
 	FFWAS_AUTOSTART = 0x10,
 };
 
+/** Set parameters required for event notifications in exclusive mode.
+Must be called before ffwas_open(). */
+#define ffwas_excl(w, _woh, _handler, _udata) \
+do { \
+	(w)->woh = (_woh); \
+	(w)->handler = (_handler); \
+	(w)->udata = (_udata); \
+} while (0)
+
 /** Open device.
 In shared mode there's only one supported sample rate.  In exclusive mode a device may support different sample rates.
 @dev_id: NULL for a default device.
@@ -107,10 +114,13 @@ FF_EXTN void ffwas_close(ffwasapi *w);
 FF_EXTN int ffwas_filled(ffwasapi *w);
 
 /** Return total buffer size (in bytes). */
-static FFINL int ffwas_bufsize(ffwasapi *w)
+static FFINL uint ffwas_bufsize(ffwasapi *w)
 {
 	return ((w->excl) ? w->bufsize * 2 : w->bufsize) * w->frsize;
 }
+
+#define ffwas_buf_samples(w) \
+	(((w)->excl) ? (w)->bufsize * 2 : (w)->bufsize)
 
 /** Write data into sound buffer.
 Return the number of bytes written. */
