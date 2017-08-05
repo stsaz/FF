@@ -624,6 +624,169 @@ int ffflac_decode(ffflac *f)
 }
 
 
+#define ERR(f, e) \
+	(f)->errtype = e,  FFFLAC_RERR
+
+const char* ffflac_out_errstr(ffflac_cook *f)
+{
+	ffflac fl;
+	fl.err = 0;
+	fl.errtype = f->errtype;
+	return ffflac_errstr(&fl);
+}
+
+void ffflac_winit(ffflac_cook *f)
+{
+	f->min_meta = 1000;
+	f->seektable_int = (uint)-1;
+	f->seekable = 1;
+}
+
+int ffflac_wnew(ffflac_cook *f, const ffflac_info *info)
+{
+	int r;
+
+	if (NULL == ffarr_alloc(&f->outbuf, 4096))
+		return ERR(f, FLAC_ESYS);
+	r = flac_info_write(f->outbuf.ptr, f->outbuf.cap, info);
+	if (r < 0)
+		return ERR(f, -r);
+	f->outbuf.len += r;
+
+	ffarr_acq(&f->vtag.out, &f->outbuf);
+	f->vtag.out.len += sizeof(struct flac_hdr);
+	const char *vendor = flac_vendor();
+	if (0 != ffvorbtag_add(&f->vtag, NULL, vendor, ffsz_len(vendor)))
+		return ERR(f, FLAC_EHDR);
+
+	f->info = *info;
+	return 0;
+}
+
+void ffflac_wclose(ffflac_cook *f)
+{
+	ffvorbtag_destroy(&f->vtag);
+	ffmem_safefree(f->sktab.ptr);
+	ffarr_free(&f->outbuf);
+}
+
+int ffflac_addtag(ffflac_cook *f, const char *name, const char *val, size_t vallen)
+{
+	if (0 != ffvorbtag_add(&f->vtag, name, val, vallen))
+		return ERR(f, FLAC_EHDR);
+	return 0;
+}
+
+static int _ffflac_whdr(ffflac_cook *f)
+{
+	if (f->seektable_int != 0 && f->total_samples != 0) {
+		uint interval = (f->seektable_int == (uint)-1) ? f->info.sample_rate : f->seektable_int;
+		if (0 > flac_seektab_init(&f->sktab, f->total_samples, interval))
+			return ERR(f, FLAC_ESYS);
+	}
+
+	ffvorbtag_fin(&f->vtag);
+	uint tagoff = f->outbuf.len;
+	uint taglen = f->vtag.out.len - sizeof(struct flac_hdr) - tagoff;
+	ffarr_acq(&f->outbuf, &f->vtag.out);
+	uint padding = f->min_meta - taglen;
+
+	flac_sethdr(f->outbuf.ptr + tagoff, FLAC_TTAGS, (padding == 0 && f->sktab.len == 0), taglen);
+
+	if (NULL == ffarr_realloc(&f->outbuf, flac_hdrsize(taglen, padding, f->sktab.len)))
+		return ERR(f, FLAC_ESYS);
+
+	if (padding != 0)
+		f->outbuf.len += flac_padding_write(ffarr_end(&f->outbuf), padding, f->sktab.len == 0);
+
+	if (f->sktab.len != 0) {
+		f->seektab_off = f->outbuf.len;
+		uint len = flac_seektab_size(f->sktab.len);
+		ffmem_zero(ffarr_end(&f->outbuf), len);
+		f->outbuf.len += len;
+	}
+
+	f->hdrlen = f->outbuf.len;
+	return 0;
+}
+
+enum {
+	W_HDR, W_FRAMES,
+	W_SEEK0, W_INFO_WRITE, W_SEEKTAB_SEEK, W_SEEKTAB_WRITE,
+};
+
+/* FLAC write:
+Reserve the space in output file for FLAC stream info and seek table.
+Write vorbis comments and padding.
+After all frames have been written,
+  seek back to the beginning and write the complete FLAC stream info and seek table.
+*/
+int ffflac_write(ffflac_cook *f, uint in_frsamps)
+{
+	int r;
+
+	for (;;) {
+	switch (f->state) {
+
+	case W_HDR:
+		if (0 != (r = _ffflac_whdr(f)))
+			return r;
+
+		ffstr_set2(&f->out, &f->outbuf);
+		f->outbuf.len = 0;
+		f->state = W_FRAMES;
+		return FFFLAC_RDATA;
+
+	case W_FRAMES:
+		if (f->fin) {
+			f->state = W_SEEK0;
+			continue;
+		}
+		if (f->in.len == 0)
+			return FFFLAC_RMORE;
+		f->iskpt = flac_seektab_add(f->sktab.ptr, f->sktab.len, f->iskpt, f->nsamps, f->frlen, in_frsamps);
+		f->out = f->in;
+		f->in.len = 0;
+		f->frlen += f->out.len;
+		f->nsamps += in_frsamps;
+		return FFFLAC_RDATA;
+
+	case W_SEEK0:
+		if (!f->seekable) {
+			f->out.len = 0;
+			return FFFLAC_RDONE;
+		}
+		f->state = W_INFO_WRITE;
+		f->seekoff = 0;
+		return FFFLAC_RSEEK;
+
+	case W_INFO_WRITE:
+		f->info.total_samples = f->nsamps;
+		r = flac_info_write(f->outbuf.ptr, f->outbuf.cap, &f->info);
+		if (r < 0)
+			return ERR(f, -r);
+		ffstr_set(&f->out, f->outbuf.ptr, r);
+		if (f->sktab.len == 0)
+			return FFFLAC_RDONE;
+		f->state = W_SEEKTAB_SEEK;
+		return FFFLAC_RDATA;
+
+	case W_SEEKTAB_SEEK:
+		f->state = W_SEEKTAB_WRITE;
+		f->seekoff = f->seektab_off;
+		return FFFLAC_RSEEK;
+
+	case W_SEEKTAB_WRITE:
+		r = flac_seektab_write(f->outbuf.ptr, f->outbuf.cap, f->sktab.ptr, f->sktab.len, f->info.minblock);
+		ffstr_set(&f->out, f->outbuf.ptr, r);
+		return FFFLAC_RDONE;
+	}
+	}
+
+	return FFFLAC_RERR;
+}
+
+
 const char* ffflac_enc_errstr(ffflac_enc *f)
 {
 	ffflac fl;
@@ -632,34 +795,19 @@ const char* ffflac_enc_errstr(ffflac_enc *f)
 	return ffflac_errstr(&fl);
 }
 
-int ffflac_addtag(ffflac_enc *f, const char *name, const char *val, size_t vallen)
-{
-	if (0 != ffvorbtag_add(&f->vtag, name, val, vallen)) {
-		f->errtype = FLAC_EHDR;
-		return FFFLAC_RERR;
-	}
-	return 0;
-}
-
 enum ENC_STATE {
-	ENC_HDR, ENC_FRAMES,
-	ENC_SEEK0, ENC_INFO_WRITE, ENC_SEEKTAB_SEEK, ENC_SEEKTAB_WRITE,
+	ENC_HDR, ENC_FRAMES, ENC_DONE
 };
 
 void ffflac_enc_init(ffflac_enc *f)
 {
 	ffmem_tzero(f);
-	f->min_meta = 1000;
-	f->seektable_int = (uint)-1;
 	f->level = 5;
-	f->seekable = 1;
 }
 
 void ffflac_enc_close(ffflac_enc *f)
 {
-	ffvorbtag_destroy(&f->vtag);
 	ffarr_free(&f->outbuf);
-	ffmem_safefree(f->sktab.ptr);
 	FF_SAFECLOSE(f->enc, NULL, flac_encode_free);
 }
 
@@ -675,8 +823,7 @@ int ffflac_create(ffflac_enc *f, ffpcm *pcm)
 
 	default:
 		pcm->format = FFPCM_24;
-		f->errtype = FLAC_EFMT;
-		return -1;
+		return ERR(f, FLAC_EFMT);
 	}
 
 	flac_conf conf = {0};
@@ -687,22 +834,8 @@ int ffflac_create(ffflac_enc *f, ffpcm *pcm)
 	conf.nomd5 = !!(f->opts & FFFLAC_ENC_NOMD5);
 
 	if (0 != (r = flac_encode_init(&f->enc, &conf))) {
-		f->errtype = FLAC_ELIB;
 		f->err = r;
-		return FFFLAC_RERR;
-	}
-
-	if (f->seektable_int != 0 && f->total_samples != 0) {
-		uint interval = (f->seektable_int == (uint)-1) ? pcm->sample_rate : f->seektable_int;
-		if (0 > flac_seektab_init(&f->sktab, f->total_samples, interval)) {
-			f->errtype = FLAC_ESYS;
-			return FFFLAC_RERR;
-		}
-	}
-
-	if (NULL == ffarr_alloc(&f->outbuf, 4096)) {
-		f->errtype = FLAC_ESYS;
-		return FFFLAC_RERR;
+		return ERR(f, FLAC_ELIB);
 	}
 
 	flac_conf info;
@@ -712,63 +845,15 @@ int ffflac_create(ffflac_enc *f, ffpcm *pcm)
 	f->info.channels = pcm->channels;
 	f->info.sample_rate = pcm->sample_rate;
 	f->info.bits = ffpcm_bits(pcm->format);
-	r = flac_info_write(f->outbuf.ptr, f->outbuf.cap, &f->info);
-	if (r < 0) {
-		f->errtype = -r;
-		return FFFLAC_RERR;
-	}
-	f->outbuf.len += r;
-
-	ffarr_acq(&f->vtag.out, &f->outbuf);
-	f->vtag.out.len += sizeof(struct flac_hdr);
-	const char *vendor = flac_vendor();
-	if (0 != ffvorbtag_add(&f->vtag, NULL, vendor, ffsz_len(vendor))) {
-		f->errtype = FLAC_EHDR;
-		return FFFLAC_RERR;
-	}
-
-	return 0;
-}
-
-static int _ffflac_enc_hdr(ffflac_enc *f)
-{
-	ffvorbtag_fin(&f->vtag);
-	uint tagoff = f->outbuf.len;
-	uint taglen = f->vtag.out.len - sizeof(struct flac_hdr) - tagoff;
-	ffarr_acq(&f->outbuf, &f->vtag.out);
-	uint padding = f->min_meta - taglen;
-
-	flac_sethdr(f->outbuf.ptr + tagoff, FLAC_TTAGS, (padding == 0 && f->sktab.len == 0), taglen);
-
-	if (NULL == ffarr_realloc(&f->outbuf, flac_hdrsize(taglen, padding, f->sktab.len))) {
-		f->errtype = FLAC_ESYS;
-		return FFFLAC_RERR;
-	}
-
-	if (padding != 0)
-		f->outbuf.len += flac_padding_write(ffarr_end(&f->outbuf), padding, f->sktab.len == 0);
-
-	if (f->sktab.len != 0) {
-		f->seektab_off = f->outbuf.len;
-		uint len = flac_seektab_size(f->sktab.len);
-		ffmem_zero(ffarr_end(&f->outbuf), len);
-		f->outbuf.len += len;
-	}
-
-	f->metalen = f->outbuf.len;
 	return 0;
 }
 
 /*
-Reserve the space in output file for FLAC stream info and seek table.
-Write vorbis comments and padding.
 Encode audio data into FLAC frames.
   An input sample must be within 32-bit container.
   To encode a frame libFLAC needs NBLOCK+1 input samples.
   flac_encode() returns a frame with NBLOCK encoded samples,
     so 1 sample always stays cached in libFLAC until we explicitly flush output data.
-After all frames have been written,
-  seek back to the beginning and write the complete FLAC stream info and seek table.
 */
 int ffflac_encode(ffflac_enc *f)
 {
@@ -778,66 +863,29 @@ int ffflac_encode(ffflac_enc *f)
 	switch (f->state) {
 
 	case ENC_HDR:
-		if (0 != (r = _ffflac_enc_hdr(f)))
-			return r;
-
 		if (NULL == ffarr_realloc(&f->outbuf, (f->info.minblock + 1) * sizeof(int) * f->info.channels))
-			return f->errtype = FLAC_ESYS,  FFFLAC_RERR;
+			return ERR(f, FLAC_ESYS);
 		for (uint i = 0;  i != f->info.channels;  i++) {
 			f->pcm32[i] = (void*)(f->outbuf.ptr + (f->info.minblock + 1) * sizeof(int) * i);
 		}
 		f->cap_pcm32 = f->info.minblock + 1;
 
 		f->state = ENC_FRAMES;
-		f->data = (void*)f->outbuf.ptr;
-		f->datalen = f->outbuf.len;
-		f->outbuf.len = 0;
-		return FFFLAC_RDATA;
+		// break
 
 	case ENC_FRAMES:
 		break;
 
-	case ENC_SEEK0:
-		if (!f->seekable) {
-			f->datalen = 0;
-			return FFFLAC_RDONE;
-		}
-		f->state = ENC_INFO_WRITE;
-		f->seekoff = 0;
-		return FFFLAC_RSEEK;
-
-	case ENC_INFO_WRITE: {
+	case ENC_DONE: {
 		flac_conf info = {0};
 		flac_encode_info(f->enc, &info);
 		f->info.minblock = info.min_blocksize;
 		f->info.maxblock = info.max_blocksize;
 		f->info.minframe = info.min_framesize;
 		f->info.maxframe = info.max_framesize;
-		f->info.total_samples = f->nsamps;
 		ffmemcpy(f->info.md5, info.md5, sizeof(f->info.md5));
-		r = flac_info_write(f->outbuf.ptr, f->outbuf.cap, &f->info);
-		if (r < 0) {
-			f->errtype = -r;
-			return FFFLAC_RERR;
-		}
-		f->data = (void*)f->outbuf.ptr;
-		f->datalen = r;
-		if (f->sktab.len == 0)
-			return FFFLAC_RDONE;
-		f->state = ENC_SEEKTAB_SEEK;
-		return FFFLAC_RDATA;
-	}
-
-	case ENC_SEEKTAB_SEEK:
-		f->state = ENC_SEEKTAB_WRITE;
-		f->seekoff = f->seektab_off;
-		return FFFLAC_RSEEK;
-
-	case ENC_SEEKTAB_WRITE:
-		r = flac_seektab_write(f->outbuf.ptr, f->outbuf.cap, f->sktab.ptr, f->sktab.len, f->info.minblock);
-		f->data = (void*)f->outbuf.ptr;
-		f->datalen = r;
 		return FFFLAC_RDONE;
+	}
 	}
 
 	sampsize = f->info.bits/8 * f->info.channels;
@@ -857,7 +905,7 @@ int ffflac_encode(ffflac_enc *f)
 	}
 
 	if (0 != (r = pcm_to32(dst, src, f->info.bits, f->info.channels, samples)))
-		return f->errtype = FLAC_EFMT,  FFFLAC_RERR;
+		return ERR(f, FLAC_EFMT);
 
 	f->off_pcm += samples;
 	f->off_pcm32 += samples;
@@ -879,7 +927,7 @@ int ffflac_encode(ffflac_enc *f)
 		if (r < 0)
 			return f->errtype = FLAC_ELIB,  f->err = r,  FFFLAC_RERR;
 		blksize = samples;
-		f->state = ENC_SEEK0;
+		f->state = ENC_DONE;
 	}
 
 	FF_ASSERT(r != 0);
@@ -888,9 +936,7 @@ int ffflac_encode(ffflac_enc *f)
 	if (f->cap_pcm32 == f->info.minblock + 1)
 		f->cap_pcm32 = f->info.minblock;
 
+	f->frsamps = blksize;
 	f->datalen = r;
-	f->iskpt = flac_seektab_add(f->sktab.ptr, f->sktab.len, f->iskpt, f->nsamps, f->frlen, blksize);
-	f->frlen += f->datalen;
-	f->nsamps += blksize;
 	return FFFLAC_RDATA;
 }

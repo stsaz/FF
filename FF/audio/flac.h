@@ -100,6 +100,65 @@ FF_EXTN int ffflac_decode(ffflac *f);
 #define ffflac_cursample(f)  ((f)->frsample)
 
 
+typedef struct ffflac_cook {
+	uint state;
+	uint errtype;
+	ffarr outbuf;
+	uint64 nsamps;
+	uint64 seekoff;
+	ffflac_info info;
+
+	ffvorbtag_cook vtag;
+	uint min_meta; // minimum size of meta data (add padding block if needed)
+	uint64 hdrlen;
+
+	uint64 total_samples;
+	uint seektable_int; // interval (in samples) for seek table.  Default: 1 sec.  0=disabled.
+	uint iskpt;
+	_ffflac_seektab sktab;
+	uint64 frlen;
+	uint seektab_off;
+
+	uint fin :1;
+	uint seekable :1;
+	ffstr in, out;
+} ffflac_cook;
+
+FF_EXTN const char* ffflac_out_errstr(ffflac_cook *f);
+
+FF_EXTN void ffflac_winit(ffflac_cook *f);
+
+/**
+@info: passed from ffflac_enc.
+*/
+FF_EXTN int ffflac_wnew(ffflac_cook *f, const ffflac_info *info);
+FF_EXTN void ffflac_wclose(ffflac_cook *f);
+
+/**
+@in_frsamps: audio samples encoded in this frame */
+FF_EXTN int ffflac_write(ffflac_cook *f, uint in_frsamps);
+
+static FFINL void ffflac_wfin(ffflac_cook *f, const ffflac_info *info)
+{
+	f->fin = 1;
+	f->info = *info;
+}
+
+FF_EXTN int ffflac_addtag(ffflac_cook *f, const char *name, const char *val, size_t vallen);
+
+#define ffflac_iaddtag(f, tag, val, vallen) \
+	ffflac_addtag(f, ffvorbtag_str[tag], val, vallen)
+
+/** Get an absolute file offset to seek. */
+#define ffflac_wseekoff(f)  ((f)->seekoff)
+
+/** Get approximate output file size. */
+static FFINL uint64 ffflac_wsize(ffflac_cook *f)
+{
+	return f->hdrlen + f->total_samples * f->info.bits / 8 * f->info.channels * 73 / 100;
+}
+
+
 enum FFFLAC_ENC_OPT {
 	FFFLAC_ENC_NOMD5 = 1, // don't generate MD5 checksum of uncompressed data
 };
@@ -110,33 +169,21 @@ typedef struct ffflac_enc {
 	ffflac_info info;
 	uint err;
 	uint errtype;
-	ffvorbtag_cook vtag;
-	uint64 seekoff;
-	uint64 frlen;
-	uint64 metalen;
-	uint64 nsamps;
 
 	size_t datalen;
 	const byte *data;
-	uint seektab_off;
 
 	size_t pcmlen;
 	const void **pcm;
+	uint frsamps;
 	ffstr3 outbuf;
 	int* pcm32[FLAC__MAX_CHANNELS];
 	size_t off_pcm
 		, off_pcm32
 		, cap_pcm32;
 
-	uint64 total_samples;
-	uint min_meta; // minimum size of meta data (add padding block if needed)
 	uint level; //0..8.  Default: 5.
 	uint fin :1;
-	uint seekable :1;
-
-	uint seektable_int; // interval (in samples) for seek table.  Default: 1 sec.  0=disabled.
-	uint iskpt;
-	_ffflac_seektab sktab;
 
 	uint opts; //enum FFFLAC_ENC_OPT
 } ffflac_enc;
@@ -150,16 +197,7 @@ FF_EXTN int ffflac_create(ffflac_enc *f, ffpcm *format);
 
 FF_EXTN void ffflac_enc_close(ffflac_enc *f);
 
-FF_EXTN int ffflac_addtag(ffflac_enc *f, const char *name, const char *val, size_t vallen);
-
-#define ffflac_iaddtag(f, tag, val, vallen) \
-	ffflac_addtag(f, ffvorbtag_str[tag], val, vallen)
-
 /** Return enum FFFLAC_R. */
 FF_EXTN int ffflac_encode(ffflac_enc *f);
 
-/** Get approximate output file size. */
-static FFINL uint64 ffflac_enc_size(ffflac_enc *f)
-{
-	return f->metalen + f->total_samples * ffpcm_size(f->info.bits, f->info.channels) * 73 / 100;
-}
+#define ffflac_enc_fin(f)  ((f)->fin = 1)
