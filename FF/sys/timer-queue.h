@@ -56,3 +56,7 @@ static FFINL int fftmrq_start(fftimer_queue *tq, fffd kq, uint interval_ms) {
 		return 1;
 	return fftmr_start(tq->tmr, kq, ffkev_ptr(&tq->kev), interval_ms);
 }
+
+#define fftmrq_started(tq)  ((tq)->tmr != FF_BADTMR)
+
+#define fftmrq_empty(tq)  ((tq)->items.len == 0)

@@ -6,6 +6,7 @@ Copyright (c) 2015 Simon Zolin
 
 #include <FF/audio/pcm.h>
 #include <FFOS/mem.h>
+#include <FFOS/file.h>
 
 #include <alsa/asoundlib.h>
 

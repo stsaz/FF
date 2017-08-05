@@ -183,7 +183,7 @@ int flac_seektab(const char *data, size_t len, _ffflac_seektab *sktab, uint64 to
 		return -1; //seek point is too big
 
 	ffpcm_seekpt *sp;
-	if (NULL == (sp = ffmem_tcalloc(ffpcm_seekpt, npts + 2)))
+	if (NULL == (sp = ffmem_callocT(npts + 2, ffpcm_seekpt)))
 		return -1;
 	sktab->ptr = sp;
 	sp++; //skip zero point
@@ -250,7 +250,7 @@ int flac_seektab_init(_ffflac_seektab *sktab, uint64 total_samples, uint interva
 	if ((int)npts <= 0)
 		return 0;
 
-	if (NULL == (sktab->ptr = ffmem_talloc(ffpcm_seekpt, npts)))
+	if (NULL == (sktab->ptr = ffmem_allocT(npts, ffpcm_seekpt)))
 		return -1;
 	sktab->len = npts;
 

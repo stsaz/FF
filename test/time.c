@@ -81,7 +81,6 @@ int test_timerq()
 {
 	fffd kq;
 	ffkqu_time tt;
-	const ffkqu_time *kqtm;
 	ffkqu_entry ent;
 	int nevents;
 	enum { tmr_resol = 100 };
@@ -93,7 +92,7 @@ int test_timerq()
 
 	kq = ffkqu_create();
 	x(kq != FF_BADFD);
-	kqtm = ffkqu_settm(&tt, -1);
+	ffkqu_settm(&tt, -1);
 
 	fftmrq_init(&tq);
 	t1.handler = &t1_func;
@@ -109,7 +108,7 @@ int test_timerq()
 	x(0 == fftmrq_start(&tq, kq, tmr_resol));
 
 	for (;;) {
-		nevents = ffkqu_wait(kq, &ent, 1, kqtm);
+		nevents = ffkqu_wait(kq, &ent, 1, &tt);
 
 		if (nevents > 0) {
 			ffkev_call(&ent);

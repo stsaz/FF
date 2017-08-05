@@ -107,17 +107,7 @@ typedef struct ffdns_opt {
 	byte maxmsg[2];
 	byte extrcode;
 	byte ver;
-
-#if FFENDIAN == FF_BIG_ENDIAN
-	byte dnssec :1
-		, flags1 :7
-		, flags2;
-
-#else
-	byte dnssec :1
-		, flags1 :7
-		, flags2;
-#endif
+	byte flags[2]; //dnssec[1] flags[15]
 
 	byte len[2];
 } ffdns_opt; //10 bytes

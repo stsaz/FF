@@ -511,7 +511,7 @@ int ffui_openfolder(const char *const *items, size_t selcnt)
 	ffsyschar *pathz = NULL;
 
 	if (selcnt != 0) {
-		if (NULL == (sel = ffmem_tcalloc(ITEMIDLIST*, selcnt)))
+		if (NULL == (sel = ffmem_callocT(selcnt, ITEMIDLIST*)))
 			return -1;
 
 		for (i = 0;  i != selcnt;  i++) {
@@ -892,8 +892,8 @@ int ffui_view_ins(ffui_view *v, int pos, ffui_viewitem *it)
 
 int ffui_view_set(ffui_view *v, int sub, ffui_viewitem *it)
 {
-	uint check_id = FF_SET(&v->check_id, 0);
-	uint chsel_id = FF_SET(&v->chsel_id, 0);
+	uint check_id = FF_SWAP(&v->check_id, 0);
+	uint chsel_id = FF_SWAP(&v->chsel_id, 0);
 	int r;
 	it->item.iSubItem = sub;
 	r = (0 == ListView_SetItem(v->h, it));

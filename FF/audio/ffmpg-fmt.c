@@ -233,12 +233,7 @@ int ffmpg_xing_write(const struct ffmpg_info *xing, char *data)
 struct mpg_lamehdr {
 	char id[9];
 	byte unsupported1[12];
-
-	byte delay_hi;
-	byte padding_hi :4
-		, delay_lo :4;
-	byte padding_lo;
-
+	byte delay_padding[3]; // delay[12]  padding[12]
 	byte unsupported2[12];
 };
 
@@ -250,8 +245,8 @@ int ffmpg_lame_parse(struct ffmpg_lame *lame, const char *data, size_t len)
 		return -1;
 
 	ffmemcpy(lame->id, h->id, sizeof(lame->id));
-	lame->enc_delay = ((uint)h->delay_hi << 4) | (h->delay_lo);
-	lame->enc_padding = (((uint)h->padding_hi) << 8) | h->padding_lo;
+	lame->enc_delay = ffint_ntoh16(h->delay_padding) >> 4; //DDDX -> DDD
+	lame->enc_padding = ffint_ntoh16(h->delay_padding + 1) & 0x0fff; //XPPP -> PPP
 	return sizeof(struct mpg_lamehdr);
 }
 

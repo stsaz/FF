@@ -93,6 +93,18 @@ fail:
 	return 0;
 }
 
+size_t fftime_now_tostrz(char *dst, size_t cap, uint fmt)
+{
+	ffdtm dt;
+	fftime t;
+	fftime_now(&t);
+	fftime_split(&dt, &t, FFTIME_TZLOCAL);
+	size_t n = fftime_tostr(&dt, dst, cap, fmt);
+	if (n != 0)
+		dst[n] = '\0';
+	return n;
+}
+
 size_t fftime_fromstr(ffdtm *dt, const char *s, size_t len, uint fmt)
 {
 	ffdtm t = {0};

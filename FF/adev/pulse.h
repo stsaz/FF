@@ -62,7 +62,6 @@ typedef struct ffpulse_buf {
 
 FF_EXTN int ffpulse_open(ffpulse_buf *snd, const char *dev, ffpcm *fmt, uint bufsize_msec);
 FF_EXTN void ffpulse_close(ffpulse_buf *snd);
-FF_EXTN int ffpulse_start(ffpulse_buf *snd);
 
 #define ffpulse_bufsize(snd)  ((snd)->bufsize)
 

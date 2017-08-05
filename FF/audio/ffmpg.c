@@ -521,8 +521,9 @@ int ffmpg_readframe(ffmpgr *m, ffstr *frame)
 
 fr:
 	m->cur_sample += m->frsamps;
-	FFDBG_PRINTLN(10, "frame #%u  size:%L  bitrate:%u  offset:%xU"
-		, m->frno++, frame->len, ffmpg_hdr_bitrate((void*)frame->ptr), m->off - frame->len);
+	m->frno++;
+	FFDBG_PRINTLN(10, "frame #%u  samples:%u  size:%u  bitrate:%u  offset:%xU"
+		, m->frno, (uint)m->frsamps, (uint)frame->len, ffmpg_hdr_bitrate((void*)frame->ptr), m->off - frame->len);
 	return r;
 }
 

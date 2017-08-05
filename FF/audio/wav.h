@@ -17,7 +17,7 @@ FF_EXTN uint ffwav_fmt(uint pcm_fmt);
 
 #ifdef FF_WIN
 /** ffpcm -> WAVEFORMATEX */
-static FFINL void ffwav_makewfx(WAVEFORMATEX *wf, ffpcm *f)
+static FFINL void ffwav_makewfx(WAVEFORMATEX *wf, const ffpcm *f)
 {
 	wf->wFormatTag = ffwav_fmt(f->format);
 	wf->wBitsPerSample = ffpcm_bits(f->format);

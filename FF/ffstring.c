@@ -8,6 +8,16 @@ Copyright (c) 2013 Simon Zolin
 #include <math.h>
 
 
+#ifdef FFMEM_DBG
+ffatomic ffmemcpy_total;
+
+void* ffmemcpy(void *dst, const void *src, size_t len)
+{
+	ffmemcpy_total += len;
+	return _ffmemcpy(dst, src, len);
+}
+#endif
+
 int ffs_icmp(const char *s1, const char *s2, size_t len)
 {
 	size_t i;
@@ -339,6 +349,23 @@ ssize_t ffszarr_ifindsorted(const char *const *ar, size_t n, const char *search,
 			start = ar + 1;
 	}
 	return -1;
+}
+
+char* ffszarr_findkey(const char *const *ar, size_t n, const char *key, size_t keylen)
+{
+	for (uint i = 0;  ar[i] != NULL;  i++) {
+		if (ffsz_match(ar[i], key, keylen)
+			&& ar[i][keylen] == '=')
+			return (char*)ar[i] + keylen + FFSLEN("=");
+	}
+	return NULL;
+}
+
+size_t ffszarr_countz(const char *const *arz)
+{
+	size_t i;
+	for (i = 0;  arz[i] != NULL;  i++){}
+	return i;
 }
 
 ssize_t ffcharr_findsorted(const void *ar, size_t n, size_t m, const char *search, size_t search_len)
@@ -1466,8 +1493,14 @@ size_t ffstr_nextval(const char *buf, size_t len, ffstr *dst, int spl)
 {
 	const char *end = buf + len;
 	const char *pos;
+	ffstr spc;
 	uint f = spl & ~0xff;
 	spl &= 0xff;
+
+	if (f & FFS_NV_TABS)
+		ffstr_setcz(&spc, "\t ");
+	else
+		ffstr_setcz(&spc, " ");
 
 	if (f & FFS_NV_REVERSE) {
 		pos = ffs_rfind(buf, end - buf, spl);
@@ -1479,8 +1512,8 @@ size_t ffstr_nextval(const char *buf, size_t len, ffstr *dst, int spl)
 		}
 
 		if (!(f & FFS_NV_KEEPWHITE)) {
-			pos = ffs_skip(pos, end - pos, ' ');
-			end = ffs_rskip(pos, end - pos, ' ');
+			pos = ffs_skipof(pos, end - pos, spc.ptr, spc.len);
+			end = ffs_rskipof(pos, end - pos, spc.ptr, spc.len);
 		}
 
 		ffstr_set(dst, pos, end - pos);
@@ -1488,7 +1521,7 @@ size_t ffstr_nextval(const char *buf, size_t len, ffstr *dst, int spl)
 	}
 
 	if (!(f & FFS_NV_KEEPWHITE))
-		buf = ffs_skip(buf, end - buf, ' ');
+		buf = ffs_skipof(buf, end - buf, spc.ptr, spc.len);
 
 	if (buf == end) {
 		dst->len = 0;
@@ -1503,7 +1536,7 @@ size_t ffstr_nextval(const char *buf, size_t len, ffstr *dst, int spl)
 			pos++;
 
 		if (!(f & FFS_NV_KEEPWHITE))
-			pos = ffs_skip(pos, end - pos, ' ');
+			pos = ffs_skipof(pos, end - pos, spc.ptr, spc.len);
 
 		return pos - (end - len);
 	}
@@ -1513,7 +1546,7 @@ size_t ffstr_nextval(const char *buf, size_t len, ffstr *dst, int spl)
 		len = pos - (end - len) + 1;
 
 	if (!(f & FFS_NV_KEEPWHITE))
-		pos = ffs_rskip(buf, pos - buf, ' ');
+		pos = ffs_rskipof(buf, pos - buf, spc.ptr, spc.len);
 
 	ffstr_set(dst, buf, pos - buf);
 	return len;

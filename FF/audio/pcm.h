@@ -16,6 +16,7 @@ enum FFPCM_FMT {
 	FFPCM_16 = 16,
 	FFPCM_24 = 24,
 	FFPCM_32 = 32,
+	FFPCM_24_4 = 0x0100 | 32,
 	FFPCM_FLOAT = 0x0200 | 32,
 };
 

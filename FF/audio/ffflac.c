@@ -293,7 +293,7 @@ static int _ffflac_init(ffflac *f)
 
 	if (f->total_size != 0) {
 		if (f->sktab.len == 0 && f->info.total_samples != 0) {
-			if (NULL == (f->sktab.ptr = ffmem_tcalloc(ffpcm_seekpt, 2))) {
+			if (NULL == (f->sktab.ptr = ffmem_callocT(2, ffpcm_seekpt))) {
 				f->errtype = FLAC_ESYS;
 				return FFFLAC_RERR;
 			}

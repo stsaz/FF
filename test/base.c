@@ -58,7 +58,72 @@ int test_num(void)
 }
 
 
-static int rbtRm(ffrbtl_node *nod, void *udata)
+int test_rbt(void)
+{
+	ffrbtree tr;
+	enum { NUM = 10000, OFF = 1000, LNUM = 1 };
+	int i;
+	int n;
+	ffrbt_node *ar;
+	fftree_node *nod;
+
+	FFTEST_FUNC;
+
+	ffrbt_init(&tr);
+	ar = (ffrbt_node*)ffmem_calloc(NUM * LNUM, sizeof(ffrbt_node));
+	x(ar != NULL);
+
+	n = 0;
+	for (i = OFF; i < NUM; i++) {
+		ar[n].key = i;
+		ffrbt_insert(&tr, &ar[n++], NULL);
+	}
+	for (i = 0; i < OFF; i++) {
+		ar[n].key = i;
+		ffrbt_insert(&tr, &ar[n++], NULL);
+	}
+
+	x(tr.len == NUM * LNUM);
+
+	i = 0;
+	FFTREE_WALK(&tr, nod) {
+		n = 1;
+		x(nod->key == i);
+		i++;
+	}
+	x(i == NUM);
+
+	i = 0;
+	FFTREE_WALK(&tr, nod) {
+		x(i++ == nod->key);
+	}
+	x(i == NUM);
+
+	{
+		ffrbt_node *rt;
+		ffrbt_node *found;
+
+		found = ffrbt_find(&tr, NUM / 3, NULL);
+		x(found->key == NUM / 3);
+
+		found = ffrbt_find(&tr, NUM, &rt);
+		x(found == NULL && rt->key == NUM - 1);
+	}
+
+	for (i = (NUM / 2) * LNUM;  i != (NUM / 2 + OFF) * LNUM;  i++) {
+		ffrbt_rm(&tr, &ar[i]);
+	}
+	fftree_node *nod2, *next;
+	FFTREE_WALKSAFE(&tr, nod2, next) {
+		ffrbt_rm(&tr, (void*)nod2);
+	}
+	x(tr.len == 0);
+
+	ffmem_free(ar);
+	return 0;
+}
+
+static int rbtl_rm(ffrbtl_node *nod, void *udata)
 {
 	ffrbtree *tr = udata;
 	ffrbtl_rm(tr, nod);
@@ -138,13 +203,12 @@ int test_rbtlist()
 	for (i = (NUM / 2) * LNUM;  i != (NUM / 2 + OFF) * LNUM;  i++) {
 		ffrbtl_rm(&tr, &ar[i]);
 	}
-	ffrbtl_enumsafe(&tr, (fftree_on_item_t)&rbtRm, &tr, 0);
+	ffrbtl_enumsafe(&tr, (fftree_on_item_t)&rbtl_rm, &tr, 0);
 	x(tr.len == 0);
 
 	ffmem_free(ar);
 	return 0;
 }
-
 
 int test_list()
 {

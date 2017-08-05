@@ -138,7 +138,7 @@ int ffpic_convert(uint in_fmt, const void *src, uint out_fmt, void *dst, uint pi
 	case CASE(FFPIC_RGBA, FFPIC_BGRA):
 	case CASE(FFPIC_BGRA, FFPIC_RGBA):
 		for (i = 0;  i != pixels;  i++) {
-			in = in + i * 4;
+			in = src + i * 4;
 			o = dst + i * 4;
 			o[0] = in[2];
 			o[1] = in[1];

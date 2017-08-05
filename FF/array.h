@@ -7,6 +7,7 @@ Copyright (c) 2013 Simon Zolin
 #include <FFOS/mem.h>
 #include <FF/string.h>
 #include <FF/chain.h>
+#include <FFOS/file.h>
 
 
 /** FOREACH() for array pointer, e.g. int *ptr */
@@ -136,6 +137,7 @@ do { \
 	(src)->cap = 0; \
 } while (0)
 
+#define _ffarr_item(ar, idx, elsz)  ((ar)->ptr + idx * elsz)
 #define ffarr_itemT(ar, idx, T)  (&((T*)(ar)->ptr)[idx])
 
 /** The last element in array. */
@@ -143,6 +145,7 @@ do { \
 #define ffarr_lastT(ar, T)  (&((T*)(ar)->ptr)[(ar)->len - 1])
 
 /** The tail of array. */
+#define _ffarr_end(ar, elsz)  _ffarr_item(ar, ar->len, elsz)
 #define ffarr_end(ar)  ((ar)->ptr + (ar)->len)
 #define ffarr_endT(ar, T)  ((T*)(ar)->ptr + (ar)->len)
 
@@ -156,8 +159,13 @@ do { \
 #define ffarr_isfull(ar)  ((ar)->len == (ar)->cap)
 
 /** Forward walk. */
+#define _FFARR_WALK(ar, it, elsz) \
+	for (it = (void*)(ar)->ptr \
+		;  it != (void*)((ar)->ptr + (ar)->len * elsz) \
+		;  it = (void*)((char*)it + elsz))
+
 #define FFARR_WALKT(ar, it, T) \
-	for (it = (T*)(ar)->ptr;  it != ((T*)(ar)->ptr) + (ar)->len;  it++)
+	_FFARR_WALK(ar, it, sizeof(T))
 
 #define FFARR_WALK(ar, it) \
 	for (it = (ar)->ptr;  it != (ar)->ptr + (ar)->len;  it++)
@@ -529,6 +537,7 @@ enum FFSTR_NEXTVAL {
 	FFSTR_NV_DBLQUOT = 0x100, // val1 "val2 with space" val3
 	FFS_NV_KEEPWHITE = 0x200, // don't trim whitespace
 	FFS_NV_REVERSE = 0x400, // reverse search
+	FFS_NV_TABS = 0x0800, // treat whitespace as spaces and tabs
 };
 
 /** Get the next value from input string like "val1, val2, ...".

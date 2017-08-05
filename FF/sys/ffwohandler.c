@@ -45,7 +45,7 @@ fail:
 void ffwoh_free(ffwoh *oh)
 {
 	if (oh->wake_evt != NULL) {
-		ffatom_xchg(&oh->cmd, THDCMD_QUIT);
+		ffatom_swap(&oh->cmd, THDCMD_QUIT);
 		SetEvent(oh->wake_evt);
 	}
 
@@ -84,7 +84,7 @@ void ffwoh_rm(ffwoh *oh, HANDLE h)
 
 		fflk_lock(&oh->lk);
 		if (!is_wrker) {
-			ffatom_xchg(&oh->cmd, THDCMD_WAIT);
+			ffatom_swap(&oh->cmd, THDCMD_WAIT);
 			SetEvent(oh->wake_evt);
 
 			//wait until the worker thread returns from the kernel
@@ -118,7 +118,7 @@ static int FFTHDCALL _ffwoh_evt_handler(void *param)
 
 		if (i == 0) {
 			//wake_evt has signaled
-			ssize_t cmd = ffatom_xchg(&oh->cmd, THDCMD_RUN);
+			ssize_t cmd = ffatom_swap(&oh->cmd, THDCMD_RUN);
 			if (cmd == THDCMD_QUIT)
 				break;
 

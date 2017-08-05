@@ -189,17 +189,18 @@ enum {
 
 void ffrbt_insert(ffrbtree *tr, ffrbt_node *nod, ffrbt_node *parent)
 {
-	ffrbt_node **root = &tr->root;
+	ffrbt_node *root = tr->root;
 	void *sentl = &tr->sentl;
 
 	if (parent != NULL && parent != sentl)
-		root = &parent;
+		root = parent;
 
-	tr->insnode((fftree_node*)nod, (fftree_node**)root, sentl);
+	tr->insnode((fftree_node*)nod, (fftree_node**)&root, sentl);
 	nod->color = RED;
 	tr->len++;
 
-	root = &tr->root;
+	if (parent != NULL && parent != sentl)
+		root = tr->root;
 	// fixup after insert if the parent is also red
 	while (nod->parent->color == RED) {
 		ffrbt_node *p = nod->parent;
@@ -210,13 +211,13 @@ void ffrbt_insert(ffrbtree *tr, ffrbt_node *nod, ffrbt_node *parent)
 			uncle = gp->right;
 			if (uncle->color == BLACK) {
 				if (nod == p->right) {
-					rbt_left_rotate(p, root, sentl);
+					rbt_left_rotate(p, &root, sentl);
 					nod = p;
 				}
 
 				(nod->parent)->color = BLACK;
 				gp->color = RED;
-				rbt_right_rotate(gp, root, sentl);
+				rbt_right_rotate(gp, &root, sentl);
 				break;
 			}
 
@@ -224,13 +225,13 @@ void ffrbt_insert(ffrbtree *tr, ffrbt_node *nod, ffrbt_node *parent)
 			uncle = gp->left;
 			if (uncle->color == BLACK) {
 				if (nod == p->left) {
-					rbt_right_rotate(p, root, sentl);
+					rbt_right_rotate(p, &root, sentl);
 					nod = p;
 				}
 
 				(nod->parent)->color = BLACK;
 				gp->color = RED;
-				rbt_left_rotate(gp, root, sentl);
+				rbt_left_rotate(gp, &root, sentl);
 				break;
 			}
 		}
@@ -242,19 +243,20 @@ void ffrbt_insert(ffrbtree *tr, ffrbt_node *nod, ffrbt_node *parent)
 		nod = gp; // repeat the same procedure for grandparent
 	}
 
-	(*root)->color = BLACK;
+	root->color = BLACK;
+	tr->root = (void*)root;
 }
 
 void ffrbt_rm(ffrbtree *tr, ffrbt_node *nod)
 {
-	ffrbt_node **root = &tr->root;
+	ffrbt_node *root = tr->root;
 	void *sentl = &tr->sentl;
 	ffrbt_node *x;
 	ffrbt_node *next;
 
 	FF_ASSERT(tr->len != 0);
 
-	x = (ffrbt_node*)tree_rm((fftree_node*)nod, (fftree_node**)root, sentl, (fftree_node**)&next);
+	x = (ffrbt_node*)tree_rm((fftree_node*)nod, (fftree_node**)&root, sentl, (fftree_node**)&next);
 	tr->len--;
 
 	if (next == NULL) {
@@ -270,7 +272,7 @@ void ffrbt_rm(ffrbtree *tr, ffrbt_node *nod)
 	}
 
 	// fixup after delete
-	while (x != *root && x->color == BLACK) {
+	while (x != root && x->color == BLACK) {
 		ffrbt_node *sib;
 		ffrbt_node *p = x->parent;
 
@@ -280,7 +282,7 @@ void ffrbt_rm(ffrbtree *tr, ffrbt_node *nod)
 			if (sib->color == RED) {
 				sib->color = BLACK;
 				p->color = RED;
-				rbt_left_rotate(p, root, sentl);
+				rbt_left_rotate(p, &root, sentl);
 				sib = p->right;
 			}
 
@@ -288,15 +290,15 @@ void ffrbt_rm(ffrbtree *tr, ffrbt_node *nod)
 				if (sib->right->color == BLACK) {
 					sib->left->color = BLACK;
 					sib->color = RED;
-					rbt_right_rotate(sib, root, sentl);
+					rbt_right_rotate(sib, &root, sentl);
 					sib = p->right;
 				}
 
 				sib->color = p->color;
 				p->color = BLACK;
 				sib->right->color = BLACK;
-				rbt_left_rotate(p, root, sentl);
-				x = *root;
+				rbt_left_rotate(p, &root, sentl);
+				x = root;
 				break;
 			}
 
@@ -306,7 +308,7 @@ void ffrbt_rm(ffrbtree *tr, ffrbt_node *nod)
 			if (sib->color == RED) {
 				sib->color = BLACK;
 				p->color = RED;
-				rbt_right_rotate(p, root, sentl);
+				rbt_right_rotate(p, &root, sentl);
 				sib = p->left;
 			}
 
@@ -314,15 +316,15 @@ void ffrbt_rm(ffrbtree *tr, ffrbt_node *nod)
 				if (sib->left->color == BLACK) {
 					sib->right->color = BLACK;
 					sib->color = RED;
-					rbt_left_rotate(sib, root, sentl);
+					rbt_left_rotate(sib, &root, sentl);
 					sib = p->left;
 				}
 
 				sib->color = p->color;
 				p->color = BLACK;
 				sib->left->color = BLACK;
-				rbt_right_rotate(p, root, sentl);
-				x = *root;
+				rbt_right_rotate(p, &root, sentl);
+				x = root;
 				break;
 			}
 		}
@@ -333,6 +335,7 @@ void ffrbt_rm(ffrbtree *tr, ffrbt_node *nod)
 	}
 
 	x->color = BLACK;
+	tr->root = root;
 }
 
 void ffrbt_print(ffrbtree *tr)

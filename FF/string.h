@@ -231,12 +231,29 @@ FF_EXTN ssize_t ffs_ifindarrz(const char *const *ar, size_t n, const char *searc
 FF_EXTN ssize_t ffszarr_findsorted(const char *const *ar, size_t n, const char *search, size_t search_len);
 FF_EXTN ssize_t ffszarr_ifindsorted(const char *const *ar, size_t n, const char *search, size_t search_len);
 
+/** Find entry that matches expression "KEY=VAL".
+Return pointer to VAL;  NULL if not found. */
+FF_EXTN char* ffszarr_findkey(const char *const *ar, size_t n, const char *key, size_t key_len);
+
+/** Count entries in array with the last entry =NULL. */
+FF_EXTN size_t ffszarr_countz(const char *const *arz);
+
 /** Search a string in char[n][m] array.
 Return -1 if not found. */
 FF_EXTN ssize_t ffcharr_findsorted(const void *ar, size_t n, size_t m, const char *search, size_t search_len);
 
 
-#define ffmemcpy  memcpy
+#define _ffmemcpy  memcpy
+#ifdef FFMEM_DBG
+FF_EXTN ffatomic ffmemcpy_total;
+FF_EXTN void* ffmemcpy(void *dst, const void *src, size_t len);
+#else
+#define ffmemcpy  _ffmemcpy
+#endif
+
+#define ffmem_copyT(dst, src, T)  ffmemcpy(dst, src, sizeof(T))
+#define ffmem_ncopy(dst, src, n, elsz)  ffmemcpy(dst, src, (n) * (elsz))
+#define ffmem_ncopyT(dst, src, n, T)  ffmemcpy(dst, src, (n) * sizeof(T))
 
 /** Copy data and return the tail. */
 #define ffmem_copy(dst, src, len)  ((char*)ffmemcpy(dst, src, len) + (len))

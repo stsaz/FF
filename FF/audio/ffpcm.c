@@ -14,6 +14,7 @@ static const char pcm_fmtstr[][9] = {
 	"float32",
 	"int16",
 	"int24",
+	"int24-4",
 	"int32",
 	"int8",
 };
@@ -21,6 +22,7 @@ static const ushort pcm_fmt[] = {
 	FFPCM_FLOAT,
 	FFPCM_16,
 	FFPCM_24,
+	FFPCM_24_4,
 	FFPCM_32,
 	FFPCM_8,
 };
@@ -451,6 +453,15 @@ int ffpcm_convert(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm, const 
 		}
 		break;
 
+	case CASE(FFPCM_16, FFPCM_24_4):
+		for (ich = 0;  ich != nch;  ich++) {
+			for (i = 0;  i != samples;  i++) {
+				to.pb[ich][i * ostep * 4 + 0] = 0;
+				ffint_htol24(&to.pb[ich][i * ostep * 4 + 1], (int)from.psh[ich][i * istep] * 0x100);
+			}
+		}
+		break;
+
 	case CASE(FFPCM_16, FFPCM_32):
 		for (ich = 0;  ich != nch;  ich++) {
 			for (i = 0;  i != samples;  i++) {
@@ -481,6 +492,15 @@ int ffpcm_convert(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm, const 
 		for (ich = 0;  ich != nch;  ich++) {
 			for (i = 0;  i != samples;  i++) {
 				ffmemcpy(&to.pb[ich][i * ostep * 3], &from.pb[ich][i * istep * 3], 3);
+			}
+		}
+		break;
+
+	case CASE(FFPCM_24, FFPCM_24_4):
+		for (ich = 0;  ich != nch;  ich++) {
+			for (i = 0;  i != samples;  i++) {
+				to.pb[ich][i * ostep * 4 + 0] = 0;
+				ffmemcpy(&to.pb[ich][i * ostep * 4 + 1], &from.pb[ich][i * istep * 3], 3);
 			}
 		}
 		break;
@@ -518,6 +538,15 @@ int ffpcm_convert(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm, const 
 		}
 		break;
 
+	case CASE(FFPCM_32, FFPCM_24_4):
+		for (ich = 0;  ich != nch;  ich++) {
+			for (i = 0;  i != samples;  i++) {
+				to.pb[ich][i * ostep * 4 + 0] = 0;
+				ffint_htol24(&to.pb[ich][i * ostep * 4 + 1], from.pin[ich][i * istep] / 0x100);
+			}
+		}
+		break;
+
 	case CASE(FFPCM_32, FFPCM_32):
 		for (ich = 0;  ich != nch;  ich++) {
 			for (i = 0;  i != samples;  i++) {
@@ -547,6 +576,15 @@ int ffpcm_convert(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm, const 
 		for (ich = 0;  ich != nch;  ich++) {
 			for (i = 0;  i != samples;  i++) {
 				ffint_htol24(&to.pb[ich][i * ostep * 3], _ffpcm_flt_24(from.pf[ich][i * istep]));
+			}
+		}
+		break;
+
+	case CASE(FFPCM_FLOAT, FFPCM_24_4):
+		for (ich = 0;  ich != nch;  ich++) {
+			for (i = 0;  i != samples;  i++) {
+				to.pb[ich][i * ostep * 4 + 0] = 0;
+				ffint_htol24(&to.pb[ich][i * ostep * 4 + 1], _ffpcm_flt_24(from.pf[ich][i * istep]));
 			}
 		}
 		break;

@@ -10,12 +10,22 @@ Copyright (c) 2016 Simon Zolin
 #include <FFOS/time.h>
 
 
+enum TAR_TYPE {
+	TAR_FILE = '0',
+	TAR_FILE0 = '\0',
+	TAR_HLINK = '1',
+	TAR_SLINK = '2',
+	TAR_DIR = '5',
+	TAR_LONG = 'L', //the data in this block is the name of the next file
+	TAR_EXTHDR = 'g', //global extended header
+};
+
 typedef struct fftar_file {
 	const char *name;
 	uint mode; //enum FFUNIX_FILE_DIR
 	uint uid;
 	uint gid;
-	uint type;
+	uint type; //enum TAR_TYPE
 	uint64 size;
 	fftime mtime;
 	const char *uid_str;

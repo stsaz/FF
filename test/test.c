@@ -293,7 +293,7 @@ struct test_s {
 #define F(nm) { #nm, &test_ ## nm }
 static const struct test_s _fftests[] = {
 	F(str), F(regex)
-	, F(num), F(bits), F(list), F(rbtlist), F(htable), F(crc)
+	, F(num), F(bits), F(list), F(rbt), F(rbtlist), F(htable), F(crc)
 	, F(fmap), F(time), F(timerq), F(sendfile), F(path), F(direxp), F(env)
 	, F(url), F(http), F(dns)
 	, F(json), F(conf), F(args), F(cue)

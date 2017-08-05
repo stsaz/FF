@@ -9,15 +9,6 @@ Copyright (c) 2016 Simon Zolin
 #include <FFOS/dir.h>
 
 
-enum TAR_TYPE {
-	TAR_FILE = '0',
-	TAR_FILE0 = '\0',
-	TAR_HLINK = '1',
-	TAR_SLINK = '2',
-	TAR_DIR = '5',
-	TAR_LONG = 'L', //the data in this block is the name of the next file
-};
-
 typedef struct tar_hdr {
 	char name[100];
 	char mode[8];
@@ -108,7 +99,6 @@ int fftar_hdr_parse(fftar_file *f, char *filename, const char *buf)
 		|| h->typeflag == TAR_FILE0
 		|| h->typeflag == TAR_LONG)) {
 		FFDBG_PRINTLN(1, "%*s: file type: '%c'", (size_t)nlen, h->name, h->typeflag);
-		return FFTAR_ETYPE;
 	}
 	if (h->typeflag == TAR_DIR)
 		f->mode |= FFUNIX_FILE_DIR;

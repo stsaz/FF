@@ -273,7 +273,7 @@ static ssize_t ape_seektab(const char *data, size_t len, uint **seektab, const f
 	if (len < info->seekpoints * sizeof(uint))
 		return -APE_ESMALL;
 
-	if (NULL == (sp = ffmem_talloc(uint, npts + 1)))
+	if (NULL == (sp = ffmem_allocT(npts + 1, uint)))
 		return -APE_ESYS;
 
 	for (i = 0;  i != npts;  i++) {

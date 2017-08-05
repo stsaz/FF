@@ -31,6 +31,9 @@ enum FFTIME_FMT {
 Return 0 on error. */
 FF_EXTN size_t fftime_tostr(const ffdtm *dt, char *dst, size_t cap, uint fmt);
 
+/** Get current time and convert it to a NULL-terminated string. */
+FF_EXTN size_t fftime_now_tostrz(char *dst, size_t cap, uint fmt);
+
 /** Convert string to date/time.
 Return the number of processed bytes.  Return 0 on error. */
 FF_EXTN size_t fftime_fromstr(ffdtm *dt, const char *s, size_t len, uint fmt);

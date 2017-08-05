@@ -19,7 +19,7 @@ int ffpls_parse(ffpls *p, ffstr *data)
 {
 	ssize_t r;
 	const char *pos;
-	ffstr line, name;
+	ffstr line = {0}, name;
 
 	for (;;) {
 	switch (p->pars.state) {
