@@ -2,7 +2,7 @@
 Copyright (c) 2016 Simon Zolin
 */
 
-#include <FF/data/mmtag.h>
+#include <FF/mtags/mmtag.h>
 
 
 const char *const ffmmtag_str[_FFMMTAG_N] = {

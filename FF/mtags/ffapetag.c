@@ -3,7 +3,7 @@ Copyright (c) 2015 Simon Zolin
 */
 
 #include <FF/mtags/apetag.h>
-#include <FF/data/mmtag.h>
+#include <FF/mtags/mmtag.h>
 #include <FF/number.h>
 
 
