@@ -153,13 +153,13 @@ int test_json_schem(const char *testJsonFile)
 	const char *js
 		, *jsend;
 	size_t len;
-	const ffpars_ctx oinf = { &o, obj_schem, FFCNT(obj_schem) };
-	const ffpars_arg top = { NULL, FFPARS_TOBJ | FFPARS_FPTR, FFPARS_DST(&oinf) };
 	char buf[1024];
 	size_t ibuf;
 
+	FFTEST_FUNC;
+
 	memset(&o, 0, sizeof(obj_s));
-	ffjson_scheminit(&ps, &json, &top);
+	ffjson_scheminit2(&ps, &json, &glob_ctx, &o);
 
 	ibuf = _test_readfile(testJsonFile, buf, sizeof(buf));
 	if (ibuf == (size_t)-1)

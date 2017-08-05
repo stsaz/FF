@@ -306,6 +306,7 @@ enum FFPARS_SCHEMFLAG {
 	// internal:
 	FFPARS_SCHAVKEY = 1,
 	_FFPARS_SCALONE = 2,
+	_FFPARS_SCOBJ = 4, // on new context, get object pointer from "ps.udata", not from the current context
 
 	FFPARS_KEYICASE = 0x100, // case-insensitive key names
 };

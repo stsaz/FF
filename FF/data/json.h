@@ -52,6 +52,13 @@ static FFINL void ffjson_scheminit(ffparser_schem *ps, ffparser *p, const ffpars
 	ffpars_scheminit(ps, p, top);
 }
 
+static FFINL void ffjson_scheminit2(ffparser_schem *ps, ffparser *p, const ffpars_arg *top, void *obj) {
+	ffjson_parseinit(p);
+	ffpars_scheminit(ps, p, top);
+	ps->udata = obj;
+	ps->flags |= _FFPARS_SCOBJ;
+}
+
 FF_EXTN int ffjson_schemfin(ffparser_schem *ps);
 
 FF_EXTN int ffjson_schemrun(ffparser_schem *ps);

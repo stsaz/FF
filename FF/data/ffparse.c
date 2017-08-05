@@ -519,9 +519,14 @@ static int scOpenBrace(ffparser_schem *ps)
 		*ctx = *curarg->dst.ctx;
 	}
 	else {
-		if (ps->ctxs.len < 2)
-			return FFPARS_ECONF;
-		o = curctx->obj;
+		if (ps->flags & _FFPARS_SCOBJ) {
+			ps->flags &= ~_FFPARS_SCOBJ;
+			o = ps->udata;
+		} else {
+			if (ps->ctxs.len < 2)
+				return FFPARS_ECONF;
+			o = curctx->obj;
+		}
 
 		er = curarg->dst.f_obj(ps, o, ctx);
 		if (er == 0) {

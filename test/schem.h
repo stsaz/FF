@@ -16,7 +16,7 @@ struct obj_s {
 	int i4;
 	byte b;
 	byte en;
-	byte bits;
+	uint bits;
 
 	obj_s *o[2];
 	int iobj;
@@ -90,6 +90,9 @@ static const ffpars_enumlist enumConf = {
 	enumStr, FFCNT(enumStr), FFPARS_DSTOFF(obj_s, en)
 };
 
+static int glob_setctx(ffparser_schem *ps, void *obj, ffpars_ctx *ctx);
+static const ffpars_arg glob_ctx = { NULL, FFPARS_TOBJ, FFPARS_DST(&glob_setctx) };
+
 static const ffpars_arg obj_schem[] = {
 	{ "str", FFPARS_TSTR | FFPARS_FCOPY | FFPARS_FNOTEMPTY, FFPARS_DSTOFF(obj_s, s) }
 	, { "size", FFPARS_TSIZE | FFPARS_F64BIT, FFPARS_DSTOFF(obj_s, size) }
@@ -97,8 +100,8 @@ static const ffpars_arg obj_schem[] = {
 		| FFPARS_F64BIT | FFPARS_FSIGN, FFPARS_DSTOFF(obj_s, i) }
 	, { "i4", FFPARS_TINT, FFPARS_DSTOFF(obj_s, i4) }
 	, { "bool", FFPARS_TBOOL | FFPARS_F8BIT, FFPARS_DSTOFF(obj_s, b) }
-	, { "bit1", FFPARS_TBOOL | FFPARS_F8BIT | FFPARS_SETBIT(0), FFPARS_DSTOFF(obj_s, bits) }
-	, { "bit2", FFPARS_TBOOL | FFPARS_F8BIT | FFPARS_SETBIT(1), FFPARS_DSTOFF(obj_s, bits) }
+	, { "bit1", FFPARS_TBOOL | FFPARS_SETBIT(0), FFPARS_DSTOFF(obj_s, bits) }
+	, { "bit2", FFPARS_TBOOL | FFPARS_SETBIT(1), FFPARS_DSTOFF(obj_s, bits) }
 	, { "enum", FFPARS_TENUM | FFPARS_F8BIT, FFPARS_DST(&enumConf) }
 	, { "obj", FFPARS_TOBJ | FFPARS_FNULL | FFPARS_FMULTI, FFPARS_DST(&newObj) }
 	, { "arr", FFPARS_TARR, FFPARS_DST(&newArr) }
@@ -109,6 +112,12 @@ static const ffpars_arg obj_schem[] = {
 	, { "*", FFPARS_TSTR, FFPARS_DST(&any) }
 	, { NULL, FFPARS_TCLOSE, FFPARS_DST(&objClose) }
 };
+
+static int glob_setctx(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
+{
+	ffpars_setargs(ctx, obj, obj_schem, FFCNT(obj_schem));
+	return 0;
+}
 
 int newObj(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 {
