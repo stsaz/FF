@@ -1769,6 +1769,12 @@ static void wnd_onaction(ffui_wnd *wnd, int id)
 	(void)id;
 }
 
+/*
+exit
+  via Close button: WM_SYSCOMMAND(SC_CLOSE) -> WM_CLOSE -> WM_DESTROY
+  when user signs out: WM_QUERYENDSESSION -> WM_CLOSE
+*/
+
 int ffui_wndproc(ffui_wnd *wnd, size_t *code, HWND h, uint msg, size_t w, size_t l)
 {
 	switch (msg) {
@@ -1911,8 +1917,12 @@ int ffui_wndproc(ffui_wnd *wnd, size_t *code, HWND h, uint msg, size_t w, size_t
 		break;
 
 	case WM_CLOSE:
-	//case WM_QUERYENDSESSION:
 		print("WM_CLOSE", h, w, l);
+		break;
+
+	case WM_QUERYENDSESSION:
+		print("WM_QUERYENDSESSION", h, w, l);
+		wnd->on_action(wnd, wnd->onclose_id);
 		break;
 
 	case WM_DESTROY:
