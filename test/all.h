@@ -22,6 +22,11 @@ FF_EXTN int test_args();
 FF_EXTN int test_time();
 FF_EXTN int test_timerq();
 
+FF_EXTN int test_fmap(void);
+FF_EXTN int test_sendfile(void);
+FF_EXTN int test_direxp(void);
+FF_EXTN int test_env(void);
+
 #define TESTDIR "./test"
 
 #ifdef FF_UNIX

@@ -9,6 +9,7 @@ Copyright (c) 2014 Simon Zolin
 #include <FF/sys/taskqueue.h>
 #include <FF/dir.h>
 #include <FF/path.h>
+#include <FFOS/process.h>
 #include <FFOS/error.h>
 
 
@@ -309,30 +310,39 @@ const char* ffdir_expread(ffdirexp *dex)
 }
 
 
-#ifdef FF_UNIX
-
-#ifndef _GNU_SOURCE
-extern char **environ;
-#endif
-
-static FFINL const char* env_find(const char *env, size_t len)
+#ifdef FF_WIN
+int ffenv_init(ffenv *env, char **envptr)
 {
-	uint i;
-	for (i = 0;  environ[i] != NULL;  i++) {
-		if (ffsz_match(environ[i], env, len)
-			&& environ[i][len] == '=')
-			return environ[i] + len + FFSLEN("=");
-	}
-	return NULL;
+	return 0;
 }
 
-char* ffenv_expand(char *dst, size_t cap, const char *src)
+void ffenv_destroy(ffenv *env)
+{
+}
+
+#else
+
+int ffenv_init(ffenv *env, char **envptr)
+{
+	env->ptr = envptr;
+	env->n = ffszarr_countz((const char*const*)envptr);
+	return 0;
+}
+
+void ffenv_destroy(ffenv *env)
+{
+}
+
+char* ffenv_expand(ffenv *env, char *dst, size_t cap, const char *src)
 {
 	ffsvar sv;
-	char *out = dst, *p;
 	const char *end = src + ffsz_len(src);
-	size_t n, off = 0;
+	size_t n;
 	int r;
+	ffarr buf = {0};
+
+	if (dst != NULL)
+		buf.ptr = dst,  buf.cap = cap;
 
 	while (src != end) {
 		n = end - src;
@@ -340,32 +350,26 @@ char* ffenv_expand(char *dst, size_t cap, const char *src)
 		src += n;
 
 		if (r == FFSVAR_S) {
-			if (NULL != (sv.val.ptr = (char*)env_find(sv.val.ptr, sv.val.len)))
+			if (NULL != (sv.val.ptr = ffszarr_findkey((const char*const*)env->ptr, env->n, sv.val.ptr, sv.val.len)))
 				sv.val.len = ffsz_len(sv.val.ptr);
 			else
 				sv.val.len = 0;
 		}
 
-		if (dst == NULL) {
-			cap += sv.val.len;
-			if (NULL == (p = ffmem_realloc(out, cap))) {
-				ffmem_safefree(out);
-				return NULL;
-			}
-			out = p;
-		}
+		if (dst == NULL && NULL == ffarr_grow(&buf, sv.val.len, 256))
+			goto err;
 
-		off += ffs_append(out, off, cap, sv.val.ptr, sv.val.len);
+		buf.len += ffs_append(buf.ptr, buf.len, buf.cap, sv.val.ptr, sv.val.len);
 	}
 
-	if (dst == NULL) {
-		if (NULL == (p = ffmem_realloc(out, ++cap))) {
-			ffmem_safefree(out);
-			return NULL;
-		}
-		out = p;
-	}
-	ffs_copyc(out + off, out + cap, '\0');
-	return out;
+	if (dst == NULL && NULL == ffarr_grow(&buf, 1, 0))
+		goto err;
+	ffs_copyc(buf.ptr + buf.len, buf.ptr + buf.cap, '\0');
+	return buf.ptr;
+
+err:
+	if (dst == NULL)
+		ffarr_free(&buf);
+	return NULL;
 }
 #endif

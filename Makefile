@@ -28,7 +28,7 @@ FF_TEST_HDR := $(wildcard $(FF)/test/*.h)
 
 FF_TEST_SRC := \
 	$(FF)/test/base.c $(FF)/test/conf.c $(FF)/test/http.c $(FF)/test/json.c $(FF)/test/str.c \
-	$(FF)/test/test.c $(FF)/test/time.c $(FF)/test/url.c $(FF)/test/cue.c
+	$(FF)/test/test.c $(FF)/test/time.c $(FF)/test/url.c $(FF)/test/cue.c $(FF)/test/sys.c
 FF_TEST_OBJ := $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_TEST_SRC)))))
 
 $(FF_OBJ_DIR)/%.o: $(FF)/test/%.c $(FF_HDR) $(FF_TEST_HDR)
