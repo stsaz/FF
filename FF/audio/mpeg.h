@@ -42,7 +42,7 @@ typedef struct ffmpgr {
 		, off;
 	struct ffmpg_info xing;
 	struct ffmpg_lame lame;
-	uint skip_samples;
+	uint delay;
 	uint frno;
 
 	ffstr input;
@@ -74,11 +74,10 @@ FF_EXTN uint ffmpg_bitrate(ffmpgr *m);
 
 #define ffmpg_length(m)  ((m)->total_samples)
 
-/** Get an absolute sample number. */
+/** Get frame's sample position. */
 static FFINL uint64 ffmpg_cursample(ffmpgr *m)
 {
-	int64 n = m->cur_sample - m->frsamps - m->skip_samples;
-	return ffmax(n, 0);
+	return m->cur_sample - m->frsamps;
 }
 
 #define ffmpg_isvbr(m)  ((m)->xing.vbr)
@@ -162,7 +161,8 @@ typedef struct ffmpg {
 	int err;
 	mpg123 *m123;
 	ffpcmex fmt;
-	uint delay;
+	uint delay_start
+		, delay_dec;
 	uint64 pos;
 	uint64 seek;
 
@@ -179,7 +179,7 @@ enum FFMPG_DEC_O {
 
 /** Open decoder.
 @options: enum FFMPG_DEC_O. */
-FF_EXTN int ffmpg_open(ffmpg *m, uint options);
+FF_EXTN int ffmpg_open(ffmpg *m, uint delay, uint options);
 
 FF_EXTN void ffmpg_close(ffmpg *m);
 
@@ -189,6 +189,7 @@ FF_EXTN int ffmpg_decode(ffmpg *m);
 
 FF_EXTN void ffmpg_seek(ffmpg *m, uint64 sample);
 
+/** Get absolute audio position. */
 #define ffmpg_pos(m)  ((m)->pos - (m)->pcmlen / ffpcm_size1(&(m)->fmt))
 
 

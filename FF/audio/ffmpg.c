@@ -15,6 +15,7 @@ enum {
 	MAX_NOSYNC = 256 * 1024,
 	MPG_FTRTAGS_CHKSIZE = 1000, //number of bytes at the end of file to check for ID3v1 and APE tag (initial check)
 	DEC_DELAY = 528,
+	SEEK_SKIPFRAMES = 4,
 };
 
 
@@ -92,11 +93,12 @@ enum { I_START, I_FR,
  . 'total samples' and 'total size' values (linear) */
 static FFINL uint64 mpg_getseekoff(ffmpgr *m)
 {
+	uint64 sk = ffmax((int64)m->seek_sample - ffmpg_hdr_frame_samples(m->firsthdr), 0);
 	uint64 datasize = m->total_size - m->dataoff;
 	if (m->xing.vbr && m->xing.toc[98] != 0)
-		return m->dataoff + ffmpg_xing_seekoff(m->xing.toc, m->seek_sample, m->total_samples, datasize);
+		return m->dataoff + ffmpg_xing_seekoff(m->xing.toc, sk, m->total_samples, datasize);
 	else
-		return m->dataoff + datasize * m->seek_sample / m->total_samples;
+		return m->dataoff + datasize * sk / m->total_samples;
 }
 
 static FFINL int mpg_id31(ffmpgfile *m)
@@ -272,8 +274,6 @@ void ffmpg_rseek(ffmpgr *m, uint64 sample)
 {
 	if (m->total_size == 0 || m->total_samples == 0)
 		return;
-	if (m->skip_samples != 0)
-		m->skip_samples = 0;
 	m->seek_sample = sample;
 	m->buf.len = 0;
 	m->input.len = 0;
@@ -303,7 +303,7 @@ static int _ffmpg_streaminfo(ffmpgr *m, const char *p, uint datalen)
 			if (m->lame.enc_padding != 0)
 				n += m->lame.enc_padding - (DEC_DELAY + 1);
 			m->total_samples -= ffmin(n, m->total_samples);
-			m->skip_samples = m->lame.enc_delay + DEC_DELAY + 1;
+			m->delay = m->lame.enc_delay + DEC_DELAY + 1;
 		}
 		return 1;
 	}
@@ -449,6 +449,7 @@ int ffmpg_readframe(ffmpgr *m, ffstr *frame)
 			m->err = FFMPG_ESEEK;
 			return FFMPG_RERR;
 		}
+		m->seek_sample = ffmax((int64)m->seek_sample - SEEK_SKIPFRAMES * ffmpg_hdr_frame_samples(m->firsthdr), 0) + m->delay;
 		m->off = mpg_getseekoff(m);
 		m->cur_sample = m->seek_sample;
 		m->state = R_FRAME2;
@@ -626,7 +627,7 @@ const char* ffmpg_errstr(ffmpg *m)
 	return mpg123_errstr(m->err);
 }
 
-int ffmpg_open(ffmpg *m, uint options)
+int ffmpg_open(ffmpg *m, uint delay, uint options)
 {
 	int r;
 	uint opt = (options & FFMPG_O_INT16) ? 0 : MPG123_FORCE_FLOAT;
@@ -636,7 +637,8 @@ int ffmpg_open(ffmpg *m, uint options)
 	}
 	m->fmt.format = (options & FFMPG_O_INT16) ? FFPCM_16 : FFPCM_FLOAT;
 	m->fmt.ileaved = 1;
-	m->seek = (uint64)-1;
+	m->delay_start = delay;
+	m->seek = m->delay_start;
 	return 0;
 }
 
@@ -649,8 +651,8 @@ void ffmpg_close(ffmpg *m)
 void ffmpg_seek(ffmpg *m, uint64 sample)
 {
 	mpg123_decode(m->m123, (void*)-1, (size_t)-1, NULL); //reset bufferred data
-	m->seek = sample;
-	m->delay = 0;
+	m->seek = sample + m->delay_start;
+	m->delay_dec = 0;
 }
 
 int ffmpg_decode(ffmpg *m)
@@ -658,23 +660,25 @@ int ffmpg_decode(ffmpg *m)
 	int r;
 	if (m->input.len == 0)
 		return FFMPG_RMORE;
+
 	r = mpg123_decode(m->m123, m->input.ptr, m->input.len, (byte**)&m->pcmi);
 	m->input.len = 0;
 	if (r == 0) {
-		m->delay += ffmpg_hdr_frame_samples((void*)m->input.ptr);
+		m->delay_dec += ffmpg_hdr_frame_samples((void*)m->input.ptr);
 		return FFMPG_RMORE;
 
 	} else if (r < 0) {
 		m->err = r;
-		m->delay = 0;
+		m->delay_dec = 0;
 		return FFMPG_RWARN;
 	}
 
-	m->pos -= m->delay;
+	m->pos = ffmax((int64)m->pos - m->delay_dec, 0);
+
 	if (m->seek != (uint64)-1) {
 		FF_ASSERT(m->seek >= m->pos);
 		uint skip = m->seek - m->pos;
-		if (skip >= (uint)r)
+		if (skip >= (uint)r / ffpcm_size1(&m->fmt))
 			return FFMPG_RMORE;
 
 		m->seek = (uint64)-1;
@@ -684,7 +688,7 @@ int ffmpg_decode(ffmpg *m)
 	}
 
 	m->pcmlen = r;
-	m->pos += m->pcmlen / ffpcm_size1(&m->fmt);
+	m->pos += m->pcmlen / ffpcm_size1(&m->fmt) - m->delay_start;
 	return FFMPG_RDATA;
 }
 
