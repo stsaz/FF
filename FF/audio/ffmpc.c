@@ -665,10 +665,10 @@ int ffmpc_decode(ffmpc *m)
 
 		m->cursample += r;
 		if (m->seek_sample != 0) {
-			FF_ASSERT(m->seek_sample >= m->cursample - r);
 			if (m->seek_sample >= m->cursample)
 				continue;
-			uint skip = m->cursample - m->seek_sample;
+			uint64 oldpos = m->cursample - r;
+			uint skip = ffmax((int64)(m->seek_sample - oldpos), 0);
 			m->pcmoff = skip * m->channels * sizeof(float);
 			r -= skip;
 			m->seek_sample = 0;

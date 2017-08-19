@@ -682,8 +682,7 @@ int ffmpg_decode(ffmpg *m)
 	m->pos = ffmax((int64)m->pos - m->delay_dec, 0);
 
 	if (m->seek != (uint64)-1) {
-		FF_ASSERT(m->seek >= m->pos);
-		uint skip = m->seek - m->pos;
+		uint skip = ffmax((int64)(m->seek - m->pos), 0);
 		if (skip >= (uint)r / ffpcm_size1(&m->fmt))
 			return FFMPG_RMORE;
 

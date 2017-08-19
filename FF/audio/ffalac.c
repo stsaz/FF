@@ -86,8 +86,8 @@ int ffalac_decode(ffalac *a)
 	samps = r;
 
 	if (a->seek_sample != 0) {
-		FF_ASSERT(a->seek_sample < a->cursample + samps);
-		off = ffmin(a->seek_sample - a->cursample, samps);
+		off = ffmax((int64)(a->seek_sample - a->cursample), 0);
+		ffint_setmin(off, samps);
 		a->seek_sample = 0;
 	}
 

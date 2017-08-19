@@ -66,8 +66,7 @@ int ffaac_decode(ffaac *a)
 	a->datalen = 0;
 	a->pcm = a->pcmbuf;
 	if (a->seek_sample != (uint64)-1) {
-		FF_ASSERT(a->seek_sample >= a->cursample);
-		uint skip = a->seek_sample - a->cursample;
+		uint skip = ffmax((int64)(a->seek_sample - a->cursample), 0);
 		if (skip >= (uint)r)
 			return FFAAC_RMORE;
 
