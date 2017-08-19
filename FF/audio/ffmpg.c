@@ -491,6 +491,7 @@ int ffmpg_readframe(ffmpgr *m, ffstr *frame)
 		if (0 != (r = _ffmpg_frame2(m, &m->buf)))
 			return r;
 
+		ffstr_set(frame, m->buf.ptr, m->buf.len);
 		m->state = R_FR2;
 		r = FFMPG_RFRAME;
 		goto fr;
