@@ -120,6 +120,11 @@ enum FFIP4_PROTO {
 
 FF_EXTN int ffip4hdr_tostr(ffip4hdr *h, char *buf, size_t cap);
 
+/** Compute IPv4 header checksum.
+To compute checksum for the first time, set checksum field to 0.
+To validate checksum in a complete header, just compare the result with 0. */
+FF_EXTN uint ffip4_chksum(const void *hdr, uint ihl);
+
 
 typedef struct { char a[16]; } ffip6;
 

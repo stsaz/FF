@@ -4,6 +4,7 @@ Copyright (c) 2017 Simon Zolin
 
 #include <FF/net/proto.h>
 #include <FF/string.h>
+#include <FFOS/cpu.h>
 
 
 uint ffeth_tostr(char *buf, size_t cap, const ffeth *eth)
@@ -267,6 +268,33 @@ int ffip6hdr_tostr(ffip6hdr *ip6, char *buf, size_t cap)
 	return ffs_fmt(buf, buf + cap, "%*s -> %*s  len:%xu  proto:%xu"
 		, n, src, n2, dst
 		, ffint_ntoh16(ip6->payload_len), ip6->nexthdr);
+}
+
+
+/** Compute Internet checksum with data length which is a multiple of 4. */
+static FFINL uint in_chksum_4(const void *buf, uint len4)
+{
+	uint sum = 0;
+	const uint *n = buf;
+
+	for (;  len4 != 0;  len4--) {
+		sum = ffint_addcarry32(sum, *n++);
+	}
+	return sum;
+}
+
+/** Add hi-word to low-word with Carry flag: (HI(sum) + LO(sum)) + CF. */
+static FFINL uint in_chksum_reduce(uint sum)
+{
+	sum = (sum >> 16) + (sum & 0xffff);
+	sum = (sum >> 16) + (sum & 0xffff);
+	return sum;
+}
+
+uint ffip4_chksum(const void *hdr, uint ihl)
+{
+	uint sum = in_chksum_4(hdr, ihl);
+	return ~in_chksum_reduce(sum) & 0xffff;
 }
 
 

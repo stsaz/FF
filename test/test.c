@@ -289,6 +289,7 @@ FF_EXTN int test_ring(void);
 FF_EXTN int test_tq(void);
 FF_EXTN int test_regex(void);
 FF_EXTN int test_num(void);
+FF_EXTN int test_inchk_speed(void);
 FF_EXTN int test_cue(void);
 
 struct test_s {

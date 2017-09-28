@@ -4,6 +4,8 @@ Copyright (c) 2013 Simon Zolin
 
 #include <FFOS/test.h>
 #include <FFOS/socket.h>
+#include <FFOS/process.h>
+#include <FFOS/random.h>
 #include <FF/net/url.h>
 #include <FF/data/parse.h>
 
@@ -477,5 +479,26 @@ int test_url()
 	test_qs_parse();
 	test_eth();
 
+	return 0;
+}
+
+int test_inchk_speed(void)
+{
+	FFTEST_FUNC;
+
+	ffarr m = {0};
+	ffarr_alloc(&m, 20);
+
+	for (uint j = 0;  j != 20;  j++) {
+		m.ptr[j] = ffrnd_get();
+	}
+
+	for (uint i = 0;  i != 100000000;  i++) {
+		uint crc = ffip4_chksum((void*)(m.ptr), 20/4);
+		if (crc == 0)
+			ffps_curid();
+	}
+
+	ffarr_free(&m);
 	return 0;
 }
