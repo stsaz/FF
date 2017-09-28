@@ -170,18 +170,22 @@ static int test_bits()
 	uint mask[2] = { 0 };
 
 	i8 = 1;
-	x(0 != ffbit_test64(i8, 0));
+	x(0 != ffbit_test64(&i8, 0));
 	i4 = 1;
-	x(0 != ffbit_test32(i4, 0));
+	x(0 != ffbit_test32(&i4, 0));
 	i = 1;
-	x(0 != ffbit_test(i, 0));
+	x(0 != ffbit_test(&i, 0));
 
 	i8 = 0x8000000000000000ULL;
 	x(0 != ffbit_set64(&i8, 63));
 	x(i8 == 0x8000000000000000ULL);
+	i8 = 0;
+	x(0 == ffbit_set64(&i8, 63) && i8 == 0x8000000000000000ULL);
 	i4 = 0x80000000;
 	x(0 != ffbit_set32(&i4, 31));
 	x(i4 == 0x80000000);
+	i4 = 0;
+	x(0 == ffbit_set32(&i4, 31) && i4 == 0x80000000);
 	i = 0;
 	x(0 == ffbit_set(&i, 31));
 	x(i == 0x80000000);
@@ -196,12 +200,12 @@ static int test_bits()
 	i = (size_t)-1;
 	x(0 != ffbit_reset(&i, 31));
 
-	i8 = 0x8000000000000000ULL;
-	x(63 == ffbit_ffs64(i8)-1);
+	i8 = 0x8800000000000000ULL;
+	x(63-4 == ffbit_ffs64(i8)-1);
 	i8 = 0;
 	x(0 == ffbit_ffs64(i8));
-	i4 = 0x80000000;
-	x(31 == ffbit_ffs32(i4)-1);
+	i4 = 0x88000000;
+	x(31-4 == ffbit_ffs32(i4)-1);
 	i4 = 0;
 	x(0 == ffbit_ffs32(i4));
 	i = 0;
@@ -211,8 +215,8 @@ static int test_bits()
 	x(4 == ffbit_find32(0x08800000) - 1);
 	x(31 == ffbit_find32(0x00000001) - 1);
 
-	char d[] = {"\xf0\xf0\xf0"};
-	x(8 == ffbit_count(d, 2));
+	char d[] = {"\xf0\xf0\xf0\xf0\xf0\xf0\xf0\xf0\xf0\xf0\xf0\xf0"};
+	x(11*4 == ffbit_count(d, 11));
 
 	x(0x1ffff == ffbit_max(17));
 	return 0;

@@ -161,7 +161,7 @@ static int mp4_box_close(ffmp4 *m, struct mp4_box *box)
 	if (box->ctx != NULL) {
 		for (uint i = 0;  ;  i++) {
 			if ((box->ctx[i].flags & F_REQ)
-				&& !ffbit_test32(box->usedboxes, i))
+				&& !ffbit_test32(&box->usedboxes, i))
 				return MP4_ENOREQ;
 			if (box->ctx[i].flags & F_LAST)
 				break;

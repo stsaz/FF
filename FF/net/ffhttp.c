@@ -907,10 +907,9 @@ int ffhttp_reqparsehdr(ffhttp_request *r, const char *data, size_t len)
 		int idx = (int)(size_t)(f - uniq_hdrs);
 		uint u = r->uniq_hdrs_mask;
 
-		if (ffbit_test32(u, idx))
+		if (ffbit_testset32(&u, idx))
 			return FFHTTP_EDUPHDR;
 
-		ffbit_set32(&u, idx);
 		r->uniq_hdrs_mask = (byte)u;
 		}
 		break;

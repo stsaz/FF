@@ -142,7 +142,7 @@ int z7_find_block(uint blk_id, const z7_bblock **pblock, struct z7_block *parent
 int z7_check_req(const struct z7_block *ctx)
 {
 	for (uint i = 0;  ;  i++) {
-		if ((ctx->children[i].flags & F_REQ) && !ffbit_test32(ctx->used, i))
+		if ((ctx->children[i].flags & F_REQ) && !ffbit_test32(&ctx->used, i))
 			return FF7Z_ENOREQ;
 		if (ctx->children[i].flags & F_LAST)
 			break;

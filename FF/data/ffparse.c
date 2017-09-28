@@ -557,7 +557,7 @@ static int scCloseBrace(ffparser_schem *ps)
 	for (i = 0;  i < maxargs;  i += 32) {
 		uint n = ~ctx->used[i / 32];
 		while (n != 0) {
-			uint bit = ffbit_ffs(n) - 1;
+			uint bit = ffbit_ffs32(n) - 1;
 			const ffpars_arg *arg = &ctx->args[i + bit];
 			if (i + bit >= maxargs)
 				break;
