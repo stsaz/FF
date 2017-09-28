@@ -3,7 +3,7 @@
 # FF := .
 FF_OBJ_DIR := ./ff-obj
 override FF_CFLAGS += \
-	-Werror -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers \
+	-Werror -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -Wno-implicit-fallthrough \
 	-I$(FF) -I$(FF)-3pt -I$(FFOS)
 
 
