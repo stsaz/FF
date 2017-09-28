@@ -10,22 +10,25 @@ Copyright (c) 2016 Simon Zolin
 #include <FFOS/time.h>
 
 
-enum TAR_TYPE {
-	TAR_FILE = '0',
-	TAR_FILE0 = '\0',
-	TAR_HLINK = '1',
-	TAR_SLINK = '2',
-	TAR_DIR = '5',
-	TAR_LONG = 'L', //the data in this block is the name of the next file
-	TAR_EXTHDR = 'g', //global extended header
+enum FFTAR_TYPE {
+	FFTAR_FILE = '0',
+	FFTAR_FILE0 = '\0',
+	FFTAR_HLINK = '1',
+	FFTAR_SLINK = '2',
+	FFTAR_CHAR = '3',
+	FFTAR_BLOCK = '4',
+	FFTAR_DIR = '5',
+	FFTAR_FIFO = '6',
+	FFTAR_LONG = 'L', //the data in this block is the name of the next file
+	FFTAR_EXTHDR = 'g', //global extended header
 };
 
 typedef struct fftar_file {
 	const char *name;
-	uint mode; //enum FFUNIX_FILE_DIR
+	uint mode;
 	uint uid;
 	uint gid;
-	uint type; //enum TAR_TYPE
+	uint type; //enum FFTAR_TYPE
 	uint64 size;
 	fftime mtime;
 	const char *uid_str;
@@ -113,6 +116,9 @@ FF_EXTN int fftar_read(fftar *t);
 
 /** The last block of input data. */
 #define fftar_fin(t)  (t)->fin = 1
+
+/** Get UNIX file attributes. */
+FF_EXTN uint fftar_mode(const fftar_file *f);
 
 
 static FFINL void fftar_wclose(fftar_cook *t)

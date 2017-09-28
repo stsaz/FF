@@ -96,11 +96,11 @@ int fftar_hdr_parse(fftar_file *f, char *filename, const char *buf)
 		return FFTAR_EHDR;
 
 	if (!((h->typeflag >= '0' && h->typeflag <= '7')
-		|| h->typeflag == TAR_FILE0
-		|| h->typeflag == TAR_LONG)) {
+		|| h->typeflag == FFTAR_FILE0
+		|| h->typeflag == FFTAR_LONG)) {
 		FFDBG_PRINTLN(1, "%*s: file type: '%c'", (size_t)nlen, h->name, h->typeflag);
 	}
-	if (h->typeflag == TAR_DIR)
+	if (h->typeflag == FFTAR_DIR)
 		f->mode |= FFUNIX_FILE_DIR;
 	f->type = h->typeflag;
 
@@ -123,9 +123,9 @@ int fftar_hdr_write(const fftar_file *f, char *buf)
 
 	uint mode = f->mode;
 
-	h->typeflag = TAR_FILE;
+	h->typeflag = FFTAR_FILE;
 	if (f->mode & FFUNIX_FILE_DIR) {
-		h->typeflag = TAR_DIR;
+		h->typeflag = FFTAR_DIR;
 		if (!ffpath_slash(f->name[namelen - 1]))
 			addslash = 1;
 	}
@@ -272,7 +272,7 @@ int fftar_read(fftar *t)
 		FFDBG_PRINTLN(10, "hdr: name:%s  type:%c  size:%U"
 			, t->file.name, t->file.type, t->file.size);
 
-		if (t->file.type == TAR_LONG) {
+		if (t->file.type == FFTAR_LONG) {
 			if (t->file.size > TAR_MAXLONGNAME)
 				return ERR(t, FFTAR_ELONGNAME);
 			t->state = R_LONG_NAME;
@@ -356,6 +356,28 @@ int fftar_read(fftar *t)
 		continue;
 	}
 	}
+}
+
+static const byte tar_ftype[] = {
+	FFUNIX_FILE_REG >> 12,
+	FFUNIX_FILE_LINK >> 12,
+	FFUNIX_FILE_LINK >> 12,
+	FFUNIX_FILE_CHAR >> 12,
+	FFUNIX_FILE_BLOCK >> 12,
+	FFUNIX_FILE_DIR >> 12,
+	FFUNIX_FILE_FIFO >> 12,
+};
+
+uint fftar_mode(const fftar_file *f)
+{
+	uint t = f->type;
+	if (t == '\0')
+		t = FFTAR_FILE;
+	if (t >= '0' || t <= '6')
+		t = (uint)tar_ftype[ffchar_tonum(t)] << 12;
+	else
+		t = FFUNIX_FILE_REG;
+	return t | (f->mode & 0777);
 }
 
 
