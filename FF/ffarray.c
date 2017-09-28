@@ -159,16 +159,14 @@ void _ffarr_crop(ffarr *ar, size_t off, size_t n, size_t elsz)
 ....DATA....
 ds  o   o+s de
 */
-size_t ffstr_crop_abs(ffstr *data, uint64 data_start, uint64 off, uint64 size)
+size_t ffstr_crop_abs(ffstr *data, uint64 start, uint64 off, uint64 size)
 {
-	uint64 data_end = data_start + data->len;
-	const char *d_o = data->ptr, *e = ffarr_end(data);
-	if (data_start < off)
-		data->ptr += off - data_start;
-	if (data_end > off + size)
-		e -= data_end - (off + size);
-	data->len = e - data->ptr;
-	return e - d_o;
+	uint64 l, r, end = start + data->len;
+	l = ffmin(ffmax(start, off), end);
+	r = ffmin(off + size, end);
+	data->ptr += l - start;
+	data->len = r - l;
+	return r - start;
 }
 
 size_t ffstr_catfmtv(ffstr3 *s, const char *fmt, va_list args)

@@ -743,6 +743,23 @@ static void test_str_fromsize(void)
 		&& ffs_eqcz(buf, r, "16777215t"));
 }
 
+static void test_str_crop(void)
+{
+	ffstr d, d2 = { 10, NULL };
+
+	d = d2;
+	x(4 == ffstr_crop_abs(&d, 1, 2, 3));
+	x(d.ptr == (void*)1 && d.len == 3);
+
+	d = d2;
+	x(2 == ffstr_crop_abs(&d, 3, 2, 3));
+	x(d.ptr == NULL && d.len == 2);
+
+	d = d2;
+	x(0 == ffstr_crop_abs(&d, 5, 2, 3));
+	x(d.ptr == NULL && d.len == 0);
+}
+
 int test_str()
 {
 	FFTEST_FUNC;
@@ -791,5 +808,6 @@ int test_str()
 	test_wildcard();
 	test_utf();
 	test_str_fromsize();
+	test_str_crop();
 	return 0;
 }
