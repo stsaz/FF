@@ -2,13 +2,16 @@
 Copyright (c) 2014 Simon Zolin
 */
 
-#include <FFOS/mem.h>
-#include <FFOS/test.h>
 #include <FF/list.h>
 #include <FF/rbtree.h>
 #include <FF/crc.h>
 #include <FF/hashtab.h>
 #include <FF/number.h>
+#include <FF/ring.h>
+#include <FF/array.h>
+#include <FFOS/thread.h>
+#include <FFOS/mem.h>
+#include <FFOS/test.h>
 
 #include <test/all.h>
 
@@ -314,5 +317,69 @@ int test_htable()
 	x(n == ht.len);
 
 	ffhst_free(&ht);
+	return 0;
+}
+
+
+enum {
+	RING_CNT = 64 * 1024,
+};
+
+static int FFTHDCALL ring_wr(void *param)
+{
+	ffring *r = param;
+	uint i, skip = 0;
+	for (i = 0;  i != 16 * RING_CNT;  ) {
+		if (0 == ffring_write(r, (void*)(size_t)i))
+			i++;
+		else
+			skip++;
+	}
+	fffile_fmt(ffstdout, NULL, "wskip: %u\n", skip);
+	return 0;
+}
+
+int test_ring(void)
+{
+	ffring r = {0};
+	uint i;
+	void *val;
+
+	FFTEST_FUNC;
+
+	x(0 == ffring_create(&r, RING_CNT, 4096) && ffring_empty(&r));
+
+	// single-thread
+	for (i = 0;  i != RING_CNT - 1;  i++) {
+		x(0 == ffring_write(&r, (void*)(size_t)i));
+	}
+	x(0 != ffring_write(&r, (void*)(size_t)i) && ffring_full(&r));
+	x(RING_CNT - 1 == ffring_unread(&r));
+
+	for (i = 0;  i != RING_CNT - 1;  i++) {
+		x(0 == ffring_read(&r, &val) && i == (size_t)val);
+	}
+	x(0 != ffring_read(&r, &val) && ffring_empty(&r));
+	x(0 == ffring_unread(&r));
+
+	// multi-thread
+	ffthd th[4];
+	for (i = 0;  i != 4;  i++)
+		th[i] = ffthd_create(&ring_wr, &r, 0);
+
+	uint skip = 0;
+	for (i = 0;  i != 4 * 16 * RING_CNT;  ) {
+		if (0 == ffring_read(&r, &val))
+			i++;
+		else
+			skip++;
+	}
+	x(0 != ffring_read(&r, &val));
+	fffile_fmt(ffstdout, NULL, "rskip: %u\n", skip);
+
+	for (i = 0;  i != 4;  i++)
+		ffthd_join(th[i], -1, NULL);
+
+	ffring_destroy(&r);
 	return 0;
 }

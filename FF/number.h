@@ -18,6 +18,11 @@ Copyright (c) 2015 Simon Zolin
 /** Increment and reset to 0 on reaching the limit. */
 #define ffint_cycleinc(n, lim)  (((n) + 1) % (lim))
 
+static FFINL size_t ffint_increset2(size_t n, size_t cap)
+{
+	return (n + 1) & (cap - 1);
+}
+
 #define ffint_cmp(a, b) \
 	((a) == (b)) ? 0 : ((a) < (b)) ? -1 : 1
 

@@ -16,6 +16,7 @@ FF_ALL_OBJ := $(FFOS_OBJ)
 FF_SRC := $(FF)/FF/ffcrc.c \
 	$(FF)/FF/ffarray.c \
 	$(FF)/FF/ffhashtab.c \
+	$(FF)/FF/ffring.c \
 	$(FF)/FF/fflist.c \
 	$(FF)/FF/ffnumber.c \
 	$(FF)/FF/ffpath.c \
