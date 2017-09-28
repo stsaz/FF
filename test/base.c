@@ -8,6 +8,7 @@ Copyright (c) 2014 Simon Zolin
 #include <FF/hashtab.h>
 #include <FF/number.h>
 #include <FF/ring.h>
+#include <FF/sys/taskqueue.h>
 #include <FF/array.h>
 #include <FFOS/thread.h>
 #include <FFOS/mem.h>
@@ -381,5 +382,65 @@ int test_ring(void)
 		ffthd_join(th[i], -1, NULL);
 
 	ffring_destroy(&r);
+	return 0;
+}
+
+
+struct tq {
+	fftaskmgr tq;
+	uint q;
+	uint cnt;
+	fftask *tsk;
+};
+
+static int FFTHDCALL tq_wr(void *param)
+{
+	struct tq *t = param;
+	uint i = 0;
+	for (;;) {
+		if (FF_READONCE(&t->q))
+			break;
+		int r = fftask_post(&t->tq, &t->tsk[i]);
+		i = ffint_cycleinc(i, 1000);
+		(void)r;
+	}
+	return 0;
+}
+
+static void tq_func(void *param)
+{
+	struct tq *t = param;
+	t->cnt++;
+	if (t->cnt == 10 * 1000000)
+		FF_WRITEONCE(&t->q, 1);
+}
+
+int test_tq(void)
+{
+	FFTEST_FUNC;
+	struct tq t_s, *t = &t_s;
+	ffthd th;
+
+	ffmem_tzero(&t_s);
+
+	t->tsk = ffmem_callocT(1000, fftask);
+	fftask_init(&t->tq);
+
+	for (uint i = 0;  i != 1000;  i++) {
+		t->tsk[i].handler = &tq_func;
+		t->tsk[i].param = t;
+	}
+
+	th = ffthd_create(&tq_wr, t, 0);
+
+	for (;;) {
+		if (FF_READONCE(&t->q))
+			break;
+		int r = fftask_run(&t->tq);
+		(void)r;
+	}
+
+	ffthd_join(th, -1, NULL);
+	ffmem_safefree(t->tsk);
 	return 0;
 }

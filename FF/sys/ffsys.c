@@ -97,29 +97,58 @@ int fffile_mapshift(fffilemap *fm, int64 by)
 }
 
 
-void fftask_run(fftaskmgr *mgr)
+uint fftask_post(fftaskmgr *mgr, fftask *task)
 {
-	while (!fflist_empty(&mgr->tasks)) {
+	uint r = 0;
 
-		if (!fflk_trylock(&mgr->lk))
-			return;
+	fflk_lock(&mgr->lk);
+	if (fftask_active(mgr, task))
+		goto done;
+	r = fflist_empty(&mgr->tasks);
+	fflist_ins(&mgr->tasks, &task->sib);
+done:
+	fflk_unlock(&mgr->lk);
+	return r;
+}
 
-		if (fflist_empty(&mgr->tasks)) {
-			fflk_unlock(&mgr->lk);
-			return;
-		}
+void fftask_del(fftaskmgr *mgr, fftask *task)
+{
+	fflk_lock(&mgr->lk);
+	if (!fftask_active(mgr, task))
+		goto done;
+	fflist_rm(&mgr->tasks, &task->sib);
+done:
+	fflk_unlock(&mgr->lk);
+}
 
-		fftask *task = FF_GETPTR(fftask, sib, mgr->tasks.first);
-		fflist_rm(&mgr->tasks, &task->sib);
-		uint ntasks = mgr->tasks.len;
+uint fftask_run(fftaskmgr *mgr)
+{
+	fflist_item *it, *sentl = fflist_sentl(&mgr->tasks);
+	uint n, ntasks;
+
+	for (n = mgr->max_run;  n != 0;  n--) {
+
+		it = mgr->tasks.first;
+		if (it == sentl)
+			break; //list is empty
+
+		FF_ASSERT(mgr->tasks.len != 0);
+		fflk_lock(&mgr->lk);
+		_ffchain_link2(it->prev, it->next);
+		it->next = NULL;
+		ntasks = mgr->tasks.len--;
 		fflk_unlock(&mgr->lk);
+
+		fftask *task = FF_GETPTR(fftask, sib, it);
 
 		(void)ntasks;
 		FFDBG_PRINTLN(10, "[%L] %p handler=%p, param=%p"
-			, ntasks + 1, task, task->handler, task->param);
+			, ntasks, task, task->handler, task->param);
 
 		task->handler(task->param);
 	}
+
+	return mgr->max_run - n;
 }
 
 
