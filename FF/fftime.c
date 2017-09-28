@@ -105,84 +105,91 @@ size_t fftime_now_tostrz(char *dst, size_t cap, uint fmt)
 	return n;
 }
 
-size_t fftime_fromstr(ffdtm *dt, const char *s, size_t len, uint fmt)
+static int date_fromstr(ffdtm *t, const ffstr *ss, uint fmt)
 {
-	ffdtm t = {0};
-	const char *s_end = s + len;
-	char sweekday[4];
-	char smon[4];
+	const char *s = ss->ptr, *s_end = s + ss->len;
+	char sweekday[4], smon[4];
 	ssize_t i;
 
 	switch (fmt & 0x0f) {
 	case FFTIME_DATE_YMD:
 		i = ffs_fmatch(s, s_end - s, "%4u-%2u-%2u"
-			, &t.year, &t.month, &t.day);
+			, &t->year, &t->month, &t->day);
 		if (i < 0)
 			goto fail;
 		s += i;
 
-		t.weekday = 0;
+		t->weekday = 0;
 		break;
 
 	case FFTIME_DATE_MDY0:
 		i = ffs_fmatch(s, s_end - s, "%2u/%2u/%4u"
-			, &t.year, &t.month, &t.day);
+			, &t->year, &t->month, &t->day);
 		if (i < 0)
 			goto fail;
 		s += i;
 
-		t.weekday = 0;
+		t->weekday = 0;
 		break;
 
 	case FFTIME_DATE_MDY:
 		i = ffs_fmatch(s, s_end - s, "%u/%u/%4u"
-			, &t.year, &t.month, &t.day);
+			, &t->year, &t->month, &t->day);
 		if (i < 0)
 			goto fail;
 		s += i;
 
-		t.weekday = 0;
+		t->weekday = 0;
 		break;
 
 	case FFTIME_DATE_DMY:
 		i = ffs_fmatch(s, s_end - s, "%2u.%2u.%4u"
-			, &t.year, &t.month, &t.day);
+			, &t->year, &t->month, &t->day);
 		if (i < 0)
 			goto fail;
 		s += i;
 
-		t.weekday = 0;
+		t->weekday = 0;
 		break;
 
 	case FFTIME_DATE_WDMY:
 		i = ffs_fmatch(s, s_end - s, "%3s, %2u %3s %4u"
-			, sweekday, &t.day, &smon, &t.year);
+			, sweekday, &t->day, &smon, &t->year);
 		if (i < 0)
 			goto fail;
 		s += i;
 
-		t.month = 1 + ffs_findarr3(month_names, smon, 3);
+		t->month = 1 + ffs_findarr3(month_names, smon, 3);
 
 		if (-1 != (i = ffs_findarr3(week_days, sweekday, 3)))
-			t.weekday = i;
+			t->weekday = i;
 		break;
 
 	case 0:
-		break; //no date
+		return 0; //no date
 
 	default:
 		goto fail;
 	}
 
-	if ((fmt & 0x0f) && (fmt & 0xf0)) {
-		if (s == s_end || *s++ != ' ')
-			goto fail;
-	}
+	if (!fftime_chk(t, FFTIME_CHKDATE))
+		goto fail;
+
+	return s - ss->ptr;
+
+fail:
+	return -1;
+}
+
+static int time_fromstr(ffdtm *t, const ffstr *ss, uint fmt)
+{
+	const char *s = ss->ptr, *s_end = s + ss->len;
+	ssize_t i;
 
 	switch (fmt & 0xf0) {
 	case FFTIME_HMS:
 		i = ffs_fmatch(s, s_end - s, "%2u:%2u:%2u"
-			, &t.hour, &t.min, &t.sec);
+			, &t->hour, &t->min, &t->sec);
 		if (i < 0)
 			goto fail;
 		s += i;
@@ -190,46 +197,82 @@ size_t fftime_fromstr(ffdtm *dt, const char *s, size_t len, uint fmt)
 
 	case FFTIME_HMS_GMT:
 		i = ffs_fmatch(s, s_end - s, "%2u:%2u:%2u GMT"
-			, &t.hour, &t.min, &t.sec);
+			, &t->hour, &t->min, &t->sec);
 		if (i < 0)
 			goto fail;
 		s += i;
 		break;
 
-	case FFTIME_HMS_MSEC_VAR: {
-		ffstr ss;
-		uint *tgt[] = { &t.sec, &t.min, &t.hour };
+	case FFTIME_HMS_MSEC_VAR:
+		if (0 == (i = ffs_toint(s, s_end - s, &t->sec, FFS_INT32)))
+			goto fail;
+		s += i;
+		if (s == s_end || *s != ':')
+			goto msec;
+		s++;
+		t->min = t->sec;
 
-		if (s_end != (ss.ptr = ffs_rfind(s, s_end - s, '.'))) {
-			ss.len = s_end - (ss.ptr + 1);
-			if (ss.len != ffs_toint(ss.ptr + 1, ss.len, &t.msec, FFS_INT32))
+		if (0 == (i = ffs_toint(s, s_end - s, &t->sec, FFS_INT32)))
+			goto fail;
+		s += i;
+		if (s == s_end || *s != ':')
+			goto msec;
+		s++;
+		t->hour = t->min;
+		t->min = t->sec;
+
+		if (0 == (i = ffs_toint(s, s_end - s, &t->sec, FFS_INT32)))
+			goto fail;
+		s += i;
+
+msec:
+		if (s != s_end || *s == '.') {
+			s++;
+			if (0 == (i = ffs_toint(s, s_end - s, &t->msec, FFS_INT32)))
 				goto fail;
-			s_end = ss.ptr;
+			s += i;
 		}
 
-		for (i = 0;  i != 3 && s != s_end;  i++) {
-			s_end -= ffstr_nextval(s, s_end - s, &ss, ':' | FFS_NV_REVERSE | FFS_NV_KEEPWHITE);
-			if (ss.len != ffs_toint(ss.ptr, ss.len, tgt[i], FFS_INT32))
-				goto fail;
-		}
-
-		fftime_norm(&t);
+		fftime_norm(t);
 		break;
-		}
 
 	case 0:
-		break; //no time
+		return 0; //no time
 
 	default:
 		goto fail;
 	}
 
-	if (s != s_end)
-		goto fail;
+	if (!fftime_chk(t, FFTIME_CHKTIME))
+		return -1;
 
-	i = ((fmt & 0x0f) ? FFTIME_CHKDATE : 0)
-		| ((fmt & 0xf0) ? FFTIME_CHKTIME : 0);
-	if (!fftime_chk(&t, i))
+	return s - ss->ptr;
+
+fail:
+	return -1;
+}
+
+size_t fftime_fromstr(ffdtm *dt, const char *s, size_t len, uint fmt)
+{
+	ffdtm t = {0};
+	int i;
+	ffstr ss;
+
+	ffstr_set(&ss, s, len);
+	if (0 > (i = date_fromstr(&t, &ss, fmt)))
+		goto fail;
+	ffstr_shift(&ss, i);
+
+	if ((fmt & 0x0f) && (fmt & 0xf0)) {
+		if (ss.len == 0 || ffstr_popfront(&ss) != ' ')
+			goto fail;
+	}
+
+	if (0 > (i = time_fromstr(&t, &ss, fmt)))
+		goto fail;
+	ffstr_shift(&ss, i);
+
+	if (ss.len != 0)
 		goto fail;
 
 	*dt = t;
