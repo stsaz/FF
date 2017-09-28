@@ -721,6 +721,28 @@ static void test_utf(void)
 	x(FFU_UTF8 == ffutf_bom("\xef\xbb\xbf\x00", &sl) && sl == 3);
 }
 
+static void test_str_fromsize(void)
+{
+	char buf[32];
+	int r;
+	x(0 != (r = ffs_fromsize(buf, sizeof(buf), 0, 0))
+		&& ffs_eqcz(buf, r, "0"));
+	x(0 != (r = ffs_fromsize(buf, sizeof(buf), 1023, 0))
+		&& ffs_eqcz(buf, r, "1023"));
+	x(0 != (r = ffs_fromsize(buf, sizeof(buf), 1024, 0))
+		&& ffs_eqcz(buf, r, "1k"));
+	x(0 != (r = ffs_fromsize(buf, sizeof(buf), 2048 + 1023, 0))
+		&& ffs_eqcz(buf, r, "2k"));
+	x(0 != (r = ffs_fromsize(buf, sizeof(buf), 1024 + 599, FFS_FROMSIZE_FRAC))
+		&& ffs_eqcz(buf, r, "1.5k"));
+	x(0 != (r = ffs_fromsize(buf, sizeof(buf), 64 * 1024 + 999, FFS_FROMSIZE_FRAC | FFS_FROMSIZE_Z))
+		&& ffsz_eq(buf, "64.9k"));
+	x(0 != (r = ffs_fromsize(buf, sizeof(buf), 64 * 1024 + 999, 0))
+		&& ffs_eqcz(buf, r, "64k"));
+	x(0 != (r = ffs_fromsize(buf, sizeof(buf), (uint64)-1, 0))
+		&& ffs_eqcz(buf, r, "16777215t"));
+}
+
 int test_str()
 {
 	FFTEST_FUNC;
@@ -768,5 +790,6 @@ int test_str()
 	test_bstr();
 	test_wildcard();
 	test_utf();
+	test_str_fromsize();
 	return 0;
 }

@@ -703,6 +703,20 @@ uint ffchar_sizesfx(int suffix)
 	return 0;
 }
 
+uint ffint_tosfx(uint64 size, char *sfx)
+{
+	uint r = 0;
+	if (size >= FF_BIT64(40))
+		*sfx = 't',  r = 40;
+	else if (size >= FF_BIT64(30))
+		*sfx = 'g',  r = 30;
+	else if (size >= FF_BIT64(20))
+		*sfx = 'm',  r = 20;
+	else if (size >= FF_BIT64(10))
+		*sfx = 'k',  r = 10;
+	return r;
+}
+
 uint ffs_toint(const char *src, size_t len, void *dst, int flags)
 {
 	uint64 r = 0;
@@ -914,6 +928,31 @@ uint ffs_fromint(uint64 i, char *dst, size_t cap, int flags)
 	ffmemcpy(dst, ps, len);
 	dst += len;
 	return (uint)(dst - dsto);
+}
+
+int ffs_fromsize(char *buf, size_t cap, uint64 size, uint flags)
+{
+	char sfx = '\0', *p;
+	uint bits, frac;
+
+	bits = ffint_tosfx(size, &sfx);
+	p = buf + ffs_fromint((size >> bits), buf, cap, 0);
+
+	if ((flags & FFS_FROMSIZE_FRAC)
+		&& 0 != (frac = (size % FF_BIT64(bits)))) {
+		char s[32];
+		ffs_fromint(frac, s, sizeof(s), 0);
+		p = ffs_copyc(p, buf + cap, '.');
+		p = ffs_copyc(p, buf + cap, s[0]);
+	}
+
+	if (bits != 0)
+		p = ffs_copyc(p, buf + cap, sfx);
+
+	if (flags & FFS_FROMSIZE_Z)
+		ffs_copyc(p, buf + cap, '\0');
+
+	return p - buf;
 }
 
 uint ffs_tofloat(const char *s, size_t len, double *dst, int flags)

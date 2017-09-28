@@ -71,6 +71,11 @@ static FFINL int ffchar_tohex(int ch) {
 /** Get bits to shift by size suffix K, M, G, T. */
 FF_EXTN uint ffchar_sizesfx(int suffix);
 
+/** Split integer into parts.
+0..1023 -> 0;  1024..1024k-1 -> 'k';  ...
+Return shift value. */
+FF_EXTN uint ffint_tosfx(uint64 size, char *suffix);
+
 
 enum {
 	FF_TEXT_LINE_MAX = 64 * 1024, //max line size
@@ -528,6 +533,17 @@ enum FFINT_TOSTR {
 'flags': enum FFINT_TOSTR
 Return the number of chars written. */
 FF_EXTN uint ffs_fromint(uint64 i, char *dst, size_t cap, int flags);
+
+enum FFS_FROMSIZE {
+	FFS_FROMSIZE_FRAC = 1, //use 1-digit fraction: 1524 -> "1.5k"
+	FFS_FROMSIZE_Z = 2, //terminate string with NULL-char
+};
+
+/** Convert integer size to human readable string.
+1023 -> "1023";  1024 -> "1k";  2047 -> "1k"
+@flags: enum FFS_FROMSIZE
+Return number of bytes written. */
+FF_EXTN int ffs_fromsize(char *buf, size_t cap, uint64 size, uint flags);
 
 /** Convert floating point number to string.
 Return the number of chars processed.
