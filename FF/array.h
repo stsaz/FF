@@ -398,6 +398,13 @@ static FFINL void ffstr_acqstr3(ffstr *dst, ffstr3 *src) {
 	ffarr_null(src);
 }
 
+static FFINL int ffstr_popfront(ffstr *s)
+{
+	FF_ASSERT(s->len != 0);
+	s->len--;
+	return *(s->ptr++);
+}
+
 #define ffstr_shift  ffarr_shift
 
 /** Copy the contents of ffstr* into char* buffer. */
@@ -459,6 +466,14 @@ static FFINL ffbool ffstr_imatch(const ffstr *s1, const char *s2, size_t n) {
 #define ffstr_matchcz(s, csz)  ffstr_match(s, csz, FFSLEN(csz))
 #define ffstr_imatchcz(s, csz)  ffstr_imatch(s, csz, FFSLEN(csz))
 #define ffstr_matchstr(s, s2)  ffstr_match(s, (s2)->ptr, (s2)->len)
+
+static FFINL ffbool ffstr_irmatch(const ffstr *s, const char *s2, size_t len)
+{
+	return s->len >= len
+		&& 0 == ffs_icmpz(s->ptr + s->len - len, len, s2);
+}
+
+#define ffstr_irmatchz(s, sz)  ffstr_irmatch(s, sz, ffsz_len(sz))
 
 
 #define ffstr_alloc(s, cap)  ffarr2_alloc((ffarr2*)s, cap, sizeof(char))

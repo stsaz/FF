@@ -17,7 +17,7 @@ size_t ffpath_norm(char *dst, size_t dstcap, const char *path, size_t len, int f
 		flags = FFPATH_MERGESLASH | FFPATH_MERGEDOTS;
 
 #ifdef FF_WIN
-	flags |= FFPATH_WINDOWS;
+	flags |= (flags & FFPATH_NOWINDOWS) ? 0 : FFPATH_WINDOWS;
 #endif
 
 	if (p[0] == '/')

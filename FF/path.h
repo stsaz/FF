@@ -25,6 +25,9 @@ enum FFPATH_FLAGS {
 	_FFPATH_STRICT_BOUNDS = 4,
 	FFPATH_STRICT_BOUNDS = _FFPATH_STRICT_BOUNDS | FFPATH_MERGESLASH,
 
+	/** Disable automatic FFPATH_WINDOWS. */
+	FFPATH_NOWINDOWS = 8,
+
 	/** Support "\" backslash and Windows disk drives "x:".  Always enabled on Windows.
 	Fail if found a character prohibited to use in filename on Windows: *?:" */
 	FFPATH_WINDOWS = 0x10,
