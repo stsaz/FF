@@ -42,7 +42,7 @@ struct blk_hdr {
 	// varint size
 	// varint osize
 	// filt_flags filt_flags_list[]
-	// byte padding[0..3] //=0
+	// byte padding[0...] //=0
 	// byte crc32[4]
 };
 
@@ -171,15 +171,15 @@ static int xz_hdr_parse(const char *buf, size_t len, lzma_filter_props *filts)
 			return -FFXZ_EBLKHDR;
 	}
 
-	uint padding = (end - p) % 4;
-	if (p + padding > end)
+	if (end - p < 4)
 		return -FFXZ_EBLKHDR;
+	uint padding = (end - p) - 4;
 	if (p + padding != (void*)ffs_skip((void*)p, padding, 0x00))
 		return -FFXZ_EBLKHDR;
 	p += padding;
 
 	uint crc = ffcrc32_get(buf, len - 4);
-	if (p + 4 != end || crc != ffint_ltoh32(p))
+	if (crc != ffint_ltoh32(p))
 		return -FFXZ_EBLKHDRCRC;
 	return nfilt;
 }
