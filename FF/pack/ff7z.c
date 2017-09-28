@@ -332,6 +332,7 @@ static int z7_filters_call(ff7z *z)
 
 	c = &z->filters[z->ifilter];
 	inlen = c->in.len;
+	(void)inlen;
 	r = c->process(c);
 
 	switch (r) {

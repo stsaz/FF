@@ -8,6 +8,13 @@ Copyright (c) 2016 Simon Zolin
 #include <FFOS/error.h>
 
 
+enum GZ_FLAGS {
+	GZ_FHDRCRC = 0x02,
+	GZ_FEXTRA = 0x04,
+	GZ_FNAME = 0x08,
+	GZ_FCOMMENT = 0x10,
+};
+
 static const char *const gz_errs[] = {
 	"not ready",
 	"libz init",
@@ -32,6 +39,8 @@ const char* _ffgz_errstr(int err, z_ctx *lz)
 
 #define ERR(gz, n) \
 	(gz)->err = n, FFGZ_ERR
+#define WARN(gz, n) \
+	(gz)->err = n, FFGZ_WARN
 
 
 enum {
@@ -94,6 +103,7 @@ int ffgz_read(ffgz *gz, char *dst, size_t cap)
 	case R_TRL: {
 		const ffgztrailer *trl = (void*)gz->buf.ptr;
 		gz->outsize = ffint_ltoh32(trl->isize);
+		gz->trlcrc = ffint_ltoh32(trl->crc32);
 
 		gz->buf.len = 0;
 		gz->inoff = 0;
@@ -106,7 +116,7 @@ int ffgz_read(ffgz *gz, char *dst, size_t cap)
 		h = (void*)gz->buf.ptr;
 		if (!(h->id1 == 0x1f && h->id2 == 0x8b && h->comp_meth == 8))
 			return ERR(gz, FFGZ_EHDR);
-		if (h->fextra) {
+		if (h->flags & GZ_FEXTRA) {
 			gz->hsize += 2;
 			gz->state = R_GATHER, gz->nxstate = R_EXTRA;
 			continue;
@@ -122,7 +132,7 @@ int ffgz_read(ffgz *gz, char *dst, size_t cap)
 
 	case R_NAME:
 		h = (void*)gz->buf.ptr;
-		if (h->fname) {
+		if (h->flags & GZ_FNAME) {
 			size_t len = ffsz_nlen(gz->in.ptr, gz->in.len);
 			if (len == gz->in.len) {
 				gz->hsize += len;
@@ -142,7 +152,7 @@ int ffgz_read(ffgz *gz, char *dst, size_t cap)
 
 	case R_CMT:
 		h = (void*)gz->buf.ptr;
-		if (h->fcomment) {
+		if (h->flags & GZ_FCOMMENT) {
 			size_t len = ffsz_nlen(gz->in.ptr, gz->in.len);
 			if (len == gz->in.len) {
 				gz->hsize += len;
@@ -161,7 +171,7 @@ int ffgz_read(ffgz *gz, char *dst, size_t cap)
 
 	case R_CRC:
 		h = (void*)gz->buf.ptr;
-		if (h->fhcrc) {
+		if (h->flags & GZ_FHDRCRC) {
 			gz->hsize += 2;
 			gz->state = R_GATHER, gz->nxstate = R_HDROK;
 			continue;
@@ -211,8 +221,12 @@ int ffgz_read(ffgz *gz, char *dst, size_t cap)
 		const ffgztrailer *trl = (void*)gz->buf.ptr;
 		if (ffint_ltoh32(trl->crc32) != gz->crc)
 			return ERR(gz, FFGZ_ECRC);
-		// if (ffint_ltoh32(trl->isize) != (uint)gz->outsize)
-		// 	return ERR(gz, FFGZ_ESIZE);
+
+		/* If the output size <=4GB, check the value from gzip trailer,
+			otherwise we can't be sure the compressor stored low-32bit value in .gz file. */
+		if (gz->outsize <= (uint)-1 && ffint_ltoh32(trl->isize) != (uint)gz->outsize)
+			return WARN(gz, FFGZ_ESIZE);
+
 		return FFGZ_DONE;
 	}
 
@@ -258,7 +272,7 @@ int ffgz_wfile(ffgz_cook *gz, const char *name, uint mtime)
 	ffint_htol32(h->mtime, mtime);
 
 	if (name != NULL) {
-		h->fname = 1;
+		h->flags |= GZ_FNAME;
 		ffarr2_addf(&gz->buf, nm.ptr, nm.len + 1, sizeof(char));
 	}
 

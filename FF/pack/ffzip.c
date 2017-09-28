@@ -127,12 +127,38 @@ static const byte zip_defcdir_trl[] = {
 	'P','K','\x05','\x06',
 };
 
+/** Find CDIR trailer and store it in 'buf'.
+Return 1 if found;  0 if more data is needed;  -1 on error. */
+static int zip_cdir_trl_find(ffarr *buf, ffstr *in)
+{
+	int r;
+	struct ffbuf_gather bg = {0};
+	ffstr_set2(&bg.data, in);
+	bg.ctglen = sizeof(zip_cdir_trl);
+	while (FFBUF_DONE != (r = ffbuf_gather(buf, &bg))) {
+		switch (r) {
+		case 0:
+		case -1:
+			return r;
+
+		case FFBUF_READY: {
+			char *p;
+			if (ffarr_end(buf) != (p = ffs_finds(buf->ptr, buf->len, (char*)zip_defcdir_trl, 4)))
+				bg.off = p - buf->ptr + 1;
+			break;
+		}
+		}
+	}
+
+	return 1;
+}
+
 /** Parse CDIR entry.
 Return CDIR entry size;  <0 on error. */
 static int zip_cdir_parse(ffzip_file *f, const char *buf)
 {
 	const zip_cdir *cdir = (void*)buf;
-	if (ffs_cmp(cdir->sig, "PK\1\2", 4))
+	if (ffs_cmp(cdir->sig, zip_defcdir, 4))
 		return -FFZIP_ECDIR;
 
 	ffdtm dt;
@@ -153,7 +179,7 @@ Return file header size;  <0 on error. */
 static int zip_fhdr_parse(ffzip_file *f, const char *buf, ffzip_file *cdir)
 {
 	const zip_hdr *h = (void*)buf;
-	if (ffs_cmp(h->sig, "PK\3\4", 4))
+	if (ffs_cmp(h->sig, zip_defhdr, 4))
 		return -FFZIP_EHDR;
 
 	uint flags = ffint_ltoh16(h->flags);
@@ -264,10 +290,11 @@ void ffzip_close(ffzip *z)
 		ffmem_safefree(f->fn);
 		ffmem_free(f);
 	}
+	ffchain_init(&z->cdir);
 	FF_SAFECLOSE(z->lz, NULL, z_inflate_free);
 }
 
-enum {
+enum E_READ {
 	R_GATHER, R_CDIR_TRL_SEEK, R_CDIR_TRL, R_CDIR_SEEK, R_CDIR_NEXT, R_CDIR, R_CDIR_FIN,
 	R_FHDR_SEEK, R_FHDR, R_FHDR_FIN, R_SKIP, R_DATA, R_FDONE,
 };
@@ -309,7 +336,7 @@ int ffzip_read(ffzip *z, char *dst, size_t cap)
 	int r;
 
 	for (;;) {
-	switch (z->state) {
+	switch ((enum E_READ)z->state) {
 
 	case R_GATHER:
 		r = ffarr_append_until(&z->buf, z->in.ptr, z->in.len, z->hsize);
@@ -331,24 +358,11 @@ int ffzip_read(ffzip *z, char *dst, size_t cap)
 		return FFZIP_SEEK;
 
 	case R_CDIR_TRL: {
-		struct ffbuf_gather bg = {0};
-		ffstr_set(&bg.data, z->in.ptr, z->in.len);
-		bg.ctglen = sizeof(zip_cdir_trl);
-		while (FFBUF_DONE != (r = ffbuf_gather(&z->buf, &bg))) {
-			switch (r) {
-			case 0:
-				return FFZIP_MORE;
-			case -1:
-				return ERR(z, FFZIP_ESYS);
-
-			case FFBUF_READY: {
-				char *p;
-				if (ffarr_end(&z->buf) != (p = ffs_finds(z->buf.ptr, z->buf.len, "PK\5\6", 4)))
-					bg.off = p - z->buf.ptr + 1;
-				break;
-			}
-			}
-		}
+		r = zip_cdir_trl_find(&z->buf, &z->in);
+		if (r == 0)
+			return FFZIP_MORE;
+		else if (r < 0)
+			return ERR(z, FFZIP_ESYS);
 
 		const zip_cdir_trl *trl = (void*)z->buf.ptr;
 		z->buf.len = 0;
@@ -449,7 +463,7 @@ int ffzip_read(ffzip *z, char *dst, size_t cap)
 	}
 
 	case R_SKIP:
-		z->state = R_CDIR_SEEK;
+		z->state = R_FHDR;
 		return FFZIP_FILEDONE;
 
 	case R_DATA: {
@@ -480,7 +494,7 @@ int ffzip_read(ffzip *z, char *dst, size_t cap)
 		if (z->crc != f->crc)
 			return ERR(z, FFZIP_ECRC);
 
-		z->state = R_CDIR_SEEK;
+		z->state = R_FHDR;
 		return FFZIP_FILEDONE;
 	}
 

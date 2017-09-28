@@ -54,7 +54,6 @@ FF_EXP const char* ff7z_errstr(ff7z *z);
 enum FF7Z_R {
 	FF7Z_ERR = 1,
 	FF7Z_DATA,
-	FF7Z_DONE,
 	FF7Z_MORE,
 	FF7Z_SEEK,
 	FF7Z_FILEHDR,

@@ -18,17 +18,7 @@ typedef struct ffgzheader {
 	byte id1 //0x1f
 		, id2 //0x8b
 		, comp_meth; //8=deflate
-	union {
-		byte flags;
-		struct {
-			byte ftext : 1
-				, fhcrc : 1
-				, fextra : 1
-				, fname : 1 //flags=0x08
-				, fcomment : 1
-				, reserved : 3;
-		};
-	};
+	byte flags; //enum GZ_FLAGS
 	byte mtime[4];
 	byte exflags
 		, fstype; //0=fat, 3=unix, 11=ntfs, 255=unknown
@@ -79,6 +69,7 @@ typedef struct ffgz {
 	ffstr out;
 	uint crc;
 	uint64 outsize;
+	uint trlcrc;
 } ffgz;
 
 typedef struct ffgz_cook {
@@ -98,6 +89,7 @@ typedef struct ffgz_cook {
 } ffgz_cook;
 
 enum FFGZ_R {
+	FFGZ_WARN = -2,
 	FFGZ_ERR = -1,
 	FFGZ_DATA,
 	FFGZ_DONE,
@@ -127,7 +119,16 @@ static FFINL uint ffgz_mtime(ffgz *gz)
 	return ffint_ltoh32(h->mtime);
 }
 
+/** Get decompressed file size (32-bit).
+While (or after) decompressing, this is the actual decompressed data size (64-bit). */
 #define ffgz_size(gz)  ((gz)->outsize)
+
+/** Get decompressed file size (64-bit).
+Get lower-bound value in case .gz file is larger than 4gb.
+ The upper-bound value can't be determined in this case. */
+#define ffgz_size64(gz, gz_fsize)  (((gz_fsize) & 0xffffffff00000000ULL) | ((gz)->outsize))
+
+#define ffgz_crc(gz)  ((gz)->trlcrc)
 
 #define ffgz_offset(gz)  ((gz)->inoff)
 
