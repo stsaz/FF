@@ -344,7 +344,7 @@ size_t ffutf8_encode(char *dst, size_t cap, const char *src, size_t *plen, uint 
 
 	switch (flags & 0xffff) {
 	case FFU_UTF8:
-		if (dst != NULL)
+		if (dst == NULL)
 			return len;
 		len = ffmin(cap, len);
 		ffmemcpy(dst, src, len);
