@@ -689,7 +689,7 @@ static int _ffflac_whdr(ffflac_cook *f)
 	uint tagoff = f->outbuf.len;
 	uint taglen = f->vtag.out.len - sizeof(struct flac_hdr) - tagoff;
 	ffarr_acq(&f->outbuf, &f->vtag.out);
-	uint padding = f->min_meta - taglen;
+	uint padding = ffmax((int)(f->min_meta - taglen), 0);
 
 	flac_sethdr(f->outbuf.ptr + tagoff, FLAC_TTAGS, (padding == 0 && f->sktab.len == 0), taglen);
 
