@@ -13,6 +13,28 @@ Copyright (c) 2014 Simon Zolin
 #include <FFOS/error.h>
 
 
+static const char s_fmode[] = ".pc.d.b.-.l.s...";
+static const char s_fperm_set[] = "rwxrwxrwx";
+
+uint fffile_unixattr_tostr(char *dst, size_t cap, uint mode)
+{
+	if (cap < 10)
+		return 0;
+
+	uint n;
+	n = (mode & FFUNIX_FILE_TYPEMASK) >> 12;
+	*dst++ = s_fmode[n];
+
+	ffs_fill(dst, dst + cap, '-', 9);
+	n = mode & 0777;
+	while (n != 0) {
+		uint i = ffbit_ffs32(n) - 1;
+		dst[8 - i] = s_fperm_set[8 - i];
+		ffbit_reset32(&n, i);
+	}
+	return 10;
+}
+
 size_t fffile_fmt(fffd fd, ffarr *buf, const char *fmt, ...)
 {
 	size_t r;
