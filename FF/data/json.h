@@ -68,6 +68,7 @@ typedef struct ffjson_cook {
 	ffstr3 buf;
 	int st;
 	ffarr ctxs;
+	uint gflags; //enum FFJSON_F
 } ffjson_cook;
 
 /** Prepare ffjson_cook structure. */
@@ -99,6 +100,7 @@ enum FFJSON_F {
 	, FFJSON_FKEYNAME = FFJSON_FSTRZ | FFJSON_FNOESC
 	, FFJSON_FINTVAL = FFJSON_TINT | (1 << 27) //integer value (int or int64)
 	, FFJSON_F32BIT = 1 << 26 //32-bit integer
+	, FFJSON_FMORE = 1 << 25 //TSTR: don't finalize the object because more data will follow
 };
 
 enum FFJSON_E {

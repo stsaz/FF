@@ -60,10 +60,12 @@ size_t ffjson_escape(char *dst, size_t cap, const char *s, size_t len)
 	if (dst == NULL) {
 		size_t n = 0;
 		for (i = 0; i < len; ++i) {
-			if (NULL == ffmemchr(ff_escbyte, (byte)s[i], FFCNT(ff_escbyte)))
-				n++;
-			else
+			if (NULL != ffmemchr(ff_escbyte, (byte)s[i], FFCNT(ff_escbyte)))
 				n += nEsc;
+			else if (s[i] < 0x20)
+				n += FFSLEN("\\uXXXX");
+			else
+				n++;
 		}
 		return n;
 	}
@@ -75,14 +77,20 @@ size_t ffjson_escape(char *dst, size_t cap, const char *s, size_t len)
 			return 0;
 
 		d = ffmemchr(ff_escbyte, (byte)s[i], FFCNT(ff_escbyte));
-		if (d == NULL)
-			*dst++ = s[i];
-		else {
+		if (d != NULL) {
 			if (dst + nEsc > dstend)
 				return 0;
 			*dst++ = '\\';
 			*dst++ = ff_escchar[d - ff_escbyte];
-		}
+
+		} else if (s[i] < 0x20) {
+			if (dst + FFSLEN("\\uXXXX") > dstend)
+				return 0;
+			dst = ffmem_copycz(dst, "\\u00");
+			dst += ffs_hexbyte(dst, s[i], ffhex);
+
+		} else
+			*dst++ = s[i];
 	}
 
 	return dst - dsto;
@@ -615,6 +623,8 @@ enum State {
 	stComma = 1
 	, stKey = 2
 	, stVal = 4
+	,
+	ST_CONTINUE = 8,
 };
 
 int ffjson_add(ffjson_cook *c, int f, const void *src)
@@ -633,6 +643,8 @@ int ffjson_add(ffjson_cook *c, int f, const void *src)
 		const int64 *i64;
 		const int *i32;
 	} un;
+
+	f |= c->gflags;
 
 	un.p = src;
 	closingCtx = src != NULL && (type == FFJSON_TOBJ || type == FFJSON_TARR);
@@ -656,7 +668,10 @@ int ffjson_add(ffjson_cook *c, int f, const void *src)
 			n *= (f & FFJSON_PRETTY4SPC) ? 4 : 2;
 		}
 
-		tmp = ffs_fmt(d, end, "\n%*c", (size_t)n, (int)ch);
+		if (d == NULL)
+			tmp = FFSLEN("\n") + n;
+		else
+			tmp = ffs_fmt(d, end, "\n%*c", (size_t)n, (int)ch);
 		if (!nobuf)
 			d += tmp;
 		len += tmp;
@@ -664,8 +679,10 @@ int ffjson_add(ffjson_cook *c, int f, const void *src)
 
 	switch (type) {
 	case FFJSON_TSTR:
-		d = ffs_copyc(d, end, '"');
-		len++;
+		if (!(c->st & ST_CONTINUE)) {
+			d = ffs_copyc(d, end, '"');
+			len++;
+		}
 
 		if (f & FFJSON_FNOESC) {
 			if ((f & FFJSON_FSTRZ) == FFJSON_FSTRZ) {
@@ -689,6 +706,12 @@ int ffjson_add(ffjson_cook *c, int f, const void *src)
 				d += tmp;
 			len += tmp;
 		}
+
+		if (f & FFJSON_FMORE) {
+			c->st |= ST_CONTINUE;
+			goto done;
+		}
+		c->st &= ~ST_CONTINUE;
 
 		d = ffs_copyc(d, end, '"');
 		len++;
@@ -775,6 +798,7 @@ int ffjson_add(ffjson_cook *c, int f, const void *src)
 		}
 	}
 
+done:
 	if (nobuf)
 		return -(int)len;
 
