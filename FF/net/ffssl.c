@@ -3,13 +3,14 @@ Copyright (c) 2015 Simon Zolin
 */
 
 #include <FF/net/ssl.h>
+#include <FFOS/error.h>
 
 
 enum {
-	SSL_MINRECV = 512, //minimum buffer size for recv()
+	MINRECV = 512, //minimum buffer size for recv()
 };
 
-#define SSL_CIPHERS  "!aNULL:!eNULL:!EXP:!MD5:HIGH"
+#define DEF_CIPHERS  "!aNULL:!eNULL:!EXP:!MD5:HIGH"
 
 struct ssl_s {
 	int conn_idx
@@ -64,7 +65,7 @@ void ffssl_uninit(void)
 }
 
 
-const char *const ffssl_funcstr[] = {
+static const char *const ffssl_funcstr[] = {
 	"",
 	"system",
 
@@ -81,17 +82,41 @@ const char *const ffssl_funcstr[] = {
 	"SSL*_set_ex_data",
 	"SSL_set_tlsext_host_name",
 	"BIO_new",
+
+	"SSL_do_handshake",
+	"SSL_read",
+	"SSL_write",
+	"SSL_shutdown",
 };
 
-size_t ffssl_errstr(char *buf, size_t cap)
+size_t ffssl_errstr(int e, char *buf, size_t cap)
 {
 	char *pbuf = buf, *end = buf + cap;
-	int e;
+	uint eio = ((uint)e >> 8);
+
+	pbuf = ffs_copyz(pbuf, end, ffssl_funcstr[e & 0xff]);
+	pbuf = ffs_copy(pbuf, end, ": ", 2);
+
+	if (e == FFSSL_ESYS
+		|| eio == SSL_ERROR_SYSCALL) {
+
+		if (pbuf == end)
+			goto done;
+		fferr_str(fferr_last(), pbuf, end - pbuf);
+		pbuf += ffsz_len(buf);
+		goto done;
+
+	} else if (eio != 0 && eio != SSL_ERROR_SSL) {
+		pbuf += ffs_fmt(pbuf, end, "(%xu)", eio);
+		goto done;
+	}
 
 	while (0 != (e = ERR_get_error())) {
 		pbuf += ffs_fmt(pbuf, end, "(%xd) %s in %s:%s(). "
 			, e, ERR_reason_error_string(e), ERR_lib_error_string(e), ERR_func_error_string(e));
 	}
+
+done:
 	return pbuf - buf;
 }
 
@@ -126,7 +151,7 @@ void ffssl_ctx_protoallow(SSL_CTX *ctx, uint protos)
 
 int ffssl_ctx_cert(SSL_CTX *ctx, const char *certfile, const char *pkeyfile, const char *ciphers)
 {
-	if (1 != SSL_CTX_set_cipher_list(ctx, (ciphers != NULL) ? ciphers : SSL_CIPHERS))
+	if (1 != SSL_CTX_set_cipher_list(ctx, (ciphers != NULL) ? ciphers : DEF_CIPHERS))
 		return FFSSL_ESETCIPHER;
 
 	if (1 != SSL_CTX_use_certificate_chain_file(ctx, certfile))
@@ -184,6 +209,20 @@ int ffssl_ctx_tls_srvname_set(SSL_CTX *ctx, ffssl_tls_srvname_cb func)
 	return 0;
 }
 
+int ffssl_ctx_cache(SSL_CTX *ctx, int size)
+{
+	if (size == -1) {
+		SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_OFF);
+		return 0;
+	}
+
+	int sessid_ctx = 0;
+	SSL_CTX_set_session_id_context(ctx, (void*)&sessid_ctx, sizeof(int));
+	if (size != 0)
+		SSL_CTX_sess_set_cache_size(ctx, size);
+	return 0;
+}
+
 
 int ffssl_create(SSL **con, SSL_CTX *ctx, uint flags, ffssl_opt *opt)
 {
@@ -214,11 +253,11 @@ int ffssl_create(SSL **con, SSL_CTX *ctx, uint flags, ffssl_opt *opt)
 	}
 
 	if (flags & FFSSL_IOBUF) {
-		if (NULL == (rbuf = ffmem_alloc(sizeof(ssl_rbuf) + SSL_MINRECV))) {
+		if (NULL == (rbuf = ffmem_alloc(sizeof(ssl_rbuf) + MINRECV))) {
 			e = FFSSL_ESYS;
 			goto fail;
 		}
-		rbuf->cap = SSL_MINRECV;
+		rbuf->cap = MINRECV;
 		rbuf->len = rbuf->off = 0;
 		opt->iobuf->rbuf = rbuf;
 		opt->iobuf->ptr = NULL;
@@ -254,13 +293,50 @@ void ffssl_free(SSL *c)
 	SSL_free(c);
 }
 
+size_t ffssl_get(SSL *c, uint flags)
+{
+	size_t r = 0;
+	switch (flags) {
+	case FFSSL_SESS_REUSED:
+		r = SSL_session_reused(c);
+		break;
+	case FFSSL_NUM_RENEGOTIATIONS:
+		r = SSL_num_renegotiations(c);
+		break;
+	case FFSSL_CERT_VERIFY_RESULT:
+		r = SSL_get_verify_result(c);
+		break;
+	}
+	return r;
+}
+
+const void* ffssl_getptr(SSL *c, uint flags)
+{
+	const void *r = NULL;
+	switch (flags) {
+	case FFSSL_HOSTNAME:
+		r = SSL_get_servername(c, TLSEXT_NAMETYPE_host_name);
+		break;
+	case FFSSL_CIPHER_NAME:
+		r = SSL_get_cipher_name(c);
+		break;
+	case FFSSL_VERSION:
+		r = SSL_get_version(c);
+		break;
+	}
+	return r;
+}
+
+
 int ffssl_handshake(SSL *c)
 {
 	int r = SSL_do_handshake(c);
 	if (r == 1)
 		return 0;
 	r = SSL_get_error(c, r);
-	return r;
+	if (r == SSL_ERROR_WANT_READ || r == SSL_ERROR_WANT_WRITE)
+		return r;
+	return FFSSL_EHANDSHAKE | (r << 8);
 }
 
 int ffssl_read(SSL *c, void *buf, size_t size)
@@ -269,6 +345,8 @@ int ffssl_read(SSL *c, void *buf, size_t size)
 	if (r >= 0)
 		return r;
 	r = SSL_get_error(c, r);
+	if (!(r == SSL_ERROR_WANT_READ || r == SSL_ERROR_WANT_WRITE))
+		r = FFSSL_EREAD | (r << 8);
 	return -r;
 }
 
@@ -278,6 +356,8 @@ int ffssl_write(SSL *c, const void *buf, size_t size)
 	if (r >= 0)
 		return r;
 	r = SSL_get_error(c, r);
+	if (!(r == SSL_ERROR_WANT_READ || r == SSL_ERROR_WANT_WRITE))
+		r = FFSSL_EWRITE | (r << 8);
 	return -r;
 }
 
@@ -288,11 +368,12 @@ int ffssl_shut(SSL *c)
 		return 0;
 
 	r = SSL_get_error(c, r);
-	if (r != SSL_ERROR_WANT_READ && r != SSL_ERROR_WANT_WRITE
-		&& 0 == ERR_peek_error())
+	if (r == SSL_ERROR_WANT_READ || r == SSL_ERROR_WANT_WRITE)
+		return r;
+	if (0 == ERR_peek_error())
 		return 0;
 
-	return r;
+	return FFSSL_ESHUT | (r << 8);
 }
 
 
@@ -376,4 +457,11 @@ static int async_bio_destroy(BIO *bio)
 {
 	bio->init = 0;
 	return 1;
+}
+
+
+void ffssl_cert_info(X509 *cert, struct ffssl_cert_info *info)
+{
+	X509_NAME_oneline(X509_get_subject_name(cert), info->subject, sizeof(info->subject));
+	X509_NAME_oneline(X509_get_issuer_name(cert), info->issuer, sizeof(info->issuer));
 }

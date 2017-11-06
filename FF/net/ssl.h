@@ -30,12 +30,18 @@ enum FFSSL_E {
 	FFSSL_ESETDATA,
 	FFSSL_ESETHOSTNAME,
 	FFSSL_EBIONEW,
+
+	/* For these codes SSL_get_error() value is stored in LSB.1:
+	    uint e = "00 00 SSL_get_error FFSSL_E" */
+	FFSSL_EHANDSHAKE,
+	FFSSL_EREAD,
+	FFSSL_EWRITE,
+	FFSSL_ESHUT,
 };
 
-// enum FFSSL_E
-FF_EXTN const char *const ffssl_funcstr[];
-
-FF_EXTN size_t ffssl_errstr(char *buf, size_t cap);
+/**
+@e: enum FFSSL_E */
+FF_EXTN size_t ffssl_errstr(int e, char *buf, size_t cap);
 
 
 FF_EXTN int ffssl_init(void);
@@ -66,9 +72,24 @@ typedef int (*ffssl_verify_cb)(int preverify_ok, X509_STORE_CTX *x509ctx, void *
 
 FF_EXTN int ffssl_ctx_ca(SSL_CTX *ctx, ffssl_verify_cb func, uint verify_depth, const char *fn);
 
+enum FFSSL_SRVNAME {
+	FFSSL_SRVNAME_OK = SSL_TLSEXT_ERR_OK,
+	FFSSL_SRVNAME_NOACK = SSL_TLSEXT_ERR_NOACK,
+};
+
+/** Return enum FFSSL_SRVNAME */
 typedef int (*ffssl_tls_srvname_cb)(SSL *ssl, int *ad, void *arg, void *udata);
 
 FF_EXTN int ffssl_ctx_tls_srvname_set(SSL_CTX *ctx, ffssl_tls_srvname_cb func);
+
+/**
+@size: 0:default;  -1:disabled;  >0:cache size. */
+FF_EXTN int ffssl_ctx_cache(SSL_CTX *ctx, int size);
+
+static FFINL void ffssl_ctx_sess_del(SSL_CTX *ctx, SSL *c)
+{
+	SSL_CTX_remove_session(ctx, SSL_get_session(c));
+}
 
 
 enum FFSSL_CREATE {
@@ -105,13 +126,30 @@ FF_EXTN int ffssl_create(SSL **c, SSL_CTX *ctx, uint flags, ffssl_opt *opt);
 
 FF_EXTN void ffssl_free(SSL *c);
 
+enum FFSSL_FOPT {
+	FFSSL_HOSTNAME,
+	FFSSL_CIPHER_NAME,
+	FFSSL_VERSION,
+	FFSSL_SESS_REUSED,
+	FFSSL_NUM_RENEGOTIATIONS,
+	FFSSL_CERT_VERIFY_RESULT, //X509_V_OK or other X509_V_*
+};
+
+/**
+@flags: enum FFSSL_FOPT */
+FF_EXTN size_t ffssl_get(SSL *c, uint flags);
+FF_EXTN const void* ffssl_getptr(SSL *c, uint flags);
+
+/**
+These codes must be handled by user.
+Call ffssl_errstr() for any other code. */
 enum FFSSL_EIO {
 	FFSSL_WANTREAD = SSL_ERROR_WANT_READ,
 	FFSSL_WANTWRITE = SSL_ERROR_WANT_WRITE,
 };
 
 /**
-Return enum FFSSL_EIO or error. */
+Return 0 on success;  enum FFSSL_EIO for more I/O;  enum FFSSL_E on error. */
 FF_EXTN int ffssl_handshake(SSL *c);
 
 /**
@@ -123,7 +161,7 @@ Return the number of bytes sent or enum FFSSL_EIO (negative value). */
 FF_EXTN int ffssl_write(SSL *c, const void *buf, size_t size);
 
 /**
-Return enum FFSSL_EIO or error. */
+Return 0 on success;  enum FFSSL_EIO for more I/O;  enum FFSSL_E on error. */
 FF_EXTN int ffssl_shut(SSL *c);
 
 static FFINL void ffssl_setctx(SSL *c, SSL_CTX *ctx)
@@ -131,3 +169,13 @@ static FFINL void ffssl_setctx(SSL *c, SSL_CTX *ctx)
 	SSL_set_SSL_CTX(c, ctx);
 	SSL_set_options(c, SSL_CTX_get_options(ctx));
 }
+
+
+struct ffssl_cert_info {
+	char subject[1024];
+	char issuer[1024];
+};
+
+FF_EXTN void ffssl_cert_info(X509 *cert, struct ffssl_cert_info *info);
+
+#define ffssl_cert_verify_errstr(e)  X509_verify_cert_error_string(e)
