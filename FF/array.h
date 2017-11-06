@@ -10,6 +10,14 @@ Copyright (c) 2013 Simon Zolin
 #include <FFOS/file.h>
 
 
+#define FFARR_WALKN(ar, n, it, elsz) \
+	for (it = (void*)(ar) \
+		;  it != (void*)((char*)(ar) + (n) * elsz) \
+		;  it = (void*)((char*)it + elsz))
+
+#define FFARR_WALKNT(ar, n, it, T) \
+	FFARR_WALKN(ar, n, it, sizeof(T))
+
 /** FOREACH() for array pointer, e.g. int *ptr */
 #define FFARR_FOREACH(ptr, n, it) \
 	for (it = (ptr);  it != (ptr) + (n);  it++)
@@ -160,12 +168,10 @@ do { \
 
 /** Forward walk. */
 #define _FFARR_WALK(ar, it, elsz) \
-	for (it = (void*)(ar)->ptr \
-		;  it != (void*)((ar)->ptr + (ar)->len * elsz) \
-		;  it = (void*)((char*)it + elsz))
+	FFARR_WALKN((ar)->ptr, (ar)->len, it, elsz)
 
 #define FFARR_WALKT(ar, it, T) \
-	_FFARR_WALK(ar, it, sizeof(T))
+	FFARR_WALKN((ar)->ptr, (ar)->len, it, sizeof(T))
 
 #define FFARR_WALK(ar, it) \
 	for (it = (ar)->ptr;  it != (ar)->ptr + (ar)->len;  it++)

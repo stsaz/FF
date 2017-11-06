@@ -614,8 +614,7 @@ static FFINL ssize_t ffs_fmt2(char *buf, size_t cap, const char *fmt, ...)
 
 /**
 Return the number of chars written.
-Return 0 on error.
-If 'buf' and 'end' are NULL, return the minimum buffer size required. */
+Return 0 on error. */
 static FFINL size_t ffs_fmtv(char *buf, const char *end, const char *fmt, va_list args)
 {
 	va_list va;

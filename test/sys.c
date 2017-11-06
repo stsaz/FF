@@ -66,7 +66,7 @@ int test_sendfile()
 	ffskt lsn, cli, sk;
 	fffd f;
 	char *rbuf;
-	int64 nread;
+	uint nsent, nread;
 	char *iov_bufs[4];
 	ffiovec hdtr[4];
 	int i;
@@ -138,26 +138,37 @@ int test_sendfile()
 	rbuf = ffmem_alloc(12 * M);
 	x(rbuf != NULL);
 	nread = 0;
+	nsent = 0;
 
 	for (;;) {
 		n = ffsf_send(&sf, cli, 0);
-		x(n != -1 || fferr_again(fferr_last()));
 		if (n == -1)
-			ffthd_sleep(50);
-		printf("sent %d\n", (int)n);
+			x(fferr_again(fferr_last()));
+		else if (n != 0) {
+			nsent += n;
+			if (0 == ffsf_shift(&sf, n))
+				ffskt_fin(cli);
+		}
+		printf("sent %d [%x]\n", (int)n, nsent);
 
 		for (;;) {
 			nr = ffskt_recv(sk, rbuf + nread, 12 * M - nread, 0);
-			x(nr != -1 || fferr_again(fferr_last()));
-			if (nr == -1 || nr == 0)
+			if (nr == -1) {
+				x(fferr_again(fferr_last()));
 				break;
+			} else if (nr == 0)
+				goto done;
 			nread += nr;
-			printf("recvd %d\n", (int)nr);
+			printf("recvd %d [%x]\n", (int)nr, nread);
 		}
 
-		if (n != -1 && 0 == ffsf_shift(&sf, n))
-			break;
+		if (n == -1)
+			ffthd_sleep(50);
 	}
+
+done:
+	x(nsent == 12 * M);
+	x(nsent == nread);
 
 	ffskt_close(lsn);
 	ffskt_close(cli);

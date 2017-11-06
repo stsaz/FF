@@ -111,7 +111,7 @@ FF_EXTN fftar_file* fftar_nextfile(fftar *t);
 #define fftar_offset(t)  ((t)->inoff)
 
 /**
-Return enum FFZIP_R. */
+Return enum FFTAR_R. */
 FF_EXTN int fftar_read(fftar *t);
 
 /** The last block of input data. */

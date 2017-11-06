@@ -6,7 +6,7 @@ Copyright 2014 Simon Zolin.
 
 #include <FF/array.h>
 
-#include <sqlite/sqlite3.h>
+#include <sqlite/sqlite-ff.h>
 
 
 #define FFDB_Q(n)  "?"
