@@ -121,6 +121,8 @@ FF_EXTN int fftar_read(fftar *t);
 FF_EXTN uint fftar_mode(const fftar_file *f);
 
 
+FF_EXTN int fftar_create(fftar_cook *t);
+
 static FFINL void fftar_wclose(fftar_cook *t)
 {
 	ffmem_safefree(t->buf);

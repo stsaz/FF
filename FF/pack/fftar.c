@@ -43,6 +43,7 @@ typedef struct tar_ustar {
 
 enum {
 	TAR_BLOCK = 512,
+	TAR_ENDDATA = 3 * TAR_BLOCK,
 	TAR_MAXLONGNAME = 4 * 1024,
 };
 
@@ -381,7 +382,14 @@ uint fftar_mode(const fftar_file *f)
 }
 
 
-enum { W_FIRSTFILE, W_NEWFILE, W_HDR, W_DATA, W_PADDING, W_FDONE, W_FTR, W_DONE };
+enum { W_NEWFILE, W_HDR, W_DATA, W_PADDING, W_FDONE, W_FTR, W_DONE };
+
+int fftar_create(fftar_cook *t)
+{
+	if (NULL == (t->buf = ffmem_alloc(TAR_ENDDATA)))
+		return ERR(t, FFTAR_ESYS);
+	return 0;
+}
 
 void fftar_wfinish(fftar_cook *t)
 {
@@ -392,11 +400,9 @@ int fftar_newfile(fftar_cook *t, const fftar_file *f)
 {
 	int r;
 
-	if (t->state != W_NEWFILE && t->state != W_FIRSTFILE)
+	if (t->state != W_NEWFILE)
 		return ERR(t, FFTAR_ENOTREADY);
 
-	if (t->buf == NULL && NULL == (t->buf = ffmem_alloc(2 * TAR_BLOCK)))
-		return ERR(t, FFTAR_ESYS);
 	ffmem_zero(t->buf, TAR_BLOCK);
 
 	if (0 != (r = fftar_hdr_write(f, t->buf)))
@@ -443,8 +449,8 @@ int fftar_write(fftar_cook *t)
 		return FFTAR_FILEDONE;
 
 	case W_FTR:
-		ffmem_zero(t->buf, 2 * TAR_BLOCK);
-		ffstr_set(&t->out, t->buf, 2 * TAR_BLOCK);
+		ffmem_zero(t->buf, TAR_ENDDATA);
+		ffstr_set(&t->out, t->buf, TAR_ENDDATA);
 		t->state = W_DONE;
 		return FFTAR_DATA;
 
@@ -452,7 +458,6 @@ int fftar_write(fftar_cook *t)
 		return FFTAR_DONE;
 
 	case W_NEWFILE:
-	case W_FIRSTFILE:
 		t->err = FFTAR_ENOTREADY;
 		return FFTAR_ERR;
 
