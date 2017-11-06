@@ -22,12 +22,14 @@ typedef struct fftimer_queue {
 	uint64 msec_time;
 	ffrbtree items; //fftmrq_entry[].  Note: 'items.sentl' is still fftree_node, not fftree_node8.
 	ffkevent kev;
+	uint started :1;
 } fftimer_queue;
 
 /** Initialize. */
 FF_EXTN void fftmrq_init(fftimer_queue *tq);
 
 /** Stop and destroy timer queue. */
+FF_EXTN void fftmrq_stop(fftimer_queue *tq, fffd kq);
 FF_EXTN void fftmrq_destroy(fftimer_queue *tq, fffd kq);
 
 /** Return TRUE if a timer is in the queue. */
@@ -50,13 +52,8 @@ static FFINL void fftmrq_rm(fftimer_queue *tq, fftmrq_entry *t) {
 }
 
 /** Start timer. */
-static FFINL int fftmrq_start(fftimer_queue *tq, fffd kq, uint interval_ms) {
-	tq->tmr = fftmr_create(0);
-	if (tq->tmr == FF_BADTMR)
-		return 1;
-	return fftmr_start(tq->tmr, kq, ffkev_ptr(&tq->kev), interval_ms);
-}
+FF_EXTN int fftmrq_start(fftimer_queue *tq, fffd kq, uint interval_ms);
 
-#define fftmrq_started(tq)  ((tq)->tmr != FF_BADTMR)
+#define fftmrq_started(tq)  ((tq)->started)
 
 #define fftmrq_empty(tq)  ((tq)->items.len == 0)

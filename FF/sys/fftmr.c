@@ -53,6 +53,30 @@ void fftmrq_init(fftimer_queue *tq)
 	tq->msec_time = fftime_ms(&now);
 }
 
+int fftmrq_start(fftimer_queue *tq, fffd kq, uint interval_ms)
+{
+	if (tq->tmr == FF_BADTMR) {
+		if (FF_BADTMR == (tq->tmr = fftmr_create(0)))
+			return 1;
+	}
+
+	int r = fftmr_start(tq->tmr, kq, ffkev_ptr(&tq->kev), interval_ms);
+	if (r == 0) {
+		tq->started = 1;
+		fftime now;
+		fftime_now(&now);
+		tq->msec_time = fftime_ms(&now);
+	}
+	return r;
+}
+
+void fftmrq_stop(fftimer_queue *tq, fffd kq)
+{
+	if (tq->tmr != FF_BADTMR)
+		fftmr_stop(tq->tmr, kq);
+	tq->started = 0;
+}
+
 void fftmrq_destroy(fftimer_queue *tq, fffd kq)
 {
 	ffrbt_init(&tq->items);
@@ -61,6 +85,7 @@ void fftmrq_destroy(fftimer_queue *tq, fffd kq)
 		tq->tmr = FF_BADTMR;
 		ffkev_fin(&tq->kev);
 	}
+	tq->started = 0;
 }
 
 static void tmrq_onfire(void *t)
