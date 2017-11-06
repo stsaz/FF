@@ -147,6 +147,42 @@ size_t ffpath_makefn(char *dst, size_t dstcap, const char *src, size_t len, int 
 	return dst - dsto;
 }
 
+size_t ffpath_makefn_full(char *dst, size_t dstcap, const char *src, size_t len, uint flags)
+{
+	size_t i, k = 0;
+	int repl_with = (byte)flags;
+	for (i = 0;  i != len;  i++) {
+		if (k == dstcap)
+			break;
+		if (!ffbit_testarr(_ffpath_charmask_filename, (byte)src[i])) {
+			if (ffpath_slash(src[i]))
+				dst[k] = src[i];
+			else
+				dst[k] = (byte)repl_with;
+		} else
+			dst[k] = src[i];
+		k++;
+	}
+
+	return k;
+}
+
+size_t ffpath_nslash(const char *path, size_t len)
+{
+	const char *end = path + len;
+	size_t n = 0;
+
+	for (;;) {
+		path = ffpath_findslash(path, end - path);
+		if (path == end)
+			break;
+		path++;
+		n++;
+	}
+
+	return n;
+}
+
 ffbool ffpath_isvalidfn(const char *fn, size_t len, uint flags)
 {
 	if (flags == FFPATH_FN_ANY) {
@@ -203,4 +239,46 @@ const char* ffpath_split3(const char *fullname, size_t len, ffstr *path, ffstr *
 	const char *slash = ffpath_split2(fullname, len, path, &nm);
 	ffpath_splitname(nm.ptr, nm.len, name, ext);
 	return slash;
+}
+
+/*
+/a < /b
+/a < /a/b
+/a/b < /b
+/a/b < /a/B (FFPATH_CASE_SENS)
+*/
+int ffpath_cmp(const ffstr *p1, const ffstr *p2, uint flags)
+{
+	if (flags == FFPATH_CASE_DEF) {
+#if defined FF_UNIX
+		flags = FFPATH_CASE_SENS;
+#elif defined FF_WIN
+		flags = FFPATH_CASE_ISENS;
+#endif
+	}
+
+	const byte *left = (void*)p1->ptr, *right = (void*)p2->ptr;
+	uint n = ffmin(p1->len, p2->len);
+
+	for (uint i = 0;  i != n;  i++) {
+		uint l = left[i], r = right[i], ll, lr;
+		if (l == r)
+			continue;
+
+		if (l == '/')
+			return -1; // "a/" < "aa/"
+		else if (r == '/')
+			return 1; // "aa/" > "a/"
+
+		ll = ffchar_isup(l) ? ffchar_lower(l) : l;
+		lr = ffchar_isup(r) ? ffchar_lower(r) : r;
+		if ((flags & FFPATH_CASE_ISENS) && ll == lr)
+			continue;
+		if ((flags & FFPATH_CASE_SENS) && ll == lr)
+			return (l > r) ? -1 : 1; // "a" (0x60) < "A" (0x40)
+
+		return (ll < lr) ? -1 : 1;
+	}
+
+	return p1->len - p2->len;
 }

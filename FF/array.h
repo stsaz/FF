@@ -595,6 +595,11 @@ static FFINL size_t ffstr_catfmt(ffstr3 *s, const char *fmt, ...) {
 'buf': optional buffer. */
 FF_EXTN size_t fffile_fmt(fffd fd, ffstr3 *buf, const char *fmt, ...);
 
+/** Read the whole file into memory buffer.
+@limit: maximum allowed file size
+*/
+FF_EXTN int fffile_readall(ffarr *a, const char *fn, uint64 limit);
+
 /** Buffered data output.
 @dst is set if an output data block is ready.
 Return the number of processed bytes. */
@@ -700,6 +705,13 @@ static FFINL void ffrang_set(ffrange *r, const char *base, const char *s, size_t
 static FFINL ffstr ffrang_get(const ffrange *r, const char *base) {
 	ffstr s;
 	ffstr_set(&s, base + r->off, r->len);
+	return s;
+}
+
+static FFINL ffstr ffrang_get_off(const ffrange *r, const char *base, uint off) {
+	FF_ASSERT(off <= r->len);
+	ffstr s;
+	ffstr_set(&s, base + r->off + off, r->len - off);
 	return s;
 }
 

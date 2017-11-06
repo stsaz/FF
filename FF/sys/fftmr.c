@@ -108,8 +108,8 @@ static void tmrq_onfire(void *t)
 		if (ent->interval != 0)
 			fftmrq_add(tq, ent, ent->interval);
 
-		FFDBG_PRINTLN(10, "%u.%06u: %p, interval:%u"
-			, now.s, now.mcs, ent, ent->interval);
+		FFDBG_PRINTLN(10, "%u.%06u: %p, interval:%u  key:%U [%L]"
+			, now.s, now.mcs, ent, ent->interval, ((fftree_node8*)nod)->key, tq->items.len);
 
 		ent->handler(&now, ent->param);
 	}

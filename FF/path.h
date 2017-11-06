@@ -55,6 +55,8 @@ FF_EXTN size_t ffpath_norm(char *dst, size_t dstcap, const char *path, size_t le
 /** Replace characters that can not be used in a filename.  Trim trailing whitespace. */
 FF_EXTN size_t ffpath_makefn(char *dst, size_t dstcap, const char *src, size_t len, int repl_with);
 
+FF_EXTN size_t ffpath_makefn_full(char *dst, size_t dstcap, const char *src, size_t len, uint flags);
+
 #if defined FF_UNIX
 #define ffpath_findslash(path, len)  ffs_find(path, len, '/')
 
@@ -65,6 +67,10 @@ FF_EXTN size_t ffpath_makefn(char *dst, size_t dstcap, const char *src, size_t l
 #define ffpath_findslash(path, len)  ffs_findof(path, len, "/\\", 2)
 #define ffpath_rfindslash(path, len)  ffs_rfindof(path, len, "/\\", 2)
 #endif
+
+/** Count the number of slash characters. */
+FF_EXTN size_t ffpath_nslash(const char *path, size_t len);
+
 
 enum FFPATH_FN {
 	FFPATH_FN_ANY,
@@ -84,3 +90,15 @@ FF_EXTN const char* ffpath_split2(const char *fn, size_t len, ffstr *dir, ffstr 
 FF_EXTN const char* ffpath_splitname(const char *fullname, size_t len, ffstr *name, ffstr *ext);
 
 FF_EXTN const char* ffpath_split3(const char *fullname, size_t len, ffstr *path, ffstr *name, ffstr *ext);
+
+enum FFPATH_CASE {
+	FFPATH_CASE_DEF,
+	FFPATH_CASE_SENS,
+	FFPATH_CASE_ISENS,
+};
+
+/** Compare normalized file paths.
+Note: backslash ('\\') isn't supported.
+@flags: enum FFPATH_CASE
+Return 0 if equal;  <0 if p1 < p2;  >0 otherwise. */
+FF_EXTN int ffpath_cmp(const ffstr *p1, const ffstr *p2, uint flags);

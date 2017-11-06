@@ -60,6 +60,35 @@ size_t fffile_fmt(fffd fd, ffarr *buf, const char *fmt, ...)
 	return r;
 }
 
+int fffile_readall(ffarr *a, const char *fn, uint64 limit)
+{
+	fffd fd;
+	uint64 fsz;
+	int r = -1;
+
+	if (FF_BADFD == (fd = fffile_open(fn, O_RDONLY)))
+		return -1;
+
+	fsz = fffile_size(fd);
+	if (fsz > limit)
+		goto end;
+
+	if (fsz != FF_TOSIZE(fsz))
+		goto end;
+	if (NULL == ffarr_realloc_grow(a, fsz))
+		goto end;
+
+	if (fsz != (size_t)fffile_read(fd, a->ptr, fsz))
+		goto end;
+
+	a->len = fsz;
+	r = 0;
+
+end:
+	fffile_close(fd);
+	return r;
+}
+
 void fffile_mapclose(fffilemap *fm)
 {
 	if (fm->map != NULL)

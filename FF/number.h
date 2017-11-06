@@ -24,7 +24,7 @@ static FFINL size_t ffint_increset2(size_t n, size_t cap)
 }
 
 #define ffint_cmp(a, b) \
-	((a) == (b)) ? 0 : ((a) < (b)) ? -1 : 1
+	(((a) == (b)) ? 0 : ((a) < (b)) ? -1 : 1)
 
 
 /** Unaligned memory access. */
@@ -198,6 +198,14 @@ do { \
 /** Check whether a number is within range [from, to). */
 #define ffint_within(n, from, to) \
 	((from) <= (n) && (n) < (to))
+
+/** Mean value. */
+#define ffint_mean(a, b) \
+	(((a) + (b)) / 2)
+
+/** Dynamic mean value with weight. */
+#define ffint_mean_dyn(mean, weight, add) \
+	(((mean) * (weight) + (add)) / ((weight) + 1))
 
 /** Convert FP number to integer. */
 static FFINL int ffint_ftoi(double d)

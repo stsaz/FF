@@ -159,6 +159,42 @@ static int test_path()
 		x(ffstr_eqcz(&fn, "file"));
 	}
 
+
+	ffstr s1, s2;
+	ffstr_setcz(&s1, "/a/b/c");
+	ffstr_setcz(&s2, "/a/b/c");
+	x(ffpath_cmp(&s1, &s2, 0) == 0);
+
+	ffstr_setcz(&s2, "/a/b/d");
+	x(ffpath_cmp(&s1, &s2, 0) < 0);
+
+	ffstr_setcz(&s2, "/a/b/b");
+	x(ffpath_cmp(&s1, &s2, 0) > 0);
+
+	ffstr_setcz(&s1, "/a/b");
+	ffstr_setcz(&s2, "/a");
+	x(ffpath_cmp(&s1, &s2, 0) > 0);
+
+	ffstr_setcz(&s1, "a");
+	ffstr_setcz(&s2, "a");
+	x(ffpath_cmp(&s1, &s2, 0) == 0);
+
+	ffstr_setcz(&s1, "/a/B/c");
+	ffstr_setcz(&s2, "/a/b/c");
+	x(ffpath_cmp(&s1, &s2, FFPATH_CASE_ISENS) == 0);
+
+	ffstr_setcz(&s1, "/a/B/c");
+	ffstr_setcz(&s2, "/a/b/c");
+	x(ffpath_cmp(&s1, &s2, FFPATH_CASE_SENS) > 0);
+
+	ffstr_setcz(&s1, "/a/b/c");
+	ffstr_setcz(&s2, "/a/b+/c");
+	x(ffpath_cmp(&s1, &s2, FFPATH_CASE_ISENS) < 0);
+
+	ffstr_setcz(&s1, "/a/b");
+	ffstr_setcz(&s2, "/a/C");
+	x(ffpath_cmp(&s1, &s2, FFPATH_CASE_SENS) < 0);
+
 	return 0;
 }
 

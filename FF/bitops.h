@@ -155,3 +155,32 @@ FF_EXTN size_t ffbit_count(const void *d, size_t len);
 
 /** Get maximum value by bits number (16 -> 0xffff). */
 #define ffbit_max(bits)  ((1ULL << (bits)) - 1)
+
+
+/** Read specific bits from a value.
+@off: 0..31
+@n: 1..32 */
+static FFINL uint ffbit_read32(uint val, uint off, uint n)
+{
+	FF_ASSERT(off < 32 && n - 1 < 32);
+	return (val >> (sizeof(val)*8 - off - n)) & ffbit_max(n);
+}
+
+static FFINL uint64 ffbit_read64(uint64 val, uint off, uint n)
+{
+	FF_ASSERT(off < 64 && n - 1 < 64);
+	return (val >> (sizeof(val)*8 - off - n)) & ffbit_max(n);
+}
+
+/** Write a value with specific bits offset and length. */
+static FFINL uint ffbit_write32(uint val, uint off, uint n)
+{
+	FF_ASSERT(off < 32 && n - 1 < 32);
+	return (val & ffbit_max(n)) << (sizeof(val)*8 - off - n);
+}
+
+static FFINL uint64 ffbit_write64(uint64 val, uint off, uint n)
+{
+	FF_ASSERT(off < 64 && n - 1 < 64);
+	return (val & ffbit_max(n)) << (sizeof(val)*8 - off - n);
+}
