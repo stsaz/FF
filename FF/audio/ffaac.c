@@ -32,12 +32,12 @@ int ffaac_open(ffaac *a, uint channels, const char *conf, size_t len)
 	}
 
 	a->fmt.format = FFPCM_16;
+	a->fmt.sample_rate = a->contr_samprate;
 	a->fmt.channels = channels;
-	if (NULL == (a->pcmbuf = ffmem_alloc(AAC_MAXFRAMESAMPS * ffpcm_size1(&a->fmt)))) {
-		a->err = AAC_ESYS;
-		return FFAAC_RERR;
-	}
+	if (NULL == (a->pcmbuf = ffmem_alloc(AAC_MAXFRAMESAMPS * ffpcm_size(FFPCM_16, ffmax(channels, 2)))))
+		return a->err = AAC_ESYS,  FFAAC_RERR;
 	a->seek_sample = a->enc_delay;
+	a->rate_mul = 1;
 	return 0;
 }
 
@@ -54,13 +54,20 @@ void ffaac_seek(ffaac *a, uint64 sample)
 
 int ffaac_decode(ffaac *a)
 {
-	int r;
+	int r, rc;
 	r = fdkaac_decode(a->dec, a->data, a->datalen, a->pcmbuf);
 	if (r == 0)
 		return FFAAC_RMORE;
 	else if (r < 0) {
 		a->err = -r;
 		return FFAAC_RERR;
+	}
+
+	rc = FFAAC_RDATA;
+	fdkaac_frameinfo(a->dec, &a->info);
+	if (a->fmt.sample_rate != a->info.rate
+		|| a->fmt.channels != a->info.channels) {
+		rc = FFAAC_RDATA_NEWFMT;
 	}
 
 	a->datalen = 0;
@@ -71,7 +78,7 @@ int ffaac_decode(ffaac *a)
 			return FFAAC_RMORE;
 
 		a->seek_sample = (uint64)-1;
-		a->pcm = (void*)((char*)a->pcmbuf + skip * ffpcm_size1(&a->fmt));
+		a->pcm = (void*)((char*)a->pcmbuf + skip * ffpcm_size(a->fmt.format, a->info.channels));
 		r -= skip;
 		a->cursample += skip;
 	}
@@ -79,8 +86,14 @@ int ffaac_decode(ffaac *a)
 	if (a->cursample + r >= a->total_samples + a->enc_delay)
 		r = ffmin(r - a->end_padding, r);
 
-	a->pcmlen = r * ffpcm_size1(&a->fmt);
-	return FFAAC_RDATA;
+	if (rc == FFAAC_RDATA_NEWFMT) {
+		a->fmt.channels = a->info.channels;
+		a->fmt.sample_rate = a->info.rate;
+		a->rate_mul = a->info.rate / a->contr_samprate;
+	}
+
+	a->pcmlen = r * ffpcm_size(a->fmt.format, a->info.channels);
+	return rc;
 }
 
 

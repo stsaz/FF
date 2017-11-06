@@ -17,6 +17,7 @@ typedef struct ffaac {
 	const char *data;
 	size_t datalen;
 
+	fdkaac_info info;
 	ffpcm fmt;
 	short *pcm;
 	uint pcmlen; // PCM data length in bytes
@@ -26,11 +27,14 @@ typedef struct ffaac {
 	uint64 seek_sample;
 	uint enc_delay;
 	uint end_padding;
+	uint contr_samprate;
+	uint rate_mul;
 } ffaac;
 
 enum FFAAC_R {
 	FFAAC_RERR = -1,
 	FFAAC_RDATA,
+	FFAAC_RDATA_NEWFMT, //data with a new audio format
 	FFAAC_RMORE,
 	FFAAC_RDONE,
 };
@@ -40,6 +44,9 @@ FF_EXTN const char* ffaac_errstr(ffaac *a);
 FF_EXTN int ffaac_open(ffaac *a, uint channels, const char *conf, size_t len);
 
 FF_EXTN void ffaac_close(ffaac *a);
+
+#define ffaac_input(a, d, len, pos) \
+	(a)->data = (d),  (a)->datalen = (len),  (a)->cursample = (pos) * (a)->rate_mul
 
 /**
 Return enum FFAAC_R. */
