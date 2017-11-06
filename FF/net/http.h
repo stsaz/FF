@@ -2,6 +2,13 @@
 Copyright (c) 2013 Simon Zolin
 */
 
+/* Request:
+METHOD URL VERSION CRLF  [(NAME:VALUE CRLF)...]  CRLF  [BODY]
+
+Response:
+VERSION STATUS_CODE STATUS_TEXT CRLF  [(NAME:VALUE CRLF)...]  CRLF  [BODY]
+*/
+
 #pragma once
 
 #include <FF/array.h>
@@ -248,6 +255,7 @@ typedef struct ffhttp_request {
 	ffurl url;
 	ffstr decoded_url;
 	ushort offurl;
+	ffrange sver;
 	byte methodlen;
 	byte method; //FFHTTP_METH
 	byte uniq_hdrs_mask;
@@ -309,12 +317,20 @@ static FFINL ffstr ffhttp_reqpath(const ffhttp_request *r) {
 	return r->decoded_url;
 }
 
+/** Get HTTP version as a string. */
+static FFINL ffstr ffhttp_reqverstr(const ffhttp_request *r)
+{
+	return ffrang_get(&r->sver, r->h.base);
+}
+
 
 /** Parsed response. */
 typedef struct ffhttp_response {
 	ffhttp_headers h;
 
+	byte ver_len;
 	ushort code;
+	ushort status_text_off;
 	ffrange status;
 } ffhttp_response;
 
@@ -359,8 +375,23 @@ static FFINL int ffhttp_respparse_all(ffhttp_response *r, const char *data, size
 	return e;
 }
 
+/** Get HTTP version as a string. */
+static FFINL ffstr ffhttp_respverstr(const ffhttp_response *r)
+{
+	ffstr s;
+	ffstr_set(&s, r->h.base, r->ver_len);
+	return s;
+}
+
 /** Get response status code and message. */
 #define ffhttp_respstatus(r)  ffrang_get(&(r)->status, (r)->h.base)
+
+/** Get response status code. */
+#define ffhttp_respcode(r)  ((uint)(r)->code)
+
+/** Get response status message. */
+#define ffhttp_respmsg(r) \
+	ffrang_get_off(&(r)->status, (r)->h.base, (r)->status_text_off - (r)->status.off)
 
 /** Return TRUE if response has no body. */
 static FFINL ffbool ffhttp_respnobody(int code) {

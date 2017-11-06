@@ -780,8 +780,11 @@ int ffhttp_reqparse(ffhttp_request *r, const char *d, size_t len)
 			//break;
 
 		default: {
+			if (r->sver.off == 0)
+				r->sver.off = i - 1;
 			er = parseVer(ch, &idx, &r->h.ver);
 			if (er == FFHTTP_OK) {
+				r->sver.len = i - r->sver.off;
 				if (r->h.ver >= 0x0101) {
 					r->h.http11 = 1;
 					r->accept_chunked = 1;
@@ -978,6 +981,7 @@ int ffhttp_respparse(ffhttp_response *r, const char *d, size_t len, int flags)
 					break;
 				}
 				idx = iStatusStr;
+				r->status_text_off = i + 1;
 				break;
 			default:
 				er = FFHTTP_ESTATUS;
@@ -1009,6 +1013,7 @@ int ffhttp_respparse(ffhttp_response *r, const char *d, size_t len, int flags)
 		default: {
 			int rc = parseVer(ch, &idx, &r->h.ver);
 			if (rc == FFHTTP_OK) {
+				r->ver_len = i;
 				if (r->h.ver >= 0x0101)
 					r->h.http11 = 1;
 				else
