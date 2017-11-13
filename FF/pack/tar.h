@@ -21,6 +21,7 @@ enum FFTAR_TYPE {
 	FFTAR_FIFO = '6',
 	FFTAR_LONG = 'L', //the data in this block is the name of the next file
 	FFTAR_EXTHDR = 'g', //global extended header
+	FFTAR_NEXTHDR = 'x', //extended header for the next file
 };
 
 typedef struct fftar_file {

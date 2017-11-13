@@ -36,7 +36,7 @@ typedef struct tar_ustar {
 	char gname[32];
 	char unused[8];
 	char unused2[8];
-	char filename_prefix[155]; //file path for long names
+	char prefix[155]; //file path for long names
 } tar_ustar;
 
 #define TAR_USTAR_MAGIC  "ustar\0"
@@ -45,6 +45,8 @@ enum {
 	TAR_BLOCK = 512,
 	TAR_ENDDATA = 3 * TAR_BLOCK,
 	TAR_MAXLONGNAME = 4 * 1024,
+	TAR_MAXUID = 07777777,
+	TAR_MAXSIZE = 077777777777ULL,
 };
 
 
@@ -98,9 +100,11 @@ int fftar_hdr_parse(fftar_file *f, char *filename, const char *buf)
 
 	if (!((h->typeflag >= '0' && h->typeflag <= '7')
 		|| h->typeflag == FFTAR_FILE0
+		|| h->typeflag == FFTAR_EXTHDR || h->typeflag == FFTAR_NEXTHDR
 		|| h->typeflag == FFTAR_LONG)) {
 		FFDBG_PRINTLN(1, "%*s: file type: '%c'", (size_t)nlen, h->name, h->typeflag);
 	}
+	f->mode &= 0777;
 	if (h->typeflag == FFTAR_DIR)
 		f->mode |= FFUNIX_FILE_DIR;
 	f->type = h->typeflag;
@@ -110,9 +114,23 @@ int fftar_hdr_parse(fftar_file *f, char *filename, const char *buf)
 		|| hchk != chk)
 		return FFTAR_ECHKSUM;
 
-	// const tar_gnu *g = (void*)(h + 1);
-	// if (memcmp(g->magic, TAR_GNU_MAGIC, FFSLEN(TAR_GNU_MAGIC)))
-	// 	return ;
+	const tar_gnu *g = (void*)(h + 1);
+	if (!memcmp(g->magic, TAR_GNU_MAGIC, FFSLEN(TAR_GNU_MAGIC))) {
+		f->uid_str = g->uname;
+		f->gid_str = g->gname;
+	}
+
+	const tar_ustar *us = (void*)(h + 1);
+	if (!memcmp(us, TAR_USTAR_MAGIC "00", FFSLEN(TAR_USTAR_MAGIC "00"))) {
+		f->uid_str = us->uname;
+		f->gid_str = us->gname;
+		if (filename != NULL && us->prefix[0] != '\0') {
+			ffs_fmt2(filename, -1, "%*s/%*s%Z"
+				, ffsz_nlen(us->prefix, sizeof(us->prefix)), us->prefix
+				, ffsz_nlen(h->name, sizeof(h->name)), h->name);
+		}
+	}
+
 	return 0;
 }
 
@@ -143,7 +161,7 @@ int fftar_hdr_write(const fftar_file *f, char *buf)
 	tar_writenum(f->uid, h->uid, sizeof(h->uid) - 1);
 	tar_writenum(f->gid, h->gid, sizeof(h->gid) - 1);
 
-	if (f->size > 077777777777ULL)
+	if (f->size > TAR_MAXSIZE)
 		return FFTAR_EBIG;
 	tar_writenum(f->size, h->size, sizeof(h->size) - 1);
 
@@ -206,7 +224,7 @@ const char* fftar_errstr(void *_t)
 
 
 enum {
-	R_INIT, R_GATHER, R_HDR, R_LONG_NAME, R_DATA, R_DATA_BLK, R_FDONE, R_FIN, R_FIN2,
+	R_INIT, R_GATHER, R_HDR, R_LONG_NAME, R_SKIP, R_DATA, R_DATA_BLK, R_FDONE, R_FIN, R_FIN2,
 };
 
 void fftar_init(fftar *t)
@@ -234,7 +252,7 @@ int fftar_read(fftar *t)
 	switch (t->state) {
 
 	case R_INIT:
-		if (NULL == ffarr_alloc(&t->name, 100 + 1))
+		if (NULL == ffarr_alloc(&t->name, FF_SIZEOF(tar_hdr, name) + FFSLEN("/") + FF_SIZEOF(tar_ustar, prefix) + 1))
 			return ERR(t, FFTAR_ESYS);
 		t->state = R_GATHER,  t->nxstate = R_HDR;
 		continue;
@@ -273,10 +291,17 @@ int fftar_read(fftar *t)
 		FFDBG_PRINTLN(10, "hdr: name:%s  type:%c  size:%U"
 			, t->file.name, t->file.type, t->file.size);
 
-		if (t->file.type == FFTAR_LONG) {
+		switch (t->file.type) {
+		case FFTAR_LONG:
 			if (t->file.size > TAR_MAXLONGNAME)
 				return ERR(t, FFTAR_ELONGNAME);
 			t->state = R_LONG_NAME;
+			continue;
+		case FFTAR_EXTHDR:
+		case FFTAR_NEXTHDR:
+			if (t->file.size > TAR_MAXLONGNAME)
+				return ERR(t, FFTAR_ELONGNAME);
+			t->state = R_GATHER,  t->nxstate = R_SKIP;
 			continue;
 		}
 
@@ -302,6 +327,15 @@ int fftar_read(fftar *t)
 
 		ffstr_shift(&t->in, r);
 		t->state = R_GATHER, t->nxstate = R_HDR;
+		continue;
+
+	case R_SKIP:
+		t->file.size -= ffmin(TAR_BLOCK, t->file.size);
+		if (t->file.size != 0) {
+			t->state = R_GATHER,  t->nxstate = R_SKIP;
+			continue;
+		}
+		t->state = R_GATHER,  t->nxstate = R_HDR;
 		continue;
 
 	case R_DATA:
