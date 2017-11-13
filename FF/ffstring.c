@@ -118,7 +118,7 @@ size_t ffs_nfindc(const char *buf, size_t len, int ch)
 	return n;
 }
 
-#if defined FF_MSVC || defined FF_MINGW
+#if defined FF_WIN || defined FF_APPLE
 char * ffs_rfind(const char *buf, size_t len, int ch)
 {
 	char *end = (char*)buf + len;

@@ -190,14 +190,13 @@ Return NULL if not found. */
 FF_EXTN size_t ffs_nfindc(const char *buf, size_t len, int ch);
 
 /** Perform reverse search of byte in a buffer. */
-#if !defined FF_MSVC && !defined FF_MINGW
+#if defined FF_WIN || defined FF_APPLE
+FF_EXTN char * ffs_rfind(const char *buf, size_t len, int ch);
+#else
 static FFINL char * ffs_rfind(const char *buf, size_t len, int ch) {
 	char *pos = (char*)memrchr(buf, ch, len);
 	return (pos != NULL ? pos : (char*)buf + len);
 }
-
-#else
-FF_EXTN char * ffs_rfind(const char *buf, size_t len, int ch);
 #endif
 
 /** Find substring.

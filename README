@@ -28,11 +28,14 @@ FEATURES
 		. UTF-8 decode/encode
 
 	. Packing/compression:
-		. gzip (libz)
-		. xz (liblzma)
-		. zip (libz)
-		. 7z
-		. tar
+		. deflate (libz)
+		. LZMA (liblzma)
+		.xz (r)
+		.gz (rw)
+		.zip (rw)
+		.7z (r)
+		.tar (rw)
+		.iso (r)
 
 	. Picture:
 		. BMP
