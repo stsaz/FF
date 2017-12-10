@@ -4,6 +4,7 @@ Copyright (c) 2016 Simon Zolin
 
 #include <FF/pack/tar.h>
 #include <FF/path.h>
+#include <FF/number.h>
 #include <FFOS/error.h>
 #include <FFOS/file.h>
 #include <FFOS/dir.h>
@@ -67,24 +68,47 @@ static int _tar_num(const char *d, size_t len, void *dst, uint f)
 	return (n == 0 || p == p2 || p2 != d + len) ? -1 : 0;
 }
 
+/* Large values: 0x80 0 0 0 (int-64) */
 static int tar_num64(const char *d, size_t len, uint64 *dst)
 {
+	if (d[0] & 0x80) {
+		*dst = ffint_ntoh64(d + 4);
+		return 0;
+	}
 	return _tar_num(d, len, dst, FFS_INT64);
 }
 
+/* Large values: 0x80 0 0 0 (int-32) */
 static int tar_num(const char *d, size_t len, uint *dst)
 {
+	if (d[0] & 0x80) {
+		*dst = ffint_ntoh32(d + 4);
+		return 0;
+	}
 	return _tar_num(d, len, dst, FFS_INT32);
 }
 
 /** Write tar number. */
-#define tar_writenum(n, dst, cap) \
-	ffs_fromint(n, dst, cap, FFINT_OCTAL | FFINT_ZEROWIDTH | FFINT_WIDTH(cap))
+static int tar_writenum(uint64 n, char *dst, size_t cap)
+{
+	if (cap == 12 && n > TAR_MAXSIZE) {
+		ffint_hton32(dst, 0x80000000);
+		ffint_hton64(dst + 4, n);
+
+	} else if (cap == 8 && n > TAR_MAXUID) {
+		ffint_hton32(dst, 0x80000000);
+		ffint_hton32(dst + 4, n);
+
+	} else
+		ffs_fromint(n, dst, cap, FFINT_OCTAL | FFINT_ZEROWIDTH | FFINT_WIDTH(cap - 1));
+	return 0;
+}
 
 int fftar_hdr_parse(fftar_file *f, char *filename, const char *buf)
 {
 	const tar_hdr *h = (void*)buf;
 	uint nlen = ffsz_nlen(h->name, sizeof(h->name));
+	uint64 tt;
 
 	if (filename != NULL) {
 		ffsz_fcopy(filename, h->name, nlen);
@@ -95,8 +119,9 @@ int fftar_hdr_parse(fftar_file *f, char *filename, const char *buf)
 		|| 0 != tar_num(h->uid, sizeof(h->uid), &f->uid)
 		|| 0 != tar_num(h->gid, sizeof(h->gid), &f->gid)
 		|| 0 != tar_num64(h->size, sizeof(h->size), &f->size)
-		|| 0 != tar_num(h->mtime, sizeof(h->mtime), &f->mtime.s))
+		|| 0 != tar_num64(h->mtime, sizeof(h->mtime), &tt))
 		return FFTAR_EHDR;
+	fftime_fromtime_t(&f->mtime, tt);
 
 	if (!((h->typeflag >= '0' && h->typeflag <= '7')
 		|| h->typeflag == FFTAR_FILE0
@@ -157,15 +182,18 @@ int fftar_hdr_write(const fftar_file *f, char *buf)
 	if (addslash)
 		h->name[namelen] = '/'; //add trailing slash
 
-	tar_writenum(mode, h->mode, sizeof(h->mode) - 1);
-	tar_writenum(f->uid, h->uid, sizeof(h->uid) - 1);
-	tar_writenum(f->gid, h->gid, sizeof(h->gid) - 1);
+	uint e = 0;
+	e |= tar_writenum(mode & 0777, h->mode, sizeof(h->mode));
+	e |= tar_writenum(f->uid, h->uid, sizeof(h->uid));
+	e |= tar_writenum(f->gid, h->gid, sizeof(h->gid));
 
-	if (f->size > TAR_MAXSIZE)
+	e |= tar_writenum(f->size, h->size, sizeof(h->size));
+
+	time_t t = fftime_to_time_t(&f->mtime);
+	e |= tar_writenum(t, h->mtime, sizeof(h->mtime));
+
+	if (e)
 		return FFTAR_EBIG;
-	tar_writenum(f->size, h->size, sizeof(h->size) - 1);
-
-	tar_writenum(f->mtime.s, h->mtime, sizeof(h->mtime) - 1);
 
 	tar_gnu *g = (void*)(h + 1);
 	ffmemcpy(g->magic, TAR_GNU_MAGIC, FFSLEN(TAR_GNU_MAGIC));
