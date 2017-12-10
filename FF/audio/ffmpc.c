@@ -317,10 +317,8 @@ static FFINL int mpc_findAP(ffmpcr *m)
 			return ERR(m, FFMPC_ESYS);
 		ffarr_shift(&m->input, r);
 		m->off += r;
-		if (s.len < FFSLEN("AP"))
-			return FFMPC_RMORE;
-
-		if (0 <= (r = ffstr_find(&s, "AP", 2))) {
+		if (s.len >= FFSLEN("AP")
+			&& 0 <= (r = ffstr_find(&s, "AP", 2))) {
 			ffarr_shift(&m->input, r);
 			m->off += r;
 			break;
@@ -331,6 +329,9 @@ static FFINL int mpc_findAP(ffmpcr *m)
 			return ERR(m, FFMPC_ESYS);
 		ffarr_shift(&m->input, r);
 		m->off += r;
+
+		if (m->input.len == 0)
+			return FFMPC_RMORE;
 	}
 	return 0;
 }
