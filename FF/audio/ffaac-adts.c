@@ -7,7 +7,14 @@ Copyright (c) 2017 Simon Zolin
 
 enum {
 	FR_SAMPLES = 1024,
+	ADTS_HDRLEN = 7,
 };
+
+
+struct adts_hdr;
+struct adts_hdr_packed;
+static int adts_hdr_parse(struct adts_hdr *h, const struct adts_hdr_packed *d);
+static struct adts_hdr_packed* adts_hdr_find(struct adts_hdr *h, const char *data, size_t len, const struct adts_hdr_packed *hp);
 
 
 enum ADTS_E {
@@ -86,6 +93,7 @@ struct adts_hdr {
 	uint samp_freq_idx;
 	uint chan_conf;
 	uint frlen;
+	uint datalen;
 	uint raw_blocks;
 	uint have_crc;
 };
@@ -119,7 +127,8 @@ static int adts_hdr_parse(struct adts_hdr *h, const struct adts_hdr_packed *d)
 	off += H_COPYRIGHT_START;
 
 	h->frlen = bit_read64(v, &off, H_FRAME_LENGTH);
-	if (h->frlen < ((h->have_crc) ? 7 : 9))
+	h->datalen = h->frlen - ((h->have_crc) ? 9 : 7);
+	if ((int)h->datalen < 0)
 		return ADRS_EFRAMELEN;
 
 	off += H_FULLNESS;
@@ -134,7 +143,30 @@ static int adts_hdr_parse(struct adts_hdr *h, const struct adts_hdr_packed *d)
 /** Compare 2 frame headers. */
 static int adts_hdr_cmp(const struct adts_hdr_packed *a, const struct adts_hdr_packed *b)
 {
-	return (ffint_ntoh32(a) & H_CONSTMASK) != (ffint_ntoh32(b) & H_CONSTMASK);
+	uint mask = ffhton32(H_CONSTMASK);
+	return (*(uint*)a & mask) != (*(uint*)b & mask);
+}
+
+/** Find header.
+@hp: (optional) a new header must match with this one
+Return NULL on error. */
+static struct adts_hdr_packed* adts_hdr_find(struct adts_hdr *h, const char *data, size_t len, const struct adts_hdr_packed *hp)
+{
+	struct adts_hdr_packed *p;
+	const char *e = data + len;
+	for (;;) {
+		if ((byte)data[0] != 0xff
+			&& NULL == (data = ffs_findc(data, e - data, 0xff)))
+			break;
+		if ((int)sizeof(struct adts_hdr_packed) > e - data)
+			break;
+		p = (void*)data;
+		if ((hp == NULL || !adts_hdr_cmp(p, hp))
+			&& 0 == adts_hdr_parse(h, p))
+			return p;
+		data++;
+	}
+	return NULL;
 }
 
 static const ushort mp4_asc_samp_freq[] = {
@@ -185,14 +217,19 @@ static int adts_mk_mp4asc(char *dst, const struct adts_hdr *h)
 	off += AAC_DEPENDSONCORECODER;
 	off += AAC_EXT;
 
-	ffint_hton32(dst, v);
+	ffint_hton32(&v, v);
+	ffmemcpy(dst, &v, 2);
 	return ffbit_nbytes(off);
 }
 
 #define GATHER(a, st, len) \
-	(a)->state = R_GATHER,  (a)->nxstate = (st),  (a)->gathlen = (len)
+	(a)->state = R_GATHER_SHIFT,  (a)->nxstate = (st),  (a)->gathlen = (len)
 
-enum { R_INIT, R_GATHER, R_HDR_SYNC, R_HDR, R_CRC, R_DATA };
+enum R {
+	R_INIT, R_GATHER_SHIFT, R_GATHER,
+	R_HDR_SYNC, R_HDR_SYNC2,
+	R_HDR, R_CRC, R_DATA, R_FR,
+};
 
 void ffaac_adts_open(ffaac_adts *a)
 {
@@ -203,63 +240,123 @@ void ffaac_adts_close(ffaac_adts *a)
 	ffarr_free(&a->buf);
 }
 
+static void shift(ffaac_adts *a, ssize_t n)
+{
+	if (a->buf.len != 0) {
+		if (n > 0)
+			_ffarr_rmleft(&a->buf, n, 1);
+	} else
+		ffarr_shift(&a->in, n);
+}
 
 /* AAC ADTS (.aac) stream reading:
+. synchronize:
+ . search for header, parse
+ . gather data for the whole first frame and the next header
+ . parse and compare the next header
+  . if error, continue searching
 . gather ADTS header and parse it
-. gather and skip CRC if present
-. gather frame body and return it to user (RDATA)
+. gather full frame
+. skip CRC if present
+. return frame body to user (RDATA)
 */
 int ffaac_adts_read(ffaac_adts *a)
 {
 	int r;
 	struct adts_hdr h;
+	ffstr s;
 
 	for (;;) {
 	switch (a->state) {
 
 	case R_INIT:
-		GATHER(a, R_HDR_SYNC, sizeof(struct adts_hdr_packed));
+		if (NULL == ffarr_alloc(&a->buf, ADTS_HDRLEN * 2))
+			return a->err = ADTS_ESYS,  FFAAC_ADTS_RERR;
+		a->state = R_HDR_SYNC;
+		// fall through
+
+	case R_HDR_SYNC: {
+		const void *hp = (*(uint*)a->firsthdr == 0) ? NULL : a->firsthdr;
+		for (;;) {
+			r = ffbuf_contig(&a->buf, &a->in, ADTS_HDRLEN, &s);
+			ffarr_shift(&a->in, r);
+			a->off += r;
+
+			if (s.len >= ADTS_HDRLEN) {
+				hp = adts_hdr_find(&h, s.ptr, s.len, hp);
+				if (hp != NULL)
+					break;
+			}
+
+			r = ffbuf_contig_store(&a->buf, &a->in, ADTS_HDRLEN);
+			ffarr_shift(&a->in, r);
+			a->off += r;
+
+			if (a->in.len == 0)
+				return FFAAC_ADTS_RMORE;
+		}
+
+		shift(a, (char*)hp - s.ptr);
+		a->frlen = h.frlen;
+		a->shift = 0;
+		GATHER(a, R_HDR_SYNC2, h.frlen + ADTS_HDRLEN);
+		continue;
+	}
+
+	case R_HDR_SYNC2: {
+		const void *hp = s.ptr;
+		const void *hp2 = (char*)hp + a->frlen;
+		if (0 != (r = adts_hdr_parse(&h, hp2))
+			|| 0 != adts_hdr_cmp(hp, hp2)) {
+			shift(a, 1);
+			a->state = R_HDR_SYNC;
+			continue;
+		}
+
+		a->shift = -(int)a->gathlen;
+		GATHER(a, R_HDR, ADTS_HDRLEN);
+		continue;
+	}
+
+	case R_GATHER_SHIFT:
+		shift(a, a->shift);
+		a->state = R_GATHER;
 		// fall through
 
 	case R_GATHER:
-		r = ffarr_append_until(&a->buf, a->in.ptr, a->in.len, a->gathlen);
-		if (r == 0) {
+		r = ffarr_gather2(&a->buf, a->in.ptr, a->in.len, a->gathlen, &s);
+		if (r < 0)
+			return a->err = ADTS_ESYS,  FFAAC_ADTS_RERR;
+		ffarr_shift(&a->in, r);
+		a->off += r;
+		if (s.len < a->gathlen) {
 			if (a->fin && a->in.len == 0)
 				return FFAAC_ADTS_RDONE;
 			return FFAAC_ADTS_RMORE;
 		}
-		else if (r < 0)
-			return a->err = ADTS_ESYS,  FFAAC_ADTS_RERR;
-		ffstr_shift(&a->in, r);
-		a->off += r;
-		ffstr_set(&a->out, a->buf.ptr, a->gathlen);
-		a->buf.len = 0;
-		a->gathlen = 0;
+		a->shift = (a->buf.len != 0) ? a->gathlen : 0;
 		a->state = a->nxstate;
 		continue;
 
-	case R_HDR_SYNC:
 	case R_HDR:
-		if (0 != (r = adts_hdr_parse(&h, (void*)a->out.ptr)))
-			return a->err = r,  FFAAC_ADTS_RERR;
+		if (0 != (r = adts_hdr_parse(&h, (void*)s.ptr))) {
+			a->state = R_HDR_SYNC;
+			return a->err = ADTS_ELOSTSYNC,  FFAAC_ADTS_RWARN;
+		}
 
 		FFDBG_PRINTLN(10, "frame #%U: size:%u  raw-blocks:%u"
 			, a->frno++, h.frlen, h.raw_blocks);
 
-		if (a->firsthdr[0] != 0) {
-			if (0 != adts_hdr_cmp((void*)a->firsthdr, (void*)a->out.ptr))
-				return a->err = ADTS_ELOSTSYNC,  FFAAC_ADTS_RERR;
-		}
-
-		if (!h.have_crc)
-			GATHER(a, R_DATA, h.frlen - sizeof(struct adts_hdr_packed));
-		else {
-			a->frlen = h.frlen;
-			GATHER(a, R_CRC, 2);
-		}
+		if (a->options & FFAAC_ADTS_OPT_WHOLEFRAME) {
+			a->shift = -ADTS_HDRLEN;
+			GATHER(a, R_FR, h.frlen);
+		} else if (h.have_crc)
+			GATHER(a, R_CRC, 2 + h.datalen);
+		else
+			GATHER(a, R_DATA, h.datalen);
 
 		if (a->info.sample_rate == 0) {
-			ffmemcpy(a->firsthdr, a->out.ptr, sizeof(struct adts_hdr_packed));
+			ffmemcpy(a->firsthdr, s.ptr, ADTS_HDRLEN);
 			a->info.codec = h.aot;
 			a->info.channels = h.chan_conf;
 			a->info.sample_rate = mp4_asc_samp_freq[h.samp_freq_idx] * 5;
@@ -267,16 +364,28 @@ int ffaac_adts_read(ffaac_adts *a)
 			ffstr_set(&a->out, a->asc, r);
 			return FFAAC_ADTS_RHDR;
 		}
+
+		if (0 != adts_hdr_cmp((void*)a->firsthdr, (void*)s.ptr)) {
+			a->state = R_HDR_SYNC;
+			return a->err = ADTS_ELOSTSYNC,  FFAAC_ADTS_RWARN;
+		}
 		continue;
 
 	case R_CRC:
-		GATHER(a, R_DATA, a->frlen - sizeof(struct adts_hdr_packed) - 2);
-		continue;
+		ffstr_shift(&s, 2);
+		//fall through
 
 	case R_DATA:
 		a->nsamples += FR_SAMPLES;
-		GATHER(a, R_HDR, sizeof(struct adts_hdr_packed));
+		GATHER(a, R_HDR, ADTS_HDRLEN);
+		a->out = s;
 		return FFAAC_ADTS_RDATA;
+
+	case R_FR:
+		a->nsamples += FR_SAMPLES;
+		GATHER(a, R_HDR, ADTS_HDRLEN);
+		a->out = s;
+		return FFAAC_ADTS_RFRAME;
 	}
 	}
 }

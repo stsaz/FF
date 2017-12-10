@@ -15,12 +15,17 @@ enum FFAAC_ADTS_R {
 	FFAAC_ADTS_RWARN = -2,
 	FFAAC_ADTS_RERR = -1,
 	FFAAC_ADTS_RDATA,
+	FFAAC_ADTS_RFRAME,
 	FFAAC_ADTS_RMORE,
 	FFAAC_ADTS_RHDR, //output data contains MPEG-4 ASC
 	FFAAC_ADTS_RDONE,
 };
 
 FF_EXTN const char* ffaac_adts_errstr(void *a);
+
+enum FFAAC_ADTS_OPT {
+	FFAAC_ADTS_OPT_WHOLEFRAME = 1, //return the whole frames with header, not just their body
+};
 
 typedef struct ffaac_adts {
 	uint state;
@@ -30,12 +35,14 @@ typedef struct ffaac_adts {
 	uint64 off;
 	uint gathlen;
 	uint frlen;
+	int shift;
 	uint64 nsamples;
 	ffarr buf;
 	ffstr in, out;
 	char asc[2];
 	byte firsthdr[7];
 	uint fin :1;
+	uint options; //enum FFAAC_ADTS_OPT
 
 	struct {
 		byte codec;
