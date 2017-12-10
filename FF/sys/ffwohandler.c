@@ -60,7 +60,7 @@ void ffwoh_free(ffwoh *oh)
 	ffmem_free(oh);
 }
 
-int ffwoh_add(ffwoh *oh, HANDLE h, handler_t handler, void *udata)
+int ffwoh_add(ffwoh *oh, HANDLE h, ffwoh_handler_t handler, void *udata)
 {
 	if (oh->count == MAXIMUM_WAIT_OBJECTS || oh->count == (uint)-1)
 		return 1;

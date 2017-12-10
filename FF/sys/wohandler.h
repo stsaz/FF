@@ -11,10 +11,10 @@ KERNEL -------> WOH-thread -> user_function()
 #include <FFOS/atomic.h>
 
 
-typedef void (*handler_t)(void *udata);
+typedef void (*ffwoh_handler_t)(void *udata);
 
 struct ffwoh_item {
-	handler_t handler;
+	ffwoh_handler_t handler;
 	void *udata;
 };
 
@@ -34,7 +34,7 @@ FF_EXTN ffwoh* ffwoh_create(void);
 FF_EXTN void ffwoh_free(ffwoh *oh);
 
 /** Associate HANDLE with user-function. */
-FF_EXTN int ffwoh_add(ffwoh *oh, HANDLE h, handler_t handler, void *udata);
+FF_EXTN int ffwoh_add(ffwoh *oh, HANDLE h, ffwoh_handler_t handler, void *udata);
 
 /** Unregister HANDLE. */
 FF_EXTN void ffwoh_rm(ffwoh *oh, HANDLE h);
