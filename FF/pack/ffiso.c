@@ -4,6 +4,7 @@ Copyright (c) 2017 Simon Zolin
 
 #include <FF/pack/iso.h>
 #include <FF/number.h>
+#include <FF/time.h>
 #include <FF/data/utf8.h>
 
 

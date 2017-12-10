@@ -11,15 +11,100 @@ Copyright (c) 2014 Simon Zolin
 #define x FFTEST_BOOL
 
 
+static fftime_zone tz;
+
+static void test_time_dt(void)
+{
+	fftime t, t2;
+	ffdtm dt = {0}, dt2;
+
+	dt.year = 2014; dt.month = 5; dt.day = 19;
+	dt.weekday = 1; dt.yday = 139;
+	dt.hour = 8; dt.min = 52; dt.sec = 36; dt.msec = 23;
+	fftime_norm(&dt, 0);
+	x(fftime_chk(&dt, 0));
+
+	// day
+	dt.year = 2014; dt.month = 2; dt.day = 29;
+	x(!fftime_chk(&dt, FFTIME_CHKDATE));
+	dt.year = 2012; dt.month = 2; dt.day = 29;
+	x(fftime_chk(&dt, FFTIME_CHKDATE));
+
+#if 0
+	// weekday
+	dt.year = 2014; dt.month = 5; dt.day = 19; dt.weekday = 2;
+	x(!fftime_chk(&dt, FFTIME_CHKDATE | FFTIME_CHKWDAY));
+	dt.year = 2014; dt.month = 5; dt.day = 19; dt.weekday = 1;
+	x(fftime_chk(&dt, FFTIME_CHKDATE | FFTIME_CHKWDAY));
+#endif
+
+	// yday
+	dt.year = 2014; dt.month = 12; dt.day = 31; dt.yday = 366;
+	x(!fftime_chk(&dt, FFTIME_CHKDATE | FFTIME_CHKYDAY));
+	dt.year = 2012; dt.month = 12; dt.day = 31; dt.yday = 366;
+	x(fftime_chk(&dt, FFTIME_CHKDATE | FFTIME_CHKYDAY));
+
+	dt.year = 1945; dt.month = 11; dt.day = 26; dt.weekday = -1;
+	fftime_norm(&dt, 0);
+	x(dt.weekday == 1);
+
+	dt.year = 2014; dt.month = 5; dt.day = 19;
+	dt.weekday = 1; dt.yday = 139;
+	dt.hour = 8; dt.min = 52; dt.sec = 36; dt.msec = 23;
+
+	fftime_join(&t, &dt, FFTIME_TZUTC);
+	x(fftime_sec(&t) == 1400489556 && fftime_msec(&t) == 23);
+	fftime_split(&dt2, &t, FFTIME_TZUTC);
+	x(!memcmp(&dt, &dt2, sizeof(dt)));
+
+	fftime_join(&t2, &dt, FFTIME_TZLOCAL);
+	if (!tz.have_dst)
+		x(t2.s + tz.off == t.s);
+	fftime_split(&dt2, &t2, FFTIME_TZLOCAL);
+	x(!memcmp(&dt, &dt2, sizeof(dt)));
+
+	dt.year = 2014;  dt.month = 24;
+	dt2.year = 2014+1; dt2.month = 12;
+	dt2.weekday = 6; dt2.yday = 353;
+	fftime_join(&t, &dt, FFTIME_TZUTC);
+	fftime_split(&dt, &t, FFTIME_TZUTC);
+	x(!memcmp(&dt, &dt2, sizeof(dt)));
+
+	dt.year = 1969;
+	fftime_join(&t, &dt, FFTIME_TZUTC);
+	x(fftime_sec(&t) == 0 && fftime_msec(&t) == 0);
+
+	dt.year = 1; dt.month = 1; dt.day = 2;
+	dt.weekday = 2;  dt.yday = 2;
+	dt.hour = 0; dt.min = 0; dt.sec = 0; dt.msec = 0;
+	fftime_join2(&t, &dt, FFTIME_TZUTC);
+	x(fftime_sec(&t) == FFTIME_DAY_SECS && fftime_msec(&t) == 0);
+	fftime_split2(&dt2, &t, FFTIME_TZUTC);
+	x(!memcmp(&dt, &dt2, sizeof(dt)));
+}
+
 int test_time()
 {
 	char buf[64];
 	ffstr s;
 	ffdtm dt = {0};
-	fftime t;
+	fftime t, t2;
 
 	FFTEST_FUNC;
 
+	fftime_local(&tz);
+	fftime_storelocal(&tz);
+
+	t.sec = 1;  t.nsec = 1;
+	t2.sec = 2;  t2.nsec = 2;
+	x(fftime_cmp(&t, &t2) < 0);
+	t.sec = 1;  t.nsec = 2;
+	t2.sec = 1;  t2.nsec = 1;
+	x(fftime_cmp(&t, &t2) > 0);
+
+	test_time_dt();
+
+	ffmem_tzero(&dt);
 	dt.year = 2014;
 	dt.month = 5;
 	dt.day = 19;
@@ -52,7 +137,7 @@ int test_time()
 	}
 
 	x(fftime_join(&t, &dt, FFTIME_TZUTC)->s == fftime_strtounix(FFSTR("Mon, 19 May 2014 08:52:36 GMT"), FFTIME_WDMY));
-	x((uint)-1 == fftime_strtounix(FFSTR("Mon, 19 May 201408:52:36 GMT"), FFTIME_WDMY));
+	x((time_t)-1 == fftime_strtounix(FFSTR("Mon, 19 May 201408:52:36 GMT"), FFTIME_WDMY));
 
 	return 0;
 }

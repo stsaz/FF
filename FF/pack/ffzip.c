@@ -6,6 +6,7 @@ Copyright (c) 2016 Simon Zolin
 #include <FF/crc.h>
 #include <FF/number.h>
 #include <FF/path.h>
+#include <FF/time.h>
 #include <FFOS/dir.h>
 #include <FFOS/error.h>
 
