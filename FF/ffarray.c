@@ -125,6 +125,28 @@ ssize_t ffarr_gather(ffarr *ar, const char *d, size_t len, size_t until)
 	return len;
 }
 
+ssize_t ffarr_gather2(ffarr *ar, const char *d, size_t len, size_t until, ffstr *out)
+{
+	if (ar->len == 0 && len >= until) {
+		ffstr_set(out, d, until);
+		return until;
+	}
+
+	if (ar->len >= until) {
+		ffstr_set(out, ar->ptr, until);
+		return 0;
+	}
+
+	if (ar->cap < until
+		&& NULL == _ffarr_realloc(ar, until, sizeof(char)))
+		return -1;
+
+	len = ffmin(len, until - ar->len);
+	ffarr_append(ar, d, len);
+	ffstr_set2(out, ar);
+	return len;
+}
+
 void _ffarr_rm(ffarr *ar, size_t off, size_t n, size_t elsz)
 {
 	FF_ASSERT(ar->len >= off + n);
@@ -301,10 +323,15 @@ INPUT: input buffer
 */
 int ffbuf_contig(ffarr *buf, const ffstr *in, size_t ctglen, ffstr *s)
 {
+	FF_ASSERT(ctglen != 0);
 	s->len = 0;
 
 	if (buf->len != 0) {
-		FF_ASSERT(buf->len < ctglen);
+		if (buf->len >= ctglen) {
+			ffstr_set2(s, buf);
+			return 0;
+		}
+
 		size_t n = ffmin(ctglen - 1, in->len);
 		if (NULL == ffarr_append(buf, in->ptr, n))
 			return -1;
@@ -322,17 +349,19 @@ int ffbuf_contig(ffarr *buf, const ffstr *in, size_t ctglen, ffstr *s)
 
 int ffbuf_contig_store(ffarr *buf, const ffstr *in, size_t ctglen)
 {
+	FF_ASSERT(ctglen != 0);
 	if (buf->len != 0) {
-		if (buf->len < (ctglen - 1) * 2) {
-			_ffarr_rmleft(buf, buf->len - (ctglen - 1), sizeof(char));
+		ctglen = ffmin(ctglen - 1, buf->len);
+		if (ffstr_match(in, buf->ptr + buf->len - ctglen, ctglen)) {
+			buf->len = 0;
 			return 0;
 		}
-		buf->len = 0;
+		_ffarr_rmleft(buf, buf->len - ctglen, sizeof(char));
 		return 0;
 	}
 
-	FF_ASSERT(in->len >= ctglen);
-	if (NULL == ffarr_append(buf, ffarr_end(in) - (ctglen - 1), ctglen - 1))
+	ctglen = ffmin(ctglen - 1, in->len);
+	if (NULL == ffarr_append(buf, ffarr_end(in) - ctglen, ctglen))
 		return -1;
 	return in->len;
 }

@@ -760,6 +760,68 @@ static void test_str_crop(void)
 	x(d.ptr == NULL && d.len == 0);
 }
 
+static void test_str_contig(void)
+{
+	ffarr a = {0};
+	ffstr in, s;
+
+	ffstr_setz(&in, "a");
+	x(0 == ffbuf_contig(&a, &in, 4, &s));
+	x(1 == ffbuf_contig_store(&a, &in, 4)
+		&& ffstr_eqz(&a, "a"));
+	a.len = 0;
+
+	ffstr_setz(&in, "abcd12");
+	x(0 == ffbuf_contig(&a, &in, 4, &s)
+		&& ffstr_eq2(&s, &in) && a.len == 0);
+	x(FFSLEN("abcd12") == ffbuf_contig_store(&a, &in, 4)
+		&& ffstr_eqz(&a, "d12"));
+	in.len = 0;
+	x(0 == ffbuf_contig(&a, &in, 4, &s));
+	x(0 == ffbuf_contig_store(&a, &in, 4)
+		&& ffstr_eqz(&a, "d12"));
+
+	ffstr_setz(&in, "3");
+	x(FFSLEN("3") == ffbuf_contig(&a, &in, 4, &s)
+		&& ffstr_eqz(&a, "d123"));
+	x(0 == ffbuf_contig_store(&a, &in, 4)
+		&& ffstr_eqz(&a, "123"));
+
+	ffstr_setz(&in, "4efgh");
+	x(FFSLEN("4ef") == ffbuf_contig(&a, &in, 4, &s)
+		&& ffstr_eqz(&a, "1234ef"));
+	x(0 == ffbuf_contig_store(&a, &in, 4)
+		&& ffstr_eqz(&a, ""));
+	x(0 == ffbuf_contig(&a, &in, 4, &s)
+		&& ffstr_eq2(&s, &in) && a.len == 0);
+
+	ffarr_copy(&a, "123456789", 9);
+	x(0 == ffbuf_contig(&a, &in, 4, &s)
+		&& ffstr_eqz(&a, "123456789"));
+	x(0 == ffbuf_contig_store(&a, &in, 4)
+		&& ffstr_eqz(&a, "789"));
+
+	ffarr_free(&a);
+}
+
+static void test_str_gather(void)
+{
+	ffarr a = {0};
+	ffstr s, in;
+	x(4 == ffarr_gather2(&a, "abcd", 4, 7, &s)
+		&& ffstr_eqz(&s, "abcd") && s.ptr == a.ptr);
+	x(3 == ffarr_gather2(&a, "1234", 4, 7, &s)
+		&& ffstr_eqz(&s, "abcd123") && s.ptr == a.ptr);
+	x(0 == ffarr_gather2(&a, "1234", 4, 3, &s)
+		&& ffstr_eqz(&s, "abc") && s.ptr == a.ptr);
+	a.len = 0;
+	ffstr_setz(&in, "1234");
+	x(3 == ffarr_gather2(&a, in.ptr, in.len, 3, &s)
+		&& a.len == 0 && a.cap != 0
+		&& ffstr_eqz(&s, "123") && s.ptr == in.ptr);
+	ffarr_free(&a);
+}
+
 int test_str()
 {
 	FFTEST_FUNC;
@@ -809,5 +871,7 @@ int test_str()
 	test_utf();
 	test_str_fromsize();
 	test_str_crop();
+	test_str_contig();
+	test_str_gather();
 	return 0;
 }

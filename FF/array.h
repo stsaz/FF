@@ -611,6 +611,8 @@ FF_EXTN int fffile_readall(ffarr *a, const char *fn, uint64 limit);
 Return the number of processed bytes. */
 FF_EXTN size_t ffbuf_add(ffstr3 *buf, const char *src, size_t len, ffstr *dst);
 
+FF_EXTN ssize_t ffarr_gather2(ffarr *ar, const char *d, size_t len, size_t until, ffstr *out);
+
 
 struct ffbuf_gather {
 	uint state;
