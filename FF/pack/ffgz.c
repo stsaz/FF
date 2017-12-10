@@ -255,7 +255,7 @@ int ffgz_winit(ffgz_cook *gz, uint level, uint mem)
 
 static const byte gz_defhdr[] = { 0x1f, 0x8b, 8, 0, 0,0,0,0, 0, 255 };
 
-int ffgz_wfile(ffgz_cook *gz, const char *name, uint mtime)
+int ffgz_wfile(ffgz_cook *gz, const char *name, const fftime *mtime)
 {
 	ffstr nm = {0};
 
@@ -269,7 +269,10 @@ int ffgz_wfile(ffgz_cook *gz, const char *name, uint mtime)
 
 	ffarr2_addf(&gz->buf, &gz_defhdr, sizeof(gz_defhdr), sizeof(char));
 	ffgzheader *h = (void*)gz->buf.ptr;
-	ffint_htol32(h->mtime, mtime);
+	time_t t;
+	t = fftime_to_time_t(mtime);
+	t = ffmin64(t, (uint)-1);
+	ffint_htol32(h->mtime, t);
 
 	if (name != NULL) {
 		h->flags |= GZ_FNAME;

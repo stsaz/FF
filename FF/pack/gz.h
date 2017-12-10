@@ -113,10 +113,13 @@ static FFINL const char* ffgz_fname(ffgz *gz)
 	return (gz->nameoff != 0) ? gz->buf.ptr + gz->nameoff : NULL;
 }
 
-static FFINL uint ffgz_mtime(ffgz *gz)
+static FFINL uint ffgz_mtime(ffgz *gz, fftime *t)
 {
 	const ffgzheader *h = (void*)gz->buf.ptr;
-	return ffint_ltoh32(h->mtime);
+	uint ts;
+	if (0 != (ts = ffint_ltoh32(h->mtime)))
+		fftime_fromtime_t(t, ts);
+	return ts;
 }
 
 /** Get decompressed file size (32-bit).
@@ -142,7 +145,7 @@ FF_EXTN int ffgz_winit(ffgz_cook *gz, uint level, uint mem);
 /**
 @name: optional.
 Return 0 on success. */
-FF_EXTN int ffgz_wfile(ffgz_cook *gz, const char *name, uint mtime);
+FF_EXTN int ffgz_wfile(ffgz_cook *gz, const char *name, const fftime *mtime);
 
 /**
 Return enum FFGZ_R. */
