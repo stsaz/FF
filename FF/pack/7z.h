@@ -49,7 +49,7 @@ typedef struct ff7z {
 	ffstr out;
 } ff7z;
 
-FF_EXP const char* ff7z_errstr(ff7z *z);
+FF_EXTN const char* ff7z_errstr(ff7z *z);
 
 enum FF7Z_R {
 	FF7Z_ERR = 1,
@@ -60,13 +60,13 @@ enum FF7Z_R {
 	FF7Z_FILEDONE,
 };
 
-FF_EXP void ff7z_open(ff7z *z);
-FF_EXP void ff7z_close(ff7z *z);
-FF_EXP int ff7z_read(ff7z *z);
+FF_EXTN void ff7z_open(ff7z *z);
+FF_EXTN void ff7z_close(ff7z *z);
+FF_EXTN int ff7z_read(ff7z *z);
 
 /**
 Return NULL if no next file. */
-FF_EXP const ff7zfile* ff7z_nextfile(ff7z *z);
+FF_EXTN const ff7zfile* ff7z_nextfile(ff7z *z);
 
 #define ff7z_input(z, data, len) \
 	ffstr_set(&(z)->input, data, len)

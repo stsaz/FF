@@ -269,9 +269,11 @@ int ffgz_wfile(ffgz_cook *gz, const char *name, const fftime *mtime)
 
 	ffarr2_addf(&gz->buf, &gz_defhdr, sizeof(gz_defhdr), sizeof(char));
 	ffgzheader *h = (void*)gz->buf.ptr;
-	time_t t;
-	t = fftime_to_time_t(mtime);
-	t = ffmin64(t, (uint)-1);
+	time_t t = 0;
+	if (mtime != NULL) {
+		t = fftime_to_time_t(mtime);
+		t = ffmin64(t, (uint)-1);
+	}
 	ffint_htol32(h->mtime, t);
 
 	if (name != NULL) {

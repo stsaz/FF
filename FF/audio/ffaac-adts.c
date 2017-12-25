@@ -256,7 +256,9 @@ static void shift(ffaac_adts *a, ssize_t n)
  . parse and compare the next header
   . if error, continue searching
 . gather ADTS header and parse it
+ . if it's the very first header, return to user (RHDR)
 . gather full frame
+. if needed, return the whole frame to user (RFRAME)
 . skip CRC if present
 . return frame body to user (RDATA)
 */

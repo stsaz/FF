@@ -316,7 +316,7 @@ varint UnPackSize[folders][folder.coders]
 */
 static int z7_datasizes_read(ffarr *stms, ffstr *d)
 {
-	uint64 n;
+	uint64 n = 0;
 	int r;
 	z7_stream *s = (void*)stms->ptr;
 

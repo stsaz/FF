@@ -597,6 +597,21 @@ static FFINL size_t ffstr_catfmt(ffstr3 *s, const char *fmt, ...) {
 	return r;
 }
 
+/** Formatted output to a newly allocated NULL-terminated string. */
+static FFINL char* _ffsz_alfmt(const char *fmt, ...)
+{
+	size_t r;
+	ffarr a = {0};
+	va_list args;
+	va_start(args, fmt);
+	r = ffstr_catfmtv(&a, fmt, args);
+	va_end(args);
+	if (r == 0)
+		ffarr_free(&a);
+	return a.ptr;
+}
+#define ffsz_alfmt(fmt, ...) _ffsz_alfmt(fmt "%Z", __VA_ARGS__)
+
 /** Formatted output into a file.
 'buf': optional buffer. */
 FF_EXTN size_t fffile_fmt(fffd fd, ffstr3 *buf, const char *fmt, ...);

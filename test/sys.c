@@ -120,7 +120,7 @@ int test_sendfile()
 	x(0 == ffaddr_set(&adr, FFSTR("127.0.0.1"), NULL, 0));
 	ffip_setport(&adr, 64000);
 
-	ffskt_init(FFSKT_WSA);
+	ffskt_init(FFSKT_WSA | FFSKT_WSAFUNCS);
 	lsn = ffskt_create(AF_INET, SOCK_STREAM, 0);
 	x(lsn != FF_BADSKT);
 	x(0 == ffskt_bind(lsn, &adr.a, adr.len));

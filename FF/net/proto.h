@@ -208,3 +208,34 @@ typedef struct fficmphdr {
 	} echo;
 	};
 } fficmphdr;
+
+
+typedef struct fftcphdr {
+	byte sport[2];
+	byte dport[2];
+	byte seq[4];
+	byte ack[4];
+	byte off; //off[4] res[3] f[1]
+	byte flags; //enum FFTCP_F
+	byte window[2];
+	byte crc[2];
+	byte urgent_ptr[2];
+} fftcphdr;
+
+enum FFTCP_F {
+	FFTCP_FIN = 0x01,
+	FFTCP_SYN = 0x02,
+	FFTCP_RST = 0x04,
+	FFTCP_PUSH = 0x08,
+	FFTCP_ACK = 0x10,
+};
+
+#define fftcp_hdrlen(t)  ((((t)->off & 0xf0) >> 4) * 4)
+
+
+typedef struct ffudphdr {
+	byte sport[2];
+	byte dport[2];
+	byte length[2];
+	byte crc[2];
+} ffudphdr;

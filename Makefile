@@ -36,6 +36,7 @@ $(FF_OBJ_DIR)/%.o: $(FF)/test/%.c $(FF_HDR) $(FF_TEST_HDR)
 
 FF_TEST_O := $(FFOS_OBJ) $(FF_OBJ) \
 	$(FFOS_THD) \
+	$(FFOS_SKT) \
 	$(FF_OBJ_DIR)/ffdbg.o \
 	$(FF_OBJ_DIR)/fftmr.o \
 	$(FF_OBJ_DIR)/ffhttp.o $(FF_OBJ_DIR)/ffproto.o $(FF_OBJ_DIR)/ffurl.o $(FF_OBJ_DIR)/ffdns.o \

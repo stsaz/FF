@@ -37,4 +37,7 @@ FF_EXTN int ffdir_expopen(ffdirexp *dex, char *pattern, uint flags);
 Return NULL if no more files. */
 FF_EXTN const char* ffdir_expread(ffdirexp *dex);
 
+/** Get file name without path. */
+#define ffdir_expname(dex, path)  ((path) + (dex)->pathlen)
+
 FF_EXTN void ffdir_expclose(ffdirexp *dex);

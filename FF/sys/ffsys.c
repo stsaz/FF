@@ -179,12 +179,12 @@ uint fftask_run(fftaskmgr *mgr)
 
 	for (n = mgr->max_run;  n != 0;  n--) {
 
-		it = mgr->tasks.first;
+		it = FF_READONCE(&mgr->tasks.first);
 		if (it == sentl)
 			break; //list is empty
 
-		FF_ASSERT(mgr->tasks.len != 0);
 		fflk_lock(&mgr->lk);
+		FF_ASSERT(mgr->tasks.len != 0);
 		_ffchain_link2(it->prev, it->next);
 		it->next = NULL;
 		ntasks = mgr->tasks.len--;
