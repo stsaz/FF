@@ -26,6 +26,7 @@ enum FFTAR_TYPE {
 
 typedef struct fftar_file {
 	const char *name;
+	const char *link_to;
 	uint mode;
 	uint uid;
 	uint gid;
@@ -47,10 +48,11 @@ enum FFTAR_E {
 	FFTAR_EBIG,
 	FFTAR_EFNAME,
 	FFTAR_ELONGNAME,
+	FFTAR_EHAVEDATA,
 };
 
 /** Parse header.
-@filename: must be at least 101 bytes.
+@filename: must be at least 100+1+155+1 bytes.
  If not NULL, file name is copied to it and f->name is set.
 @buf: must be at least 512 bytes.
 Return enum FFTAR_E on error. */

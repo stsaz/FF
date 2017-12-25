@@ -115,6 +115,12 @@ int fftar_hdr_parse(fftar_file *f, char *filename, const char *buf)
 		f->name = filename;
 	}
 
+	if (h->typeflag == FFTAR_SLINK || h->typeflag == FFTAR_HLINK) {
+		if (sizeof(h->linkname) == ffsz_nlen(h->linkname, sizeof(h->linkname)))
+			return FFTAR_ELONGNAME;
+		f->link_to = h->linkname;
+	}
+
 	if (0 != tar_num(h->mode, sizeof(h->mode), &f->mode)
 		|| 0 != tar_num(h->uid, sizeof(h->uid), &f->uid)
 		|| 0 != tar_num(h->gid, sizeof(h->gid), &f->gid)
@@ -235,6 +241,7 @@ static const char *const tar_errs[] = {
 	"too big name or size",
 	"invalid filename",
 	"too long filename",
+	"file has non-zero size",
 };
 
 const char* fftar_errstr(void *_t)
@@ -320,6 +327,14 @@ int fftar_read(fftar *t)
 			, t->file.name, t->file.type, t->file.size);
 
 		switch (t->file.type) {
+
+		case FFTAR_DIR:
+		case FFTAR_HLINK:
+		case FFTAR_SLINK:
+			if (t->file.size != 0)
+				return ERR(t, FFTAR_EHAVEDATA);
+			break;
+
 		case FFTAR_LONG:
 			if (t->file.size > TAR_MAXLONGNAME)
 				return ERR(t, FFTAR_ELONGNAME);
