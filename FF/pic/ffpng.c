@@ -6,13 +6,6 @@ Copyright (c) 2016 Simon Zolin
 #include <FFOS/error.h>
 
 
-enum {
-	PNG_EFMT = 1,
-	PNG_ELINE,
-
-	PNG_ESYS,
-};
-
 static const char* const errs[] = {
 	"unsupported format",
 	"incomplete input line",
@@ -21,7 +14,7 @@ static const char* const errs[] = {
 static const char* errmsg(int e, void *p)
 {
 	switch (e) {
-	case PNG_ESYS:
+	case FFPNG_ESYS:
 		return fferr_strp(fferr_last());
 
 	case 0:
@@ -68,11 +61,11 @@ int ffpng_read(ffpng *p)
 		ffstr_shift(&p->data, len);
 		p->info.width = conf.width;
 		p->info.height = conf.height;
-		p->info.bpp = conf.bpp;
+		p->info.format = conf.bpp;
 
-		p->linesize = p->info.width * p->info.bpp / 8;
+		p->linesize = p->info.width * ffpic_bits(p->info.format) / 8;
 		if (NULL == ffarr_alloc(&p->buf, p->linesize))
-			return p->e = PNG_ESYS,  FFPNG_ERR;
+			return p->e = FFPNG_ESYS,  FFPNG_ERR;
 		p->state = R_DATA;
 		return FFPNG_HDR;
 	}
@@ -102,10 +95,20 @@ const char* ffpng_werrstr(ffpng_cook *p)
 
 enum { W_INIT, W_DATA };
 
-void ffpng_create(ffpng_cook *p)
+int ffpng_create(ffpng_cook *p, ffpic_info *info)
 {
+	if ((info->format & _FFPIC_BGR)
+		|| !(ffpic_bits(info->format) == 24 || ffpic_bits(info->format) == 32)) {
+		info->format = ffpic_bits(info->format);
+		return FFPNG_EFMT;
+	}
+
+	p->info.width = info->width;
+	p->info.height = info->height;
+	p->info.format = info->format;
 	p->state = W_INIT;
 	p->info.complevel = 9;
+	return 0;
 }
 
 void ffpng_wclose(ffpng_cook *p)
@@ -122,13 +125,13 @@ int ffpng_write(ffpng_cook *p)
 		struct png_conf conf = {0};
 		conf.width = p->info.width;
 		conf.height = p->info.height;
-		conf.bpp = p->info.bpp;
+		conf.bpp = ffpic_bits(p->info.format);
 		conf.complevel = p->info.complevel;
 		conf.comp_bufsize = p->info.comp_bufsize;
 		if (0 != png_create(&p->png, &conf))
 			return FFPNG_ERR;
 
-		p->linesize = p->info.width * p->info.bpp / 8;
+		p->linesize = p->info.width * ffpic_bits(p->info.format) / 8;
 		p->state = W_DATA;
 		// break
 	}
@@ -136,7 +139,7 @@ int ffpng_write(ffpng_cook *p)
 	case W_DATA: {
 		if (p->rgb.len != p->linesize) {
 			if (p->rgb.len != 0)
-				return p->e = PNG_ELINE,  FFPNG_ERR;
+				return p->e = FFPNG_ELINE,  FFPNG_ERR;
 			return FFPNG_MORE;
 		}
 

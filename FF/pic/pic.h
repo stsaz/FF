@@ -19,6 +19,12 @@ FF_EXTN const char* ffpic_fmtstr(uint fmt);
 
 #define ffpic_bits(fmt)  ((fmt) & 0xff)
 
+typedef struct ffpic_info {
+	uint width;
+	uint height;
+	uint format; //enum FFPIC_FMT
+} ffpic_info;
+
 FF_EXTN const uint ffpic_clr[];
 FF_EXTN const uint ffpic_clr_a[];
 

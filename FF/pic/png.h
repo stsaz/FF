@@ -4,10 +4,19 @@ Copyright (c) 2016 Simon Zolin
 
 #pragma once
 
+#include <FF/pic/pic.h>
 #include <FF/array.h>
 #include <FF/number.h>
 
 #include <png/png-ff.h>
+
+
+enum FFPNG_E {
+	FFPNG_EFMT = 1,
+	FFPNG_ELINE,
+
+	FFPNG_ESYS,
+};
 
 
 typedef struct ffpng {
@@ -23,7 +32,7 @@ typedef struct ffpng {
 	struct {
 		uint width;
 		uint height;
-		uint bpp;
+		uint format;
 		uint total_size;
 	} info;
 } ffpng;
@@ -42,6 +51,9 @@ FF_EXTN void ffpng_open(ffpng *p);
 
 FF_EXTN void ffpng_close(ffpng *p);
 
+#define ffpng_input(p, _data, len)  ffstr_set(&(p)->data, _data, len)
+#define ffpng_output(p)  (p)->rgb
+
 FF_EXTN int ffpng_read(ffpng *p);
 
 
@@ -57,7 +69,7 @@ typedef struct ffpng_cook {
 	struct {
 		uint width;
 		uint height;
-		uint bpp;
+		uint format;
 		uint complevel; //0..9
 		uint comp_bufsize;
 	} info;
@@ -65,8 +77,13 @@ typedef struct ffpng_cook {
 
 FF_EXTN const char* ffpng_werrstr(ffpng_cook *p);
 
-FF_EXTN void ffpng_create(ffpng_cook *p);
+/**
+Return 0 on success;  enum FFPNG_E on error. */
+FF_EXTN int ffpng_create(ffpng_cook *p, ffpic_info *info);
 
 FF_EXTN void ffpng_wclose(ffpng_cook *p);
+
+#define ffpng_winput(p, _data, len)  ffstr_set(&(p)->rgb, _data, len)
+#define ffpng_woutput(p)  (p)->data
 
 FF_EXTN int ffpng_write(ffpng_cook *p);

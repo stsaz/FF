@@ -13,6 +13,14 @@ HDR (ROW#HEIGHT..ROW#1(BGR#1..BGR#WIDTH))
 #include <FF/number.h>
 
 
+enum FFBMP_E {
+	FFBMP_EFMT = 1,
+	FFBMP_ELINE,
+
+	FFBMP_ESYS,
+};
+
+
 typedef struct ffbmp {
 	uint state;
 	uint nxstate;
@@ -26,11 +34,7 @@ typedef struct ffbmp {
 	uint gather_size;
 	uint64 seekoff;
 
-	struct {
-		uint width;
-		uint height;
-		uint bpp;
-	} info;
+	ffpic_info info;
 } ffbmp;
 
 enum FFBMP_R {
@@ -55,10 +59,15 @@ typedef struct ffbmp_pos {
 
 FF_EXTN void ffbmp_region(const ffbmp_pos *pos);
 
+#define ffbmp_input(b, _data, len)  ffstr_set(&(b)->data, _data, len)
+#define ffbmp_output(b)  (b)->rgb
+
 FF_EXTN int ffbmp_read(ffbmp *b);
 
 /** Get input/output stream seek offset. */
 #define ffbmp_seekoff(b)  ((b)->seekoff)
+
+#define ffbmp_line(b)  ((b)->line)
 
 
 typedef struct ffbmp_cook {
@@ -71,20 +80,21 @@ typedef struct ffbmp_cook {
 	uint line;
 	uint64 seekoff;
 
-	struct {
-		uint width;
-		uint height;
-		uint bpp;
-	} info;
+	ffpic_info info;
 } ffbmp_cook;
 
-FF_EXTN void ffbmp_create(ffbmp_cook *b);
+/**
+Return 0 on success;  enum FFBMP_E on error. */
+FF_EXTN int ffbmp_create(ffbmp_cook *b, ffpic_info *info);
 
 FF_EXTN void ffbmp_wclose(ffbmp_cook *b);
 
 static FFINL uint ffbmp_wsize(ffbmp_cook *b)
 {
-	return b->info.height * b->info.width * (b->info.bpp / 8);
+	return b->info.height * b->info.width * (ffpic_bits(b->info.format) / 8);
 }
+
+#define ffbmp_winput(b, data, len)  ffstr_set(&(b)->rgb, data, len)
+#define ffbmp_woutput(b)  (b)->data
 
 FF_EXTN int ffbmp_write(ffbmp_cook *b);

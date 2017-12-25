@@ -6,13 +6,6 @@ Copyright (c) 2016 Simon Zolin
 #include <FFOS/error.h>
 
 
-enum {
-	JPEG_EFMT = 1,
-	JPEG_ELINE,
-
-	JPEG_ESYS,
-};
-
 static const char* const errs[] = {
 	"unsupported format",
 	"incomplete input line",
@@ -21,7 +14,7 @@ static const char* const errs[] = {
 static const char* errmsg(int e, void *p)
 {
 	switch (e) {
-	case JPEG_ESYS:
+	case FFJPEG_ESYS:
 		return fferr_strp(fferr_last());
 
 	case 0:
@@ -69,11 +62,11 @@ int ffjpeg_read(ffjpeg *j)
 		ffstr_shift(&j->data, len);
 		j->info.width = conf.width;
 		j->info.height = conf.height;
-		j->info.bpp = 24;
+		j->info.format = 24;
 
-		j->linesize = j->info.width * j->info.bpp / 8;
+		j->linesize = j->info.width * j->info.format / 8;
 		if (NULL == ffarr_realloc(&j->buf, j->linesize))
-			return j->e = JPEG_ESYS,  FFJPEG_ERR;
+			return j->e = FFJPEG_ESYS,  FFJPEG_ERR;
 
 		j->state = R_DATA;
 		return FFJPEG_HDR;
@@ -91,6 +84,7 @@ int ffjpeg_read(ffjpeg *j)
 			return FFJPEG_ERR;
 
 		ffstr_set(&j->rgb, j->buf.ptr, j->linesize);
+		j->line++;
 		return FFJPEG_DATA;
 	}
 	}
@@ -104,11 +98,19 @@ const char* ffjpeg_werrstr(ffjpeg_cook *j)
 
 enum { W_INIT, W_DATA };
 
-void ffjpeg_create(ffjpeg_cook *j)
+int ffjpeg_create(ffjpeg_cook *j, ffpic_info *info)
 {
+	if (info->format != 24) {
+		info->format = 24;
+		return FFJPEG_EFMT;
+	}
 	j->state = W_INIT;
+	j->info.width = info->width;
+	j->info.height = info->height;
+	j->info.format = info->format;
 	j->info.quality = 85;
 	j->info.bufcap = 8 * 1024;
+	return 0;
 }
 
 void ffjpeg_wclose(ffjpeg_cook *j)
@@ -123,11 +125,8 @@ int ffjpeg_write(ffjpeg_cook *j)
 
 	switch (j->state) {
 	case W_INIT:
-		if (j->info.bpp != 24)
-			return j->e = JPEG_EFMT,  FFJPEG_ERR;
-
 		if (NULL == ffarr_alloc(&j->buf, j->info.bufcap))
-			return j->e = JPEG_ESYS,  FFJPEG_ERR;
+			return j->e = FFJPEG_ESYS,  FFJPEG_ERR;
 
 		struct jpeg_conf conf = {0};
 		conf.width = j->info.width;
@@ -137,14 +136,14 @@ int ffjpeg_write(ffjpeg_cook *j)
 		if (0 != jpeg_create(&j->jpeg, &conf))
 			return FFJPEG_ERR;
 
-		j->linesize = j->info.width * j->info.bpp / 8;
+		j->linesize = j->info.width * j->info.format / 8;
 		j->state = W_DATA;
 		// break
 
 	case W_DATA:
 		if (j->rgb.len != j->linesize) {
 			if (j->rgb.len != 0)
-				return j->e = JPEG_ELINE,  FFJPEG_ERR;
+				return j->e = FFJPEG_ELINE,  FFJPEG_ERR;
 			return FFJPEG_MORE;
 		}
 
