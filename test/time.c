@@ -20,7 +20,7 @@ static void test_time_dt(void)
 
 	dt.year = 2014; dt.month = 5; dt.day = 19;
 	dt.weekday = 1; dt.yday = 139;
-	dt.hour = 8; dt.min = 52; dt.sec = 36; dt.msec = 23;
+	dt.hour = 8; dt.min = 52; dt.sec = 36; dt.nsec = 23;
 	fftime_norm(&dt, 0);
 	x(fftime_chk(&dt, 0));
 
@@ -50,7 +50,7 @@ static void test_time_dt(void)
 
 	dt.year = 2014; dt.month = 5; dt.day = 19;
 	dt.weekday = 1; dt.yday = 139;
-	dt.hour = 8; dt.min = 52; dt.sec = 36; dt.msec = 23;
+	dt.hour = 8; dt.min = 52; dt.sec = 36; fftime_setmsec(&dt, 23);
 
 	fftime_join(&t, &dt, FFTIME_TZUTC);
 	x(fftime_sec(&t) == 1400489556 && fftime_msec(&t) == 23);
@@ -76,7 +76,7 @@ static void test_time_dt(void)
 
 	dt.year = 1; dt.month = 1; dt.day = 2;
 	dt.weekday = 2;  dt.yday = 2;
-	dt.hour = 0; dt.min = 0; dt.sec = 0; dt.msec = 0;
+	dt.hour = 0; dt.min = 0; dt.sec = 0; dt.nsec = 0;
 	fftime_join2(&t, &dt, FFTIME_TZUTC);
 	x(fftime_sec(&t) == FFTIME_DAY_SECS && fftime_msec(&t) == 0);
 	fftime_split2(&dt2, &t, FFTIME_TZUTC);
@@ -112,7 +112,7 @@ int test_time()
 	dt.hour = 8;
 	dt.min = 52;
 	dt.sec = 36;
-	dt.msec = 23;
+	fftime_setmsec(&dt, 23);
 	s.ptr = buf;
 
 	s.len = fftime_tostr(&dt, buf, FFCNT(buf), FFTIME_DATE_YMD);
@@ -130,7 +130,7 @@ int test_time()
 	{
 	ffdtm dt2;
 	x(FFSLEN("Mon, 19 May 2014 08:52:36 GMT") == fftime_fromstr(&dt2, FFSTR("Mon, 19 May 2014 08:52:36 GMT"), FFTIME_WDMY));
-	dt2.msec = dt.msec;
+	dt2.nsec = dt.nsec;
 	x(!ffmemcmp(&dt2, &dt, sizeof(ffdtm)));
 	x(0 == fftime_fromstr(&dt2, FFSTR("Mon, 19 May 2014 08:52:36 GM"), FFTIME_WDMY));
 	x(0 == fftime_fromstr(&dt2, FFSTR("Mon, 19 May 2014 25:52:36 GMT"), FFTIME_WDMY));

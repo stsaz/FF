@@ -43,7 +43,7 @@ typedef struct ffdtm {
 		, hour //0..23
 		, min  //0..59
 		, sec  //0..59
-		, msec //0..999
+		, nsec //0..999,999,999
 		;
 } ffdtm;
 

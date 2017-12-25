@@ -32,7 +32,7 @@ ffbool fftime_chk(const ffdtm *dt, uint flags)
 		&& !(dt->hour <= 23
 			&& dt->min <= 59
 			&& dt->sec <= 59
-			&& dt->msec <= 999))
+			&& dt->nsec <= 999999999))
 		return 0;
 
 	if ((flags & FFTIME_CHKDATE)
@@ -138,7 +138,7 @@ void fftime_fromtm(ffdtm *dt, const struct tm *tm)
 	dt->hour = tm->tm_hour;
 	dt->min = tm->tm_min;
 	dt->sec = tm->tm_sec;
-	dt->msec = 0;
+	dt->nsec = 0;
 }
 
 static int _fftzone_off;
@@ -231,7 +231,7 @@ void fftime_split2(ffdtm *dt, const fftime *t, uint flags)
 	dt->hour = daysec / (60*60);
 	dt->min = (daysec % (60*60)) / 60;
 	dt->sec = daysec % 60;
-	dt->msec = fftime_msec(t);
+	dt->nsec = fftime_nsec(t);
 }
 
 static uint mon_norm(uint mon, uint *year)
@@ -276,7 +276,7 @@ fftime* fftime_join2(fftime *t, const ffdtm *dt, uint flags)
 
 set:
 	t->sec = (int64)days * FFTIME_DAY_SECS + dt->hour * 60*60 + dt->min * 60 + dt->sec;
-	fftime_setmsec(t, dt->msec);
+	fftime_setnsec(t, dt->nsec);
 
 	if (flags == FFTIME_TZLOCAL) {
 		t->sec -= _fftzone_off;
@@ -291,7 +291,7 @@ void fftime_split(ffdtm *dt, const fftime *t, enum FF_TIMEZONE tz)
 		struct tm tm;
 		fftime_splitlocal(&tm, t->sec);
 		fftime_fromtm(dt, &tm);
-		dt->msec = fftime_msec(t);
+		dt->nsec = fftime_nsec(t);
 		return;
 	}
 
@@ -306,7 +306,7 @@ fftime* fftime_join(fftime *t, const ffdtm *dt, enum FF_TIMEZONE tz)
 		struct tm tm;
 		fftime_totm(&tm, dt);
 		t->sec = fftime_joinlocal(&tm);
-		fftime_setmsec(t, dt->msec);
+		fftime_setnsec(t, dt->nsec);
 		return t;
 	}
 
@@ -371,7 +371,7 @@ size_t fftime_tostr(const ffdtm *dt, char *dst, size_t cap, uint flags)
 
 	case FFTIME_HMS_MSEC:
 		dst += ffs_fmt(dst, end, "%02u:%02u:%02u.%03u"
-			, dt->hour, dt->min, dt->sec, dt->msec);
+			, dt->hour, dt->min, dt->sec, fftime_msec(dt));
 		break;
 
 	case FFTIME_HMS_GMT:
@@ -532,9 +532,11 @@ static int time_fromstr(ffdtm *t, const ffstr *ss, uint fmt)
 
 msec:
 		if (s != s_end || *s == '.') {
+			uint ms;
 			s++;
-			if (0 == (i = ffs_toint(s, s_end - s, &t->msec, FFS_INT32)))
+			if (0 == (i = ffs_toint(s, s_end - s, &ms, FFS_INT32)))
 				goto fail;
+			fftime_setmsec(t, ms);
 			s += i;
 		}
 
