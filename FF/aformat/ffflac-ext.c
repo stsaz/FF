@@ -63,9 +63,6 @@ int ffflac_wnew(ffflac_cook *f, const ffflac_info *info)
 
 	ffarr_acq(&f->vtag.out, &f->outbuf);
 	f->vtag.out.len += sizeof(struct flac_hdr);
-	const char *vendor = flac_vendor();
-	if (0 != ffvorbtag_add(&f->vtag, NULL, vendor, ffsz_len(vendor)))
-		return ERR(f, FLAC_EHDR);
 
 	f->info = *info;
 	return 0;
