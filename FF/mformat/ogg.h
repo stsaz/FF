@@ -8,7 +8,7 @@ OGG_PAGE(PAGE_HDR PACKET...)...
 
 #pragma once
 
-#include <FF/audio/ogg-fmt.h>
+#include <FF/mformat/ogg-fmt.h>
 #include <FF/audio/pcm.h>
 #include <FF/array.h>
 

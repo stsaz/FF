@@ -2,7 +2,7 @@
 Copyright (c) 2017 Simon Zolin
 */
 
-#include <FF/audio/aac-adts.h>
+#include <FF/aformat/aac-adts.h>
 #include <FF/number.h>
 
 enum {

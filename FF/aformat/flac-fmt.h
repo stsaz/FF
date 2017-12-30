@@ -2,8 +2,23 @@
 Copyright (c) 2016 Simon Zolin
 */
 
+#pragma once
+
 #include <FF/audio/pcm.h>
 
+
+enum FFFLAC_R {
+	FFFLAC_RWARN = -2,
+	FFFLAC_RERR = -1,
+	FFFLAC_RDATA,
+	FFFLAC_RSEEK,
+	FFFLAC_RMORE,
+	FFFLAC_RDONE,
+
+	FFFLAC_RHDR,
+	FFFLAC_RTAG,
+	FFFLAC_RHDRFIN,
+};
 
 enum FLAC_E {
 	FLAC_EUKN,

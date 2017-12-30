@@ -2,8 +2,8 @@
 Copyright (c) 2016 Simon Zolin
 */
 
-#include <FF/data/mp4-fmt.h>
-#include <FF/data/mp4.h>
+#include <FF/mformat/mp4-fmt.h>
+#include <FF/mformat/mp4.h>
 #include <FF/number.h>
 #include <FFOS/error.h>
 

@@ -2,7 +2,7 @@
 Copyright (c) 2016 Simon Zolin
 */
 
-#include <FF/audio/ogg-fmt.h>
+#include <FF/mformat/ogg-fmt.h>
 #include <FF/number.h>
 
 #include <ogg/ogg-crc.h>

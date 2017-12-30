@@ -2,7 +2,7 @@
 Copyright (c) 2015 Simon Zolin
 */
 
-#include <FF/audio/ogg.h>
+#include <FF/mformat/ogg.h>
 #include <FF/string.h>
 #include <FFOS/error.h>
 #include <FFOS/mem.h>

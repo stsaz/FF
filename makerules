@@ -77,11 +77,18 @@ $(FF_OBJ_DIR)/%.o: $(FF)/FF/net/%.c $(FF_HDR) $(FF_NET_HDR)
 
 
 # audio
-FF_AUDIO_HDR := $(wildcard $(FF)/FF/audio/*.h)
-FF_AUDIO_SRC := $(wildcard $(FF)/FF/audio/*.c)
-FF_AUDIO_OBJ := $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_AUDIO_SRC)))))
-FF_ALL_OBJ += $(FF_AUDIO_OBJ)
+FF_AUDIO_HDR := $(wildcard $(FF)/FF/audio/*.h) \
+	$(wildcard $(FF)/FF/aformat/*.h) \
+	$(wildcard $(FF)/FF/avformat/*.h)
+FF_AUDIO_SRC := $(wildcard $(FF)/FF/audio/*.c) \
+	$(wildcard $(FF)/FF/aformat/*.c) \
+	$(wildcard $(FF)/FF/avformat/*.c)
+FF_ALL_OBJ += $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_AUDIO_SRC)))))
 $(FF_OBJ_DIR)/%.o: $(FF)/FF/audio/%.c $(FF_HDR) $(FF_AUDIO_HDR)
+	$(C) $(FF_CFLAGS)  $< -o$@
+$(FF_OBJ_DIR)/%.o: $(FF)/FF/aformat/%.c $(FF_HDR) $(FF_AUDIO_HDR)
+	$(C) $(FF_CFLAGS)  $< -o$@
+$(FF_OBJ_DIR)/%.o: $(FF)/FF/avformat/%.c $(FF_HDR) $(FF_AUDIO_HDR)
 	$(C) $(FF_CFLAGS)  $< -o$@
 
 

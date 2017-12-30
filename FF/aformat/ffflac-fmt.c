@@ -2,7 +2,7 @@
 Copyright (c) 2016 Simon Zolin
 */
 
-#include <FF/audio/flac-fmt.h>
+#include <FF/aformat/flac-fmt.h>
 #include <FF/string.h>
 #include <FF/number.h>
 #include <FF/data/utf8.h>

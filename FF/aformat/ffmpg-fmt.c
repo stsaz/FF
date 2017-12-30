@@ -2,7 +2,7 @@
 Copyright (c) 2016 Simon Zolin
 */
 
-#include <FF/audio/mpeg-fmt.h>
+#include <FF/aformat/mpeg-fmt.h>
 #include <FF/array.h>
 #include <FF/number.h>
 

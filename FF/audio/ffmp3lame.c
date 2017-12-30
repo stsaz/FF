@@ -2,6 +2,7 @@
 Copyright (c) 2015 Simon Zolin
 */
 
+#include <FF/aformat/mp3.h>
 #include <FF/audio/mp3lame.h>
 #include <FFOS/error.h>
 
