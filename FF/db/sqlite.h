@@ -39,9 +39,16 @@ static FFINL int ffdb_prepare(ffdb *db, ffdb_stmt **pstmt, const char *sql)
 #define ffdb_errstr(db)  sqlite3_errmsg(db)
 #define ffdb_close(db)  sqlite3_close(db)
 
+/** Execute prepared statement.
+Return FFDB_ROW, SQLITE_DONE or error. */
 #define ffdb_next(stmt)  sqlite3_step(stmt)
+
+/** Reset statement, but keep bindings. */
 #define ffdb_reset(stmt)  sqlite3_reset(stmt)
+
+/** Clear bindings on SQL statement. */
 #define ffdb_clear_bindings(stmt)  sqlite3_clear_bindings(stmt)
+
 #define ffdb_changes(stmt)  sqlite3_changes(stmt)
 #define ffdb_fin(stmt)  sqlite3_finalize(stmt)
 

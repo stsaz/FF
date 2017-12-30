@@ -12,6 +12,12 @@ typedef struct { char a[6]; } ffeth;
 
 enum { FFETH_STRLEN = FFSLEN("00:00:00:00:00:00") };
 
+/** Return TRUE if address is "00:00:00:00:00:00". */
+static FFINL int ffeth_iszero(const ffeth *eth)
+{
+	return (*(uint*)eth == 0 && *(uint*)((char*)eth + 2) == 0);
+}
+
 /** Convert Ethernet address into string.
 Return number of bytes written;  0 if not enough space. */
 FF_EXTN uint ffeth_tostr(char *buf, size_t cap, const ffeth *eth);
