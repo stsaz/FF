@@ -87,19 +87,8 @@ static void print(const char *cmd, HWND h, size_t w, size_t l) {
 #endif
 
 
-#define call_dl(name) \
-do { \
-	ffdl dl = ffdl_open("user32.dll", 0); \
-	void __stdcall (*f)(); \
-	if (NULL != (f = (void __stdcall (*)())ffdl_addr(dl, #name))) \
-		f(); \
-	ffdl_close(dl); \
-} while (0)
-
 int ffui_init(void)
 {
-	call_dl(SetProcessDPIAware);
-
 	HDC hdc = GetDC(NULL);
 	if (hdc != NULL) {
 		_ffui_dpi = GetDeviceCaps(hdc, LOGPIXELSX);
@@ -113,6 +102,7 @@ void ffui_uninit(void)
 {
 	if (_ffui_flags & _FFUI_WNDSTYLE)
 		UnregisterClass(ctls[FFUI_UID_WINDOW].sid, GetModuleHandle(NULL));
+	_ffui_dpi = 0;
 }
 
 
@@ -323,13 +313,25 @@ static void getpos_noscale(HWND h, ffui_pos *r)
 	}
 }
 
-void ffui_getpos(void *ctl, ffui_pos *r)
+void ffui_getpos2(void *ctl, ffui_pos *r, uint flags)
 {
-	getpos_noscale(((ffui_ctl*)ctl)->h, r);
-	r->x = dpi_descale(r->x);
-	r->y = dpi_descale(r->y);
-	r->cx = dpi_descale(r->cx);
-	r->cy = dpi_descale(r->cy);
+	ffui_ctl *c = ctl;
+	if (flags & FFUI_FPOS_REL)
+		getpos_noscale(c->h, r);
+	else {
+		RECT rect;
+		if (flags & FFUI_FPOS_CLIENT)
+			GetClientRect(c->h, &rect);
+		else
+			GetWindowRect(c->h, &rect);
+		ffui_pos_fromrect(r, &rect);
+	}
+	if (flags & FFUI_FPOS_DPISCALE) {
+		r->x = dpi_descale(r->x);
+		r->y = dpi_descale(r->y);
+		r->cx = dpi_descale(r->cx);
+		r->cy = dpi_descale(r->cy);
+	}
 }
 
 static HWND create(enum FFUI_UID uid, const ffsyschar *text, HWND parent, const ffui_pos *r, uint style, uint exstyle, void *param)
@@ -982,6 +984,27 @@ HWND ffui_view_edit(ffui_view *v, uint i, uint sub)
 	return e.h;
 }
 
+void ffui_view_edit_set(ffui_view *v, uint i, uint sub)
+{
+	ffui_viewitem it = {0};
+	ffui_view_setindex(&it, i);
+	ffui_view_settextz(&it, v->text);
+	ffui_view_set(v, sub, &it);
+	ffui_view_itemreset(&it);
+}
+
+int ffui_view_edit_hittest(ffui_view *v, uint sub)
+{
+	int i, isub;
+	ffui_point pt;
+	ffui_cur_pos(&pt);
+	if (-1 == (i = ffui_view_hittest(v, &pt, &isub))
+		|| (uint)isub != sub)
+		return -1;
+	ffui_view_edit(v, i, sub);
+	return i;
+}
+
 /*
 Getting large text: call ListView_GetItem() with a larger buffer until the whole data has been received. */
 int ffui_view_get(ffui_view *v, int sub, ffui_viewitem *it)
@@ -1413,18 +1436,6 @@ int ffui_wnd_destroy(ffui_wnd *w)
 		DestroyWindow(w->ttip);
 
 	return ffui_ctl_destroy(w);
-}
-
-void ffui_wnd_pos(ffui_wnd *w, ffui_pos *pos)
-{
-	RECT rect;
-	GetWindowRect(w->h, &rect);
-	ffui_pos_fromrect(pos, &rect);
-
-	pos->x = dpi_descale(pos->x);
-	pos->y = dpi_descale(pos->y);
-	pos->cx = dpi_descale(pos->cx);
-	pos->cy = dpi_descale(pos->cy);
 }
 
 uint ffui_wnd_placement(ffui_wnd *w, ffui_pos *pos)

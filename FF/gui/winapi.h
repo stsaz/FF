@@ -251,7 +251,17 @@ typedef struct ffui_ctl {
 #define ffui_post(h, msg, w, l)  PostMessage(h, msg, (size_t)(w), (size_t)(l))
 #define ffui_ctl_send(c, msg, w, l)  ffui_send((c)->h, msg, w, l)
 
-FF_EXTN void ffui_getpos(void *ctl, ffui_pos *r);
+enum FFUI_FPOS {
+	FFUI_FPOS_DPISCALE = 1,
+	FFUI_FPOS_CLIENT = 2,
+	FFUI_FPOS_REL = 4,
+};
+
+/**
+@flags: enum FFUI_FPOS */
+FF_EXTN void ffui_getpos2(void *ctl, ffui_pos *r, uint flags);
+#define ffui_getpos(ctl, r) \
+	ffui_getpos2(ctl, r, FFUI_FPOS_DPISCALE | FFUI_FPOS_REL)
 
 FF_EXTN int ffui_setpos(void *ctl, int x, int y, int cx, int cy, int flags);
 #define ffui_setposrect(ctl, rect, flags) \
@@ -1035,6 +1045,13 @@ Listview must have LVS_EDITLABELS.
 When editing is finished, 'ffui_view.edit_id' is sent. */
 FF_EXTN HWND ffui_view_edit(ffui_view *v, uint i, uint sub);
 
+/** Start editing a sub-item if it's under mouse cursor.
+Return item index. */
+FF_EXTN int ffui_view_edit_hittest(ffui_view *v, uint sub);
+
+/** Set sub-item's text after the editing is done. */
+FF_EXTN void ffui_view_edit_set(ffui_view *v, uint i, uint sub);
+
 #define ffui_view_seticonlist(v, il)  ListView_SetImageList((v)->h, (il)->h, LVSIL_SMALL)
 
 
@@ -1150,6 +1167,9 @@ FF_EXTN int ffui_wndproc(ffui_wnd *wnd, size_t *code, HWND h, uint msg, size_t w
 
 FF_EXTN int ffui_wnd_create(ffui_wnd *w);
 
+#define ffui_desktop(w)  (w)->h = GetDesktopWindow()
+
+#define ffui_wnd_front(w)  (w)->h = GetForegroundWindow()
 #define ffui_wnd_setfront(w)  SetForegroundWindow((w)->h)
 
 static FFINL void ffui_wnd_icon(ffui_wnd *w, ffui_icon *big_ico, ffui_icon *small_ico)
@@ -1170,7 +1190,8 @@ FF_EXTN void ffui_wnd_opacity(ffui_wnd *w, uint percent);
 
 FF_EXTN int ffui_wnd_destroy(ffui_wnd *w);
 
-FF_EXTN void ffui_wnd_pos(ffui_wnd *w, ffui_pos *pos);
+#define ffui_wnd_pos(w, pos) \
+	ffui_getpos2(w, pos, FFUI_FPOS_DPISCALE)
 
 /** Get window placement.
 Return SW_*. */
