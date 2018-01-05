@@ -73,6 +73,7 @@ FF_EXTN int ffbmp_read(ffbmp *b);
 typedef struct ffbmp_cook {
 	uint state;
 	uint linesize;
+	uint linesize_o;
 	uint e;
 	ffstr data;
 	ffstr rgb;
@@ -91,7 +92,8 @@ FF_EXTN void ffbmp_wclose(ffbmp_cook *b);
 
 static FFINL uint ffbmp_wsize(ffbmp_cook *b)
 {
-	return b->info.height * b->info.width * (ffpic_bits(b->info.format) / 8);
+	uint lnsize = b->info.width * (ffpic_bits(b->info.format) / 8);
+	return b->info.height * ff_align_ceil2(lnsize, 4);
 }
 
 #define ffbmp_winput(b, data, len)  ffstr_set(&(b)->rgb, data, len)

@@ -124,7 +124,7 @@ int ffbmp_read(ffbmp *b)
 }
 
 
-enum { W_HDR, W_MORE, W_SEEK, W_DATA, };
+enum { W_HDR, W_MORE, W_SEEK, W_DATA, W_PAD };
 
 int ffbmp_create(ffbmp_cook *b, ffpic_info *info)
 {
@@ -143,6 +143,22 @@ void ffbmp_wclose(ffbmp_cook *b)
 	ffarr_free(&b->buf);
 }
 
+/** Write .bmp header. */
+static void bmp_hdr_write(ffbmp_cook *b, void *dst)
+{
+	struct bmp_hdr *h = dst;
+	ffmem_tzero(h);
+	ffmemcpy(h->bm, "BM", 2);
+	ffint_htol32(h->width, b->info.width);
+	ffint_htol32(h->height, b->info.height);
+	ffint_htol32(h->bpp, ffpic_bits(b->info.format));
+	ffint_htol16(h->planes, 1);
+	ffint_htol32(h->infosize, 40);
+	ffint_htol32(h->headersize, sizeof(struct bmp_hdr));
+	ffint_htol32(h->sizeimage, b->info.height * b->linesize);
+	ffint_htol32(h->filesize, sizeof(struct bmp_hdr) + b->info.height * b->linesize);
+}
+
 int ffbmp_write(ffbmp_cook *b)
 {
 	for (;;) {
@@ -150,22 +166,13 @@ int ffbmp_write(ffbmp_cook *b)
 
 	case W_HDR: {
 		uint bpp = ffpic_bits(b->info.format);
-		b->linesize = b->info.width * bpp / 8;
+		b->linesize = ff_align_ceil2(b->info.width * bpp / 8, 4);
+		b->linesize_o = b->info.width * bpp / 8;
 
 		if (NULL == ffarr_alloc(&b->buf, sizeof(struct bmp_hdr)))
 			return ERR(b, FFBMP_ESYS);
 
-		struct bmp_hdr *h = (void*)b->buf.ptr;
-		ffmem_tzero(h);
-		ffmemcpy(h->bm, "BM", 2);
-		ffint_htol32(h->width, b->info.width);
-		ffint_htol32(h->height, b->info.height);
-		ffint_htol32(h->bpp, bpp);
-		ffint_htol16(h->planes, 1);
-		ffint_htol32(h->infosize, 40);
-		ffint_htol32(h->headersize, sizeof(struct bmp_hdr));
-		ffint_htol32(h->sizeimage, b->info.height * b->linesize);
-		ffint_htol32(h->filesize, sizeof(struct bmp_hdr) + b->info.height * b->linesize);
+		bmp_hdr_write(b, (void*)b->buf.ptr);
 		ffstr_set(&b->data, b->buf.ptr, sizeof(struct bmp_hdr));
 		b->state = W_SEEK;
 		return FFBMP_DATA;
@@ -177,13 +184,24 @@ int ffbmp_write(ffbmp_cook *b)
 		return FFBMP_SEEK;
 
 	case W_DATA:
-		if (b->rgb.len != b->linesize) {
+		if (b->rgb.len < b->linesize_o) {
 			if (b->rgb.len != 0)
 				return ERR(b, FFBMP_ELINE);
 			return FFBMP_MORE;
 		}
 
-		ffstr_set(&b->data, b->rgb.ptr, b->linesize);
+		ffstr_set(&b->data, b->rgb.ptr, b->linesize_o);
+		ffstr_shift(&b->rgb, b->linesize_o);
+		b->state = W_PAD;
+		return FFBMP_DATA;
+
+	case W_PAD:
+		if (b->linesize == b->linesize_o) {
+			b->state = W_MORE;
+			break;
+		}
+		ffmem_zero(b->buf.ptr, b->linesize - b->linesize_o);
+		ffstr_set(&b->data, b->buf.ptr, b->linesize - b->linesize_o);
 		b->state = W_MORE;
 		return FFBMP_DATA;
 
@@ -191,7 +209,7 @@ int ffbmp_write(ffbmp_cook *b)
 		if (++b->line == b->info.height)
 			return FFBMP_DONE;
 		b->state = W_SEEK;
-		return FFBMP_MORE;
+		break;
 	}
 	}
 }
