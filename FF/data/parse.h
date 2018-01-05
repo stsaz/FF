@@ -81,6 +81,9 @@ FF_EXTN void ffpars_reset(ffparser *p);
 /** Free dynamic memory used by parser. */
 FF_EXTN void ffpars_free(ffparser *p);
 
+/** Get full error message. */
+FF_EXTN const char* ffpars_errmsg(ffparser *p, int r, char *buf, size_t cap);
+
 /** Copy the current value to the private buffer.
 Return 0 on success. */
 FF_EXTN int ffpars_savedata(ffparser *p);
@@ -267,6 +270,9 @@ static FFINL void* ffpars_arg_ptr(const ffpars_arg *a, void *obj)
 {
 	return (a->flags & FFPARS_FPTR) ? a->dst.b : obj + a->dst.off;
 }
+
+/** Get integer value from ffpars_arg meta and a value pointer. */
+FF_EXTN int64 ffpars_getint(const ffpars_arg *a, union ffpars_val u);
 
 /** Call handler function or set target value.
 @ps: will be passed to handler function (optional)

@@ -70,6 +70,19 @@ void ffpars_free(ffparser *p)
 	ffarr_free(&p->ctxs);
 }
 
+const char* ffpars_errmsg(ffparser *p, int r, char *buf, size_t cap)
+{
+	char *end = buf + cap;
+	size_t n = ffs_fmt(buf, end, "%u:%u near \"%S\" : %s%Z"
+		, p->line, p->ch, &p->val, ffpars_errstr(r));
+	if (r == FFPARS_ESYS) {
+		if (n != 0)
+			n--;
+		n += ffs_fmt(buf + n, end, " : %E%Z", fferr_last());
+	}
+	return (n != 0) ? buf : "";
+}
+
 int _ffpars_hdlCmt(int *st, int ch)
 {
 	switch (*st) {
@@ -420,6 +433,39 @@ static int _ffpars_intval(const ffpars_arg *a, int64 n, void *obj, void *ps)
 	}
 
 	return 0;
+}
+
+int64 ffpars_getint(const ffpars_arg *a, union ffpars_val u)
+{
+	size_t f = a->flags;
+	uint width = PARS_WIDTH(f);
+	int64 n;
+
+	if (f & FFPARS_FSIGN) {
+		switch (width) {
+		case 64:
+			n = *u.i64; break;
+		case 32:
+			n = *u.i32; break;
+		case 16:
+			n = *u.i16; break;
+		case 8:
+			n = (char)*u.b; break;
+		}
+	} else {
+		switch (width) {
+		case 64:
+			n = *u.i64; break;
+		case 32:
+			n = (uint)*u.i32; break;
+		case 16:
+			n = (ushort)*u.i16; break;
+		case 8:
+			n = (byte)*u.b; break;
+		}
+	}
+
+	return n;
 }
 
 static int _ffpars_flt(const ffpars_arg *a, double val, void *obj, void *ps)

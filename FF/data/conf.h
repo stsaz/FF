@@ -67,3 +67,17 @@ Return 0 on success. */
 FF_EXTN int ffconf_schemfin(ffparser_schem *ps);
 
 FF_EXTN int ffconf_schemrun(ffparser_schem *ps);
+
+
+struct ffconf_loadfile {
+	const char *fn;
+	void *obj;
+	const ffpars_arg *args;
+	uint nargs;
+	uint bufsize;
+	char errstr[256];
+};
+
+/** Parse data from file using scheme.
+Return 0 on success or enum FFPARS_E. */
+FF_EXTN int ffconf_loadfile(struct ffconf_loadfile *c);

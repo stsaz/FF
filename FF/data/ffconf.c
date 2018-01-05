@@ -643,3 +643,65 @@ int ffconf_schemrun(ffparser_schem *ps)
 
 	return r;
 }
+
+
+int ffconf_loadfile(struct ffconf_loadfile *c)
+{
+	int r;
+	size_t n;
+	char *buf = NULL;
+	ffstr s;
+	fffd f = FF_BADFD;
+	ffparser p;
+	ffparser_schem ps;
+	ffpars_ctx ctx = {0};
+
+	if (c->bufsize == 0)
+		c->bufsize = 4096;
+
+	ffpars_setargs(&ctx, c->obj, c->args, c->nargs);
+	r = ffconf_scheminit(&ps, &p, &ctx);
+	if (r != 0)
+		goto done;
+
+	if (FF_BADFD == (f = fffile_open(c->fn, O_RDONLY))) {
+		r = FFPARS_ESYS;
+		goto done;
+	}
+
+	if (NULL == (buf = ffmem_alloc(c->bufsize))) {
+		r = FFPARS_ESYS;
+		goto done;
+	}
+
+	for (;;) {
+		n = fffile_read(f, buf, c->bufsize);
+		if (n == (size_t)-1) {
+			r = FFPARS_ESYS;
+			goto done;
+		} else if (n == 0)
+			break;
+		ffstr_set(&s, buf, n);
+
+		while (s.len != 0) {
+			r = ffconf_parsestr(&p, &s);
+			r = ffconf_schemrun(&ps);
+
+			if (ffpars_iserr(r))
+				goto done;
+		}
+	}
+
+	r = ffconf_schemfin(&ps);
+
+done:
+	if (ffpars_iserr(r)) {
+		ffpars_errmsg(&p, r, c->errstr, sizeof(c->errstr));
+	}
+
+	ffpars_free(&p);
+	ffpars_schemfree(&ps);
+	ffmem_safefree(buf);
+	FF_SAFECLOSE(f, FF_BADFD, fffile_close);
+	return r;
+}
