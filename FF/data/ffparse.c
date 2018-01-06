@@ -733,6 +733,32 @@ const char * ffpars_schemerrstr(ffparser_schem *ps, int code, char *buf, size_t 
 	return _ffpars_serr[code];
 }
 
+int ffpars_scheme_write(char *buf, const ffpars_arg *arg, void *obj, ffstr *out)
+{
+	union ffpars_val u;
+	u.b = ffpars_arg_ptr(arg, obj);
+	uint t = (arg->flags & FFPARS_FTYPEMASK);
+	switch (t) {
+	case FFPARS_TSTR:
+		ffstr_set2(out, u.s);
+		break;
+	case FFPARS_TCHARPTR:
+		ffstr_setz(out, *u.charptr);
+		break;
+	case FFPARS_TINT: {
+		int64 val = ffpars_getint(arg, u);
+		uint f = (arg->flags & FFPARS_FSIGN) ? FFINT_SIGNED : 0;
+		uint n = ffs_fromint(val, buf, 64, f);
+		ffstr_set(out, buf, n);
+		break;
+	}
+	default:
+		return FFPARS_EVALTYPE;
+	}
+
+	return 0;
+}
+
 
 int ffsvar_parse(ffsvar *p, const char *data, size_t *plen)
 {

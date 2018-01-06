@@ -384,14 +384,21 @@ int ffconf_write(ffconfw *c, const char *data, size_t len, uint flags)
 	ffstr d;
 	ffstr_set(&d, data, len);
 	ssize_t r = 0;
-	ffbool esc = 0;
+	ffbool esc = 0, lf = 0;
 
-	if (flags == FFCONF_TKEY) {
+	if (flags == FFCONF_WRITE_FIN) {
+		if (NULL == ffarr_append(&c->buf, "\n", 1))
+			return -1;
+		return 0;
+	} else if (flags == FFCONF_TKEY) {
 		if (data == NULL)
 			return 0;
 		if (len == 0)
 			return -1;
-		r += FFSLEN("\n");
+		if (c->buf.len != 0) {
+			r += FFSLEN("\n");
+			lf = 1;
+		}
 	} else if (flags == FFCONF_TVAL)
 		r += FFSLEN(" ");
 
@@ -407,7 +414,7 @@ int ffconf_write(ffconfw *c, const char *data, size_t len, uint flags)
 		return -1;
 	char *dst = ffarr_end(&c->buf);
 
-	if (flags == FFCONF_TKEY)
+	if (flags == FFCONF_TKEY && lf)
 		*dst++ = '\n';
 	else if (flags == FFCONF_TVAL)
 		*dst++ = ' ';

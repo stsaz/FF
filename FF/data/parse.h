@@ -347,6 +347,11 @@ FF_EXTN int ffpars_setctx(ffparser_schem *ps, void *o, const ffpars_arg *args, u
 /** Get error message. */
 FF_EXTN const char * ffpars_schemerrstr(ffparser_schem *ps, int code, char *buf, size_t cap);
 
+/** Get text data from internal representation using scheme.
+@buf: char[64]
+Return 0 or enum FFPARS_E. */
+FF_EXTN int ffpars_scheme_write(char *buf, const ffpars_arg *arg, void *obj, ffstr *out);
+
 
 typedef struct ffsvar {
 	ffstr val;

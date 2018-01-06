@@ -51,8 +51,12 @@ typedef struct ffconfw {
 	ffarr buf;
 } ffconfw;
 
+enum FFCONF_WRITE {
+	FFCONF_WRITE_FIN = ~0U,
+};
+
 /** Add one element.
-flags: enum FFCONF_T. */
+flags: enum FFCONF_T or enum FFCONF_WRITE. */
 FF_EXTN int ffconf_write(ffconfw *c, const char *data, size_t len, uint flags);
 
 FF_EXTN void ffconf_wdestroy(ffconfw *c);
