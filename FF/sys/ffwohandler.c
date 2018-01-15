@@ -80,7 +80,7 @@ void ffwoh_rm(ffwoh *oh, HANDLE h)
 		if (oh->hdls[i] != h)
 			continue;
 
-		is_wrker = (GetCurrentThreadId() == GetThreadId(oh->thd));
+		is_wrker = (ffthd_curid() == oh->tid);
 
 		fflk_lock(&oh->lk);
 		if (!is_wrker) {
@@ -106,6 +106,7 @@ void ffwoh_rm(ffwoh *oh, HANDLE h)
 static int FFTHDCALL _ffwoh_evt_handler(void *param)
 {
 	ffwoh *oh = param;
+	FF_WRITEONCE(&oh->tid, ffthd_curid());
 
 	for (;;) {
 		uint count = oh->count; //oh->count may be incremented

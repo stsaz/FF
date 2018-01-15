@@ -26,6 +26,7 @@ typedef struct ffwoh {
 	HANDLE wake_evt
 		, wait_evt;
 	ffthd thd;
+	uint tid;
 	ffatomic cmd;
 	fflock lk;
 } ffwoh;
