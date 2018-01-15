@@ -888,27 +888,29 @@ do { \
 
 #define ffui_view_showgroups(v, show)  ffui_send((v)->h, LVM_ENABLEGROUPVIEW, show, 0)
 
+#if (FF_WIN >= 0x0600)
 #define ffui_view_ngroups(v)  ffui_send((v)->h, LVM_GETGROUPCOUNT, 0, 0)
+#endif
 
 #define ffui_view_delgrp(v, i)  ffui_send((v)->h, LVM_REMOVEGROUP, i, 0)
 
-static FFINL int ffui_view_insgrp(ffui_view *v, int pos, ffui_viewgrp *vg)
+static FFINL int ffui_view_insgrp(ffui_view *v, int pos, int id, ffui_viewgrp *vg)
 {
-	vg->grp.iGroupId = ffui_view_ngroups(v);
-	ffui_send(v->h, LVM_INSERTGROUP, pos, &vg->grp);
+	vg->grp.iGroupId = id;
+	int r = ffui_send(v->h, LVM_INSERTGROUP, pos, &vg->grp);
 	ffui_viewgrp_reset(vg);
-	return vg->grp.iGroupId;
+	return r;
 }
 
 static FFINL void ffui_view_setgrp(ffui_view *v, int i, ffui_viewgrp *vg)
 {
-	ffui_send(v->h, LVM_GETGROUPINFO, i, &vg->grp);
+	ffui_send(v->h, LVM_SETGROUPINFO, i, &vg->grp);
 	ffui_viewgrp_reset(vg);
 }
 
 static FFINL void ffui_view_grp(ffui_view *v, int i, ffui_viewgrp *vg)
 {
-	ffui_send(v->h, LVM_SETGROUPINFO, i, &vg->grp);
+	ffui_send(v->h, LVM_GETGROUPINFO, i, &vg->grp);
 }
 
 

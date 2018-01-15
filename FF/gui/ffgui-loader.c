@@ -349,8 +349,11 @@ static int ico_done(ffparser_schem *ps, void *obj)
 	ffsz_copy(p, fn + FFCNT(fn) - p, ico->fn.ptr, ico->fn.len);
 	ffstr_free(&ico->fn);
 	if (ico->cx != 0) {
-		if (0 != ffui_icon_loadimg(&ico->icon, fn, ico->cx, ico->cy, FFUI_ICON_DPISCALE))
-			return FFPARS_ESYS;
+		if (0 != ffui_icon_loadimg(&ico->icon, fn, ico->cx, ico->cy, FFUI_ICON_DPISCALE)) {
+			//Note: winXP can't read PNG-compressed icons.  Load the first icon.
+			if (0 != ffui_icon_load(&ico->icon, fn, 0, 0))
+				return FFPARS_ESYS;
+		}
 	} else {
 		if (0 != ffui_icon_load(&ico->icon, fn, 0, 0))
 			return FFPARS_ESYS;
