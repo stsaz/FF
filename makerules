@@ -88,7 +88,7 @@ $(FF_OBJ_DIR)/%.o: $(FF)/FF/audio/%.c $(FF_HDR) $(FF_AUDIO_HDR)
 	$(C) $(FF_CFLAGS)  $< -o$@
 $(FF_OBJ_DIR)/%.o: $(FF)/FF/aformat/%.c $(FF_HDR) $(FF_AUDIO_HDR)
 	$(C) $(FF_CFLAGS)  $< -o$@
-$(FF_OBJ_DIR)/%.o: $(FF)/FF/avformat/%.c $(FF_HDR) $(FF_AUDIO_HDR)
+$(FF_OBJ_DIR)/%.o: $(FF)/FF/mformat/%.c $(FF_HDR) $(FF_AUDIO_HDR)
 	$(C) $(FF_CFLAGS)  $< -o$@
 
 

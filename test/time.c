@@ -59,7 +59,7 @@ static void test_time_dt(void)
 
 	fftime_join(&t2, &dt, FFTIME_TZLOCAL);
 	if (!tz.have_dst)
-		x(t2.s + tz.off == t.s);
+		x(fftime_sec(&t2) + tz.off == fftime_sec(&t));
 	fftime_split(&dt2, &t2, FFTIME_TZLOCAL);
 	x(!memcmp(&dt, &dt2, sizeof(dt)));
 
@@ -136,7 +136,8 @@ int test_time()
 	x(0 == fftime_fromstr(&dt2, FFSTR("Mon, 19 May 2014 25:52:36 GMT"), FFTIME_WDMY));
 	}
 
-	x(fftime_join(&t, &dt, FFTIME_TZUTC)->s == fftime_strtounix(FFSTR("Mon, 19 May 2014 08:52:36 GMT"), FFTIME_WDMY));
+	fftime_join(&t, &dt, FFTIME_TZUTC);
+	x(fftime_sec(&t) == fftime_strtounix(FFSTR("Mon, 19 May 2014 08:52:36 GMT"), FFTIME_WDMY));
 	x((time_t)-1 == fftime_strtounix(FFSTR("Mon, 19 May 201408:52:36 GMT"), FFTIME_WDMY));
 
 	return 0;
