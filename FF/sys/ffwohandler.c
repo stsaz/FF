@@ -5,6 +5,7 @@ Copyright (c) 2015 Simon Zolin
 #include <FF/sys/wohandler.h>
 #include <FF/string.h>
 #include <FFOS/mem.h>
+#include <FFOS/error.h>
 
 
 enum {
@@ -62,11 +63,19 @@ void ffwoh_free(ffwoh *oh)
 
 int ffwoh_add(ffwoh *oh, HANDLE h, ffwoh_handler_t handler, void *udata)
 {
-	if (oh->count == MAXIMUM_WAIT_OBJECTS || oh->count == (uint)-1)
+	fflk_lock(&oh->lk);
+	if (oh->count == MAXIMUM_WAIT_OBJECTS || oh->count == (uint)-1) {
+		if (oh->count == MAXIMUM_WAIT_OBJECTS)
+			fferr_set(EOVERFLOW);
+		else
+			fferr_set(oh->thderr);
+		fflk_unlock(&oh->lk);
 		return 1;
+	}
 	oh->items[oh->count].handler = handler;
 	oh->items[oh->count].udata = udata;
 	oh->hdls[oh->count++] = h;
+	fflk_unlock(&oh->lk);
 	SetEvent(oh->wake_evt);
 	return 0;
 }
@@ -109,11 +118,16 @@ static int FFTHDCALL _ffwoh_evt_handler(void *param)
 	FF_WRITEONCE(&oh->tid, ffthd_curid());
 
 	for (;;) {
+		fflk_lock(&oh->lk);
 		uint count = oh->count; //oh->count may be incremented
+		fflk_unlock(&oh->lk);
 		DWORD i = WaitForMultipleObjects(count, oh->hdls, 0, INFINITE);
 
 		if (i >= WAIT_OBJECT_0 + count) {
+			fflk_lock(&oh->lk);
 			oh->count = (uint)-1;
+			oh->thderr = (i == WAIT_FAILED) ? fferr_last() : 0;
+			fflk_unlock(&oh->lk);
 			return 1;
 		}
 

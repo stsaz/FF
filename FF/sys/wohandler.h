@@ -27,6 +27,7 @@ typedef struct ffwoh {
 		, wait_evt;
 	ffthd thd;
 	uint tid;
+	uint thderr;
 	ffatomic cmd;
 	fflock lk;
 } ffwoh;
@@ -34,8 +35,11 @@ typedef struct ffwoh {
 FF_EXTN ffwoh* ffwoh_create(void);
 FF_EXTN void ffwoh_free(ffwoh *oh);
 
-/** Associate HANDLE with user-function. */
+/** Associate HANDLE with user-function.
+Can be called safely from a user-function.
+Return 0 on success.  On failure, 'errno' may be set to an error from WOH-thread. */
 FF_EXTN int ffwoh_add(ffwoh *oh, HANDLE h, ffwoh_handler_t handler, void *udata);
 
-/** Unregister HANDLE. */
+/** Unregister HANDLE.
+Can be called safely from a user-function. */
 FF_EXTN void ffwoh_rm(ffwoh *oh, HANDLE h);
