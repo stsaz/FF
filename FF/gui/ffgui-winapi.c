@@ -9,6 +9,7 @@ Copyright (c) 2014 Simon Zolin
 #include <FFOS/file.h>
 #include <FFOS/process.h>
 #include <FFOS/dir.h>
+#include <FFOS/thread.h>
 
 #include <shlobj.h>
 #include <objidl.h>
@@ -17,6 +18,7 @@ Copyright (c) 2014 Simon Zolin
 
 
 static int _ffui_dpi;
+static uint _curthd_id; //ID of the thread running GUI message loop
 
 enum {
 	_FFUI_WNDSTYLE = 1
@@ -89,6 +91,7 @@ static void print(const char *cmd, HWND h, size_t w, size_t l) {
 
 int ffui_init(void)
 {
+	_curthd_id = ffthd_curid();
 	HDC hdc = GetDC(NULL);
 	if (hdc != NULL) {
 		_ffui_dpi = GetDeviceCaps(hdc, LOGPIXELSX);
@@ -2003,12 +2006,22 @@ static int process_accels(MSG *m)
 	return 0;
 }
 
+#define FFUI_THDMSG  (WM_APP + 1)
+
 int ffui_runonce(void)
 {
 	MSG m;
 
+	// 2nd arg =NULL instructs to receive window-messages AND thread-messages
 	if (!GetMessage(&m, NULL, 0, 0))
 		return 1;
+
+	if (m.hwnd == NULL && m.message == FFUI_THDMSG) {
+		ffui_handler func = (void*)m.wParam;
+		void *udata = (void*)m.lParam;
+		func(udata);
+		return 0;
+	}
 
 	if (0 != process_accels(&m))
 		return 0;
@@ -2016,6 +2029,11 @@ int ffui_runonce(void)
 	TranslateMessage(&m);
 	DispatchMessage(&m);
 	return 0;
+}
+
+void ffui_thd_post(ffui_handler func, void *udata)
+{
+	PostThreadMessage(_curthd_id, FFUI_THDMSG, (WPARAM)func, (LPARAM)udata);
 }
 
 

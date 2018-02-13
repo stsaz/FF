@@ -1246,6 +1246,11 @@ static FFINL void ffui_run(void)
 		;
 }
 
+typedef void (*ffui_handler)(void *param);
+
+/** Post a task to the thread running GUI message loop. */
+FF_EXTN void ffui_thd_post(ffui_handler func, void *udata);
+
 
 // CLIPBOARD
 /** Return 0 on success. */
