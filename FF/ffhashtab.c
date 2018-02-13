@@ -148,7 +148,7 @@ int ffhst_walk(ffhstab *ht, ffhst_walk_func func, void *param)
 	ffhst_item *it;
 	int r;
 
-	end = ht->slots + ht->len;
+	end = ht->slots + ht->nslots;
 	for (slot = ht->slots;  slot != end;  slot++) {
 		if (hst_slot_empty(slot))
 			continue;
