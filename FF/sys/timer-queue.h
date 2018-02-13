@@ -12,7 +12,7 @@ typedef void (*fftmrq_handler)(const fftime *now, void *param);
 
 typedef struct fftmrq_entry {
 	fftree_node8 tnode;
-	uint64 interval;
+	int64 interval;
 	fftmrq_handler handler;
 	void *param;
 } fftmrq_entry;
@@ -41,7 +41,7 @@ static FFINL ffbool fftmrq_active(fftimer_queue *tq, fftmrq_entry *t) {
 @interval: periodic if >0, one-shot if <0.*/
 static FFINL void fftmrq_add(fftimer_queue *tq, fftmrq_entry *t, int64 interval) {
 	t->tnode.key = tq->msec_time + ffabs(interval);
-	t->interval = (interval > 0) ? interval : 0;
+	t->interval = interval;
 	ffrbt_insert(&tq->items, (ffrbt_node*)&t->tnode, NULL);
 }
 

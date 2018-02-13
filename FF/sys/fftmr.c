@@ -21,7 +21,7 @@ static void tree_instimer(fftree_node *nod, fftree_node **root, void *sentl)
 
 		// find parent node and the pointer to its left/right node
 		for (;;) {
-			if (((fftree_node8*)nod)->key < ((fftree_node8*)parent)->key)
+			if ((int64)((fftree_node8*)nod)->key < (int64)((fftree_node8*)parent)->key)
 				pchild = &parent->left;
 			else
 				pchild = &parent->right;
@@ -38,6 +38,14 @@ static void tree_instimer(fftree_node *nod, fftree_node **root, void *sentl)
 	nod->left = nod->right = sentl;
 }
 
+/** Set the current clock value. */
+static void tmrq_update(fftimer_queue *tq)
+{
+	fftime now;
+	ffclk_gettime(&now);
+	tq->msec_time = fftime_ms(&now);
+}
+
 void fftmrq_init(fftimer_queue *tq)
 {
 	tq->tmr = FF_BADTMR;
@@ -48,9 +56,7 @@ void fftmrq_init(fftimer_queue *tq)
 	tq->kev.handler = &tmrq_onfire;
 	tq->kev.udata = tq;
 
-	fftime now;
-	fftime_now(&now);
-	tq->msec_time = fftime_ms(&now);
+	tmrq_update(tq);
 }
 
 int fftmrq_start(fftimer_queue *tq, fffd kq, uint interval_ms)
@@ -63,9 +69,7 @@ int fftmrq_start(fftimer_queue *tq, fffd kq, uint interval_ms)
 	int r = fftmr_start(tq->tmr, kq, ffkev_ptr(&tq->kev), interval_ms);
 	if (r == 0) {
 		tq->started = 1;
-		fftime now;
-		fftime_now(&now);
-		tq->msec_time = fftime_ms(&now);
+		tmrq_update(tq);
 	}
 	return r;
 }
@@ -93,26 +97,35 @@ static void tmrq_onfire(void *t)
 	fftimer_queue *tq = t;
 	fftree_node *nod;
 	fftmrq_entry *ent;
-	fftime now;
-	fftime_now(&now);
+	fftime now, utc;
+	uint64 next;
 
+	fftime_now(&utc);
+	ffclk_gettime(&now);
 	tq->msec_time = fftime_ms(&now);
 
-	while (tq->items.len != 0) {
+	while (!ffrbt_empty(&tq->items)) {
 		nod = fftree_min((fftree_node*)tq->items.root, &tq->items.sentl);
 		ent = FF_GETPTR(fftmrq_entry, tnode, nod);
-		if (((fftree_node8*)nod)->key > tq->msec_time)
+		uint64 key = ((fftree_node8*)nod)->key;
+		if ((int64)tq->msec_time < (int64)key)
 			break;
 
-		fftmrq_rm(tq, ent);
-		if (ent->interval != 0)
-			fftmrq_add(tq, ent, ent->interval);
+		if (ent->interval <= 0)
+			fftmrq_rm(tq, ent);
+		else {
+			fftmrq_rm(tq, ent);
+			ent->tnode.key = ffmax(key + ffabs(ent->interval), tq->msec_time + 1);
+			ffrbt_insert(&tq->items, (ffrbt_node*)&ent->tnode, NULL);
+		}
+		next = ent->tnode.key;
+		(void)next;
 
-		FFDBG_PRINTLN(10, "%U.%06u: %p, interval:%u  key:%U [%L]"
+		FFDBG_PRINTLN(FFDBG_TIMER | 5, "%U.%06u: %p, interval:%D  key:%U  next:%U [%L]"
 			, (int64)fftime_sec(&now), (int)fftime_usec(&now)
-			, ent, ent->interval, ((fftree_node8*)nod)->key, tq->items.len);
+			, ent, ent->interval, key, next, tq->items.len);
 
-		ent->handler(&now, ent->param);
+		ent->handler(&utc, ent->param);
 	}
 
 	fftmr_read(tq->tmr);
