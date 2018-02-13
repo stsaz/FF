@@ -318,10 +318,57 @@ static int test_args_err()
 	return 0;
 }
 
+#define RES_STR \
+"# comment-sharp\n\
+ctx param {\n\
+	k 1234567890 val\n\
+	\"k-2\" \"v-2\"\n\
+	k2 {\n\
+		k3\n\
+	}\n\
+}\n"
+
+static void test_conf_write(void)
+{
+	FFTEST_FUNC;
+	ffconfw cw;
+	ffconf_winit(&cw, NULL, 0);
+	cw.flags |= FFCONF_PRETTY;
+
+	ffconf_write(&cw, "comment-sharp", FFCONF_STRZ, FFCONF_TCOMMENTSHARP);
+
+	ffconf_write(&cw, "ctx", 3, FFCONF_TKEY);
+	ffconf_write(&cw, "param", FFCONF_STRZ, FFCONF_TVAL);
+	ffconf_write(&cw, NULL, FFCONF_OPEN, FFCONF_TOBJ);
+
+		ffconf_write(&cw, "k", FFCONF_STRZ, FFCONF_TKEY);
+		int64 i = 1234567890;
+		ffconf_write(&cw, &i, FFCONF_INT64, FFCONF_TVAL);
+		ffconf_write(&cw, "val", FFCONF_STRZ, FFCONF_TVAL);
+
+		ffconf_write(&cw, "k-2", FFCONF_STRZ, FFCONF_TKEY);
+		ffconf_write(&cw, "v-2", FFCONF_STRZ, FFCONF_TVAL);
+
+		ffconf_write(&cw, "k2", FFCONF_STRZ, FFCONF_TKEY);
+		ffconf_write(&cw, NULL, FFCONF_OPEN, FFCONF_TOBJ);
+			ffconf_write(&cw, "k3", FFCONF_STRZ, FFCONF_TKEY);
+		ffconf_write(&cw, NULL, FFCONF_CLOSE, FFCONF_TOBJ);
+
+	ffconf_write(&cw, NULL, FFCONF_CLOSE, FFCONF_TOBJ);
+	x(0 != ffconf_write(&cw, NULL, 0, FFCONF_FIN));
+
+	ffstr s;
+	ffconf_output(&cw, &s);
+	if (!x(ffstr_eqz(&s, RES_STR)))
+		fffile_write(ffstdout, s.ptr, s.len);
+	ffconf_wdestroy(&cw);
+}
+
 int test_conf()
 {
 	FFTEST_FUNC;
 
+	test_conf_write();
 	test_conf_parse(TESTDIR "/schem.conf");
 	test_conf_schem(TESTDIR "/schem.conf");
 	return 0;

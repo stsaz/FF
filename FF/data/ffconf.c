@@ -379,62 +379,156 @@ static ssize_t ffs_escape_conf_str(char *dst, size_t cap, const char *data, size
 	return dst - dsto;
 }
 
-int ffconf_write(ffconfw *c, const char *data, size_t len, uint flags)
+enum { W_FIRST, W_NEXT, W_ERR };
+
+/** Write into c->buf (dont't allocate).
+Return # of written bytes;  0 on error;  <0 if need more space. */
+static ssize_t _ffconf_write(ffconfw *c, const void *data, ssize_t len, uint flags)
 {
+	char *dst = ffarr_end(&c->buf), *end = ffarr_edge(&c->buf);
 	ffstr d;
-	ffstr_set(&d, data, len);
-	ssize_t r = 0;
-	ffbool esc = 0, lf = 0;
+	size_t r = 0;
+	ffbool text = 0;
+	uint pretty_lev = ((c->flags | flags) & FFCONF_PRETTY) ? c->level : 0;
+	uint t = flags & 0xff;
+	ffconfw bkp = *c;
 
-	if (flags == FFCONF_WRITE_FIN) {
-		if (NULL == ffarr_append(&c->buf, "\n", 1))
-			return -1;
+	if (c->state == W_ERR)
 		return 0;
-	} else if (flags == FFCONF_TKEY) {
-		if (data == NULL)
+
+	if (len == FFCONF_STRZ)
+		len = ffsz_len(data);
+	ffstr_set(&d, data, len);
+
+	switch (t) {
+
+	case FFCONF_TKEY:
+		FF_ASSERT(len > 0);
+		if (len == 0) {
+			c->state = W_ERR;
 			return 0;
-		if (len == 0)
-			return -1;
-		if (c->buf.len != 0) {
-			r += FFSLEN("\n");
-			lf = 1;
 		}
-	} else if (flags == FFCONF_TVAL)
-		r += FFSLEN(" ");
+		if (c->state != W_FIRST)
+			dst = ffs_copyc(dst, end, '\n');
+		if (pretty_lev != 0)
+			dst += ffs_fmt(dst, end, "%*c", (size_t)pretty_lev, '\t');
+		r = FFSLEN("\n") + pretty_lev;
+		text = 1;
+		c->state = W_NEXT;
+		break;
 
-	if (len == 0 || d.ptr + d.len != ffs_skip_mask(d.ptr, d.len, ffcharmask_name)) {
-		r += ffs_escape_conf_str(NULL, 0, d.ptr, d.len);
-		r += FFSLEN("\"\"");
-		esc = 1;
-	} else {
-		r += d.len;
+	case FFCONF_TVAL:
+		dst = ffs_copyc(dst, end, ' ');
+		r = FFSLEN(" ");
+		if (len == FFCONF_INT64) {
+			dst += ffs_fromint(*(int64*)data, dst, end - dst, 0);
+			r += FFINT_MAXCHARS;
+		} else
+			text = 1;
+		break;
+
+	case FFCONF_TOBJ:
+		if (len == FFCONF_OPEN) {
+			dst = ffs_copyc(dst, end, ' ');
+			dst = ffs_copyc(dst, end, '{');
+			c->level++;
+		} else if (len == FFCONF_CLOSE) {
+			dst = ffs_copyc(dst, end, '\n');
+			if (pretty_lev > 1)
+				dst += ffs_fmt(dst, end, "%*c", (size_t)pretty_lev - 1, '\t');
+			dst = ffs_copyc(dst, end, '}');
+			FF_ASSERT(c->level != 0);
+			c->level--;
+		}
+		r = pretty_lev + FFSLEN(" {");
+		break;
+
+	case FFCONF_TCOMMENTSHARP:
+		FF_ASSERT(len >= 0);
+		if (c->state != W_FIRST)
+			dst = ffs_copyc(dst, end, '\n');
+		dst += ffs_fmt(dst, end, "%*c# ", (size_t)pretty_lev, '\t');
+		dst = ffs_copy(dst, end, d.ptr, d.len);
+		r = pretty_lev + FFSLEN("\n# ") + d.len;
+		c->state = W_NEXT;
+		break;
+
+	case FFCONF_FIN:
+		if (c->level != 0) {
+			c->state = W_ERR;
+			return 0;
+		}
+		dst = ffs_copyc(dst, end, '\n');
+		r = FFSLEN("\n");
+		c->state = W_FIRST;
+		break;
+
+	default:
+		c->state = W_ERR;
+		return 0;
 	}
 
-	if (NULL == ffarr_grow(&c->buf, r, 256 | FFARR_GROWQUARTER))
-		return -1;
-	char *dst = ffarr_end(&c->buf);
-
-	if (flags == FFCONF_TKEY && lf)
-		*dst++ = '\n';
-	else if (flags == FFCONF_TVAL)
-		*dst++ = ' ';
-
-	if (esc) {
-		*dst++ = '"';
-		dst += ffs_escape_conf_str(dst, ffarr_unused(&c->buf), d.ptr, d.len);
-		*dst++ = '"';
-
-	} else {
-		dst = ffmem_copy(dst, d.ptr, d.len);
+	if (text) {
+		if (d.len == 0 // empty value must be within quotes ("")
+			|| d.ptr + d.len != ffs_skip_mask(d.ptr, d.len, ffcharmask_name)) {
+			char *s = dst;
+			int rr;
+			dst = ffs_copyc(dst, end, '"');
+			rr = ffs_escape_conf_str(dst, end - dst, d.ptr, d.len);
+			if (rr >= 0)
+				dst += rr;
+			else
+				dst = end;
+			dst = ffs_copyc(dst, end, '"');
+			if (dst == end)
+				r += FFSLEN("\"\"") + ffs_escape_conf_str(NULL, 0, d.ptr, d.len);
+			else
+				r += dst - s;
+		} else {
+			dst = ffs_copy(dst, end, d.ptr, d.len);
+			r += d.len;
+		}
 	}
 
-	c->buf.len = dst - c->buf.ptr;
-	return 0;
+	if (dst == ffarr_edge(&c->buf)) {
+		r = -(r + 1);
+		c->level = bkp.level;
+		c->state = bkp.state;
+	} else {
+		r = dst - ffarr_end(&c->buf);
+		c->buf.len = dst - c->buf.ptr;
+	}
+	return r;
+}
+
+size_t ffconf_write(ffconfw *c, const void *data, ssize_t len, uint flags)
+{
+	ssize_t r;
+
+	r = _ffconf_write(c, data, len, flags);
+	if (r >= 0)
+		return r;
+	r = -r;
+
+	if (!((c->flags | flags) & FFCONF_GROW))
+		return 0;
+
+	if (NULL == ffarr_grow(&c->buf, r, 256 | FFARR_GROWQUARTER)) {
+		c->state = W_ERR;
+		return 0;
+	}
+
+	r = _ffconf_write(c, data, len, flags);
+	FF_ASSERT(r > 0);
+	if (r < 0)
+		r = 0;
+	return r;
 }
 
 void ffconf_wdestroy(ffconfw *c)
 {
-	ffarr_free(&c->buf);
+	if (c->flags & FFCONF_GROW)
+		ffarr_free(&c->buf);
 }
 
 
