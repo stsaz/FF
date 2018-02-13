@@ -579,7 +579,7 @@ static FFINL size_t ffstr_nextval3(ffstr *src, ffstr *dst, int spl)
 }
 
 #define ffstr_toint(s, dst, flags) \
-	((s)->len == ffs_toint((s)->ptr, (s)->len, dst, flags))
+	((s)->len != 0 && (s)->len == ffs_toint((s)->ptr, (s)->len, dst, flags))
 
 /** Trim data by absolute bounds.
 Return the number of bytes processed from the beginning. */
