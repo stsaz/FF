@@ -110,24 +110,15 @@ enum FFSSL_CREATE {
 	FFSSL_ACCEPT = 1,
 
 	/** Don't perform any I/O operations within the library itself.
-	The caller must handle FFSSL_WANTREAD and FFSSL_WANTWRITE error codes.
-	The object of type 'ffssl_iobuf' contains SSL data that needs to be read/sent.
-	After I/O is performed, ffssl_iobuf.len must be set to the number of bytes transferred. */
+	The caller must handle FFSSL_WANTREAD and FFSSL_WANTWRITE error codes:
+	 use ffssl_iobuf() to get SSL buffer for the data that needs to be read/sent.
+	After I/O is performed, ffssl_input() must be called to set the number of bytes transferred. */
 	FFSSL_IOBUF = 2,
 };
-
-typedef struct ffssl_iobuf {
-	ssize_t len;
-	void *ptr;
-
-	void *rbuf;
-} ffssl_iobuf;
 
 typedef struct ffssl_opt {
 	void *udata; //opaque data for callback functions
 	const char *tls_hostname; //set hostname for SNI
-
-	ffssl_iobuf *iobuf; //used with FFSSL_IOBUF
 } ffssl_opt;
 
 /** Create a connection.
@@ -175,6 +166,15 @@ FF_EXTN int ffssl_write(SSL *c, const void *buf, size_t size);
 /**
 Return 0 on success;  enum FFSSL_EIO for more I/O;  enum FFSSL_E on error. */
 FF_EXTN int ffssl_shut(SSL *c);
+
+/** Get buffer for I/O.
+@data:
+ FFSSL_WANTREAD: buffer for encrypted data to be read from socket
+ FFSSL_WANTWRITE: encrypted data to be written to socket */
+FF_EXTN void ffssl_iobuf(SSL *c, ffstr *data);
+
+/** Set the number of encrypted bytes read/written. */
+FF_EXTN void ffssl_input(SSL *c, size_t len);
 
 static FFINL void ffssl_setctx(SSL *c, SSL_CTX *ctx)
 {

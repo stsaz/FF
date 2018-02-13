@@ -16,32 +16,34 @@ struct ssl_s {
 	int conn_idx
 		, verify_cb_idx
 		, bio_con_idx;
+	BIO_METHOD *bio_meth;
 };
 static struct ssl_s *_ffssl;
 
-typedef struct ssl_rbuf {
+struct ssl_rbuf {
 	uint cap
 		, off
 		, len;
-	char data[0];
-} ssl_rbuf;
+	char data[MINRECV];
+};
+
+struct ssl_iobuf {
+	ssize_t len;
+	void *ptr;
+
+	struct ssl_rbuf rbuf;
+};
 
 static int ssl_verify_cb(int preverify_ok, X509_STORE_CTX *x509ctx);
 static int ssl_tls_srvname(SSL *ssl, int *ad, void *arg);
 static int _ffssl_ctx_tls_srvname_set(SSL_CTX *ctx, ffssl_tls_srvname_cb func);
 
+/* BIO method for asynchronous I/O.  Reduces data copying. */
 static int async_bio_write(BIO *bio, const char *buf, int len);
 static int async_bio_read(BIO *bio, char *buf, int len);
 static long async_bio_ctrl(BIO *bio, int cmd, long num, void *ptr);
 static int async_bio_create(BIO *bio);
 static int async_bio_destroy(BIO *bio);
-static BIO_METHOD ssl_bio_meth = {
-	BIO_TYPE_SOCKET, "socket",
-	&async_bio_write, &async_bio_read,
-	NULL, NULL, //puts, gets
-	&async_bio_ctrl, &async_bio_create, &async_bio_destroy,
-	NULL,
-};
 
 
 int ffssl_init(void)
@@ -56,12 +58,24 @@ int ffssl_init(void)
 		return FFSSL_ENEWIDX;
 	if (-1 == (_ffssl->bio_con_idx = BIO_get_ex_new_index(0, NULL, NULL, NULL, NULL)))
 		return FFSSL_ENEWIDX;
+
+	BIO_METHOD *bm;
+	if (NULL == (bm = BIO_meth_new(BIO_TYPE_MEM, "aio")))
+		return FFSSL_ESYS;
+	BIO_meth_set_write(bm, &async_bio_write);
+	BIO_meth_set_read(bm, &async_bio_read);
+	BIO_meth_set_ctrl(bm, &async_bio_ctrl);
+	BIO_meth_set_create(bm, &async_bio_create);
+	BIO_meth_set_destroy(bm, &async_bio_destroy);
+	_ffssl->bio_meth = bm;
+
 	return 0;
 }
 
 void ffssl_uninit(void)
 {
 	ERR_free_strings();
+	BIO_meth_free(_ffssl->bio_meth);
 	ffmem_safefree0(_ffssl);
 }
 
@@ -290,7 +304,6 @@ int ffssl_create(SSL **con, SSL_CTX *ctx, uint flags, ffssl_opt *opt)
 	SSL *c;
 	int e;
 	BIO *bio;
-	ssl_rbuf *rbuf;
 
 	if (NULL == (c = SSL_new(ctx)))
 		return FFSSL_ENEW;
@@ -314,23 +327,23 @@ int ffssl_create(SSL **con, SSL_CTX *ctx, uint flags, ffssl_opt *opt)
 	}
 
 	if (flags & FFSSL_IOBUF) {
-		if (NULL == (rbuf = ffmem_alloc(sizeof(ssl_rbuf) + MINRECV))) {
+		struct ssl_iobuf *iobuf;
+		if (NULL == (iobuf = ffmem_alloc(sizeof(struct ssl_iobuf)))) {
 			e = FFSSL_ESYS;
 			goto fail;
 		}
-		rbuf->cap = MINRECV;
-		rbuf->len = rbuf->off = 0;
-		opt->iobuf->rbuf = rbuf;
-		opt->iobuf->ptr = NULL;
-		opt->iobuf->len = -1;
+		iobuf->rbuf.cap = MINRECV;
+		iobuf->rbuf.len = iobuf->rbuf.off = 0;
+		iobuf->ptr = NULL;
+		iobuf->len = -1;
 
-		if (NULL == (bio = BIO_new(&ssl_bio_meth))) {
-			ffmem_free(rbuf);
+		if (NULL == (bio = BIO_new(_ffssl->bio_meth))) {
+			ffmem_free(iobuf);
 			e = FFSSL_EBIONEW;
 			goto fail;
 		}
-		BIO_set_ex_data(bio, _ffssl->bio_con_idx, opt->iobuf);
-		BIO_set_fd(bio, -1, BIO_NOCLOSE);
+		BIO_set_data(bio, iobuf);
+		BIO_set_ex_data(bio, _ffssl->bio_con_idx, iobuf);
 		SSL_set_bio(c, bio, bio);
 	}
 
@@ -344,13 +357,6 @@ fail:
 
 void ffssl_free(SSL *c)
 {
-	BIO *bio;
-
-	if (NULL != (bio = SSL_get_rbio(c)) && bio->method == &ssl_bio_meth) {
-		ffssl_iobuf *iobuf = BIO_get_ex_data(bio, _ffssl->bio_con_idx);
-		ffmem_free(iobuf->rbuf);
-	}
-
 	SSL_free(c);
 }
 
@@ -438,11 +444,45 @@ int ffssl_shut(SSL *c)
 }
 
 
+/*
+Server-side handshake:
+1.
+ffssl_handshake() -> libssl... -> BIO
+ffssl_handshake() <-(want-read)-- libssl... <-(retry)-- BIO
+
+2.
+write to iobuf
+ffssl_handshake() -> libssl... -> BIO
+libssl <-(data)-- BIO
+
+3.
+libssl... -> BIO
+ffssl_handshake() <-(want-write)-- libssl... <-(retry)-- BIO
+
+4.
+read from iobuf
+ffssl_handshake() -> libssl... -> BIO
+libssl <-(ok)-- BIO
+*/
+void ffssl_iobuf(SSL *c, ffstr *data)
+{
+	BIO *bio = SSL_get_rbio(c);
+	struct ssl_iobuf *iob = BIO_get_ex_data(bio, _ffssl->bio_con_idx);
+	ffstr_set(data, iob->ptr, iob->len);
+}
+
+void ffssl_input(SSL *c, size_t len)
+{
+	BIO *bio = SSL_get_rbio(c);
+	struct ssl_iobuf *iob = BIO_get_ex_data(bio, _ffssl->bio_con_idx);
+	iob->len = len;
+}
+
 static int async_bio_read(BIO *bio, char *buf, int len)
 {
 	ssize_t r;
-	ffssl_iobuf *iobuf = BIO_get_ex_data(bio, _ffssl->bio_con_idx);
-	ssl_rbuf *rbuf = iobuf->rbuf;
+	struct ssl_iobuf *iobuf = BIO_get_data(bio);
+	struct ssl_rbuf *rbuf = &iobuf->rbuf;
 
 	if (iobuf->len != -1) {
 		BIO_clear_retry_flags(bio);
@@ -476,7 +516,7 @@ static int async_bio_read(BIO *bio, char *buf, int len)
 static int async_bio_write(BIO *bio, const char *buf, int len)
 {
 	ssize_t r;
-	ffssl_iobuf *iobuf = BIO_get_ex_data(bio, _ffssl->bio_con_idx);
+	struct ssl_iobuf *iobuf = BIO_get_data(bio);
 
 	if (iobuf->len != -1) {
 		FF_ASSERT(buf == iobuf->ptr && len >= iobuf->len);
@@ -496,11 +536,6 @@ static int async_bio_write(BIO *bio, const char *buf, int len)
 static long async_bio_ctrl(BIO *bio, int cmd, long num, void *ptr)
 {
 	switch (cmd) {
-	case BIO_C_SET_FD:
-		bio->num = *(int*)ptr;
-		bio->init = 1;
-		return 1;
-
 	case BIO_CTRL_DUP:
 	case BIO_CTRL_FLUSH:
 		return 1;
@@ -511,12 +546,14 @@ static long async_bio_ctrl(BIO *bio, int cmd, long num, void *ptr)
 
 static int async_bio_create(BIO *bio)
 {
+	BIO_set_init(bio, 1);
 	return 1;
 }
 
 static int async_bio_destroy(BIO *bio)
 {
-	bio->init = 0;
+	struct ssl_iobuf *iobuf = BIO_get_data(bio);
+	ffmem_free(iobuf);
 	return 1;
 }
 
