@@ -97,10 +97,9 @@ static void tmrq_onfire(void *t)
 	fftimer_queue *tq = t;
 	fftree_node *nod;
 	fftmrq_entry *ent;
-	fftime now, utc;
+	fftime now;
 	uint64 next;
 
-	fftime_now(&utc);
 	ffclk_gettime(&now);
 	tq->msec_time = fftime_ms(&now);
 
@@ -125,7 +124,7 @@ static void tmrq_onfire(void *t)
 			, (int64)fftime_sec(&now), (int)fftime_usec(&now)
 			, ent, ent->interval, key, next, tq->items.len);
 
-		ent->handler(&utc, ent->param);
+		ent->handler(ent->param);
 	}
 
 	fftmr_read(tq->tmr);

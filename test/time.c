@@ -168,25 +168,25 @@ static void test_timerq_rm()
 	x(tq.items.root == &tq.items.sentl);
 }
 
-static void t1_func(const fftime *now, void *param) {
+static void t1_func(void *param) {
 	int *num = param;
 	x(*num & 1);
 	*num += 0x0100;
 }
 
-static void t2_func(const fftime *now, void *param) {
+static void t2_func(void *param) {
 	int *num = param;
 	x(*num == 0);
 	*num |= 1;
 }
 
-static void t3_func(const fftime *now, void *param) {
+static void t3_func(void *param) {
 	int *num = param;
 	x(*num == 0x0101);
 	*num |= 2;
 }
 
-static void t4_func(const fftime *now, void *param) {
+static void t4_func(void *param) {
 	x(0); //this handler must not be called
 }
 

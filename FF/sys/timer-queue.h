@@ -8,7 +8,7 @@ Copyright (c) 2014 Simon Zolin
 #include <FF/rbtree.h>
 
 
-typedef void (*fftmrq_handler)(const fftime *now, void *param);
+typedef void (*fftmrq_handler)(void *param);
 
 typedef struct fftmrq_entry {
 	fftree_node8 tnode;
