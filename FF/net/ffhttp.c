@@ -5,6 +5,24 @@ Copyright (c) 2013 Simon Zolin
 #include <FF/net/http.h>
 
 
+// FILTERS
+
+static void* http_chunked_open(ffhttp_headers *h);
+static void http_chunked_close(void *p);
+static int http_chunked_process(void *p, ffstr *in, ffstr *out);
+const struct ffhttp_filter ffhttp_chunked_filter = { &http_chunked_open, &http_chunked_close, &http_chunked_process };
+
+static void* http_contlen_open(ffhttp_headers *h);
+static void http_contlen_close(void *p);
+static int http_contlen_process(void *p, ffstr *in, ffstr *out);
+const struct ffhttp_filter ffhttp_contlen_filter = { &http_contlen_open, &http_contlen_close, &http_contlen_process };
+
+static void* http_connclose_open(ffhttp_headers *h);
+static void http_connclose_close(void *p);
+static int http_connclose_process(void *p, ffstr *in, ffstr *out);
+const struct ffhttp_filter ffhttp_connclose_filter = { &http_connclose_open, &http_connclose_close, &http_connclose_process };
+
+
 struct _ffhttp_headr {
 	uint hash;
 	ffrange key;
@@ -237,6 +255,10 @@ static const char *const serr[] = {
 	, "bad header value"
 	, "duplicate header"
 	, "data is too large"
+	,
+	"incorrect chunked header",
+	"incomplete chunked data",
+	"incomplete Content-Length data",
 };
 
 const char *ffhttp_errstr(int code)
@@ -1440,4 +1462,104 @@ int ffhttp_chunkfin(const char **pbuf, int flags)
 {
 	*pbuf = sChnkEnd[flags];
 	return nChnkEnd[flags];
+}
+
+
+static void* http_chunked_open(ffhttp_headers *h)
+{
+	if (!h->chunked)
+		return NULL;
+
+	ffhttp_chunked *c;
+	if (NULL == (c = ffmem_new(ffhttp_chunked)))
+		return (void*)-1;
+	ffhttp_chunkinit(c);
+	return c;
+}
+
+static void http_chunked_close(void *p)
+{
+	ffhttp_chunked *c = p;
+	ffmem_free(c);
+}
+
+static int http_chunked_process(void *p, ffstr *in, ffstr *out)
+{
+	if (in == NULL)
+		return FFHTTP_ECHUNKED_FIN;
+
+	ffhttp_chunked *c = p;
+	int r = ffhttp_chunkparse_str(c, in, out);
+	switch (r) {
+	case FFHTTP_OK:
+		return FFHTTP_OK;
+	case FFHTTP_DONE:
+		out->len = 0;
+		return FFHTTP_DONE;
+	case FFHTTP_MORE:
+		out->len = 0;
+		return FFHTTP_OK;
+	}
+	return FFHTTP_ECHUNKED;
+}
+
+
+struct http_contlen {
+	uint64 len; //data left to process
+};
+
+static void* http_contlen_open(ffhttp_headers *h)
+{
+	if (h->cont_len == -1)
+		return NULL;
+
+	struct http_contlen *c;
+	if (NULL == (c = ffmem_new(struct http_contlen)))
+		return (void*)-1;
+	c->len = h->cont_len;
+	return c;
+}
+
+static void http_contlen_close(void *p)
+{
+	struct http_contlen *c = p;
+	ffmem_free(c);
+}
+
+static int http_contlen_process(void *p, ffstr *in, ffstr *out)
+{
+	if (in == NULL)
+		return FFHTTP_ECONTLEN_FIN;
+
+	struct http_contlen *c = p;
+	size_t n = ffmin(in->len, c->len);
+	ffstr_set(out, in->ptr, n);
+	ffstr_shift(in, n);
+	c->len -= n;
+	return (c->len == 0) ? FFHTTP_DONE : FFHTTP_OK;
+}
+
+
+static void* http_connclose_open(ffhttp_headers *h)
+{
+	if (!h->body_conn_close)
+		return NULL;
+	return (void*)1;
+}
+
+static void http_connclose_close(void *p)
+{
+	FF_ASSERT(p == (void*)1);
+}
+
+static int http_connclose_process(void *p, ffstr *in, ffstr *out)
+{
+	FF_ASSERT(p == (void*)1);
+	if (in == NULL) {
+		out->len = 0;
+		return FFHTTP_DONE;
+	}
+	*out = *in;
+	in->len = 0;
+	return FFHTTP_OK;
 }

@@ -147,9 +147,15 @@ enum FFHTTP_E {
 	, FFHTTP_EHDRVAL
 	, FFHTTP_EDUPHDR
 	, FFHTTP_ETOOLARGE
+	,
+	FFHTTP_ECHUNKED,
+	FFHTTP_ECHUNKED_FIN,
+	FFHTTP_ECONTLEN_FIN,
 
-	, FFHTTP_EURLPARSE = 0x80 ///< URL parsing error.  See FFURL_E.
+	FFHTTP_EURLPARSE = 0x80, ///< URL parsing error.  See FFURL_E.
 };
+
+#define ffhttp_iserr(e)  ((e) > 0)
 
 /** Get error message. */
 FF_EXTN const char *ffhttp_errstr(int code);
@@ -563,3 +569,25 @@ enum FFHTTP_CHUNKED {
 'flags': enum FFHTTP_CHUNKED.
 'pbuf' is set to point to the static string, and the number of valid bytes is returned. */
 FF_EXTN int ffhttp_chunkfin(const char **pbuf, int flags);
+
+
+/** Interface for HTTP content filtering. */
+struct ffhttp_filter {
+
+	/** Create filter object.
+	Return NULL: skip the filter;  (void*)-1: error. */
+	void* (*open)(ffhttp_headers *h);
+
+	void (*close)(void *obj);
+
+	/** Process data.
+	@in: input data;  NULL: TCP FIN received
+	Return FFHTTP_OK: output data is ready;
+	 FFHTTP_DONE: output data is ready, filter has finished;
+	 FFHTTP_E*: error */
+	int (*process)(void *obj, ffstr *in, ffstr *out);
+};
+
+FF_EXTN const struct ffhttp_filter ffhttp_chunked_filter; // Transfer-Encoding: chunked
+FF_EXTN const struct ffhttp_filter ffhttp_contlen_filter; // Content-Length
+FF_EXTN const struct ffhttp_filter ffhttp_connclose_filter; // Connection: close
