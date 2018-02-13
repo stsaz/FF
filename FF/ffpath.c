@@ -82,6 +82,8 @@ size_t ffpath_norm(char *dst, size_t dstcap, const char *path, size_t len, int f
 
 		} else if (root) {
 			root = 0;
+			if (flags & FFPATH_TOREL)
+				continue;
 
 		} else {
 			if (flags & FFPATH_WINDOWS) {

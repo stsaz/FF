@@ -83,6 +83,9 @@ static int test_path()
 	s.len = ffpath_norm(buf, FFCNT(buf), FFSTR("/../1/../2"), FFPATH_TOREL);
 	x(ffstr_eqcz(&s, "2"));
 
+	s.len = ffpath_norm(buf, FFCNT(buf), FFSTR("/1/2"), FFPATH_TOREL);
+	x(ffstr_eqcz(&s, "1/2"));
+
 	s.len = ffpath_norm(buf, FFCNT(buf), FFSTR("c:/../1/../2"), FFPATH_WINDOWS | FFPATH_TOREL);
 	x(ffstr_eqcz(&s, "2"));
 
