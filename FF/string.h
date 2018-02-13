@@ -340,7 +340,7 @@ static FFINL char * ffsz_fcopy(char *dst, const char *src, size_t len) {
 /** Allocate memory and copy string. */
 static FFINL char* ffsz_alcopy(const char *src, size_t len)
 {
-	char *s = ffmem_alloc(len + 1);
+	char *s = (char*)ffmem_alloc(len + 1);
 	if (s != NULL)
 		ffsz_fcopy(s, src, len);
 	return s;
@@ -357,7 +357,7 @@ FF_EXTN size_t ffs_titlecase(char *dst, const char *end, const char *src, size_t
 
 static FFINL char* ffsz_alcopylwr(const char *src, size_t len)
 {
-	char *s = ffmem_alloc(len + 1);
+	char *s = (char*)ffmem_alloc(len + 1);
 	if (s == NULL)
 		return NULL;
 	ffs_lower(s, s + len, src, len);
@@ -427,7 +427,7 @@ static FFINL char * ffs_copyq(char *dst, const char *bufend, const ffsyschar *sr
 static FFINL char* ffsz_alcopyqz(const ffsyschar *wsz)
 {
 	size_t len = ffq_len(wsz) + 1, cap = ff_wtou(NULL, 0, wsz, len, 0);
-	char *s = ffmem_alloc(cap);
+	char *s = (char*)ffmem_alloc(cap);
 	if (s != NULL)
 		ff_wtou(s, cap, wsz, len, 0);
 	return s;

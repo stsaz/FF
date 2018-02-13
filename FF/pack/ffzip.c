@@ -169,7 +169,7 @@ static int zip_cdir_parse(ffzip_file *f, const char *buf)
 	f->zsize = ffint_ltoh32(cdir->size);
 	f->osize = ffint_ltoh32(cdir->size_orig);
 	f->attrs.win = cdir->attrs[0];
-	f->attrs.unix = ffint_ltoh16(&cdir->attrs[2]);
+	f->attrs.unixmode = ffint_ltoh16(&cdir->attrs[2]);
 	f->crc = ffint_ltoh32(cdir->crc32);
 	f->offset = ffint_ltoh32(cdir->offset);
 	return sizeof(zip_cdir) + ffint_ltoh16(cdir->filenamelen) + ffint_ltoh16(cdir->extralen) + ffint_ltoh16(cdir->commentlen);
@@ -238,7 +238,7 @@ static int zip_fhdr_write(char *buf, char *cdir_buf, ffstr *name, const fftime *
 	cdir->sysver = FFZIP_UNIX;
 #endif
 	cdir->attrs[0] = (byte)attrs->win;
-	ffint_htol16(&cdir->attrs[2], attrs->unix);
+	ffint_htol16(&cdir->attrs[2], attrs->unixmode);
 
 	ffint_htol16(cdir->modtime, modtime);
 	ffint_htol16(cdir->moddate, moddate);

@@ -158,7 +158,7 @@ FF_EXTN void ffdns_hdrtohost(ffdns_hdr_host *host, const void *net);
 
 /** Convert question from network byte order into host byte order. */
 static FFINL void ffdns_questohost(ffdns_ques_host *host, const void *net) {
-	const ffdns_ques *ques = net;
+	const ffdns_ques *ques = (ffdns_ques*)net;
 	host->type = ffint_ntoh16(ques->type);
 	host->clas = ffint_ntoh16(ques->clas);
 }

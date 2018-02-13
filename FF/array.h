@@ -222,7 +222,7 @@ static FFINL char* _ffarr_realloc_grow(ffarr *ar, size_t len, size_t elsz)
 {
 	if (ar->cap >= len)
 		return ar->ptr;
-	return _ffarr_realloc(ar, len, elsz);
+	return (char*)_ffarr_realloc(ar, len, elsz);
 }
 
 #define ffarr_realloc_growT(ar, len, T) \

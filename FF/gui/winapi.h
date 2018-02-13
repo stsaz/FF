@@ -828,7 +828,7 @@ do { \
 
 static FFINL void ffui_view_inscol(ffui_view *v, int pos, ffui_viewcol *vc)
 {
-	ListView_InsertColumn(v->h, pos, vc);
+	(void)ListView_InsertColumn(v->h, pos, vc);
 	ffui_viewcol_reset(vc);
 }
 
@@ -836,13 +836,13 @@ static FFINL void ffui_view_inscol(ffui_view *v, int pos, ffui_viewcol *vc)
 
 static FFINL void ffui_view_setcol(ffui_view *v, int i, ffui_viewcol *vc)
 {
-	ListView_SetColumn(v->h, i, &vc->col);
+	(void)ListView_SetColumn(v->h, i, &vc->col);
 	ffui_viewcol_reset(vc);
 }
 
 static FFINL void ffui_view_col(ffui_view *v, int i, ffui_viewcol *vc)
 {
-	ListView_GetColumn(v->h, i, &vc->col);
+	(void)ListView_GetColumn(v->h, i, &vc->col);
 }
 
 

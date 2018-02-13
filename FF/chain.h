@@ -74,6 +74,6 @@ static FFINL void ffchain_unlink(ffchain_item *item)
 ... <-> ITEM (-> SENTL <-) 2 <-> ... */
 static FFINL void ffchain_split(ffchain_item *it, void *sentl)
 {
-	it->next->prev = sentl;
-	it->next = sentl;
+	it->next->prev = (ffchain_item*)sentl;
+	it->next = (ffchain_item*)sentl;
 }

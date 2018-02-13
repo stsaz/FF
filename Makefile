@@ -13,6 +13,8 @@ FFOS_CFLAGS := $(CFLAGS)
 FF_CFLAGS := $(CFLAGS)
 CFLAGS += -Werror -Wall \
 	-I$(FF) -I$(FF)-3pt -I$(FFOS)
+CXXFLAGS += -Werror -Wall \
+	-I$(FF) -I$(FF)-3pt -I$(FFOS)
 
 all: ff $(FF_TEST_BIN)
 
@@ -27,12 +29,15 @@ include $(FF)/makerules
 FF_TEST_HDR := $(wildcard $(FF)/test/*.h)
 
 FF_TEST_SRC := \
+	$(FF)/test/compat.cpp \
 	$(FF)/test/base.c $(FF)/test/conf.c $(FF)/test/http.c $(FF)/test/json.c $(FF)/test/str.c \
 	$(FF)/test/test.c $(FF)/test/time.c $(FF)/test/url.c $(FF)/test/cue.c $(FF)/test/sys.c
 FF_TEST_OBJ := $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_TEST_SRC)))))
 
 $(FF_OBJ_DIR)/%.o: $(FF)/test/%.c $(FF_HDR) $(FF_TEST_HDR)
 	$(C) $(CFLAGS)  $< -o$@
+$(FF_OBJ_DIR)/%.o: $(FF)/test/%.cpp $(FF_HDR) $(FF_TEST_HDR)
+	$(CXX) $(CXXFLAGS)  $< -o$@
 
 FF_TEST_O := $(FFOS_OBJ) $(FF_OBJ) \
 	$(FFOS_THD) \

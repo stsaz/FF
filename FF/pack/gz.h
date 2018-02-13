@@ -115,7 +115,7 @@ static FFINL const char* ffgz_fname(ffgz *gz)
 
 static FFINL uint ffgz_mtime(ffgz *gz, fftime *t)
 {
-	const ffgzheader *h = (void*)gz->buf.ptr;
+	const ffgzheader *h = (ffgzheader*)gz->buf.ptr;
 	uint ts;
 	if (0 != (ts = ffint_ltoh32(h->mtime)))
 		fftime_fromtime_t(t, ts);

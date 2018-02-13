@@ -268,7 +268,7 @@ static FFINL ffbool ffpars_arg_isfunc(const ffpars_arg *a)
 /** Get target pointer. */
 static FFINL void* ffpars_arg_ptr(const ffpars_arg *a, void *obj)
 {
-	return (a->flags & FFPARS_FPTR) ? a->dst.b : obj + a->dst.off;
+	return (a->flags & FFPARS_FPTR) ? a->dst.b : FF_PTR(obj, a->dst.off);
 }
 
 /** Get integer value from ffpars_arg meta and a value pointer. */

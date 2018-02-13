@@ -7,6 +7,8 @@ Copyright (c) 2015 Simon Zolin
 KERNEL -------> WOH-thread -> user_function()
 */
 
+#pragma once
+
 #include <FFOS/thread.h>
 #include <FFOS/atomic.h>
 

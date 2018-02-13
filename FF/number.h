@@ -45,13 +45,13 @@ static FFINL ushort ffint_ltoh16(const void *p)
 
 static FFINL uint ffint_ltoh24(const void *p)
 {
-	const byte *b = p;
+	const byte *b = (byte*)p;
 	return ((int)b[2] << 16) | ((int)b[1] << 8) | b[0];
 }
 
 static FFINL int ffint_ltoh24s(const void *p)
 {
-	const byte *b = p;
+	const byte *b = (byte*)p;
 	uint n = ((uint)b[2] << 16) | ((uint)b[1] << 8) | b[0];
 	if (n & 0x00800000)
 		n |= 0xff000000;
@@ -78,7 +78,7 @@ static FFINL void ffint_htol16(void *dst, ushort i)
 
 static FFINL void ffint_htol24(void *p, uint n)
 {
-	byte *o = p;
+	byte *o = (byte*)p;
 	o[0] = (byte)n;
 	o[1] = (byte)(n >> 8);
 	o[2] = (byte)(n >> 16);
@@ -104,7 +104,7 @@ static FFINL void ffint_hton16(void *dst, ushort i)
 
 static FFINL void ffint_hton24(void *dst, uint i)
 {
-	byte *b = dst;
+	byte *b = (byte*)dst;
 	b[0] = (byte)(i >> 16);
 	b[1] = (byte)(i >> 8);
 	b[2] = (byte)i;
@@ -130,7 +130,7 @@ static FFINL ushort ffint_ntoh16(const void *p)
 
 static FFINL uint ffint_ntoh24(const void *p)
 {
-	const byte *b = p;
+	const byte *b = (byte*)p;
 	return ((uint)b[0] << 16) | ((uint)b[1] << 8) | (uint)b[2];
 }
 

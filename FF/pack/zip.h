@@ -41,22 +41,22 @@ FF_EXTN const char* _ffzip_errstr(int err, z_ctx *lz);
 
 typedef struct ffzip_fattr {
 	ushort win; //enum FFWIN_FILEATTR
-	ushort unix; //enum FFUNIX_FILEATTR
+	ushort unixmode; //enum FFUNIX_FILEATTR
 } ffzip_fattr;
 
 static FFINL void ffzip_setsysattr(ffzip_fattr *a, uint sysattr)
 {
-	a->win = a->unix = 0;
+	a->win = a->unixmode = 0;
 #ifdef FF_WIN
 	a->win = sysattr;
 #else
-	a->unix = sysattr;
+	a->unixmode = sysattr;
 #endif
 }
 
 static FFINL ffbool ffzip_isdir(const ffzip_fattr *a)
 {
-	return (a->win & FFWIN_FILE_DIR) || (a->unix & FFUNIX_FILE_DIR);
+	return (a->win & FFWIN_FILE_DIR) || (a->unixmode & FFUNIX_FILE_DIR);
 }
 
 
