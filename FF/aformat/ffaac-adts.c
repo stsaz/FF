@@ -347,7 +347,8 @@ int ffaac_adts_read(ffaac_adts *a)
 		}
 
 		FFDBG_PRINTLN(10, "frame #%U: size:%u  raw-blocks:%u"
-			, a->frno++, h.frlen, h.raw_blocks);
+			, a->frno, h.frlen, h.raw_blocks);
+		a->frno++;
 
 		if (a->options & FFAAC_ADTS_OPT_WHOLEFRAME) {
 			a->shift = -ADTS_HDRLEN;

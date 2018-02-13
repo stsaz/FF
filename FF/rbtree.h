@@ -94,6 +94,8 @@ static FFINL void ffrbt_init(ffrbtree *tr) {
 	tr->insnode = &fftree_insert;
 }
 
+#define ffrbt_empty(tr)  ((tr)->root == &(tr)->sentl)
+
 /** Insert node.
 'ancestor': search starting at this node (optional parameter). */
 FF_EXTN void ffrbt_insert(ffrbtree *tr, ffrbt_node *nod, ffrbt_node *ancestor);

@@ -2,19 +2,36 @@
 Copyright (c) 2013 Simon Zolin
 */
 
-/*
+// Data format:
+#if 0
 # one-line comment
 // one-line comment
-/ * multi-line comment * /
+/*
+multi-line comment
+*/
 
-key value1 "value2"
+# A key or value MAY be enclosed in quotes
+#  but MUST be enclosed in quotes if it contains a non-name characters (name regexp: "a-zA-Z_0-9")
+#  or is empty ("")
+# A key may have multiple values divided by whitespace.
+# Whitespace around a key or value is trimmed,
+#  but whitespace within quotes is preserved.
+key value_1 "value-2"
 
-ctx "ctxname" {
+# Contexts can be nested if enclosed in {}
+# '{' MUST be on the same line
+# '}' MUST be on a new line
+key {
 	key "value"
 }
 
+key "value" {
+	key "value"
+}
+
+# Access a 2nd-level object via '.'
 key1.key2 "value"
-*/
+#endif
 
 #pragma once
 

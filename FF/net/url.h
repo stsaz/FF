@@ -91,8 +91,9 @@ Return 0 on error. */
 FF_EXTN size_t ffuri_decode(char *dst, size_t dstcap, const char *d, size_t len, uint flags);
 
 enum FFURI_ESCAPE {
-	FFURI_ESC_WHOLE // http://host/path
-	, FFURI_ESC_PATHSEG // http://host/path/SEGMENT/path
+	FFURI_ESC_WHOLE, // http://host/path
+	FFURI_ESC_PATHSEG, // http://host/path/SEGMENT/path
+	FFURI_ESC_QSSEG, // http://host/path?qs&SEGMENT&qs
 };
 
 /** Replace special characters in URI with %XX.

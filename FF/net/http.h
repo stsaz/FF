@@ -483,6 +483,10 @@ static FFINL void ffhttp_addrequest(ffhttp_cook *c, const char *method, size_t m
 		, methlen, method, urilen, uri, &c->proto))
 		c->err = 1;
 }
+static FFINL void ffhttp_addrequestz(ffhttp_cook *c, const char *method, const char *uri)
+{
+	return ffhttp_addrequest(c, method, ffsz_len(method), uri, ffsz_len(uri));
+}
 
 /** Set response code and default status message. */
 static FFINL void ffhttp_setstatus(ffhttp_cook *c, enum FFHTTP_STATUS code) {
@@ -548,6 +552,13 @@ static FFINL void ffhttp_chunkinit(ffhttp_chunked *c) {
 Return enum FFHTTP_E.
 If there is data, return FFHTTP_OK and set 'dst'.  'len' is set to the number of processed bytes. */
 FF_EXTN int ffhttp_chunkparse(ffhttp_chunked *c, const char *body, size_t *len, ffstr *dst);
+static FFINL int ffhttp_chunkparse_str(ffhttp_chunked *c, ffstr *body, ffstr *dst)
+{
+	size_t n = body->len;
+	int r = ffhttp_chunkparse(c, body->ptr, &n, dst);
+	ffstr_shift(body, n);
+	return r;
+}
 
 /** Begin chunk. */
 static FFINL int ffhttp_chunkbegin(char *buf, size_t cap, uint64 chunk_len) {

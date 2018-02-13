@@ -48,6 +48,7 @@ enum FFPATH_FLAGS {
 };
 
 /** Process an absolute or relative path.
+@dstcap: always safe if it's at least @len bytes
 @flags: enum FFPATH_FLAGS;  default: FFPATH_MERGESLASH | FFPATH_MERGEDOTS.
 Return the number of bytes written in 'dst';  0 on error. */
 FF_EXTN size_t ffpath_norm(char *dst, size_t dstcap, const char *path, size_t len, int flags);

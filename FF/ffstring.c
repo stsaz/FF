@@ -595,48 +595,62 @@ static const uint esc_nprint[] = {
 	0xffffffff
 };
 
-ssize_t ffs_escape(char *dst, size_t cap, const char *s, size_t len, int type)
+ssize_t _ffs_escape(char *dst, size_t cap, const char *s, size_t len, int type, const uint *mask)
 {
 	size_t i;
-	const uint *mask;
+	uint nesc;
 	const char *end = dst + cap;
 	const char *dsto = dst;
 
-	if (type != FFS_ESC_NONPRINT)
+	switch (type) {
+	case FFS_ESC_BKSLX:
+		nesc = FFSLEN("\\xXX"); break;
+	default:
+		FF_ASSERT(0);
 		return 0; //unknown type
-	mask = esc_nprint;
+	}
 
 	if (dst == NULL) {
 		size_t n = 0;
 		for (i = 0;  i != len;  i++) {
 			if (!ffbit_testarr(mask, (byte)s[i]))
-				n += FFSLEN("\\xXX") - 1;
+				n += nesc - 1;
 		}
 		return len + n;
 	}
 
-	for (i = 0;  i != len;  i++) {
-		byte c = s[i];
+	switch (type) {
+	case FFS_ESC_BKSLX:
+		for (i = 0;  i != len;  i++) {
+			byte c = s[i];
 
-		if (ffbit_testarr(mask, c)) {
-			if (dst == end)
-				return -(ssize_t)i;
-			*dst++ = c;
+			if (ffbit_testarr(mask, c)) {
+				if (dst == end)
+					return -(ssize_t)i;
+				*dst++ = c;
 
-		} else {
-			if (dst + FFSLEN("\\xXX") > end) {
-				ffs_fill(dst, end, '\0', FFSLEN("\\xXX"));
-				return -(ssize_t)i;
+			} else {
+				if (end - dst < (int)nesc) {
+					ffs_fill(dst, end, '\0', nesc);
+					return -(ssize_t)i;
+				}
+
+				*dst++ = '\\';
+				*dst++ = 'x';
+				dst += ffs_hexbyte(dst, c, ffHEX);
 			}
-
-			*dst++ = '\\';
-			*dst++ = 'x';
-			dst += ffs_hexbyte(dst, c, ffHEX);
 		}
+		break;
 	}
 
 	return dst - dsto;
 }
+
+ssize_t ffs_escape(char *dst, size_t cap, const char *s, size_t len, int type)
+{
+	return _ffs_escape(dst, cap, s, len, FFS_ESC_BKSLX, esc_nprint);
+}
+
 
 int ffs_wildcard(const char *pattern, size_t patternlen, const char *s, size_t len, uint flags)
 {
@@ -1108,6 +1122,18 @@ uint ffs_fromfloat(double d, char *dst, size_t cap, uint flags)
 	}
 
 	return buf - dst;
+}
+
+uint ffs_tobool(const char *s, size_t len, ffbool *dst, uint flags)
+{
+	if (len >= 4 && !ffs_icmp(s, "true", 4)) {
+		*dst = 1;
+		return 4;
+	} else if (len >= 5 && !ffs_icmp(s, "false", 5)) {
+		*dst = 0;
+		return 5;
+	}
+	return 0;
 }
 
 int ffs_numlist(const char *d, size_t *len, uint *dst)

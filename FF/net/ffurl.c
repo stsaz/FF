@@ -357,7 +357,7 @@ fail:
 	return 0;
 }
 
-// escape ' ', '#', '%', '?' and non-ANSI
+// escape non-ANSI and ' ', '#', '%', '?'
 static const uint uriesc[] = {
 	0,
 	            // ?>=< ;:98 7654 3210  /.-, +*)( '&%$ #"!
@@ -372,7 +372,7 @@ static const uint uriesc[] = {
 	0
 };
 
-// escape '\\', '/', ' ', '#', '%', '?' and non-ANSI
+// escape non-ANSI and ' ', '#', '%', '?', '\\', '/'
 static const uint uriesc_pathseg[] = {
 	0,
 	            // ?>=< ;:98 7654 3210  /.-, +*)( '&%$ #"!
@@ -387,7 +387,22 @@ static const uint uriesc_pathseg[] = {
 	0
 };
 
-static const uint *const uri_encode_types[] = { uriesc, uriesc_pathseg };
+// escape non-ANSI and ' ', '#', '%', '&'
+static const uint uriesc_qsseg[] = {
+	0,
+	            // ?>=< ;:98 7654 3210  /.-, +*)( '&%$ #"!
+	0xffffff96, // 1111 1111 1111 1111  1111 1111 1001 0110
+	            // _^]\ [ZYX WVUT SRQP  ONML KJIH GFED CBA@
+	0xffffffff, // 1111 1111 1111 1111  1111 1111 1111 1111
+	            //  ~}| {zyx wvut srqp  onml kjih gfed cba`
+	0x7fffffff, // 0111 1111 1111 1111  1111 1111 1111 1111
+	0,
+	0,
+	0,
+	0
+};
+
+static const uint *const uri_encode_types[] = { uriesc, uriesc_pathseg, uriesc_qsseg };
 
 ssize_t ffuri_escape(char *dst, size_t cap, const char *s, size_t len, uint type)
 {

@@ -361,11 +361,6 @@ static FFINL void _ffarr_rmswap(ffarr *ar, void *el, size_t elsz) {
 FF_EXTN void _ffarr_crop(ffarr *ar, size_t off, size_t n, size_t elsz);
 
 
-typedef struct ffstr {
-	size_t len;
-	char *ptr;
-} ffstr;
-
 typedef ffarr ffstr3;
 
 #define FFSTR_INIT(s)  { FFSLEN(s), (char*)(s) }
@@ -545,6 +540,7 @@ static FFINL ssize_t ffstr_ifind(const ffstr *s, const char *search, size_t sear
 }
 
 #define ffstr_findstr(s, search)  ffstr_find(s, (search)->ptr, (search)->len)
+#define ffstr_findz(s, search)  ffstr_find(s, search, ffsz_len(search))
 #define ffstr_ifindstr(s, search)  ffstr_ifind(s, (search)->ptr, (search)->len)
 
 /** Find string in an array of strings.
@@ -580,6 +576,8 @@ static FFINL size_t ffstr_nextval3(ffstr *src, ffstr *dst, int spl)
 
 #define ffstr_toint(s, dst, flags) \
 	((s)->len != 0 && (s)->len == ffs_toint((s)->ptr, (s)->len, dst, flags))
+#define ffstr_tobool(s, dst, flags) \
+	((s)->len != 0 && (s)->len == ffs_tobool((s)->ptr, (s)->len, dst, flags))
 
 /** Trim data by absolute bounds.
 Return the number of bytes processed from the beginning. */

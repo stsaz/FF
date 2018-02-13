@@ -77,6 +77,11 @@ Return shift value. */
 FF_EXTN uint ffint_tosfx(uint64 size, char *suffix);
 
 
+typedef struct ffstr {
+	size_t len;
+	char *ptr;
+} ffstr;
+
 enum {
 	FF_TEXT_LINE_MAX = 64 * 1024, //max line size
 };
@@ -510,6 +515,9 @@ FF_EXTN uint ffs_toint(const char *src, size_t len, void *dst, int flags);
 #define ffs_toint32(src, len, dst, flags) \
 	ffs_toint(src, len, dst, FFS_INT32 | (flags))
 
+#define ffs_toint64(src, len, dst, flags) \
+	ffs_toint(src, len, dst, FFS_INT64 | (flags))
+
 enum { FFINT_MAXCHARS = FFSLEN("18446744073709551615") };
 
 enum FFINT_TOSTR {
@@ -544,7 +552,7 @@ enum FFS_FROMSIZE {
 Return number of bytes written. */
 FF_EXTN int ffs_fromsize(char *buf, size_t cap, uint64 size, uint flags);
 
-/** Convert floating point number to string.
+/** Convert string to a floating point number.
 Return the number of chars processed.
 Return 0 on error. */
 FF_EXTN uint ffs_tofloat(const char *s, size_t len, double *dst, int flags);
@@ -553,6 +561,10 @@ FF_EXTN uint ffs_tofloat(const char *s, size_t len, double *dst, int flags);
 @flags: enum FFINT_TOSTR
 Return bytes written. */
 FF_EXTN uint ffs_fromfloat(double d, char *dst, size_t cap, uint flags);
+
+/** Convert "true" or "false" to boolean integer.
+Return the number of chars processed;  0 on error. */
+FF_EXTN uint ffs_tobool(const char *s, size_t len, ffbool *dst, uint flags);
 
 /** Parse the list of numbers, e.g. "1,3,10,20".
 Return 0 on success. */
@@ -652,13 +664,17 @@ static FFINL size_t ffs_fmatch(const char *s, size_t len, const char *fmt, ...) 
 
 
 enum FFS_ESCAPE {
-	FFS_ESC_NONPRINT // escape '\\' and non-printable.  '\t', '\r', '\n' are not escaped.
+	FFS_ESC_BKSLX = 0, // replace with \xXX
+
+	FFS_ESC_NONPRINT = 0x10, // escape '\\' and non-printable.  '\t', '\r', '\n' are not escaped.
 };
 
-/** Replace special characters with \xXX.
+
+/** Replace special characters.
 @type: enum FFS_ESCAPE.
 Return the number of bytes written.
 Return <0 if there is no enough space (the number of input bytes processed, negative value). */
+FF_EXTN ssize_t _ffs_escape(char *dst, size_t cap, const char *s, size_t len, int type, const uint *mask);
 FF_EXTN ssize_t ffs_escape(char *dst, size_t cap, const char *s, size_t len, int type);
 
 

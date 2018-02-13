@@ -102,8 +102,10 @@ size_t ffpath_norm(char *dst, size_t dstcap, const char *path, size_t len, int f
 		memmove(dst, name.ptr, name.len);
 		dst += name.len;
 		if (slash != path_end) {
-			if (flags & (FFPATH_FORCESLASH | FFPATH_FORCEBKSLASH))
-				*dst++ = "/\\"[(flags & FFPATH_FORCEBKSLASH) != 0];
+			if (flags & FFPATH_FORCESLASH)
+				*dst++ = '/';
+			else if (flags & FFPATH_FORCEBKSLASH)
+				*dst++ = '\\';
 			else
 				*dst++ = *slash;
 		}

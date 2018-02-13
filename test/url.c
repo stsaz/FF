@@ -49,9 +49,11 @@ static int test_urldecode()
 	s.len = ffuri_escape(buf, FFCNT(buf), FFSTR("http://host/path?%# \x00\xff"), FFURI_ESC_WHOLE);
 	x(ffstr_eqcz(&s, "http://host/path%3F%25%23%20%00%FF"));
 
-	x(FFSLEN("%3F%25%23%20%00%FF%2F%5C") == ffuri_escape(NULL, 0, FFSTR("?%# \x00\xff/\\"), FFURI_ESC_PATHSEG));
 	s.len = ffuri_escape(buf, FFCNT(buf), FFSTR("?%# \x00\xff/\\"), FFURI_ESC_PATHSEG);
 	x(ffstr_eqcz(&s, "%3F%25%23%20%00%FF%2F%5C"));
+
+	s.len = ffuri_escape(buf, FFCNT(buf), FFSTR("qs?/#&яqs"), FFURI_ESC_QSSEG);
+	x(ffstr_eqz(&s, "qs?/%23%26%D1%8Fqs"));
 
 	return 0;
 }
