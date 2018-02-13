@@ -20,24 +20,26 @@ static int test_urldecode()
 	ffstr s;
 	s.ptr = buf;
 
-	n = ffuri_decode(decoded, FFCNT(decoded), FFSTR("/path/my%20file"));
+	n = ffuri_decode(decoded, FFCNT(decoded), FFSTR("/path/my%20file"), 0);
 	x(n == FFSLEN("/path/my file") && 0 == ffmemcmp(decoded, "/path/my file", n));
 
-	x(0 == ffuri_decode(decoded, FFCNT(decoded), FFSTR("/path/my%2zfile")));
-	x(0 == ffuri_decode(decoded, FFCNT(decoded), FFSTR("/path/my%20space%2")));
+	x(0 == ffuri_decode(decoded, FFCNT(decoded), FFSTR("/path/my%2zfile"), 0));
+	x(0 == ffuri_decode(decoded, FFCNT(decoded), FFSTR("/path/my%20space%2"), 0));
 
-	n = ffuri_decode(decoded, FFCNT(decoded), FFSTR("/1/2/3/..%2f../%2e%2e/4"));
+	n = ffuri_decode(decoded, FFCNT(decoded), FFSTR("/1/2/3/..%2f../%2e%2e/4"), FFURI_DEC_NORM_PATH);
 	x(n == FFSLEN("/4") && 0 == ffmemcmp(decoded, "/4", n));
 
-	n = ffuri_decode(decoded, FFCNT(decoded), FFSTR("/1/2/3/..%2f../%2e%2e/4/."));
+	n = ffuri_decode(decoded, FFCNT(decoded), FFSTR("/1/2/3/..%2f../%2e%2e/4/."), FFURI_DEC_NORM_PATH);
 	x(n == FFSLEN("/4/") && 0 == ffmemcmp(decoded, "/4/", n));
 
-	n = ffuri_decode(decoded, FFCNT(decoded), FFSTR("/1/2/3/..%2f../%2e%2e/4/./"));
+	n = ffuri_decode(decoded, FFCNT(decoded), FFSTR("/1/2/3/..%2f../%2e%2e/4/./"), FFURI_DEC_NORM_PATH);
 	x(n == FFSLEN("/4/") && 0 == ffmemcmp(decoded, "/4/", n));
 
-	x(0 == ffuri_decode(decoded, FFCNT(decoded), FFSTR("/1/2/3/../../../..")));
-	x(0 == ffuri_decode(decoded, FFCNT(decoded), FFSTR("/%001")));
-	x(0 == ffuri_decode(decoded, FFCNT(decoded), FFSTR("/\x01")));
+	x(0 == ffuri_decode(decoded, FFCNT(decoded), FFSTR("/1/2/3/../../../.."), FFURI_DEC_NORM_PATH));
+	x(0 == ffuri_decode(decoded, FFCNT(decoded), FFSTR("/%"), 0));
+	x(0 == ffuri_decode(decoded, FFCNT(decoded), FFSTR("/%1"), 0));
+	x(0 == ffuri_decode(decoded, FFCNT(decoded), FFSTR("/%001"), 0));
+	x(0 == ffuri_decode(decoded, FFCNT(decoded), FFSTR("/\x01"), 0));
 
 
 	x(-(ssize_t)(FFSLEN("host/path?%# \x00\xff")-1) == ffuri_escape(buf

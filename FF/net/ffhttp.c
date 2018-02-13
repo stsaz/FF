@@ -720,7 +720,7 @@ int ffhttp_reqparse(ffhttp_request *r, const char *d, size_t len)
 						break;
 					}
 					fn = ffhttp_requrl(r, FFURL_PATH);
-					r->decoded_url.len = ffuri_decode(r->decoded_url.ptr, r->url.decoded_pathlen, fn.ptr, fn.len);
+					r->decoded_url.len = ffuri_decode(r->decoded_url.ptr, r->url.decoded_pathlen, fn.ptr, fn.len, FFURI_DEC_NORM_PATH);
 					if (r->decoded_url.len == 0) {
 						er = FFHTTP_EURI;
 						break;

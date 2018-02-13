@@ -301,7 +301,7 @@ int ffurl_parse_ip(ffurl *u, const char *base, ffip6 *dst)
 }
 
 
-size_t ffuri_decode(char *dst, size_t dstcap, const char *d, size_t len)
+size_t ffuri_decode(char *dst, size_t dstcap, const char *d, size_t len, uint flags)
 {
 	enum { iUri, iQuoted1, iQuoted2 };
 	int idx = iUri;
@@ -317,8 +317,6 @@ size_t ffuri_decode(char *dst, size_t dstcap, const char *d, size_t len)
 		case iUri:
 			if (ch == '%')
 				idx = iQuoted1;
-			else if (ch == '?')
-				goto done;
 			else if (ffchar_isansiwhite(ch) || ch == '#')
 				goto fail;
 			else
@@ -349,8 +347,8 @@ size_t ffuri_decode(char *dst, size_t dstcap, const char *d, size_t len)
 	if (idx != iUri)
 		goto fail; // incomplete quoted sequence, e.g. "%2"
 
-done:
-	idst = ffpath_norm(dst, dstcap, dst, idst, FFPATH_MERGEDOTS | FFPATH_STRICT_BOUNDS | FFPATH_WINDOWS | FFPATH_FORCESLASH);
+	if (flags & FFURI_DEC_NORM_PATH)
+		idst = ffpath_norm(dst, dstcap, dst, idst, FFPATH_MERGEDOTS | FFPATH_STRICT_BOUNDS | FFPATH_WINDOWS | FFPATH_FORCESLASH);
 	if (idst == 0)
 		goto fail;
 	return idst;

@@ -80,11 +80,15 @@ Return address family;  0 if not an IP address;  -1 on error */
 FF_EXTN int ffurl_parse_ip(ffurl *u, const char *base, ffip6 *dst);
 
 
+enum FFURI_DECODE {
+	FFURI_DEC_NORM_PATH = 0x10, // normalize path: merge dots & slashes, force strict bounds
+};
+
 /** Decode %xx in URI.
-Normalize path: /./ and /../
+@flags: enum FFURI_DECODE
 Return the number of bytes written into dst.
 Return 0 on error. */
-FF_EXTN size_t ffuri_decode(char *dst, size_t dstcap, const char *d, size_t len);
+FF_EXTN size_t ffuri_decode(char *dst, size_t dstcap, const char *d, size_t len, uint flags);
 
 enum FFURI_ESCAPE {
 	FFURI_ESC_WHOLE // http://host/path
