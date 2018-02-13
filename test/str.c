@@ -845,6 +845,47 @@ static void test_str_gather(void)
 	ffarr_free(&a);
 }
 
+static void test_str_vercmp(void)
+{
+	FFTEST_FUNC;
+	ffstr s1, s2;
+	ffstr_setz(&s1, "1.0.1");
+	ffstr_setz(&s2, "1.0.2");
+	x(ffstr_vercmp(&s1, &s2) == -1);
+
+	ffstr_setz(&s1, "1.1.0");
+	ffstr_setz(&s2, "1.0.2");
+	x(ffstr_vercmp(&s1, &s2) > 0);
+
+	ffstr_setz(&s1, "1.1");
+	ffstr_setz(&s2, "1.1.1");
+	x(ffstr_vercmp(&s1, &s2) < 0);
+
+	ffstr_setz(&s1, "1.1");
+	ffstr_setz(&s2, "1.1.0");
+	x(ffstr_vercmp(&s1, &s2) == 0);
+
+	ffstr_setz(&s1, "1.0.3");
+	ffstr_setz(&s2, "1.0.2");
+	x(ffstr_vercmp(&s1, &s2) > 0);
+
+	ffstr_setz(&s1, "1.002.3");
+	ffstr_setz(&s2, "1.1.2");
+	x(ffstr_vercmp(&s1, &s2) > 0);
+
+	ffstr_setz(&s1, "1.2..3");
+	ffstr_setz(&s2, "1.1.2");
+	x(ffstr_vercmp(&s1, &s2) == FFSTR_VERCMP_ERRV1);
+
+	ffstr_setz(&s1, "1.2.3");
+	ffstr_setz(&s2, "1.1.2.");
+	x(ffstr_vercmp(&s1, &s2) == FFSTR_VERCMP_ERRV2);
+
+	ffstr_setz(&s1, "1.2.3");
+	ffstr_setz(&s2, ".1.1.2");
+	x(ffstr_vercmp(&s1, &s2) == FFSTR_VERCMP_ERRV2);
+}
+
 int test_str()
 {
 	FFTEST_FUNC;
@@ -896,5 +937,6 @@ int test_str()
 	test_str_crop();
 	test_str_contig();
 	test_str_gather();
+	test_str_vercmp();
 	return 0;
 }

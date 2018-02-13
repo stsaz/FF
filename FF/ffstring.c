@@ -4,6 +4,7 @@ Copyright (c) 2013 Simon Zolin
 
 #include <FF/string.h>
 #include <FF/array.h>
+#include <FF/number.h>
 #include <FFOS/error.h>
 #include <math.h>
 
@@ -1625,6 +1626,37 @@ ffbstr * ffbstr_push(ffstr *buf, const char *data, size_t len)
 	buf->ptr = p;
 	buf->len += sizeof(ffbstr) + len;
 	return bs;
+}
+
+
+int ffstr_vercmp(const ffstr *v1, const ffstr *v2)
+{
+	int r = 0;
+	uint64 n1, n2;
+	ffstr s = *v1, d = *v2, part;
+
+	for (;;) {
+
+		if (s.len == 0 && d.len == 0)
+			return r;
+
+		n1 = n2 = 0;
+
+		if (s.len != 0) {
+			ffstr_nextval3(&s, &part, '.' | FFS_NV_KEEPWHITE);
+			if (!ffstr_toint(&part, &n1, FFS_INT64))
+				return FFSTR_VERCMP_ERRV1; // the component is not a number
+		}
+
+		if (d.len != 0) {
+			ffstr_nextval3(&d, &part, '.' | FFS_NV_KEEPWHITE);
+			if (!ffstr_toint(&part, &n2, FFS_INT64))
+				return FFSTR_VERCMP_ERRV2; // the component is not a number
+		}
+
+		if (r == 0)
+			r = ffint_cmp(n1, n2);
+	}
 }
 
 

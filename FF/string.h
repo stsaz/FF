@@ -687,6 +687,19 @@ FF_EXTN int ffs_regex(const char *regexp, size_t regexp_len, const char *s, size
 	ffs_regex(regexpcz, FFSLEN(regexpcz), s, len, flags)
 
 
+enum FFSTR_VERCMP {
+	FFSTR_VERCMP_1GREATER2 = 1,
+	FFSTR_VERCMP_EQ = 0,
+	FFSTR_VERCMP_1LESS2 = -1,
+	FFSTR_VERCMP_ERRV1 = -2, //error in the first string
+	FFSTR_VERCMP_ERRV2 = -3, //error in the second string
+};
+
+/** Compare dotted-decimal version string: e.g. "2.0" < "10.0".
+Return enum FFSTR_VERCMP. */
+FF_EXTN int ffstr_vercmp(const ffstr *v1, const ffstr *v2);
+
+
 #if defined FF_LINUX
 #define FF_QSORT_PARAMS  const void *a, const void *b, void *udata
 #define ff_qsort(ar, n, elsize, func, udata) \
