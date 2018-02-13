@@ -559,6 +559,7 @@ enum FFSTR_NEXTVAL {
 	FFS_NV_KEEPWHITE = 0x200, // don't trim whitespace
 	FFS_NV_REVERSE = 0x400, // reverse search
 	FFS_NV_TABS = 0x0800, // treat whitespace as spaces and tabs
+	FFS_NV_WORDS = 0x1000, // ignore 'spl' char;  instead, split by whitespace
 };
 
 /** Get the next value from input string like "val1, val2, ...".
@@ -570,7 +571,10 @@ FF_EXTN size_t ffstr_nextval(const char *buf, size_t len, ffstr *dst, int spl);
 static FFINL size_t ffstr_nextval3(ffstr *src, ffstr *dst, int spl)
 {
 	size_t n = ffstr_nextval(src->ptr, src->len, dst, spl);
-	ffstr_shift(src, n);
+	if (spl & FFS_NV_REVERSE)
+		src->len -= n;
+	else
+		ffstr_shift(src, n);
 	return n;
 }
 

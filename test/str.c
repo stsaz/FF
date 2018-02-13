@@ -470,29 +470,52 @@ static int test_str_find()
 
 static int test_str_nextval()
 {
-	ffstr s;
-	ffstr v;
-	size_t by;
-	ffstr_setcz(&s, " , qwer , asdf , ");
-	by = ffstr_nextval(s.ptr, s.len, &v, ',');
-	x(by == FFSLEN(" ,"));
-	ffstr_shift(&s, by);
-	x(ffstr_eqcz(&v, ""));
+	ffstr s, v;
 
-	by = ffstr_nextval(s.ptr, s.len, &v, ',');
-	x(by == FFSLEN(" qwer ,"));
-	ffstr_shift(&s, by);
+	ffstr_setcz(&s, " , qwer , asdf ,");
+	x(FFSLEN(" ,") == ffstr_nextval3(&s, &v, ','));
+	x(ffstr_eqcz(&v, ""));
+	x(FFSLEN(" qwer ,") == ffstr_nextval3(&s, &v, ','));
 	x(ffstr_eqcz(&v, "qwer"));
-
-	by = ffstr_nextval(s.ptr, s.len, &v, ',');
-	x(by == FFSLEN(" asdf ,"));
-	ffstr_shift(&s, by);
+	x(FFSLEN(" asdf ") == ffstr_nextval3(&s, &v, ','));
 	x(ffstr_eqcz(&v, "asdf"));
-
-	by = ffstr_nextval(s.ptr, s.len, &v, ',');
-	x(by == FFSLEN(" "));
-	ffstr_shift(&s, by);
+	x(FFSLEN(",") == ffstr_nextval3(&s, &v, ','));
 	x(ffstr_eqcz(&v, ""));
+	x(s.len == 0);
+
+	// FFS_NV_KEEPWHITE
+	ffstr_setcz(&s, " ,qwer , asdf ,");
+	x(FFSLEN(" ,") == ffstr_nextval3(&s, &v, ',' | FFS_NV_KEEPWHITE));
+	x(ffstr_eqcz(&v, " "));
+	x(FFSLEN("qwer ,") == ffstr_nextval3(&s, &v, ',' | FFS_NV_KEEPWHITE));
+	x(ffstr_eqcz(&v, "qwer "));
+	x(FFSLEN(" asdf ") == ffstr_nextval3(&s, &v, ',' | FFS_NV_KEEPWHITE));
+	x(ffstr_eqcz(&v, " asdf "));
+	x(FFSLEN(",") == ffstr_nextval3(&s, &v, ',' | FFS_NV_KEEPWHITE));
+	x(ffstr_eqcz(&v, ""));
+	x(s.len == 0);
+
+	// FFS_NV_REVERSE
+	ffstr_setcz(&s, ",qwer, asdf ,");
+	x(FFSLEN(",") == ffstr_nextval3(&s, &v, ',' | FFS_NV_REVERSE));
+	x(ffstr_eqcz(&v, ""));
+	x(FFSLEN(", asdf ") == ffstr_nextval3(&s, &v, ',' | FFS_NV_REVERSE));
+	x(ffstr_eqcz(&v, "asdf"));
+	x(FFSLEN("qwer") == ffstr_nextval3(&s, &v, ',' | FFS_NV_REVERSE));
+	x(ffstr_eqcz(&v, "qwer"));
+	x(FFSLEN(",") == ffstr_nextval3(&s, &v, ',' | FFS_NV_REVERSE));
+	x(ffstr_eqcz(&v, ""));
+	x(s.len == 0);
+
+	// FFS_NV_WORDS
+	ffstr_setcz(&s, " \t qwer  \t  asdf \t");
+	x(FFSLEN(" \t qwer ") == ffstr_nextval3(&s, &v, FFS_NV_WORDS | FFS_NV_TABS));
+	x(ffstr_eqcz(&v, "qwer"));
+	x(FFSLEN(" \t  asdf ") == ffstr_nextval3(&s, &v, FFS_NV_WORDS | FFS_NV_TABS));
+	x(ffstr_eqcz(&v, "asdf"));
+	x(FFSLEN("\t") == ffstr_nextval3(&s, &v, FFS_NV_WORDS | FFS_NV_TABS));
+	x(ffstr_eqcz(&v, ""));
+	x(s.len == 0);
 
 	return 0;
 }

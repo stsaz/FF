@@ -1532,21 +1532,28 @@ size_t ffstr_nextval(const char *buf, size_t len, ffstr *dst, int spl)
 {
 	const char *end = buf + len;
 	const char *pos;
-	ffstr spc;
+	ffstr spc, sspl = {0};
 	uint f = spl & ~0xff;
 	spl &= 0xff;
 
+	ffstr_setcz(&spc, " ");
 	if (f & FFS_NV_TABS)
 		ffstr_setcz(&spc, "\t ");
-	else
-		ffstr_setcz(&spc, " ");
+
+	if (f & FFS_NV_WORDS)
+		sspl = spc;
 
 	if (f & FFS_NV_REVERSE) {
-		pos = ffs_rfind(buf, end - buf, spl);
+		if (sspl.ptr != NULL)
+			pos = ffs_rfindof(buf, end - buf, sspl.ptr, sspl.len);
+		else
+			pos = ffs_rfind(buf, end - buf, spl);
 		if (pos == end)
 			pos = buf;
 		else {
 			len = end - pos;
+			if (pos == buf && pos + 1 != end)
+				len--; // don't remove the last split char, e.g. ",val"
 			pos++;
 		}
 
@@ -1580,9 +1587,21 @@ size_t ffstr_nextval(const char *buf, size_t len, ffstr *dst, int spl)
 		return pos - (end - len);
 	}
 
-	pos = ffs_find(buf, end - buf, spl);
-	if (pos != end)
+	if (sspl.ptr != NULL)
+		pos = ffs_findof(buf, end - buf, sspl.ptr, sspl.len);
+	else
+		pos = ffs_find(buf, end - buf, spl);
+
+	// merge whitespace if splitting by whitespace: "val1   val2" -> "val1", "val2"
+	if (pos != end
+		&& ((f & FFS_NV_WORDS) || spl == ' ' || spl == '\t'))
+		pos = ffs_skipof(pos, end - pos, sspl.ptr, sspl.len);
+
+	if (pos != end) {
 		len = pos - (end - len) + 1;
+		if (pos + 1 == end && pos != buf)
+			len--; // don't remove the last split char, e.g. "val,"
+	}
 
 	if (!(f & FFS_NV_KEEPWHITE))
 		pos = ffs_rskipof(buf, pos - buf, spc.ptr, spc.len);
