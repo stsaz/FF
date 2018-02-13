@@ -621,6 +621,9 @@ FF_EXTN size_t fffile_fmt(fffd fd, ffstr3 *buf, const char *fmt, ...);
 */
 FF_EXTN int fffile_readall(ffarr *a, const char *fn, uint64 limit);
 
+/** Create (overwrite) file from buffer. */
+FF_EXTN int fffile_writeall(const char *fn, const char *d, size_t len, uint flags);
+
 /** Buffered data output.
 @dst is set if an output data block is ready.
 Return the number of processed bytes. */

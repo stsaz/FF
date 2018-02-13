@@ -89,6 +89,31 @@ end:
 	return r;
 }
 
+int fffile_writeall(const char *fn, const char *d, size_t len, uint flags)
+{
+	fffd f;
+	int rc = 1;
+
+	if (flags == 0)
+		flags = O_CREAT | O_TRUNC;
+
+	if (FF_BADFD == (f = fffile_open(fn, flags | O_WRONLY)))
+		goto done;
+
+	if (len != (size_t)fffile_write(f, d, len))
+		goto done;
+
+	rc = 0;
+
+done:
+	if (f != FF_BADFD) {
+		rc |= fffile_close(f);
+		if (rc != 0)
+			fffile_rm(fn);
+	}
+	return rc;
+}
+
 void fffile_mapclose(fffilemap *fm)
 {
 	if (fm->map != NULL)
