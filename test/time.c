@@ -144,19 +144,46 @@ int test_time()
 }
 
 
+static void test_timerq_rm()
+{
+	fftimer_queue tq;
+	fftmrq_entry t1, t2, t3, t4, root;
+	fftmrq_init(&tq);
+	fftmrq_add(&tq, &root, 2);
+	fftmrq_add(&tq, &t1, 1);
+	fftmrq_add(&tq, &t2, 10);
+	fftmrq_add(&tq, &t3, 10);
+	fftmrq_add(&tq, &t4, 10);
+
+	x(tq.items.root == (ffrbt_node*)&root.tnode);
+	fftmrq_rm(&tq, &root);
+	x(tq.items.root == (ffrbt_node*)&t2.tnode);
+	fftmrq_add(&tq, &root, 2);
+	fftmrq_rm(&tq, &root);
+	fftmrq_rm(&tq, &t2);
+	fftmrq_rm(&tq, &t3);
+	fftmrq_rm(&tq, &t4);
+	fftmrq_rm(&tq, &t1);
+	x(tq.items.len == 0);
+	x(tq.items.root == &tq.items.sentl);
+}
+
 static void t1_func(const fftime *now, void *param) {
-	x(0 != (*(int*)param & 1));
-	*(int*)param += 0x0100;
+	int *num = param;
+	x(*num & 1);
+	*num += 0x0100;
 }
 
 static void t2_func(const fftime *now, void *param) {
-	x(*(int*)param == 0);
-	*(int*)param |= 1;
+	int *num = param;
+	x(*num == 0);
+	*num |= 1;
 }
 
 static void t3_func(const fftime *now, void *param) {
-	x(*(int*)param == 0x0101);
-	*(int*)param |= 2;
+	int *num = param;
+	x(*num == 0x0101);
+	*num |= 2;
 }
 
 static void t4_func(const fftime *now, void *param) {
@@ -211,5 +238,7 @@ int test_timerq()
 
 	fftmrq_destroy(&tq, kq);
 	x(0 == ffkqu_close(kq));
+
+	test_timerq_rm();
 	return 0;
 }

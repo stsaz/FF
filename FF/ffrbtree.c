@@ -346,15 +346,15 @@ void ffrbt_print(ffrbtree *tr)
 	uint i = 0;
 
 	FFTREE_WALK(tr, node) {
-		ffstr_catfmt(&a, "#%2u %c, key: %8xu, node: %p, left: %8xu, right: %8xu, parent: %8xu\n"
+		ffstr_catfmt(&a, "#%2u %c, key: %8xu, node: %p, left: %p, right: %p, parent: %p\n"
 			, i++, ((ffrbt_node*)node)->color == 0 ? 'B' : 'R', node->key, node
-			, (node->left == (void*)&tr->sentl) ? 0 : node->left->key
-			, (node->right == (void*)&tr->sentl) ? 0 : node->right->key
-			, node->parent->key);
+			, node->left
+			, node->right
+			, node->parent);
 	}
 
-	FFDBG_PRINT(0, "tree: %p, len:%L, sentl: %p, nodes:\n%S\n"
-		, tr, tr->len, &tr->sentl, &a);
+	FFDBG_PRINT(0, "tree:%p, len:%L, sentl:%p, root:%p, nodes:\n%S\n"
+		, tr, tr->len, &tr->sentl, tr->root, &a);
 	ffarr_free(&a);
 }
 
