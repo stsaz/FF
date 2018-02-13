@@ -171,3 +171,54 @@ int ffhst_walk(ffhstab *ht, ffhst_walk_func func, void *param)
 
 	return 0;
 }
+
+void ffhst_print(ffhstab *ht, ffarr *dst)
+{
+	ffhst_slot *slot;
+	ffhst_ext *ext;
+	void *tail, *end;
+	ffhst_item *it;
+	ffarr a = {0};
+	size_t ncoll = 0, maxcoll = 0, empty = 0, n;
+
+	ffarr_alloc(&a, ht->nslots * FFSLEN("[000] = 00000000\n"));
+
+	ffstr_catfmt(&a, "hst:%p  len:%L  items:\n"
+		, ht, ht->len);
+
+	end = ht->slots + ht->nslots;
+	for (slot = ht->slots;  slot != end;  slot++) {
+		ffstr_catfmt(&a, "[%03u]"
+			, (int)(slot - ht->slots));
+		if (hst_slot_empty(slot)) {
+			empty++;
+			ffstr_catfmt(&a, " .\n");
+			continue;
+		}
+
+		if (!hst_slot_isext(slot)) {
+			ffstr_catfmt(&a, " %08xu = %p\n", slot->item.keyhash, slot->item.val);
+			continue;
+		}
+
+		ext = hst_slot_ext(slot);
+		tail = hst_ext_tail(ext);
+		n = 0;
+		for (it = ext->items;  it != tail;  it++) {
+			if (it != ext->items)
+				ffstr_catfmt(&a, "     ");
+			ffstr_catfmt(&a, " %08xu = %p\n", it->keyhash, it->val);
+			n++;
+		}
+		ncoll++;
+		ffint_setmax(maxcoll, n);
+	}
+
+	ffstr_catfmt(&a, "used:%L/%L  ncoll:%L  maxcoll:%L\n"
+		, ht->nslots - empty, ht->nslots, ncoll, maxcoll);
+	if (dst == NULL) {
+		FFDBG_PRINTLN(0, "%S", &a);
+		ffarr_free(&a);
+	} else
+		ffarr_acq(dst, &a);
+}

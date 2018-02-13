@@ -317,6 +317,11 @@ int test_htable()
 	x(0 == ffhst_walk(&ht, &walk, &n));
 	x(n == ht.len);
 
+	ffarr a = {0};
+	ffhst_print(&ht, &a);
+	ffarr_free(&a);
+	ffhst_print(&ht, NULL);
+
 	ffhst_free(&ht);
 	return 0;
 }

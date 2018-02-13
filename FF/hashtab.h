@@ -4,7 +4,7 @@ Copyright (c) 2014 Simon Zolin
 
 #pragma once
 
-#include <FFOS/types.h>
+#include <FF/array.h>
 
 
 typedef struct ffhst_item {
@@ -65,3 +65,7 @@ typedef int (*ffhst_walk_func)(void *val, void *param);
 
 /** Walk through all items in hash table. */
 FF_EXTN int ffhst_walk(ffhstab *ht, ffhst_walk_func func, void *param);
+
+/** Print hash table content.
+@dst: optional */
+FF_EXTN void ffhst_print(ffhstab *ht, ffarr *dst);
