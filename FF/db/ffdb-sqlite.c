@@ -86,3 +86,87 @@ int ffdb_outputv(ffdb_stmt *stmt, const byte *types, size_t ntypes, va_list va)
 
 	return 0;
 }
+
+int ffdb_inputf(ffdb_stmt *s, const char *fmt, ...)
+{
+	int rc = -1, r;
+	uint col = 0;
+	va_list va;
+	va_start(va, fmt);
+
+	for (;  *fmt != '\0';  fmt++) {
+		if (*fmt != '%')
+			goto done;
+		fmt++;
+		switch (*fmt) {
+		case 'd': {
+			int src = va_arg(va, int);
+			r = ffdb_setint(s, col, src);
+			break;
+		}
+		case 'D': {
+			int64 src = va_arg(va, int64);
+			r = ffdb_setint64(s, col, src);
+			break;
+		}
+		case 'S': {
+			ffstr *src = va_arg(va, ffstr*);
+			r = ffdb_settext(s, col, src->ptr, src->len);
+			break;
+		}
+		case '\0':
+			goto done;
+		}
+
+		if (r != FFDB_OK)
+			goto done;
+		col++;
+	}
+
+	rc = 0;
+
+done:
+	va_end(va);
+	return rc;
+}
+
+int ffdb_outputf(ffdb_stmt *s, const char *fmt, ...)
+{
+	int rc = -1;
+	uint col = 0;
+	va_list va;
+	va_start(va, fmt);
+
+	for (;  *fmt != '\0';  fmt++) {
+		if (*fmt != '%')
+			goto done;
+		fmt++;
+		switch (*fmt) {
+		case 'd': {
+			int *dst = va_arg(va, int*);
+			*dst = ffdb_getint(s, col);
+			break;
+		}
+		case 'D': {
+			int64 *dst = va_arg(va, int64*);
+			*dst = ffdb_getint64(s, col);
+			break;
+		}
+		case 'S': {
+			ffstr *dst = va_arg(va, ffstr*);
+			ffdb_getstr(s, col, dst);
+			break;
+		}
+		case '\0':
+			goto done;
+		}
+
+		col++;
+	}
+
+	rc = 0;
+
+done:
+	va_end(va);
+	return rc;
+}
