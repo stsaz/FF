@@ -261,14 +261,14 @@ void ffrbt_rm(ffrbtree *tr, ffrbt_node *nod)
 
 	if (next == NULL) {
 		if (nod->color == RED)
-			return; // black-height has not been changed
+			goto done; // black-height has not been changed
 
 	} else {
 		// exchange colors of the node and its successor
 		int clr = next->color;
 		next->color = nod->color;
 		if (clr == RED)
-			return; // black-height has not been changed
+			goto done; // black-height has not been changed
 	}
 
 	// fixup after delete
@@ -334,6 +334,7 @@ void ffrbt_rm(ffrbtree *tr, ffrbt_node *nod)
 		x = p; // repeat for parent
 	}
 
+done:
 	x->color = BLACK;
 	tr->root = root;
 }
