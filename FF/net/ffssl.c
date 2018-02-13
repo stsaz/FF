@@ -28,6 +28,7 @@ typedef struct ssl_rbuf {
 
 static int ssl_verify_cb(int preverify_ok, X509_STORE_CTX *x509ctx);
 static int ssl_tls_srvname(SSL *ssl, int *ad, void *arg);
+static int _ffssl_ctx_tls_srvname_set(SSL_CTX *ctx, ffssl_tls_srvname_cb func);
 
 static int async_bio_write(BIO *bio, const char *buf, int len);
 static int async_bio_read(BIO *bio, char *buf, int len);
@@ -71,8 +72,8 @@ static const char *const ffssl_funcstr[] = {
 
 	"SSL_CTX_new",
 	"SSL_CTX_set_cipher_list",
-	"SSL_CTX_use_certificate_chain_file",
-	"SSL_CTX_use_PrivateKey_file",
+	"SSL_CTX_use_certificate",
+	"SSL_CTX_use_PrivateKey",
 	"SSL_CTX_load_verify_locations",
 	"SSL_load_client_CA_file",
 	"SSL_CTX_set_tlsext_servername*",
@@ -135,7 +136,7 @@ static const uint no_protos[] = {
 	SSL_OP_NO_SSLv3, SSL_OP_NO_TLSv1, SSL_OP_NO_TLSv1_1, SSL_OP_NO_TLSv1_2
 };
 
-void ffssl_ctx_protoallow(SSL_CTX *ctx, uint protos)
+void _ffssl_ctx_protoallow(SSL_CTX *ctx, uint protos)
 {
 	int i, op = 0;
 	if (protos == FFSSL_PROTO_DEFAULT)
@@ -149,15 +150,75 @@ void ffssl_ctx_protoallow(SSL_CTX *ctx, uint protos)
 	SSL_CTX_set_options(ctx, op);
 }
 
-int ffssl_ctx_cert(SSL_CTX *ctx, const char *certfile, const char *pkeyfile, const char *ciphers)
+static int _ffssl_ctx_cert(SSL_CTX *ctx, const struct ffssl_ctx_conf *o)
 {
-	if (1 != SSL_CTX_set_cipher_list(ctx, (ciphers != NULL) ? ciphers : DEF_CIPHERS))
+	if (o->certfile != NULL
+		&& 1 != SSL_CTX_use_certificate_chain_file(ctx, o->certfile))
+		return FFSSL_EUSECERT;
+
+	if (o->certdata.len != 0) {
+		X509 *cert;
+		if (NULL == (cert = ffssl_cert_read(o->certdata.ptr, o->certdata.len, 0)))
+			return FFSSL_EUSECERT;
+		int r = SSL_CTX_use_certificate(ctx, cert);
+		X509_free(cert);
+		if (r != 1)
+			return FFSSL_EUSECERT;
+	}
+
+	if (o->cert != NULL
+		&& 1 != SSL_CTX_use_certificate(ctx, o->cert))
+		return FFSSL_EUSECERT;
+
+	return 0;
+}
+
+static int _ffssl_ctx_pkey(SSL_CTX *ctx, const struct ffssl_ctx_conf *o)
+{
+	if (o->pkeyfile != NULL
+		&& 1 != SSL_CTX_use_PrivateKey_file(ctx, o->pkeyfile, SSL_FILETYPE_PEM))
+		return FFSSL_EUSEPKEY;
+
+	if (o->pkeydata.len != 0) {
+		EVP_PKEY *pk;
+		if (NULL == (pk = ffssl_cert_key_read(o->pkeydata.ptr, o->pkeydata.len, 0)))
+			return FFSSL_EUSEPKEY;
+		int r = SSL_CTX_use_PrivateKey(ctx, pk);
+		EVP_PKEY_free(pk);
+		if (r != 1)
+			return FFSSL_EUSEPKEY;
+	}
+
+	if (o->pkey != NULL
+		&& 1 != SSL_CTX_use_PrivateKey(ctx, o->pkey))
+		return FFSSL_EUSEPKEY;
+
+	return 0;
+}
+
+int ffssl_ctx_conf(SSL_CTX *ctx, const struct ffssl_ctx_conf *o)
+{
+	int r;
+
+	if (0 != (r = _ffssl_ctx_cert(ctx, o)))
+		return r;
+
+	if (0 != (r = _ffssl_ctx_pkey(ctx, o)))
+		return r;
+
+	if (o->ciphers != NULL
+		&& 1 != SSL_CTX_set_cipher_list(ctx, (o->ciphers[0] != '\0') ? o->ciphers : DEF_CIPHERS))
 		return FFSSL_ESETCIPHER;
 
-	if (1 != SSL_CTX_use_certificate_chain_file(ctx, certfile))
-		return FFSSL_EUSECERT;
-	if (1 != SSL_CTX_use_PrivateKey_file(ctx, pkeyfile, SSL_FILETYPE_PEM))
-		return FFSSL_EUSEPKEY;
+	if (o->use_server_cipher)
+		SSL_CTX_set_options(ctx, SSL_OP_CIPHER_SERVER_PREFERENCE);
+
+	if (o->tls_srvname_func != NULL
+		&& 0 != (r = _ffssl_ctx_tls_srvname_set(ctx, o->tls_srvname_func)))
+		return r;
+
+	_ffssl_ctx_protoallow(ctx, o->allowed_protocols);
+
 	return 0;
 }
 
@@ -200,7 +261,7 @@ static int ssl_tls_srvname(SSL *ssl, int *ad, void *arg)
 	return srvname(ssl, ad, arg, udata);
 }
 
-int ffssl_ctx_tls_srvname_set(SSL_CTX *ctx, ffssl_tls_srvname_cb func)
+static int _ffssl_ctx_tls_srvname_set(SSL_CTX *ctx, ffssl_tls_srvname_cb func)
 {
 	if (0 == SSL_CTX_set_tlsext_servername_callback(ctx, &ssl_tls_srvname))
 		return FFSSL_ESETTLSSRVNAME;
@@ -464,4 +525,32 @@ void ffssl_cert_info(X509 *cert, struct ffssl_cert_info *info)
 {
 	X509_NAME_oneline(X509_get_subject_name(cert), info->subject, sizeof(info->subject));
 	X509_NAME_oneline(X509_get_issuer_name(cert), info->issuer, sizeof(info->issuer));
+}
+
+X509* ffssl_cert_read(const char *data, size_t len, uint flags)
+{
+	BIO *b;
+	X509 *x;
+
+	if (NULL == (b = BIO_new_mem_buf(data, len)))
+		return NULL;
+
+	x = PEM_read_bio_X509(b, NULL, NULL, NULL);
+
+	BIO_free_all(b);
+	return x;
+}
+
+void* ffssl_cert_key_read(const char *data, size_t len, uint flags)
+{
+	BIO *b;
+	void *key;
+
+	if (NULL == (b = BIO_new_mem_buf(data, len)))
+		return NULL;
+
+	key = PEM_read_bio_PrivateKey(b, NULL, NULL, NULL);
+
+	BIO_free_all(b);
+	return key;
 }

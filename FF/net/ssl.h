@@ -4,7 +4,7 @@ Copyright (c) 2015 Simon Zolin
 
 #pragma once
 
-#include <FF/string.h>
+#include <FF/array.h>
 
 #ifdef FF_WIN
 #define OPENSSL_SYS_WIN32
@@ -54,24 +54,6 @@ FF_EXTN int ffssl_ctx_create(SSL_CTX **ctx);
 
 #define ffssl_ctx_free  SSL_CTX_free
 
-enum FFSSL_PROTO {
-	FFSSL_PROTO_DEFAULT = 0,
-	FFSSL_PROTO_V3 = 1,
-	FFSSL_PROTO_TLS1 = 2,
-	FFSSL_PROTO_TLS11 = 4,
-	FFSSL_PROTO_TLS12 = 8,
-};
-
-/** Set which protocols are allowed.
-@protos: enum FFSSL_PROTO */
-FF_EXTN void ffssl_ctx_protoallow(SSL_CTX *ctx, uint protos);
-
-FF_EXTN int ffssl_ctx_cert(SSL_CTX *ctx, const char *certfile, const char *pkeyfile, const char *ciphers);
-
-typedef int (*ffssl_verify_cb)(int preverify_ok, X509_STORE_CTX *x509ctx, void *udata);
-
-FF_EXTN int ffssl_ctx_ca(SSL_CTX *ctx, ffssl_verify_cb func, uint verify_depth, const char *fn);
-
 enum FFSSL_SRVNAME {
 	FFSSL_SRVNAME_OK = SSL_TLSEXT_ERR_OK,
 	FFSSL_SRVNAME_NOACK = SSL_TLSEXT_ERR_NOACK,
@@ -80,7 +62,37 @@ enum FFSSL_SRVNAME {
 /** Return enum FFSSL_SRVNAME */
 typedef int (*ffssl_tls_srvname_cb)(SSL *ssl, int *ad, void *arg, void *udata);
 
-FF_EXTN int ffssl_ctx_tls_srvname_set(SSL_CTX *ctx, ffssl_tls_srvname_cb func);
+enum FFSSL_PROTO {
+	FFSSL_PROTO_DEFAULT = 0, //all TLS
+	FFSSL_PROTO_V3 = 1,
+	FFSSL_PROTO_TLS1 = 2,
+	FFSSL_PROTO_TLS11 = 4,
+	FFSSL_PROTO_TLS12 = 8,
+};
+
+struct ffssl_ctx_conf {
+	char *certfile;
+	ffstr certdata;
+	void *cert;
+
+	char *pkeyfile;
+	ffstr pkeydata;
+	void *pkey;
+
+	char *ciphers;
+	uint use_server_cipher :1;
+
+	ffssl_tls_srvname_cb tls_srvname_func;
+
+	uint allowed_protocols; //enum FFSSL_PROTO
+};
+
+/** Configurate SSL context. */
+FF_EXTN int ffssl_ctx_conf(SSL_CTX *ctx, const struct ffssl_ctx_conf *conf);
+
+typedef int (*ffssl_verify_cb)(int preverify_ok, X509_STORE_CTX *x509ctx, void *udata);
+
+FF_EXTN int ffssl_ctx_ca(SSL_CTX *ctx, ffssl_verify_cb func, uint verify_depth, const char *fn);
 
 /**
 @size: 0:default;  -1:disabled;  >0:cache size. */
@@ -179,3 +191,7 @@ struct ffssl_cert_info {
 FF_EXTN void ffssl_cert_info(X509 *cert, struct ffssl_cert_info *info);
 
 #define ffssl_cert_verify_errstr(e)  X509_verify_cert_error_string(e)
+
+FF_EXTN X509* ffssl_cert_read(const char *data, size_t len, uint flags);
+
+FF_EXTN void* ffssl_cert_key_read(const char *data, size_t len, uint flags);
