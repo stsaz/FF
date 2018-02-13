@@ -195,3 +195,35 @@ FF_EXTN void ffssl_cert_info(X509 *cert, struct ffssl_cert_info *info);
 FF_EXTN X509* ffssl_cert_read(const char *data, size_t len, uint flags);
 
 FF_EXTN void* ffssl_cert_key_read(const char *data, size_t len, uint flags);
+
+enum FFSSL_PKEY {
+	FFSSL_PKEY_RSA,
+};
+
+/** Create a private key.
+@flags: enum FFSSL_PKEY */
+FF_EXTN int ffssl_cert_create_key(void **key, uint bits, uint flags);
+
+#define ffssl_cert_key_free(key)  RSA_free(key)
+
+struct ffssl_cert_newinfo {
+	ffstr subject; // "/K1=[V1]"...
+	int serial;
+	time_t from_time;
+	time_t until_time;
+
+	void *pkey;
+	uint pkey_type; //enum FFSSL_PKEY
+
+	X509_NAME *issuer_name; // NULL for self-signed
+	void *issuer_pkey;
+	uint issuer_pkey_type; //enum FFSSL_PKEY
+};
+
+/** Create a certificate. */
+FF_EXTN int ffssl_cert_create(X509 **x509, struct ffssl_cert_newinfo *info);
+
+#define ffssl_cert_free(x509)  X509_free(x509)
+
+FF_EXTN int ffssl_cert_key_print(void *key, ffstr *data);
+FF_EXTN int ffssl_cert_print(X509 *x509, ffstr *data);

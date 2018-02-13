@@ -591,3 +591,167 @@ void* ffssl_cert_key_read(const char *data, size_t len, uint flags)
 	BIO_free_all(b);
 	return key;
 }
+
+int ffssl_cert_create_key(void **key, uint bits, uint flags)
+{
+	int r = -1;
+	RSA *rsa = NULL;
+
+	switch (flags & 0xff) {
+	case FFSSL_PKEY_RSA:
+		if (NULL == (rsa = RSA_generate_key(bits, RSA_F4, NULL, NULL)))
+			goto end;
+		break;
+	default:
+		goto end;
+	}
+
+	*key = rsa;
+	r = 0;
+
+end:
+	return r;
+}
+
+/** Create EVP_PKEY object. */
+static EVP_PKEY* _evp_pkey(void *key, uint type)
+{
+	EVP_PKEY *pk;
+	if (NULL == (pk = EVP_PKEY_new()))
+		goto end;
+	switch (type) {
+	case FFSSL_PKEY_RSA:
+		if (0 == EVP_PKEY_set1_RSA(pk, key))
+			goto end;
+		break;
+	default:
+		goto end;
+	}
+
+	return pk;
+
+end:
+	FF_SAFECLOSE(pk, NULL, EVP_PKEY_free);
+	return NULL;
+}
+
+/** Fill X509_NAME object. */
+static int _x509_name(X509_NAME *name, const ffstr *subject)
+{
+	int r;
+	ffstr subj = *subject, pair, k, v;
+	char buf[1024];
+
+	if (subj.len != 0 && subj.ptr[0] == '/')
+		ffstr_shift(&subj, 1);
+
+	while (subj.len != 0) {
+		ffstr_nextval3(&subj, &pair, '/' | FFS_NV_KEEPWHITE);
+
+		if (NULL == ffs_split2by(pair.ptr, pair.len, '=', &k, &v)
+			|| k.len == 0)
+			goto end; // must be K=[V] pair
+
+		const char *z = ffsz_copy(buf, sizeof(buf), k.ptr, k.len);
+		if (z + 1 == buf + sizeof(buf))
+			goto end; // too large key
+		r = X509_NAME_add_entry_by_txt(name, buf, MBSTRING_ASC, (byte*)v.ptr, v.len, -1, 0);
+		if (r == 0)
+			goto end;
+	}
+
+	return 0;
+
+end:
+	return -1;
+}
+
+int ffssl_cert_create(X509 **px509, struct ffssl_cert_newinfo *info)
+{
+	int r = -1;
+	EVP_PKEY *pk = NULL, *isspk = NULL;
+	X509 *x509 = NULL;
+
+	if (NULL == (pk = _evp_pkey(info->pkey, info->pkey_type)))
+		goto end;
+
+	if (NULL == (x509 = X509_new()))
+		goto end;
+
+	if (0 == X509_set_version(x509, 2))
+		goto end;
+	ASN1_INTEGER_set(X509_get_serialNumber(x509), info->serial);
+	if (0 == X509_set_pubkey(x509, pk))
+		goto end;
+
+	if (NULL == X509_time_adj_ex(X509_get_notBefore(x509), 0, 0, &info->from_time))
+		goto end;
+	if (NULL == X509_time_adj_ex(X509_get_notAfter(x509), 0, 0, &info->until_time))
+		goto end;
+
+	X509_NAME *name = X509_get_subject_name(x509);
+	if (0 != _x509_name(name, &info->subject))
+		goto end;
+
+	X509_NAME *issname = name;
+	EVP_PKEY *ipk = pk;
+	if (info->issuer_name != NULL) {
+		issname = info->issuer_name;
+		if (NULL == (isspk = _evp_pkey(info->issuer_pkey, info->issuer_pkey_type)))
+			goto end;
+		ipk = isspk;
+	}
+	if (0 == X509_set_issuer_name(x509, issname))
+		goto end;
+	if (0 == X509_sign(x509, ipk, EVP_sha1()))
+		goto end;
+	*px509 = x509;
+	r = 0;
+
+end:
+	if (r != 0)
+		FF_SAFECLOSE(x509, NULL, X509_free);
+	FF_SAFECLOSE(pk, NULL, EVP_PKEY_free);
+	FF_SAFECLOSE(isspk, NULL, EVP_PKEY_free);
+	return r;
+}
+
+int ffssl_cert_key_print(void *key, ffstr *data)
+{
+	int r = -1;
+	BIO *bio;
+	BUF_MEM *bm;
+	if (NULL == (bio = BIO_new(BIO_s_mem())))
+		goto end;
+	if (0 == PEM_write_bio_RSAPrivateKey(bio, key, NULL, NULL, 0, NULL, NULL))
+		goto end;
+	if (0 == BIO_get_mem_ptr(bio, &bm))
+		goto end;
+	if (NULL == ffstr_dup(data, bm->data, bm->length))
+		goto end;
+	r = 0;
+
+end:
+	FF_SAFECLOSE(bio, NULL, BIO_free_all);
+	return r;
+}
+
+int ffssl_cert_print(X509 *x509, ffstr *data)
+{
+	int r = -1;
+	BIO *bio;
+	BUF_MEM *bm;
+	if (NULL == (bio = BIO_new(BIO_s_mem())))
+		goto end;
+	if (0 == PEM_write_bio_X509(bio, x509))
+		goto end;
+	if (0 == BIO_get_mem_ptr(bio, &bm))
+		goto end;
+	if (NULL == ffstr_dup(data, bm->data, bm->length))
+		goto end;
+	r = 0;
+
+end:
+	FF_SAFECLOSE(bio, NULL, BIO_free_all);
+	return r;
+}
