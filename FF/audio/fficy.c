@@ -119,6 +119,15 @@ int fficy_metaparse(fficymeta *p, const char *data, size_t *len)
 	return FFPARS_MORE;
 }
 
+int fficy_metaparse_str(fficymeta *p, ffstr *meta, ffstr *dst)
+{
+	size_t n = meta->len;
+	int r = fficy_metaparse(p, meta->ptr, &n);
+	ffstr_shift(meta, n);
+	*dst = p->val;
+	return r;
+}
+
 int fficy_streamtitle(const char *data, size_t len, ffstr *artist, ffstr *title)
 {
 	const char *spl;
@@ -132,25 +141,36 @@ int fficy_streamtitle(const char *data, size_t len, ffstr *artist, ffstr *title)
 }
 
 
-size_t fficy_addmeta(char *dst, size_t cap, const char *key, size_t keylen, const char *val, size_t vallen)
+int fficy_initmeta(ffarr *meta, char *buf, size_t cap)
 {
-	return ffs_fmt(dst, dst + cap, "%*s='%*s';"
-		, keylen, key, vallen, val);
+	if (cap != 0) {
+		ffarr_set3(meta, buf, 0, cap);
+		meta->len = 1; //leave space for the size
+	} else {
+		if (NULL == ffarr_alloc(meta, FFICY_MAXMETA))
+			return -1;
+	}
+	return 0;
 }
 
-uint fficy_finmeta(char *meta, size_t metacap, size_t metalen)
+size_t fficy_addmeta(ffarr *meta, const char *key, size_t keylen, const char *val, size_t vallen)
 {
-	if (metacap == 0)
-		return 0;
-	metacap = ffmin((metacap - 1) & ~0x0fU, FFICY_MAXMETA - 1);
-	metalen = ffmin(metalen, metacap);
+	size_t r = ffs_fmt(ffarr_end(meta), ffarr_edge(meta), "%*s='%*s';"
+		, keylen, key, vallen, val);
+	meta->len += r;
+	return r;
+}
 
-	if (metalen & 0x0f) {
-		uint pad = 16 - (metalen & 0x0f);
-		ffmem_zero(meta + 1 + metalen, pad);
-		metalen += pad;
+uint fficy_finmeta(ffarr *meta)
+{
+	uint n = meta->len - 1;
+	if (n & 0x0f) {
+		uint pad = 16 - (n & 0x0f);
+		ffmem_zero(ffarr_end(meta), pad);
+		meta->len += pad;
+		n += pad;
 	}
 
-	meta[0] = (byte)(metalen / 16);
-	return 1 + (uint)metalen;
+	meta->ptr[0] = (byte)(n / 16);
+	return meta->len;
 }

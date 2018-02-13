@@ -11,6 +11,7 @@ Copyright (c) 2013 Simon Zolin
 #include <FF/path.h>
 #include <FF/bitops.h>
 #include <FF/net/dns.h>
+#include <FF/audio/icy.h>
 
 #include <test/all.h>
 
@@ -324,6 +325,45 @@ static int test_dns()
 }
 
 
+#define ICY_META "\x03StreamTitle='artist - track';StreamUrl='';\0\0\0\0\0\0"
+
+static int test_icy(void)
+{
+	FFTEST_FUNC;
+
+	fficymeta icymeta;
+	ffstr d, v, artist, title;
+	fficy_metaparse_init(&icymeta);
+	ffstr_setz(&d, ICY_META + 1);
+
+	x(FFPARS_KEY == fficy_metaparse_str(&icymeta, &d, &v));
+	x(ffstr_eqz(&v, "StreamTitle"));
+	x(FFPARS_VAL == fficy_metaparse_str(&icymeta, &d, &v));
+	x(ffstr_eqz(&v, "artist - track"));
+	fficy_streamtitle(v.ptr, v.len, &artist, &title);
+	x(ffstr_eqz(&artist, "artist"));
+	x(ffstr_eqz(&title, "track"));
+
+	x(FFPARS_KEY == fficy_metaparse_str(&icymeta, &d, &v));
+	x(ffstr_eqz(&v, "StreamUrl"));
+	x(FFPARS_VAL == fficy_metaparse_str(&icymeta, &d, &v));
+	x(ffstr_eqz(&v, ""));
+	x(d.len == 0);
+
+	char meta[FFICY_MAXMETA];
+	ffarr m;
+	fficy_initmeta(&m, meta, sizeof(meta));
+	x(FFSLEN("StreamTitle='artist - track';")
+		== fficy_addmeta(&m, FFSTR("StreamTitle"), FFSTR("artist - track")));
+	x(FFSLEN("StreamUrl='';")
+		== fficy_addmeta(&m, FFSTR("StreamUrl"), FFSTR("")));
+	x(FFSLEN(ICY_META) == fficy_finmeta(&m));
+	x(ffstr_eq(&m, ICY_META, FFSLEN(ICY_META)));
+
+	return 0;
+}
+
+
 FF_EXTN int test_ring(void);
 FF_EXTN int test_tq(void);
 FF_EXTN int test_regex(void);
@@ -341,7 +381,7 @@ static const struct test_s _fftests[] = {
 	F(str), F(regex)
 	, F(num), F(bits), F(list), F(rbt), F(rbtlist), F(htable), F(ring), F(tq), F(crc)
 	, F(fmap), F(time), F(timerq), F(sendfile), F(path), F(direxp), F(env)
-	, F(url), F(http), F(dns)
+	, F(url), F(http), F(dns), F(icy)
 	, F(json), F(conf), F(args), F(cue)
 };
 #undef F

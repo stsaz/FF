@@ -73,15 +73,20 @@ typedef ffparser fficymeta;
 /** Parse ICY meta.  Get next key and its value (KEY='VAL';...).
 Return enum FFPARS_E. */
 FF_EXTN int fficy_metaparse(fficymeta *p, const char *data, size_t *len);
+FF_EXTN int fficy_metaparse_str(fficymeta *p, ffstr *meta, ffstr *dst);
 
 /** Get artist and title from StreamTitle tag. */
 FF_EXTN int fficy_streamtitle(const char *data, size_t len, ffstr *artist, ffstr *title);
 
 
+/** Prepare for writing ICY meta.
+@buf: optional */
+FF_EXTN int fficy_initmeta(ffarr *meta, char *buf, size_t cap);
+
 /** Add name-value pair into meta.
 Return bytes written. */
-FF_EXTN size_t fficy_addmeta(char *dst, size_t cap, const char *key, size_t keylen, const char *val, size_t vallen);
+FF_EXTN size_t fficy_addmeta(ffarr *meta, const char *key, size_t keylen, const char *val, size_t vallen);
 
 /** Finalize meta.
 Return the final meta size. */
-FF_EXTN uint fficy_finmeta(char *meta, size_t metacap, size_t metalen);
+FF_EXTN uint fficy_finmeta(ffarr *meta);
