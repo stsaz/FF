@@ -509,12 +509,18 @@ static int test_str_nextval()
 
 	// FFS_NV_WORDS
 	ffstr_setcz(&s, " \t qwer  \t  asdf \t");
-	x(FFSLEN(" \t qwer ") == ffstr_nextval3(&s, &v, FFS_NV_WORDS | FFS_NV_TABS));
+	x(FFSLEN(" \t qwer  \t  ") == ffstr_nextval3(&s, &v, FFS_NV_WORDS | FFS_NV_TABS));
 	x(ffstr_eqcz(&v, "qwer"));
-	x(FFSLEN(" \t  asdf ") == ffstr_nextval3(&s, &v, FFS_NV_WORDS | FFS_NV_TABS));
+	x(FFSLEN("asdf \t") == ffstr_nextval3(&s, &v, FFS_NV_WORDS | FFS_NV_TABS));
 	x(ffstr_eqcz(&v, "asdf"));
-	x(FFSLEN("\t") == ffstr_nextval3(&s, &v, FFS_NV_WORDS | FFS_NV_TABS));
-	x(ffstr_eqcz(&v, ""));
+	x(s.len == 0);
+
+	// FFS_NV_WORDS | FFSTR_NV_DBLQUOT
+	ffstr_setcz(&s, " \t qwer  \t  \" as df \" \t");
+	x(FFSLEN(" \t qwer  \t  ") == ffstr_nextval3(&s, &v, FFS_NV_WORDS | FFS_NV_TABS | FFSTR_NV_DBLQUOT));
+	x(ffstr_eqcz(&v, "qwer"));
+	x(FFSLEN("\" as df \" \t") == ffstr_nextval3(&s, &v, FFS_NV_WORDS | FFS_NV_TABS | FFSTR_NV_DBLQUOT));
+	x(ffstr_eqcz(&v, " as df "));
 	x(s.len == 0);
 
 	return 0;

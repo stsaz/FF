@@ -1620,9 +1620,14 @@ size_t ffstr_nextval(const char *buf, size_t len, ffstr *dst, int spl)
 		pos = ffs_find(buf, end - buf, spl);
 
 	// merge whitespace if splitting by whitespace: "val1   val2" -> "val1", "val2"
-	if (pos != end
-		&& ((f & FFS_NV_WORDS) || spl == ' ' || spl == '\t'))
-		pos = ffs_skipof(pos, end - pos, sspl.ptr, sspl.len);
+	if ((f & FFS_NV_WORDS) || spl == ' ' || spl == '\t') {
+		ffstr_set(dst, buf, pos - buf);
+		if (sspl.ptr != NULL)
+			pos = ffs_skipof(pos, end - pos, sspl.ptr, sspl.len);
+		else
+			pos = ffs_skip(pos, end - pos, spl);
+		return pos - (end - len);
+	}
 
 	if (pos != end) {
 		len = pos - (end - len) + 1;
