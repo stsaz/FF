@@ -625,6 +625,7 @@ enum State {
 	, stVal = 4
 	,
 	ST_CONTINUE = 8,
+	ST_LF = 0x10,
 };
 
 int ffjson_add(ffjson_cook *c, int f, const void *src)
@@ -668,13 +669,12 @@ int ffjson_add(ffjson_cook *c, int f, const void *src)
 			n *= (f & FFJSON_PRETTY4SPC) ? 4 : 2;
 		}
 
-		if (d == NULL)
-			tmp = FFSLEN("\n") + n;
-		else
-			tmp = ffs_fmt(d, end, "\n%*c", (size_t)n, (int)ch);
-		if (!nobuf)
-			d += tmp;
-		len += tmp;
+		if (c->st & ST_LF) {
+			d = ffs_copyc(d, end, '\n');
+			len++;
+		}
+		d += ffs_fill(d, end, ch, n);
+		len += n;
 	}
 
 	switch (type) {
@@ -805,6 +805,7 @@ done:
 	if (d == end)
 		return FFJSON_BUFFULL;
 
+	c->st |= ST_LF;
 	c->buf.len = d - c->buf.ptr;
 	return FFJSON_OK;
 }
