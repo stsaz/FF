@@ -61,6 +61,8 @@ typedef struct ffparser {
 	char ret;
 	uint line; ///< the current line number
 	uint ch; ///< the current char number within the line
+	uint flags;
+	uint esc_hiword;
 	union {
 		int64 intval; ///< for integer and boolean
 		double fltval; ///< floating point number

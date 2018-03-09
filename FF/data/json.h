@@ -26,11 +26,12 @@ FF_EXTN void ffjson_parseinit(ffparser *p);
 /** Reuse the parser. */
 FF_EXTN void ffjson_parsereset(ffparser *p);
 
-/** Unescape text.
-Return the number of characters written.
+/** Unescape 1 character from JSON text.
+@text: escape sequence without the leading backslash.
+Return the number of characters read.
 Return 0 if incomplete sequence.
 Return -1 on error. */
-FF_EXTN int ffjson_unescape(char *dst, size_t cap, const char *text, size_t len);
+FF_EXTN int ffjson_unescapechar(uint *dst, const char *text, size_t len);
 
 /** Escape characters: " \\ \b \f \r \n \t.
 Return the number of characters written.

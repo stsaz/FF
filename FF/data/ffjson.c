@@ -15,26 +15,24 @@ const char * ffjson_stype(int type)
 	return _ffjson_stypes[type];
 }
 
-int ffjson_unescape(char *dst, size_t cap, const char *text, size_t len)
+static const char escchar[8] = "\"\\bfrnt/";
+static const char escbyte[8] = "\"\\\b\f\r\n\t/";
+
+int ffjson_unescapechar(uint *dst, const char *text, size_t len)
 {
 	char *d;
-	if (cap == 0 || len == 0)
+	if (len == 0)
 		return 0;
 
-	d = ffmemchr(ff_escchar, text[0], FFCNT(ff_escchar));
+	d = ffmemchr(escchar, text[0], FFCNT(escchar));
 
 	if (d != NULL) {
-		*dst = ff_escbyte[d - ff_escchar];
+		*dst = escbyte[d - escchar];
 		return 1;
 	}
 
-	if (text[0] == '/') {
-		*dst = '/';
-		return 1;
-	}
-	else if (text[0] == 'u') {
+	if (text[0] == 'u') {
 		ushort sh;
-		size_t r;
 
 		if (len < FFSLEN("uXXXX")) // \\uXXXX (UCS-2 BE)
 			return 0;
@@ -42,9 +40,8 @@ int ffjson_unescape(char *dst, size_t cap, const char *text, size_t len)
 		if (FFSLEN("XXXX") != ffs_toint(text + 1, FFSLEN("XXXX"), &sh, FFS_INT16 | FFS_INTHEX))
 			return -1;
 
-		r = ffutf8_encode1(dst, cap, sh);
-		if (r != 0)
-			return (int)r;
+		*dst = sh;
+		return FFSLEN("uXXXX");
 	}
 
 	return -1;
@@ -60,9 +57,9 @@ size_t ffjson_escape(char *dst, size_t cap, const char *s, size_t len)
 	if (dst == NULL) {
 		size_t n = 0;
 		for (i = 0; i < len; ++i) {
-			if (NULL != ffmemchr(ff_escbyte, (byte)s[i], FFCNT(ff_escbyte)))
+			if (NULL != ffmemchr(escbyte, (byte)s[i], FFCNT(escbyte) - 1))
 				n += nEsc;
-			else if (s[i] < 0x20)
+			else if ((byte)s[i] < 0x20 || s[i] == 0x7f)
 				n += FFSLEN("\\uXXXX");
 			else
 				n++;
@@ -76,18 +73,18 @@ size_t ffjson_escape(char *dst, size_t cap, const char *s, size_t len)
 		if (dst == dstend)
 			return 0;
 
-		d = ffmemchr(ff_escbyte, (byte)s[i], FFCNT(ff_escbyte));
+		d = ffmemchr(escbyte, (byte)s[i], FFCNT(escbyte) - 1);
 		if (d != NULL) {
 			if (dst + nEsc > dstend)
 				return 0;
 			*dst++ = '\\';
-			*dst++ = ff_escchar[d - ff_escbyte];
+			*dst++ = escchar[d - escbyte];
 
-		} else if (s[i] < 0x20) {
+		} else if ((byte)s[i] < 0x20 || s[i] == 0x7f) {
 			if (dst + FFSLEN("\\uXXXX") > dstend)
 				return 0;
 			dst = ffmem_copycz(dst, "\\u00");
-			dst += ffs_hexbyte(dst, s[i], ffhex);
+			dst += ffs_hexbyte(dst, s[i], ffHEX);
 
 		} else
 			*dst++ = s[i];
@@ -102,6 +99,10 @@ enum IDX {
 	, iNewCtx, iRmCtx
 	, iQuot, iQuotFirst, iQuotEsc
 	, iKeyFirst, iKey, iAfterKey
+};
+
+enum FLAGS {
+	F_ESC_UTF16_2 = 1, //UTF-16 escaped char must follow
 };
 
 void ffjson_parseinit(ffparser *p)
@@ -216,6 +217,9 @@ static int hdlQuote(ffparser *p, int *st, int *nextst, int ch)
 		er = _ffpars_addchar(p, ch);
 	}
 
+	if ((p->flags & F_ESC_UTF16_2) && *st != iQuotEsc)
+		return FFPARS_EESC; //UTF-16 escaped char must follow
+
 	return er;
 }
 
@@ -223,22 +227,43 @@ static int hdlEsc(ffparser *p, int *st, int ch)
 {
 	char buf[8];
 	int r;
+	uint uch;
 
 	if ((uint)p->esc[0] >= FFSLEN("uXXXX"))
 		return FFPARS_EESC; //too large escape sequence
 
 	p->esc[(uint)++p->esc[0]] = (char)ch;
-	r = ffjson_unescape(buf, FFCNT(buf), p->esc + 1, p->esc[0]);
+	r = ffjson_unescapechar(&uch, p->esc + 1, p->esc[0]);
 	if (r < 0)
 		return FFPARS_EESC; //invalid escape sequence
+	else if (r == 0)
+		return 0;
 
-	if (r != 0) {
-		r = _ffpars_copyBuf(p, buf, r); //use dynamic buffer
-		if (r != 0)
-			return r; //allocation error
+	if (ffutf16_basic(uch)) {
+
+	} else if (ffutf16_highsurr(uch)) {
+		if (p->flags & F_ESC_UTF16_2)
+			return FFPARS_EESC; //2nd high surrogate
+		p->flags |= F_ESC_UTF16_2;
+		p->esc_hiword = uch;
 		p->esc[0] = 0;
 		*st = iQuot;
+		return 0;
+
+	} else {
+		if (!(p->flags & F_ESC_UTF16_2))
+			return FFPARS_EESC; //low surrogate without previous high surrogate
+		p->flags &= ~F_ESC_UTF16_2;
+		uch = ffutf16_suppl(p->esc_hiword, uch);
+		p->esc_hiword = 0;
 	}
+
+	r = ffutf8_encode1(buf, sizeof(buf), uch);
+	r = _ffpars_copyBuf(p, buf, r); //use dynamic buffer
+	if (r != 0)
+		return r; //allocation error
+	p->esc[0] = 0;
+	*st = iQuot;
 
 	return 0;
 }
@@ -617,6 +642,7 @@ void ffjson_cookinit(ffjson_cook *c, char *buf, size_t cap)
 	ffarr_set3(&c->buf, buf, 0, cap);
 	ffarr_null(&c->ctxs);
 	c->st = 0;
+	c->gflags = 0;
 }
 
 enum State {

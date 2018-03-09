@@ -84,7 +84,10 @@ int test_json_parse(const char *testJsonFile)
 		}
 	}
 
-	fffile_write(ffstdout, ck.buf.ptr, ck.buf.len);
+	ffarr out = {0};
+	fffile_readall(&out, TESTDIR "/test-out.json", -1);
+	x(ffstr_eq2(&ck.buf, &out));
+	ffarr_free(&out);
 
 	ffjson_cookfinbuf(&ck);
 	ffpars_free(&json);

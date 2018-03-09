@@ -1,5 +1,5 @@
  {
- "str": "my \b \t \f \r\n \\ \/ \" \u0444 string" ,
+ "str": "my \b \t \f \r\n \\ \/ \" \u0444 \uD83D\uDE02 string" ,
  "obj": {
 	"str": "my obj string" ,
 	"int" : 1000/**/,

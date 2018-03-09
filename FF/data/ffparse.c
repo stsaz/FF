@@ -62,6 +62,7 @@ void ffpars_reset(ffparser *p)
 	p->line = 1;
 	p->ch = 0;
 	p->ctxs.len = 0;
+	p->flags = 0;
 }
 
 void ffpars_free(ffparser *p)
