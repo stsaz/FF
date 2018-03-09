@@ -15,10 +15,13 @@ typedef struct ffpsarg {
 
 FF_EXTN void ffpsarg_init(ffpsarg *a, const char **argv, uint argc);
 
+/** Get next argument from command line.
+Return NULL if done. */
 FF_EXTN const char* ffpsarg_next(ffpsarg *a);
 
 static FFINL void ffpsarg_destroy(ffpsarg *a)
 {
+	a->cmdln.len = 0;
 	ffarr_free(&a->cmdln);
 }
 

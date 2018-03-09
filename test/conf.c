@@ -203,6 +203,20 @@ static int test_args_parse()
 	return 0;
 }
 
+static void test_args_print(void)
+{
+	ffpsarg a;
+	ffpsarg_init(&a, NULL, 0);
+	const char *s;
+	for (;;) {
+		s = ffpsarg_next(&a);
+		if (s == NULL)
+			break;
+		printf("arg: '%s'\n", s);
+	}
+	ffpsarg_destroy(&a);
+}
+
 typedef struct Opts {
 	ffstr C;
 	int S;
@@ -385,6 +399,7 @@ int test_args()
 	FFTEST_FUNC;
 
 	test_args_parse();
+	test_args_print();
 	test_args_schem();
 	test_args_err();
 	return 0;

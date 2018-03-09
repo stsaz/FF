@@ -9,35 +9,78 @@ Copyright (c) 2013 Simon Zolin
 #ifdef FF_WIN
 void ffpsarg_init(ffpsarg *a, const char **argv, uint argc)
 {
-	if (NULL == (a->cmdln.ptr = ffsz_alcopyqz(GetCommandLine())))
+	ffsyschar *cl = GetCommandLine();
+	ffarr_null(&a->cmdln);
+	if (0 == ffstr_catfmt(&a->cmdln, "%q%Z", cl))
 		return;
-	a->cmdln.cap = ffsz_len(a->cmdln.ptr);
+	a->cmdln.cap = a->cmdln.len - 1;
 	a->cmdln.len = 0;
+}
+
+/** Get next argument from command line.
+Data in buffer 'd' is overwritten when quotes are used:
+ "a b c" -> a b c
+ a"b"c -> abc
+Return number of bytes read;  -1: done. */
+static int psarg_next(char *d, size_t len, ffstr *dst)
+{
+	enum { I_WS, I_TEXT, I_DQUOT, I_TEXT_COPY };
+	ffstr arg = {0};
+	uint i, st = I_WS;
+
+	for (i = 0;  i != len;  i++) {
+
+	int ch = d[i];
+
+	switch (st) {
+
+	case I_WS:
+		if (ch == ' ')
+			break;
+		st = I_TEXT;
+		arg.ptr = &d[i];
+		// fall through
+
+	case I_TEXT:
+	case I_TEXT_COPY:
+		if (ch == ' ') {
+			i++;
+			goto done;
+		} else if (ch == '"') {
+			st = I_DQUOT;
+			break;
+		}
+
+		if (st == I_TEXT_COPY)
+			arg.ptr[arg.len] = ch;
+		arg.len++;
+		break;
+
+	case I_DQUOT:
+		if (ch == '"') {
+			st = I_TEXT_COPY;
+			break;
+		}
+		arg.ptr[arg.len++] = ch;
+		break;
+	}
+	}
+
+	if (st == I_WS)
+		return -1;
+
+done:
+	*dst = arg;
+	return i;
 }
 
 const char* ffpsarg_next(ffpsarg *a)
 {
 	ffstr arg;
-	char *q, *q2, *p, *end;
-	size_t n = ffstr_nextval(ffarr_end(&a->cmdln), ffarr_unused(&a->cmdln), &arg, ' ' | FFSTR_NV_DBLQUOT);
-	a->cmdln.len += n;
-	if (a->cmdln.len == a->cmdln.cap && arg.len == 0)
+	int r = psarg_next(ffarr_end(&a->cmdln), a->cmdln.cap - a->cmdln.len, &arg);
+	if (r < 0)
 		return NULL;
-
-	if (ffarr_end(&arg) != (q = ffs_finds(arg.ptr, arg.len, "=\"", 2))) {
-		// --key="value with space" -> --key=value with space
-		p = ffarr_end(&a->cmdln);
-		end = ffarr_edge(&a->cmdln);
-
-		q += FFSLEN("=");
-		q2 = ffs_find(p, end - p, '"');
-		memmove(q, q + 1, q2 - (q + 1));
-		arg.len = q2 - 1 - arg.ptr;
-
-		q2 += (q2 != end);
-		a->cmdln.len = ffs_skip(q2, end - q2, ' ') - a->cmdln.ptr;
-	}
-
+	a->cmdln.len += r;
 	arg.ptr[arg.len] = '\0';
 	return arg.ptr;
 }
