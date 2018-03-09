@@ -46,16 +46,33 @@ enum FFCONF_T {
 	, FFCONF_TVALNEXT //"key val1 VAL2..."
 };
 
-/** Initialize parser.
-Return 0 on success. */
-FF_EXTN int ffconf_parseinit(ffparser *p);
+typedef struct ffconf {
+	uint state, nextst;
+	uint type;
+	int ret;
+	uint line;
+	uint ch;
+	char esc[8];
+
+	ffstr val;
+	ffstr3 buf;
+	ffarr ctxs;
+} ffconf;
+
+/** Initialize parser. */
+FF_EXTN void ffconf_parseinit(ffconf *p);
+
+FF_EXTN void ffconf_parseclose(ffconf *p);
+
+/** Get full error message. */
+FF_EXTN const char* ffconf_errmsg(ffconf *p, int r, char *buf, size_t cap);
 
 /** Parse config.
 Return enum FFPARS_E.
  @p->type: enum FFCONF_T. */
-FF_EXTN int ffconf_parse(ffparser *p, const char *data, size_t *len);
+FF_EXTN int ffconf_parse(ffconf *p, const char *data, size_t *len);
 
-static FFINL int ffconf_parsestr(ffparser *p, ffstr *data)
+static FFINL int ffconf_parsestr(ffconf *p, ffstr *data)
 {
 	size_t n = data->len;
 	int r = ffconf_parse(p, data->ptr, &n);
@@ -138,7 +155,7 @@ static FFINL size_t ffconf_writeint(ffconfw *c, int64 data, uint intflags, uint 
 
 /** Initialize parser and scheme.
 Return 0 on success. */
-FF_EXTN int ffconf_scheminit(ffparser_schem *ps, ffparser *p, const ffpars_ctx *ctx);
+FF_EXTN int ffconf_scheminit(ffparser_schem *ps, ffconf *p, const ffpars_ctx *ctx);
 
 /**
 Return 0 on success. */

@@ -1564,7 +1564,7 @@ int ffui_ldr_loadfile(ffui_loader *g, const char *fn)
 	char *buf = NULL;
 	size_t n;
 	fffd f = FF_BADFD;
-	ffparser p;
+	ffconf p;
 	ffparser_schem ps;
 
 	r = ffconf_scheminit(&ps, &p, &g->ctx);
@@ -1619,7 +1619,7 @@ done:
 		g->errstr = (s.len != 0) ? s.ptr : "";
 	}
 
-	ffpars_free(&p);
+	ffconf_parseclose(&p);
 	ffpars_schemfree(&ps);
 	ffmem_safefree(buf);
 	if (f != FF_BADFD)
@@ -1765,7 +1765,7 @@ void ffui_ldr_loadconf(ffui_loader *g, const char *fn)
 
 		g->ctl = g->getctl(g->udata, &name);
 		if (g->ctl != NULL) {
-			ffparser p;
+			ffconf p;
 			ffparser_schem ps;
 			ffpars_ctx ctx = {0};
 
@@ -1803,7 +1803,7 @@ void ffui_ldr_loadconf(ffui_loader *g, const char *fn)
 			}
 
 			ffconf_schemfin(&ps);
-			ffpars_free(&p);
+			ffconf_parseclose(&p);
 			ffpars_schemfree(&ps);
 		}
 	}

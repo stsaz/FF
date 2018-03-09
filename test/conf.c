@@ -14,7 +14,7 @@ Copyright (c) 2013 Simon Zolin
 
 static int test_conf_parse(const char *testConfFile)
 {
-	ffparser conf;
+	ffconf conf;
 	int rc;
 	size_t n;
 	ffstr3 buf = { 0 };
@@ -42,27 +42,27 @@ static int test_conf_parse(const char *testConfFile)
 		switch (rc) {
 		case FFPARS_KEY:
 			x(conf.type == FFCONF_TKEY);
-			fffile_fmt(ffstdout, &buf, "%*c'%*s'  "
+			ffstr_catfmt(&buf, "%*c'%*s'  "
 				, (size_t)4 * conf.ctxs.len, (int)' '
 				, (size_t)conf.val.len, conf.val.ptr);
 			break;
 
 		case FFPARS_VAL:
 			x(conf.type == FFCONF_TVAL || conf.type == FFCONF_TVALNEXT);
-			fffile_fmt(ffstdout, &buf, ":  '%*s'\n"
+			ffstr_catfmt(&buf, ":  '%*s'\n"
 				, (size_t)conf.val.len, conf.val.ptr);
 			break;
 
 		case FFPARS_OPEN:
 			x(conf.type == FFCONF_TOBJ);
-			fffile_fmt(ffstdout, &buf, "\n%*c%c\n"
+			ffstr_catfmt(&buf, "\n%*c%c\n"
 				, (size_t)4 * conf.ctxs.len, (int)' '
 				, (int)'{');
 			break;
 
 		case FFPARS_CLOSE:
 			x(conf.type == FFCONF_TOBJ);
-			fffile_fmt(ffstdout, &buf, "%*c%c\n\n"
+			ffstr_catfmt(&buf, "%*c%c\n\n"
 				, (size_t)4 * (conf.ctxs.len - 1), (int)' '
 				, (int)'}');
 			break;
@@ -78,14 +78,19 @@ static int test_conf_parse(const char *testConfFile)
 		}
 	}
 
-	ffpars_free(&conf);
+	ffarr out = {0};
+	fffile_readall(&out, TESTDIR "/test-out.conf", -1);
+	x(ffstr_eq2(&buf, &out));
+	ffarr_free(&out);
+
+	ffconf_parseclose(&conf);
 	return 0;
 }
 
 int test_conf_schem(const char *testConfFile)
 {
 	obj_s o;
-	ffparser conf;
+	ffconf conf;
 	ffparser_schem ps;
 	int rc;
 	const char *p
@@ -129,7 +134,7 @@ int test_conf_schem(const char *testConfFile)
 	ffmem_free(o.o[1]);
 	ffmem_free(o.o1);
 
-	ffpars_free(&conf);
+	ffconf_parseclose(&conf);
 	ffpars_schemfree(&ps);
 
 	{
@@ -153,7 +158,7 @@ int test_conf_schem(const char *testConfFile)
 		x(FFPARS_EVALUNEXP == ffconf_schemrun(&ps));
 
 		x(0 == ffconf_schemfin(&ps));
-		ffpars_free(&conf);
+		ffconf_parseclose(&conf);
 		ffpars_schemfree(&ps);
 	}
 

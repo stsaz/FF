@@ -13,18 +13,22 @@ enum FFCONF_SCF {
 	SCF_RESETCTX = 8,
 };
 
-static int hdlEsc(ffparser *p, int *st, int ch);
+static int hdlEsc(ffconf *p, int *st, int ch);
 static int unesc(char *dst, size_t cap, const char *text, size_t len);
-static int hdlQuote(ffparser *p, int *st, int *nextst, const char *data);
+static int hdlQuote(ffconf *p, int *st, int *nextst, const char *data);
+static int val_add(ffarr *buf, const char *s, size_t len);
+static int val_store(ffarr *buf, const char *s, size_t len);
 
 enum CONF_IDX {
-	iKeyFirst = 16, iKey, iKeyBare, iKeySplit
+	FFPARS_IWSPACE, I_ERR,
+	FFPARS_ICMT_BEGIN, FFPARS_ICMT_LINE, FFPARS_ICMT_MLINE, FFPARS_ICMT_MLINESLASH,
+	iKeyFirst, iKey, iKeyBare, iKeySplit
 	, iValSplit, iValFirst, iVal, iValBare
 	, iNewCtx, iRmCtx
 	, iQuot, iQuotEsc
 };
 
-static int hdlQuote(ffparser *p, int *st, int *nextst, const char *data)
+static int hdlQuote(ffconf *p, int *st, int *nextst, const char *data)
 {
 	int r = 0;
 
@@ -43,6 +47,7 @@ static int hdlQuote(ffparser *p, int *st, int *nextst, const char *data)
 		break;
 
 	case '\\':
+		p->esc[0] = 0;
 		*st = iQuotEsc; //wait for escape sequence
 		break;
 
@@ -51,11 +56,14 @@ static int hdlQuote(ffparser *p, int *st, int *nextst, const char *data)
 		break;
 
 	default:
-		r = _ffpars_addchar2(p, data);
+		r = val_add(&p->buf, data, 1);
 	}
 
 	return r;
 }
+
+static const char escchar[7] = "\"\\bfrnt";
+static const char escbyte[7] = "\"\\\b\f\r\n\t";
 
 /* 1: done
 0: more
@@ -66,10 +74,10 @@ static int unesc(char *dst, size_t cap, const char *text, size_t len)
 	if (cap == 0 || len == 0)
 		return 0;
 
-	d = ffmemchr(ff_escchar, text[0], FFCNT(ff_escchar));
+	d = ffmemchr(escchar, text[0], FFCNT(escchar));
 
 	if (d != NULL) {
-		*dst = ff_escbyte[d - ff_escchar];
+		*dst = escbyte[d - escchar];
 		return 1;
 	}
 
@@ -84,7 +92,7 @@ static int unesc(char *dst, size_t cap, const char *text, size_t len)
 	return -1;
 }
 
-static int hdlEsc(ffparser *p, int *st, int ch)
+static int hdlEsc(ffconf *p, int *st, int ch)
 {
 	char buf[8];
 	int r;
@@ -98,7 +106,7 @@ static int hdlEsc(ffparser *p, int *st, int ch)
 		return FFPARS_EESC; //invalid escape sequence
 
 	if (r != 0) {
-		r = _ffpars_copyBuf(p, buf, r); //use dynamic buffer
+		r = val_store(&p->buf, buf, r);
 		if (r != 0)
 			return r; //allocation error
 		p->esc[0] = 0;
@@ -108,23 +116,102 @@ static int hdlEsc(ffparser *p, int *st, int ch)
 	return 0;
 }
 
-int ffconf_parseinit(ffparser *p)
+static int hdl_cmt(int *st, int ch)
+{
+	switch (*st) {
+	case FFPARS_ICMT_BEGIN:
+		if (ch == '/')
+			*st = FFPARS_ICMT_LINE;
+		else if (ch == '*')
+			*st = FFPARS_ICMT_MLINE;
+		else
+			return FFPARS_EBADCMT; // "//" or "/*" only
+		break;
+
+	case FFPARS_ICMT_LINE:
+		if (ch == '\n')
+			*st = FFPARS_IWSPACE; //end of line comment
+		break;
+
+	case FFPARS_ICMT_MLINE:
+		if (ch == '*')
+			*st = FFPARS_ICMT_MLINESLASH;
+		break;
+
+	case FFPARS_ICMT_MLINESLASH:
+		if (ch == '/')
+			*st = FFPARS_IWSPACE; //end of multiline comment
+		else
+			*st = FFPARS_ICMT_MLINE; //skipped '*' within multiline comment
+		break;
+	}
+	return 0;
+}
+
+void ffconf_parseinit(ffconf *p)
 {
 	char *ctx;
-	ffpars_init(p);
+	ffmem_tzero(p);
+	p->line = 1;
 	p->nextst = iKey;
 
 	ctx = ffarr_push(&p->ctxs, char);
-	if (ctx == NULL)
-		return 1;
+	if (ctx == NULL) {
+		p->state = I_ERR;
+		return;
+	}
 
 	*ctx = FFPARS_OPEN;
 	p->ret = FFPARS_OPEN;
 	p->type = FFCONF_TOBJ;
+}
+
+void ffconf_parseclose(ffconf *p)
+{
+	ffarr_free(&p->buf);
+	ffarr_free(&p->ctxs);
+}
+
+/** Get full error message. */
+const char* ffconf_errmsg(ffconf *p, int r, char *buf, size_t cap)
+{
+	char *end = buf + cap;
+	size_t n = ffs_fmt(buf, end, "%u:%u near \"%S\" : %s%Z"
+		, p->line, p->ch, &p->val, ffpars_errstr(r));
+	if (r == FFPARS_ESYS) {
+		if (n != 0)
+			n--;
+		n += ffs_fmt(buf + n, end, " : %E%Z", fferr_last());
+	}
+	return (n != 0) ? buf : "";
+}
+
+static void conf_cleardata(ffconf *p)
+{
+	ffstr_null(&p->val);
+	ffarr_free(&p->buf);
+}
+
+static int val_store(ffarr *buf, const char *s, size_t len)
+{
+	if (NULL == ffarr_grow(buf, len, 256 | FFARR_GROWQUARTER))
+		return FFPARS_ESYS;
+	ffarr_append(buf, s, len);
 	return 0;
 }
 
-int ffconf_parse(ffparser *p, const char *data, size_t *len)
+static int val_add(ffarr *buf, const char *s, size_t len)
+{
+	if (buf->cap != 0)
+		return val_store(buf, s, len);
+
+	if (buf->len == 0)
+		buf->ptr = (char*)s;
+	buf->len += len;
+	return 0;
+}
+
+int ffconf_parse(ffconf *p, const char *data, size_t *len)
 {
 	const char *datao = data;
 	const char *end = data + *len;
@@ -140,7 +227,7 @@ int ffconf_parse(ffparser *p, const char *data, size_t *len)
 		switch (st) {
 		case FFPARS_IWSPACE:
 			if (ch == '\n') {
-				ffpars_cleardata(p);
+				conf_cleardata(p);
 				nextst = iKey;
 
 			} else if (!ffchar_iswhitespace(ch)) {
@@ -167,12 +254,12 @@ int ffconf_parse(ffparser *p, const char *data, size_t *len)
 		case FFPARS_ICMT_BEGIN:
 		case FFPARS_ICMT_MLINE:
 		case FFPARS_ICMT_MLINESLASH:
-			r = _ffpars_hdlCmt(&st, ch);
+			r = hdl_cmt(&st, ch);
 			break;
 
 //KEY-VALUE
 		case iKeyFirst:
-			ffpars_cleardata(p);
+			conf_cleardata(p);
 			st = iKey;
 			// break
 
@@ -204,7 +291,7 @@ int ffconf_parse(ffparser *p, const char *data, size_t *len)
 
 		case iValBare:
 			if (!ffchar_iswhitespace(ch) && ch != '/' && ch != '#')
-				r = _ffpars_addchar2(p, data);
+				r = val_add(&p->buf, data, 1);
 			else {
 				if (st == iKeyBare)
 					p->type = FFCONF_TKEY;
@@ -250,7 +337,7 @@ int ffconf_parse(ffparser *p, const char *data, size_t *len)
 			break;
 
 		case iValSplit:
-			ffpars_cleardata(p);
+			conf_cleardata(p);
 			if (!ffchar_iswhitespace(ch) && ch != '/' && ch != '#') {
 				r = FFPARS_EBADCHAR;
 				break;
@@ -289,6 +376,10 @@ int ffconf_parse(ffparser *p, const char *data, size_t *len)
 			p->ctxs.len--; //ffarr_pop()
 			again = 1;
 			break;
+
+		case I_ERR:
+			r = FFPARS_ESYS;
+			break;
 		}
 
 		if (r != 0) {
@@ -308,13 +399,16 @@ int ffconf_parse(ffparser *p, const char *data, size_t *len)
 		}
 	}
 
-	if (r == FFPARS_MORE)
-		r = ffpars_savedata(p);
+	if (r == FFPARS_MORE && p->buf.len != 0)
+		r = val_store(&p->buf, NULL, 0);
 
+	ffstr_set2(&p->val, &p->buf);
 	p->state = st;
 	p->nextst = nextst;
 	*len = data - datao;
 	p->ret = (char)r;
+	FFDBG_PRINTLN(FFDBG_PARSE | 10, "line:%u  r:%d  val:%S  level:%u"
+		, p->line, r, &p->val, p->ctxs.len);
 	return r;
 }
 
@@ -353,11 +447,11 @@ static ssize_t ffs_escape_conf_str(char *dst, size_t cap, const char *data, size
 			if (dst + FFSLEN("\\?") > end)
 				return -(ssize_t)i;
 
-			char *d = ffmemchr(ff_escbyte, ch, FFCNT(ff_escbyte));
+			char *d = ffmemchr(escbyte, ch, FFCNT(escbyte));
 			FF_ASSERT(d != NULL);
 
 			*dst++ = '\\';
-			*dst++ = ff_escchar[d - ff_escbyte];
+			*dst++ = escchar[d - escbyte];
 
 		} else if (!ffbit_testarr(ffcharmask_printable, ch)) {
 
@@ -532,16 +626,15 @@ void ffconf_wdestroy(ffconfw *c)
 }
 
 
-int ffconf_scheminit(ffparser_schem *ps, ffparser *p, const ffpars_ctx *ctx)
+int ffconf_scheminit(ffparser_schem *ps, ffconf *p, const ffpars_ctx *ctx)
 {
 	int r;
 	const ffpars_arg top = { NULL, FFPARS_TOBJ | FFPARS_FPTR, FFPARS_DST(ctx) };
 	ffpars_scheminit(ps, p, &top);
 
-	if (0 != ffconf_parseinit(p))
-		return FFPARS_ESYS;
+	ffconf_parseinit(p);
 
-	r = ffpars_schemrun(ps, FFPARS_OPEN);
+	r = _ffpars_schemrun(ps, FFPARS_OPEN);
 	if (r != FFPARS_OPEN)
 		return r;
 
@@ -551,11 +644,12 @@ int ffconf_scheminit(ffparser_schem *ps, ffparser *p, const ffpars_ctx *ctx)
 
 int ffconf_schemfin(ffparser_schem *ps)
 {
+	ffconf *c = ps->p;
 	if (ps->ctxs.len == 1) {
 		int r;
 
-		ps->p->ret = FFPARS_CLOSE;
-		ps->p->type = FFCONF_TOBJ;
+		c->ret = FFPARS_CLOSE;
+		c->type = FFCONF_TOBJ;
 		r = ffconf_schemrun(ps);
 		if (r != FFPARS_CLOSE)
 			return r;
@@ -568,8 +662,8 @@ int ffconf_schemfin(ffparser_schem *ps)
 For a named object store the last parsed value. */
 static int ffconf_schemval(ffparser_schem *ps)
 {
-	ffparser *p = ps->p;
-	ffstr v = ps->p->val;
+	ffconf *p = ps->p;
+	ffstr v = p->val;
 	int t;
 	int r = 0;
 
@@ -583,37 +677,6 @@ static int ffconf_schemval(ffparser_schem *ps)
 	t = ps->curarg->flags & FFPARS_FTYPEMASK;
 
 	switch(t) {
-	case FFPARS_TSTR:
-	case FFPARS_TCHARPTR:
-	case FFPARS_TSIZE:
-	case FFPARS_TENUM:
-	case FFPARS_TCLOSE:
-		break;
-
-	case FFPARS_TINT:
-		if (v.len < FFINT_MAXCHARS
-			&& v.len == ffs_toint(v.ptr, v.len, &p->intval, FFS_INT64 | FFS_INTSIGN))
-			{}
-		else
-			r = FFPARS_EBADINT;
-		break;
-
-	case FFPARS_TFLOAT:
-		if (v.len != ffs_tofloat(v.ptr, v.len, &p->fltval, 0))
-			r = FFPARS_EBADVAL;
-		break;
-
-	case FFPARS_TBOOL:
-		if (ffstr_ieqcz(&v, "true")) {
-			p->intval = 1;
-
-		} else if (ffstr_ieqcz(&v, "false")) {
-			p->intval = 0;
-
-		} else
-			r = FFPARS_EBADBOOL;
-		break;
-
 	case FFPARS_TOBJ:
 		if (!(ps->curarg->flags & FFPARS_FOBJ1))
 			return FFPARS_EVALTYPE;
@@ -631,7 +694,6 @@ static int ffconf_schemval(ffparser_schem *ps)
 
 			ffmemcpy(s->ptr, v.ptr, v.len);
 			s->len = v.len;
-			r = -1;
 		}
 		if (!ffsz_cmp(ps->curarg->name, "*"))
 			ps->flags |= FFPARS_SCCTX_ANY;
@@ -640,7 +702,14 @@ static int ffconf_schemval(ffparser_schem *ps)
 		break;
 
 	default:
-		return FFPARS_EVALTYPE;
+		r = ffpars_arg_process(ps->curarg, &v, ffarr_back(&ps->ctxs).obj, ps);
+	}
+
+	if (ps->flags & SCF_RESETCTX) {
+		//clear context after the whole line "ctx1.key value" is processed
+		ps->ctxs.len = 1;
+		ps->curarg = NULL;
+		ps->flags &= ~SCF_RESETCTX;
 	}
 
 	return r;
@@ -648,37 +717,40 @@ static int ffconf_schemval(ffparser_schem *ps)
 
 int ffconf_schemrun(ffparser_schem *ps)
 {
+	ffconf *c = ps->p;
 	const ffpars_arg *arg;
 	ffpars_ctx *ctx = &ffarr_back(&ps->ctxs);
-	const ffstr *val = &ps->p->val;
 	uint f;
 	int r;
 
-	if (ps->p->ret >= 0)
-		return ps->p->ret;
+	if (c->ret >= 0)
+		return c->ret;
 
-	if (0 != (r = ffpars_skipctx(ps)))
+	if (ps->ctxs.len == 0)
+		return FFPARS_ECONF;
+
+	if (0 != (r = _ffpars_skipctx(ps, c->ret)))
 		return r;
 
 	if (ps->flags & FFPARS_SCHAVKEY) {
 		ps->flags &= ~FFPARS_SCHAVKEY;
-		if (ps->p->ret != FFPARS_VAL)
+		if (c->ret != FFPARS_VAL)
 			return FFPARS_EVALEMPTY; //key without a value
 
 	} else if (ps->flags & FFPARS_SCCTX) {
 		ps->flags &= ~FFPARS_SCCTX;
-		if (ps->p->ret != FFPARS_OPEN)
+		if (c->ret != FFPARS_OPEN)
 			return FFPARS_EVALEMPTY; //expecting context open
 	}
 
-	switch (ps->p->ret) {
+	switch (c->ret) {
 	case FFPARS_KEY:
 		f = 0;
 		if (ps->flags & FFPARS_KEYICASE)
 			f |= FFPARS_CTX_FKEYICASE;
-		if (ps->p->type == FFCONF_TKEYCTX)
+		if (c->type == FFCONF_TKEYCTX)
 			ps->flags |= SCF_RESETCTX;
-		arg = ffpars_ctx_findarg(ctx, val->ptr, val->len, FFPARS_CTX_FANY | FFPARS_CTX_FDUP | f);
+		arg = ffpars_ctx_findarg(ctx, c->val.ptr, c->val.len, FFPARS_CTX_FANY | FFPARS_CTX_FDUP | f);
 		if (arg == NULL)
 			return FFPARS_EUKNKEY;
 		else if (arg == (void*)-1)
@@ -693,12 +765,13 @@ int ffconf_schemrun(ffparser_schem *ps)
 				if (ffpars_iserr(r))
 					return r;
 
-				ps->p->ret = FFPARS_OPEN;
-				break;
+				c->ret = FFPARS_OPEN;
+				r = _ffpars_schemrun(ps, FFPARS_OPEN);
+				return r;
 			}
 
 			if (ps->curarg->flags & FFPARS_FWITHKEY) {
-				ffstr v = ps->p->val;
+				ffstr v = c->val;
 				ffstr *s = &ps->vals[0];
 				char *ptr = ffmem_realloc(s->ptr, v.len);
 				if (ptr == NULL)
@@ -714,32 +787,35 @@ int ffconf_schemrun(ffparser_schem *ps)
 			ctx {
 				KEY val val val
 			} */
-			r = ffpars_schemrun(ps, FFPARS_VAL);
-			return r;
+			r = ffpars_arg_process(ps->curarg, &c->val, ctx->obj, ps);
+			if (r != 0)
+				return r;
 
 		} else {
 			if (t != FFPARS_TOBJ && t != FFPARS_TARR)
 				ps->flags |= FFPARS_SCHAVKEY;
 		}
 
-		return FFPARS_KEY;
+		r = FFPARS_KEY;
+		break;
 
 	case FFPARS_VAL:
 		r = ffconf_schemval(ps);
-		if (ffpars_iserr(r))
-			return r;
 		if (r != 0)
-			return FFPARS_VAL;
+			return r;
+		r = FFPARS_VAL;
 		break;
-	}
 
-	r = ffpars_schemrun(ps, ps->p->ret);
+	case FFPARS_OPEN:
+		r = _ffpars_schemrun(ps, FFPARS_OPEN);
+		ps->vals[0].len = 0;
+		break;
+	case FFPARS_CLOSE:
+		r = _ffpars_schemrun(ps, FFPARS_CLOSE);
+		break;
 
-	if ((ps->flags & SCF_RESETCTX) && r == FFPARS_VAL) {
-		//clear context after the whole line "ctx1.key value" is processed
-		ps->ctxs.len = 1;
-		ps->curarg = NULL;
-		ps->flags &= ~SCF_RESETCTX;
+	default:
+		return FFPARS_EINTL;
 	}
 
 	return r;
@@ -753,7 +829,7 @@ int ffconf_loadfile(struct ffconf_loadfile *c)
 	char *buf = NULL;
 	ffstr s;
 	fffd f = FF_BADFD;
-	ffparser p;
+	ffconf p;
 	ffparser_schem ps;
 	ffpars_ctx ctx = {0};
 
@@ -797,10 +873,10 @@ int ffconf_loadfile(struct ffconf_loadfile *c)
 
 done:
 	if (ffpars_iserr(r)) {
-		ffpars_errmsg(&p, r, c->errstr, sizeof(c->errstr));
+		ffconf_errmsg(&p, r, c->errstr, sizeof(c->errstr));
 	}
 
-	ffpars_free(&p);
+	ffconf_parseclose(&p);
 	ffpars_schemfree(&ps);
 	ffmem_safefree(buf);
 	FF_SAFECLOSE(f, FF_BADFD, fffile_close);
