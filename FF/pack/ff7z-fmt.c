@@ -389,7 +389,7 @@ static int z7_stmfiles_read(ffarr *stms, ffstr *d)
 	return 0;
 }
 
-/*
+/* List of unpacked file size for non-empty files.
 varint UnPackSize[streams][stream.files]
 */
 static int z7_fsizes_read(ffarr *stms, ffstr *d)
@@ -424,7 +424,7 @@ static int z7_fsizes_read(ffarr *stms, ffstr *d)
 	return 0;
 }
 
-/*
+/* List of unpacked file CRC for non-empty files.
 byte AllAreDefined
  0:
   bit Defined[NumStreams]
@@ -456,7 +456,7 @@ static int z7_fcrcs_read(ffarr *stms, ffstr *d)
 	return 0;
 }
 
-/*
+/* Get the number of all files (both nonempty and empty) and directories.
 varint NumFiles
 */
 static int z7_fileinfo_read(ffarr *stms, ffstr *d)
@@ -490,7 +490,7 @@ static int z7_fileinfo_read(ffarr *stms, ffstr *d)
 	return 0;
 }
 
-/*
+/* List of empty files.
 bit IsEmptyStream[NumFiles]
 */
 static int z7_emptystms_read(ffarr *stms, ffstr *d)

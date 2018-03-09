@@ -164,6 +164,11 @@ static FFINL ffbool ffsz_match(const char *sz, const char *starts_with, size_t n
 	return r == 0 || (r < 0 && (size_t)(-r) - 1 == n);
 }
 
+static FFINL ffbool ffsz_matchz(const char *sz, const char *starts_with)
+{
+	return ffsz_match(sz, starts_with, ffsz_len(starts_with));
+}
+
 static FFINL ffbool ffsz_imatch(const char *sz, const char *starts_with, size_t n)
 {
 	ssize_t r = ffs_icmpz(starts_with, n, sz);

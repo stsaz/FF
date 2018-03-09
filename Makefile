@@ -1,13 +1,18 @@
 # FF makefile
 
-FF_TEST_BIN = fftest
 ROOT := ..
 FFOS = $(ROOT)/ffos
 FF = $(ROOT)/ff
 DEBUG := 1
-OPT := LTO
+OPT := 3
 
 include $(FFOS)/makeconf
+
+ifeq ($(OS),win)
+FF_TEST_BIN := fftest.exe
+else
+FF_TEST_BIN := fftest
+endif
 
 FFOS_CFLAGS := $(CFLAGS)
 FF_CFLAGS := $(CFLAGS)
@@ -29,9 +34,9 @@ include $(FF)/makerules
 FF_TEST_HDR := $(wildcard $(FF)/test/*.h)
 
 FF_TEST_SRC := \
-	$(FF)/test/compat.cpp \
 	$(FF)/test/base.c $(FF)/test/conf.c $(FF)/test/http.c $(FF)/test/json.c $(FF)/test/str.c \
 	$(FF)/test/test.c $(FF)/test/time.c $(FF)/test/url.c $(FF)/test/cue.c $(FF)/test/sys.c
+# $(FF)/test/compat.cpp
 FF_TEST_OBJ := $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_TEST_SRC)))))
 
 $(FF_OBJ_DIR)/%.o: $(FF)/test/%.c $(FF_HDR) $(FF_TEST_HDR)

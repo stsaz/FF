@@ -566,9 +566,10 @@ static ssize_t _ffconf_write(ffconfw *c, const void *data, ssize_t len, uint fla
 		if (d.len == 0 // empty value must be within quotes ("")
 			|| d.ptr + d.len != ffs_skip_mask(d.ptr, d.len, ffcharmask_name)) {
 			char *s = dst;
-			int rr;
+			int rr = 0;
 			dst = ffs_copyc(dst, end, '"');
-			rr = ffs_escape_conf_str(dst, end - dst, d.ptr, d.len);
+			if (dst != NULL)
+				rr = ffs_escape_conf_str(dst, end - dst, d.ptr, d.len);
 			if (rr >= 0)
 				dst += rr;
 			else

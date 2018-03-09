@@ -7,34 +7,34 @@ Copyright (c) 2013 Simon Zolin
 
 
 static const char *const _ffpars_serr[] = {
-	""
-	, "system"
-	, "internal"
-	, "invalid character"
-	, "key-value separator"
-	, "no value"
-	, "bad value"
-	, "too large value"
-	, "invalid escape sequence"
-	, "inconsistent brace"
-	, "expected brace"
-	, "invalid comment"
+	"",
+	"system", //FFPARS_ESYS
+	"internal", //FFPARS_EINTL
+	"invalid character", //FFPARS_EBADCHAR
+	"key-value separator", //FFPARS_EKVSEP
+	"no value", //FFPARS_ENOVAL
+	"bad value", //FFPARS_EBADVAL
+	"too large value", //FFPARS_EBIGVAL
+	"invalid escape sequence", //FFPARS_EESC
+	"inconsistent brace", //FFPARS_EBADBRACE
+	"expected brace", //FFPARS_ENOBRACE
+	"invalid comment", //FFPARS_EBADCMT
 
-	, "unknown key name"
-	, "duplicate key"
-	, "unspecified required parameter"
-	, "invalid integer"
-	, "invalid boolean"
-	, "array value type mismatch"
-	, "value type mismatch"
-	, "null value"
-	, "empty value"
-	, "zero value"
-	, "negative value"
-	, "unexpected value"
-	, "unknown value"
-	, "unsupported value"
-	, "parser misuse"
+	"unknown key name", //FFPARS_EUKNKEY
+	"duplicate key", //FFPARS_EDUPKEY
+	"unspecified required parameter", //FFPARS_ENOREQ
+	"invalid integer", //FFPARS_EBADINT
+	"invalid boolean", //FFPARS_EBADBOOL
+	"array value type mismatch", //FFPARS_EARRTYPE
+	"value type mismatch", //FFPARS_EVALTYPE
+	"null value", //FFPARS_EVALNULL
+	"empty value", //FFPARS_EVALEMPTY
+	"zero value", //FFPARS_EVALZERO
+	"negative value", //FFPARS_EVALNEG
+	"unexpected value", //FFPARS_EVALUNEXP
+	"unknown value", //FFPARS_EVALUKN
+	"unsupported value", //FFPARS_EVALUNSUPP
+	"parser misuse", //FFPARS_ECONF
 };
 
 const char * ffpars_errstr(int code)
@@ -353,6 +353,7 @@ int64 ffpars_getint(const ffpars_arg *a, union ffpars_val u)
 		case 8:
 			n = (char)*u.b; break;
 		}
+
 	} else {
 		switch (width) {
 		case 64:
@@ -363,6 +364,11 @@ int64 ffpars_getint(const ffpars_arg *a, union ffpars_val u)
 			n = (ushort)*u.i16; break;
 		case 8:
 			n = (byte)*u.b; break;
+		}
+
+		if (f & FFPARS_FBIT) {
+			uint bit = (f >> 24) & 0xff;
+			n = ffbit_test64((uint64*)&n, bit);
 		}
 	}
 

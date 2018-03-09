@@ -119,18 +119,6 @@ static FFINL ffbool ffbit_reset(size_t *p, uint bit)
 
 #define ffbit_find(/*size_t*/ i)  ffbit_find32(i)
 
-
-/* uint64 operations on 32-bit CPU */
-
-static FFINL uint ffbit_ffs64(uint64 i)
-{
-	if ((int)i != 0)
-		return ffbit_ffs32((int)i);
-	if ((int)(i >> 32) != 0)
-		return ffbit_ffs32((int)(i >> 32)) + 32;
-	return 0;
-}
-
 #endif //FF_64
 
 #define ffbit_testset32  ffbit_set32
@@ -145,6 +133,13 @@ static FFINL ffbool ffbit_testarr(const uint *ar, uint bit)
 static FFINL ffbool ffbit_setarr(uint *ar, uint bit)
 {
 	return ffbit_set32(&ar[bit / 32], bit % 32);
+}
+
+/** Return TRUE if a bit is set in bit-array. */
+static FFINL int ffbit_ntest(const void *d, size_t bit)
+{
+	const byte *b = (byte*)d + bit / 8;
+	return !!(*b & FF_BIT32(7 - (bit % 8)));
 }
 
 /** Get the number of bits set */

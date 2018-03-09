@@ -36,7 +36,7 @@ typedef struct ff7z {
 	struct z7_block *blks;
 	uint iblk;
 
-	ffarr stms; //z7_stream[]
+	ffarr stms; //z7_stream[] = (data stream)... (empty files stream)
 	struct z7_stream *curstm;
 
 	struct z7_filter *filters;

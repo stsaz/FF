@@ -10,6 +10,11 @@ U+0800..U+FFFF    1110xxxx 10xxxxxx*2
 0010000..001FFFFF 11110xxx 10xxxxxx*3
 0200000..03FFFFFF 111110xx 10xxxxxx*4
 4000000..7FFFFFFF 1111110x 10xxxxxx*5
+
+UTF-16:
+U+0000..U+D7FF    XX XX
+U+E000..U+FFFF    XX XX
+U+10000..U+10FFFF (XX XX) (XX XX)
 */
 
 #pragma once
@@ -83,3 +88,23 @@ FF_EXTN size_t ffutf8_strencode(ffstr3 *dst, const char *src, size_t len, uint f
 @len: length of buffer in bytes
 Return -1 if NULL-character isn't found. */
 FF_EXTN ssize_t ffutf16_findc(const char *s, size_t len, int ch);
+
+/** Return TRUE if UTF-16 code unit is in Basic Multilingual Plane.
+(0..0xd7ff) and (0xe000..0xffff). */
+static FFINL ffbool ffutf16_basic(uint ch)
+{
+	return (ch & 0xf800) != 0xd800;
+}
+
+/** Return TRUE if UTF-16 code unit is a high surrogate value for a character in Supplementary Plane.
+(0xd800..0xdbff) */
+static FFINL ffbool ffutf16_highsurr(uint ch)
+{
+	return (ch & 0xfc00) == 0xd800;
+}
+
+/** Get character in Supplementary Plane from UTF-16 high and low surrogates. */
+static FFINL uint ffutf16_suppl(uint hi, uint lo)
+{
+	return 0x10000 + ((hi - 0xd800) << 10) + (lo - 0xdc00);
+}

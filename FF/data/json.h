@@ -2,6 +2,27 @@
 Copyright (c) 2013 Simon Zolin
 */
 
+#if 0
+JSON syntax:
+
+(null | boolean | number | "string" | object{} | array[])
+
+boolean: true | false
+number: 0 | 0.0 | 0.0e-5
+string: UTF-8 text with \-escaped characters.
+ Characters must be escaped: [0..0x19] 0x7f "" \\
+ Characters may be escaped: /
+ Any UTF-16 character may be escaped with "\uXXXX".
+object: { "key": value, ... }
+array: [ value, ... ]
+
+This implementation supports comments, not defined in the standard:
+// one-line
+/*
+multi-line comment
+*/
+#endif
+
 #pragma once
 
 #include <FF/data/parse.h>

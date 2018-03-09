@@ -25,7 +25,6 @@ int test_json_parse(const char *testJsonFile)
 	ffbool again = 0;
 	ffstr3 buf = { 0 };
 	ffjson_cook ck;
-	int ckf = FFJSON_PRETTY4SPC;
 	void *dst;
 
 	f = fffile_open(testJsonFile, O_RDONLY);
@@ -34,6 +33,7 @@ int test_json_parse(const char *testJsonFile)
 
 	ffjson_parseinit(&json);
 	ffjson_cookinit(&ck, NULL, 0);
+	ck.gflags = FFJSON_PRETTY4SPC;
 
 	for (;;) {
 		if (!again) {
@@ -52,7 +52,7 @@ int test_json_parse(const char *testJsonFile)
 
 		switch (rc) {
 		case FFPARS_KEY:
-			ffjson_bufadd(&ck, FFJSON_TSTR | ckf, &json.val);
+			ffjson_bufadd(&ck, FFJSON_TSTR, &json.val);
 			break;
 
 		case FFPARS_VAL:
@@ -62,15 +62,15 @@ int test_json_parse(const char *testJsonFile)
 				dst = json.intval != 0 ? (void*)1 : NULL;
 			else
 				dst = &json.val;
-			ffjson_bufadd(&ck, json.type | ckf, dst);
+			ffjson_bufadd(&ck, json.type, dst);
 			break;
 
 		case FFPARS_OPEN:
-			ffjson_bufadd(&ck, json.type | ckf, FFJSON_CTXOPEN);
+			ffjson_bufadd(&ck, json.type, FFJSON_CTXOPEN);
 			break;
 
 		case FFPARS_CLOSE:
-			ffjson_bufadd(&ck, json.type | ckf, FFJSON_CTXCLOSE);
+			ffjson_bufadd(&ck, json.type, FFJSON_CTXCLOSE);
 			break;
 
 		case FFPARS_MORE:
@@ -314,8 +314,10 @@ int test_json()
 	char buf[16];
 	FFTEST_FUNC;
 
-	x(7*2 + 1 == ffjson_escape(buf, sizeof(buf), FFSTR("\"\\\b\f\r\n\t/")));
-	x(!memcmp(buf, FFSTR("\\\"\\\\\\b\\f\\r\\n\\t/")));
+	ffstr s;
+	s.ptr = buf;
+	s.len = ffjson_escape(buf, sizeof(buf), FFSTR("\"\\\b\f\r\n\t/я\x01"));
+	x(!ffstr_eqz(&s, "\\\"\\\\\\b\\f\\r\\n\\t/я\\u0000"));
 
 	test_json_parse(TESTDIR "/test.json");
 	test_json_err();

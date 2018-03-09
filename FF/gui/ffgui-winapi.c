@@ -1855,6 +1855,8 @@ int ffui_wndproc(ffui_wnd *wnd, size_t *code, HWND h, uint msg, size_t w, size_t
 
 		case WA_ACTIVE:
 		case WA_CLICKACTIVE:
+			if (wnd->onactivate_id != 0)
+				wnd->on_action(wnd, wnd->onactivate_id);
 			if (wnd->focused != NULL) {
 				SetFocus(wnd->focused);
 				wnd->focused = NULL;

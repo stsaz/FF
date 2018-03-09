@@ -38,7 +38,7 @@ static int test_crc()
 	return 0;
 }
 
-static int test_path()
+static void test_path_norm()
 {
 	ffstr s;
 	char buf[60];
@@ -123,6 +123,55 @@ static int test_path()
 	x(0 == ffpath_norm(buf, 0, FFSTR("/"), 0));
 
 	x(0 == ffpath_norm(buf, 0, FFSTR("/path/fn\0.ext"), 0)); //invalid char
+}
+
+static void test_path_cmp()
+{
+	ffstr s1, s2;
+	ffstr_setcz(&s1, "/a/b/c");
+	ffstr_setcz(&s2, "/a/b/c");
+	x(ffpath_cmp(&s1, &s2, 0) == 0);
+
+	ffstr_setcz(&s2, "/a/b/d");
+	x(ffpath_cmp(&s1, &s2, 0) < 0);
+
+	ffstr_setcz(&s2, "/a/b/b");
+	x(ffpath_cmp(&s1, &s2, 0) > 0);
+
+	ffstr_setcz(&s1, "/a/b");
+	ffstr_setcz(&s2, "/a");
+	x(ffpath_cmp(&s1, &s2, 0) > 0);
+
+	ffstr_setcz(&s1, "a");
+	ffstr_setcz(&s2, "a");
+	x(ffpath_cmp(&s1, &s2, 0) == 0);
+
+	ffstr_setcz(&s1, "/a/B/c");
+	ffstr_setcz(&s2, "/a/b/c");
+	x(ffpath_cmp(&s1, &s2, FFPATH_CASE_ISENS) == 0);
+
+	ffstr_setcz(&s1, "/a/B/c");
+	ffstr_setcz(&s2, "/a/b/c");
+	x(ffpath_cmp(&s1, &s2, FFPATH_CASE_SENS) > 0);
+
+	ffstr_setcz(&s1, "/a/b/c");
+	ffstr_setcz(&s2, "/a/b+/c");
+	x(ffpath_cmp(&s1, &s2, FFPATH_CASE_ISENS) < 0);
+
+	ffstr_setcz(&s1, "/a/b");
+	ffstr_setcz(&s2, "/a/C");
+	x(ffpath_cmp(&s1, &s2, FFPATH_CASE_SENS) < 0);
+}
+
+static int test_path()
+{
+	ffstr s;
+	char buf[60];
+	size_t n;
+	s.ptr = buf;
+
+	test_path_norm();
+	test_path_cmp();
 
 	x(FFSLEN("filename") == ffpath_makefn(buf, FFCNT(buf), FFSTR("filename"), '_'));
 	n = ffpath_makefn(buf, FFCNT(buf), FFSTR("\x00\x1f *?/\\:\""), '_');
@@ -163,42 +212,6 @@ static int test_path()
 		x(ffstr_eqcz(&fn, "file"));
 	}
 
-
-	ffstr s1, s2;
-	ffstr_setcz(&s1, "/a/b/c");
-	ffstr_setcz(&s2, "/a/b/c");
-	x(ffpath_cmp(&s1, &s2, 0) == 0);
-
-	ffstr_setcz(&s2, "/a/b/d");
-	x(ffpath_cmp(&s1, &s2, 0) < 0);
-
-	ffstr_setcz(&s2, "/a/b/b");
-	x(ffpath_cmp(&s1, &s2, 0) > 0);
-
-	ffstr_setcz(&s1, "/a/b");
-	ffstr_setcz(&s2, "/a");
-	x(ffpath_cmp(&s1, &s2, 0) > 0);
-
-	ffstr_setcz(&s1, "a");
-	ffstr_setcz(&s2, "a");
-	x(ffpath_cmp(&s1, &s2, 0) == 0);
-
-	ffstr_setcz(&s1, "/a/B/c");
-	ffstr_setcz(&s2, "/a/b/c");
-	x(ffpath_cmp(&s1, &s2, FFPATH_CASE_ISENS) == 0);
-
-	ffstr_setcz(&s1, "/a/B/c");
-	ffstr_setcz(&s2, "/a/b/c");
-	x(ffpath_cmp(&s1, &s2, FFPATH_CASE_SENS) > 0);
-
-	ffstr_setcz(&s1, "/a/b/c");
-	ffstr_setcz(&s2, "/a/b+/c");
-	x(ffpath_cmp(&s1, &s2, FFPATH_CASE_ISENS) < 0);
-
-	ffstr_setcz(&s1, "/a/b");
-	ffstr_setcz(&s2, "/a/C");
-	x(ffpath_cmp(&s1, &s2, FFPATH_CASE_SENS) < 0);
-
 	return 0;
 }
 
@@ -215,6 +228,11 @@ static int test_bits()
 	x(0 != ffbit_test32(&i4, 0));
 	i = 1;
 	x(0 != ffbit_test(&i, 0));
+
+	x(!ffbit_ntest("\x7f\xff\xff\xff", 0));
+	x(ffbit_ntest("\x01\x00\x00\x00", 7));
+	x(ffbit_ntest("\x00\x00\x00\x80", 3*8));
+	x(!ffbit_ntest("\x01\x01\x01\x80", 3*8+1));
 
 	i8 = 0x8000000000000000ULL;
 	x(0 != ffbit_set64(&i8, 63));

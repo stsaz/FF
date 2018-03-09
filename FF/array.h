@@ -321,8 +321,7 @@ static FFINL void * _ffarr_copy(ffarr *ar, const void *src, size_t num, size_t e
 /** Allocate and copy data from memory pointed by 'a.ptr'. */
 #define ffarr_copyself(a) \
 do { \
-	FF_ASSERT((a)->cap == 0); \
-	if ((a)->len != 0) \
+	if ((a)->cap == 0 && (a)->len != 0) \
 		ffarr_realloc(a, (a)->len); \
 } while (0)
 
@@ -466,6 +465,7 @@ static FFINL ffbool ffstr_imatch(const ffstr *s1, const char *s2, size_t n) {
 
 #define ffstr_matchcz(s, csz)  ffstr_match(s, csz, FFSLEN(csz))
 #define ffstr_imatchcz(s, csz)  ffstr_imatch(s, csz, FFSLEN(csz))
+#define ffstr_matchz(s, sz)  ffstr_match(s, sz, ffsz_len(sz))
 #define ffstr_matchstr(s, s2)  ffstr_match(s, (s2)->ptr, (s2)->len)
 
 static FFINL ffbool ffstr_irmatch(const ffstr *s, const char *s2, size_t len)

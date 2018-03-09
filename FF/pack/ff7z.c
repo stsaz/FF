@@ -65,24 +65,24 @@ static FFINL int z7_readint(ffstr *d, uint64 *val)
 
 
 static const char* errs[] = {
-	"",
-	"system",
-	"bad signature",
-	"unsupported version",
-	"bad signature header CRC",
-	"bad block ID",
-	"unknown block ID",
-	"duplicate block",
-	"no required block",
-	"unsupported",
-	"unsupported coder method",
-	"unsupported Folder flags",
-	"incomplete block",
-	"invalid blocks order",
-	"bad data",
-	"data checksum mismatch",
-	"liblzma error",
-	"libz error",
+	"", //FF7Z_EOK
+	"system", //FF7Z_ESYS
+	"bad signature", //FF7Z_EHDRSIGN
+	"unsupported version", //FF7Z_EHDRVER
+	"bad signature header CRC", //FF7Z_EHDRCRC
+	"bad block ID", //FF7Z_EBADID
+	"unknown block ID", //FF7Z_EUKNID
+	"duplicate block", //FF7Z_EDUPBLOCK
+	"no required block", //FF7Z_ENOREQ
+	"unsupported", //FF7Z_EUNSUPP
+	"unsupported coder method", //FF7Z_EUKNCODER
+	"unsupported Folder flags", //FF7Z_EFOLDER_FLAGS
+	"incomplete block", //FF7Z_EMORE
+	"invalid blocks order", //FF7Z_EORDER
+	"bad data", //FF7Z_EDATA
+	"data checksum mismatch", //FF7Z_EDATACRC
+	"liblzma error", //FF7Z_ELZMA
+	"libz error", //FF7Z_EZLIB
 };
 
 const char* ff7z_errstr(ff7z *z)

@@ -214,6 +214,7 @@ struct esds_sl {
 };
 
 /** Get next esds block.
+@size: input: minimum block size;  output: actual block size
 Return block tag;  0 on error. */
 static int mp4_esds_block(const char **pd, const char *end, uint *size)
 {
@@ -307,7 +308,7 @@ int mp4_esds_write(char *dst, const struct mp4_esds *esds)
 	d += mp4_esds_block_write(d, ESDS_DECSPEC_TAG, esds->conflen);
 	struct esds_decspec *spec = (void*)d;
 	ffmemcpy(spec->data, esds->conf, esds->conflen);
-	d += sizeof(struct esds_decspec);
+	d += esds->conflen;
 
 	d += mp4_esds_block_write(d, ESDS_SL_TAG, 1);
 	struct esds_sl *sl = (void*)d;
