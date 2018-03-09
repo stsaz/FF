@@ -122,7 +122,7 @@ int ffcue_parse(ffcuep *c, const char *data, size_t *len)
 		switch (cmd) {
 		case CMD_TRACK:
 			ffstr_nextval3(&s, &p->val, ' ');
-			if (p->val.len != 2 || 2 != ffs_toint(p->val.ptr, p->val.len, &p->intval, FFS_INT64))
+			if (!ffstr_toint(&p->val, &p->intval, FFS_INT64))
 				return -FFPARS_EBADVAL;
 			p->state = CUE_LINE,  p->nextst = CUE_FILE_TRACK;
 			r = FFCUE_TRACKNO;
@@ -187,6 +187,7 @@ ffcuetrk* ffcue_index(ffcue *c, uint type, uint val)
 
 	case FFCUE_TRACKNO:
 		c->trk.from = c->trk.to = -1;
+		c->next = 0;
 		break;
 
 	case FFCUE_TRK_INDEX00:
@@ -211,7 +212,8 @@ ffcuetrk* ffcue_index(ffcue *c, uint type, uint val)
 			if (c->from == (uint)-1)
 				c->from = val;
 			break;
-		}
+		} else if (c->next)
+			return NULL; // skip "INDEX XX" after "INDEX 01"
 
 		if (c->trk.from == (uint)-1) {
 			c->trk.from = c->from;
@@ -221,6 +223,7 @@ ffcuetrk* ffcue_index(ffcue *c, uint type, uint val)
 		if (c->trk.to == (uint)-1)
 			c->trk.to = val;
 
+		c->next = 1;
 		return &c->trk;
 
 	case FFCUE_FIN:

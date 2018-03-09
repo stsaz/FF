@@ -74,6 +74,7 @@ typedef struct ffcue {
 	uint from;
 	ffcuetrk trk;
 	uint first :1;
+	uint next :1;
 } ffcue;
 
 /** Get track start/end time from two INDEX values.
