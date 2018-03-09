@@ -30,17 +30,14 @@ enum {
 	CUE_FILE_TRACK, CUE_FILE_TRACK_NXLINE,
 };
 
-void ffcue_init(ffcuep *c)
+void ffcue_init(ffcuep *p)
 {
-	ffparser *p = &c->pars;
-	ffpars_init(p);
-	p->line = 0;
+	ffmem_tzero(p);
 	p->state = CUE_LINE,  p->nextst = CUE_GLOB;
 }
 
-int ffcue_parse(ffcuep *c, const char *data, size_t *len)
+int ffcue_parse(ffcuep *p, const char *data, size_t *len)
 {
-	ffparser *p = &c->pars;
 	ssize_t r;
 	int cmd = 0;
 	ffstr s = p->tmp;

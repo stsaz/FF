@@ -27,7 +27,7 @@ enum FFCUE_T {
 	FFCUE_TRK_TITLE,
 	FFCUE_TRK_PERFORMER,
 
-	//for these values ffparser.intval contains the number of CD frames (1/75 sec):
+	//for these values ffcuep.intval contains the number of CD frames (1/75 sec):
 	FFCUE_TRK_INDEX00,
 	FFCUE_TRK_INDEX,
 
@@ -35,10 +35,21 @@ enum FFCUE_T {
 };
 
 typedef struct ffcuep {
-	ffparser pars;
+	uint state, nextst;
+	uint ret;
+	uint line;
+	int64 intval;
+	ffstr val;
+	ffarr buf;
+	ffstr tmp;
 } ffcuep;
 
 FF_EXTN void ffcue_init(ffcuep *c);
+
+static FFINL void ffcue_close(ffcuep *c)
+{
+	ffarr_free(&c->buf);
+}
 
 /**
 Return enum FFCUE_T;  <0 on error (enum FFPARS_E). */

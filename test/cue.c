@@ -70,7 +70,7 @@ int test_cue(void)
 			}
 			ffstr_shift(&s1, n);
 
-			if (NULL == (trk = ffcue_index(&cu, r, p.pars.intval)))
+			if (NULL == (trk = ffcue_index(&cu, r, p.intval)))
 				continue;
 			x(trk->from == idxs[i][k]);
 			x(trk->to == idxs[i][k + 1]);
