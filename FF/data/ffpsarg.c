@@ -48,22 +48,20 @@ enum ARG_IDX {
 	iArgStart, iArgVal, iArgNextShortOpt, iArgDone
 };
 
-int ffpsarg_parseinit(ffparser *p)
+void ffpsarg_parseinit(ffpsarg_parser *p)
 {
-	char *ctx;
-	ffpars_init(p);
+	ffmem_tzero(p);
+	p->line = 1;
 	p->state = iArgStart;
-
-	ctx = ffarr_push(&p->ctxs, char);
-	if (ctx == NULL)
-		return 1;
-
-	*ctx = FFPARS_OPEN;
 	p->type = 0;
-	return 0;
 }
 
-int ffpsarg_parse(ffparser *p, const char *a, int *processed)
+void ffpsarg_parseclose(ffpsarg_parser *p)
+{
+	ffarr_free(&p->buf);
+}
+
+int ffpsarg_parse(ffpsarg_parser *p, const char *a, int *processed)
 {
 	int r = FFPARS_EBADCHAR;
 	int st = p->state;
@@ -156,14 +154,13 @@ int ffpsarg_parse(ffparser *p, const char *a, int *processed)
 }
 
 
-int ffpsarg_scheminit(ffparser_schem *ps, ffparser *p, const ffpars_ctx *ctx)
+int ffpsarg_scheminit(ffparser_schem *ps, ffpsarg_parser *p, const ffpars_ctx *ctx)
 {
 	const ffpars_arg top = { NULL, FFPARS_TOBJ | FFPARS_FPTR, FFPARS_DST(ctx) };
 	ffpars_scheminit(ps, p, &top);
 
-	if (0 != ffpsarg_parseinit(p))
-		return 1;
-	if (FFPARS_OPEN != ffpars_schemrun(ps, FFPARS_OPEN))
+	ffpsarg_parseinit(p);
+	if (FFPARS_OPEN != _ffpars_schemrun(ps, FFPARS_OPEN))
 		return 1;
 
 	return 0;
@@ -172,7 +169,8 @@ int ffpsarg_scheminit(ffparser_schem *ps, ffparser *p, const ffpars_ctx *ctx)
 int ffpsarg_schemfin(ffparser_schem *ps)
 {
 	int r;
-	ps->p->ret = FFPARS_CLOSE;
+	ffpsarg_parser *p = ps->p;
+	p->ret = FFPARS_CLOSE;
 	r = ffpsarg_schemrun(ps);
 	if (r != FFPARS_CLOSE)
 		return r;
@@ -184,7 +182,7 @@ int ffpsarg_schemfin(ffparser_schem *ps)
 . Convert a string to number */
 static int ffpsarg_schemval(ffparser_schem *ps)
 {
-	ffparser *p = ps->p;
+	ffpsarg_parser *p = ps->p;
 	const ffpars_ctx *ctx = &ffarr_back(&ps->ctxs);
 
 	if (p->type == FFPSARG_INPUTVAL
@@ -200,16 +198,7 @@ static int ffpsarg_schemval(ffparser_schem *ps)
 		&& (ps->curarg->flags & FFPARS_FTYPEMASK) == FFPARS_TBOOL)
 		return FFPARS_EVALUNEXP;
 
-	if ((ps->curarg->flags & FFPARS_FTYPEMASK) == FFPARS_TINT) {
-		if (p->val.len != ffs_toint(p->val.ptr, p->val.len, &p->intval, FFS_INT64 | FFS_INTSIGN))
-			return FFPARS_EBADVAL;
-
-	} else if ((ps->curarg->flags & FFPARS_FTYPEMASK) == FFPARS_TFLOAT) {
-		if (p->val.len != ffs_tofloat(p->val.ptr, p->val.len, &p->fltval, 0))
-			return FFPARS_EBADVAL;
-	}
-
-	return 0;
+	return ffpars_arg_process(ps->curarg, &p->val, ctx->obj, ps);
 }
 
 static const ffpars_arg* _arg_any(const ffpars_ctx *ctx)
@@ -235,18 +224,22 @@ static const ffpars_arg* _arg_any(const ffpars_ctx *ctx)
 
 int ffpsarg_schemrun(ffparser_schem *ps)
 {
+	ffpsarg_parser *p = ps->p;
 	const ffpars_arg *arg;
 	ffpars_ctx *ctx = &ffarr_back(&ps->ctxs);
-	const ffstr *val = &ps->p->val;
+	const ffstr *val = &p->val;
 	uint f, i;
 	int r;
 
-	if (ps->p->ret >= 0)
-		return ps->p->ret;
+	if (p->ret >= 0)
+		return p->ret;
+
+	if (ps->ctxs.len == 0)
+		return FFPARS_ECONF;
 
 	if (ps->flags & _FFPARS_SCALONE) {
 		ps->flags &= ~_FFPARS_SCALONE;
-		if (ps->p->ret == FFPARS_KEY) {
+		if (p->ret == FFPARS_KEY) {
 			ps->flags &= ~FFPARS_SCHAVKEY;
 			if (!ffpars_arg_isfunc(ps->curarg))
 				return FFPARS_ECONF;
@@ -258,14 +251,14 @@ int ffpsarg_schemrun(ffparser_schem *ps)
 
 	if (ps->flags & FFPARS_SCHAVKEY) {
 		ps->flags &= ~FFPARS_SCHAVKEY;
-		if (ps->p->ret != FFPARS_VAL)
+		if (p->ret != FFPARS_VAL)
 			return FFPARS_EVALEMPTY; //key without a value
 	}
 
-	switch (ps->p->ret) {
+	switch (p->ret) {
 
 	case FFPARS_KEY:
-		if (ps->p->type == FFPSARG_SHORT) {
+		if (p->type == FFPSARG_SHORT) {
 			if (val->len != 1)
 				return FFPARS_EUKNKEY; // bare "-" option
 
@@ -299,34 +292,46 @@ int ffpsarg_schemrun(ffparser_schem *ps)
 			return FFPARS_EDUPKEY;
 		ps->curarg = arg;
 
-		int alone = 0;
 		if (arg->flags & FFPARS_FALONE) {
-			if ((ps->curarg->flags & FFPARS_FTYPEMASK) == FFPARS_TBOOL)
-				alone = 1;
+			if ((ps->curarg->flags & FFPARS_FTYPEMASK) == FFPARS_TBOOL) {
+				int64 intval = 1;
+				r = _ffpars_arg_process2(ps->curarg, &intval, ctx->obj, ps);
+				if (r != 0)
+					return r;
+				return FFPARS_KEY;
+			}
 			else
 				ps->flags |= _FFPARS_SCALONE;
 		}
 
-		if (alone || ffsz_eq(arg->name, "*")) {
-			ps->p->intval = 1;
-			ps->p->ret = FFPARS_VAL;
-			if (FFPARS_VAL != (r = ffpars_schemrun(ps, ps->p->ret)))
+		if (ffsz_eq(arg->name, "*")) {
+			r = ffpars_arg_process(ps->curarg, &p->val, ctx->obj, ps);
+			if (r != 0)
 				return r;
-			return FFPARS_KEY;
 
 		} else {
 			ps->flags |= FFPARS_SCHAVKEY;
 		}
 
-		return FFPARS_KEY;
+		r = FFPARS_KEY;
+		break;
 
 	case FFPARS_VAL:
 		r = ffpsarg_schemval(ps);
-		if (ffpars_iserr(r))
+		if (r != 0)
 			return r;
+		r = FFPARS_VAL;
 		break;
+
+	case FFPARS_OPEN:
+		r = _ffpars_schemrun(ps, FFPARS_OPEN);
+		break;
+	case FFPARS_CLOSE:
+		r = _ffpars_schemrun(ps, FFPARS_CLOSE);
+		break;
+	default:
+		return FFPARS_EINTL;
 	}
 
-	r = ffpars_schemrun(ps, ps->p->ret);
 	return r;
 }

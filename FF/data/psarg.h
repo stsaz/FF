@@ -56,9 +56,21 @@ enum FFPSARG_TYPE {
 	, FFPSARG_LONG //--long
 };
 
-/** Initialize command-line arguments parser.
-Return 0 on success. */
-FF_EXTN int ffpsarg_parseinit(ffparser *p);
+typedef struct ffpsarg_parser {
+	uint state, nextst;
+	uint type;
+	int ret;
+	uint line;
+	uint ch;
+
+	ffstr val;
+	ffstr3 buf;
+} ffpsarg_parser;
+
+/** Initialize command-line arguments parser. */
+FF_EXTN void ffpsarg_parseinit(ffpsarg_parser *p);
+
+FF_EXTN void ffpsarg_parseclose(ffpsarg_parser *p);
 
 /** Parse command-line arguments.
 Short options: -a -b or -ab.  Note: -aVALUE is not supported.
@@ -67,11 +79,11 @@ Long options: --arg=val or --arg val.
 'p->line' is set to the number of arguments processed.
 'p->type' is set to a value of enum FFPSARG_TYPE.
 Return enum FFPARS_E. */
-FF_EXTN int ffpsarg_parse(ffparser *p, const char *a, int *processed);
+FF_EXTN int ffpsarg_parse(ffpsarg_parser *p, const char *a, int *processed);
 
 /** Initialize command-line arguments parser and scheme.
 Return 0 on success. */
-FF_EXTN int ffpsarg_scheminit(ffparser_schem *ps, ffparser *p, const ffpars_ctx *ctx);
+FF_EXTN int ffpsarg_scheminit(ffparser_schem *ps, ffpsarg_parser *p, const ffpars_ctx *ctx);
 
 /**
 Return 0 on success. */

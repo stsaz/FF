@@ -185,10 +185,10 @@ static int test_args_parse()
 	};
 	const char *const *args = args_ar;
 	int len;
-	ffparser p;
+	ffpsarg_parser p;
 	int i;
 
-	ffpars_init(&p);
+	ffpsarg_parseinit(&p);
 	for (i = 0;  i < FFCNT(sargs);  i++) {
 		x(iargs[i] == ffpsarg_parse(&p, *args, &len)
 			&& p.type == itypes[i] && ffstr_eqz(&p.val, sargs[i]));
@@ -223,7 +223,7 @@ static int test_args_schem()
 {
 	Opts o;
 	const ffpars_ctx ctx = { &o, cmd_args, FFCNT(cmd_args), NULL };
-	ffparser p;
+	ffpsarg_parser p;
 	ffparser_schem ps;
 	int r = 0;
 	int n;
@@ -237,7 +237,8 @@ static int test_args_schem()
 		r = ffpsarg_parse(&p, cmds[i], &n);
 		i += n;
 		r = ffpsarg_schemrun(&ps);
-		if (!x(r <= 0)) {
+		x(!ffpars_iserr(r));
+		if (ffpars_iserr(r)) {
 			fffile_fmt(ffstdout, NULL, "\nerror: %u:%u near '%S' (%u) %s\n"
 				, p.line, p.ch, &p.val, r, ffpars_errstr(r));
 			break;
@@ -253,7 +254,7 @@ static int test_args_schem()
 	x(o.i == 123);
 	x(o.input == 54321);
 
-	ffpars_free(&p);
+	ffpsarg_parseclose(&p);
 	ffpars_schemfree(&ps);
 
 	return 0;
@@ -263,7 +264,7 @@ static int test_args_err()
 {
 	Opts o;
 	ffpars_ctx ctx = { &o, cmd_args, FFCNT(cmd_args), NULL };
-	ffparser p;
+	ffpsarg_parser p;
 	ffparser_schem ps;
 	int r = 0;
 	int n = 0;
@@ -273,7 +274,7 @@ static int test_args_err()
 		static const char *const cmds[] = { "--vv", "--somearg" };
 		ffpsarg_scheminit(&ps, &p, &ctx);
 
-		r = ffpsarg_parse(&p, cmds[0], &n);
+		x(FFPARS_KEY == ffpsarg_parse(&p, cmds[0], &n));
 		x(FFPARS_KEY == ffpsarg_schemrun(&ps));
 
 		r = ffpsarg_parse(&p, cmds[1], &n);
@@ -281,18 +282,18 @@ static int test_args_err()
 			&& ffstr_eqcz(&p.val, "somearg")
 			&& p.line == 2);
 
-		ffpars_free(&p);
+		ffpsarg_parseclose(&p);
 		ffpars_schemfree(&ps);
 	}
 
 	{
 		ffpsarg_scheminit(&ps, &p, &ctx);
-		r = ffpsarg_parse(&p, "-s", &n);
+		x(FFPARS_KEY == ffpsarg_parse(&p, "-s", &n));
 		x(FFPARS_KEY == ffpsarg_schemrun(&ps));
 
 		x(FFPARS_EVALEMPTY == ffpsarg_schemfin(&ps));
 
-		ffpars_free(&p);
+		ffpsarg_parseclose(&p);
 		ffpars_schemfree(&ps);
 	}
 
@@ -302,13 +303,13 @@ static int test_args_err()
 		static const char *const cmds[] = { "-d", "asdf" };
 		ffpsarg_scheminit(&ps, &p, &ctx);
 
-		r = ffpsarg_parse(&p, cmds[0], &n);
+		x(FFPARS_KEY == ffpsarg_parse(&p, cmds[0], &n));
 		x(FFPARS_KEY == ffpsarg_schemrun(&ps));
 
 		r = ffpsarg_parse(&p, cmds[1], &n);
 		x(FFPARS_EVALUNEXP == ffpsarg_schemrun(&ps));
 
-		ffpars_free(&p);
+		ffpsarg_parseclose(&p);
 		ffpars_schemfree(&ps);
 	}
 	ctx.args--;
