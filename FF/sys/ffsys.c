@@ -313,7 +313,11 @@ int ffdir_expopen(ffdirexp *dex, char *pattern, uint flags)
 	if (wpatt == NULL)
 		return 1;
 
+#if FF_WIN >= 0x0600
 	dir = FindFirstFileEx(wpatt, FindExInfoBasic, &de.info, 0, NULL, 0);
+#else
+	dir = FindFirstFile(wpatt, &de.info);
+#endif
 	if (wpatt != wpatt_s)
 		ffmem_free(wpatt);
 
