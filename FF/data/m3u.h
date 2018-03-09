@@ -21,10 +21,20 @@ enum FFM3U_T {
 };
 
 typedef struct ffm3u {
-	ffparser pars;
+	uint state, nextst;
+	uint line;
+	int64 intval;
+	ffstr val;
+	ffarr buf;
+	ffstr tmp;
 } ffm3u;
 
 FF_EXTN void ffm3u_init(ffm3u *m);
+
+static FFINL void ffm3u_close(ffm3u *m)
+{
+	ffarr_free(&m->buf);
+}
 
 /**
 Return enum FFM3U_T;  <0 on error (enum FFPARS_E). */
