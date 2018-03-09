@@ -17,7 +17,10 @@ enum FFPCM_FMT {
 	FFPCM_24 = 24,
 	FFPCM_32 = 32,
 	FFPCM_24_4 = 0x0100 | 32,
+
+	_FFPCM_ISFLOAT = 0x0200,
 	FFPCM_FLOAT = 0x0200 | 32,
+	FFPCM_FLOAT64 = 0x0200 | 64,
 };
 
 /** Get format name. */
@@ -86,7 +89,7 @@ FF_EXTN void ffpcm_mix(const ffpcmex *pcm, void *stm1, const void *stm2, size_t 
 
 
 /** Convert 16LE sample to FLOAT. */
-#define _ffpcm_16le_flt(sh)  ((float)(sh) * (1 / 32768.0))
+#define _ffpcm_16le_flt(sh)  ((double)(sh) * (1 / 32768.0))
 
 /** Convert PCM data.
 Note: sample rate conversion isn't supported. */

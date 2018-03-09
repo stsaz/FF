@@ -12,6 +12,7 @@ Copyright (c) 2015 Simon Zolin
 
 static const char pcm_fmtstr[][9] = {
 	"float32",
+	"float64",
 	"int16",
 	"int24",
 	"int24-4",
@@ -20,6 +21,7 @@ static const char pcm_fmtstr[][9] = {
 };
 static const ushort pcm_fmt[] = {
 	FFPCM_FLOAT,
+	FFPCM_FLOAT64,
 	FFPCM_16,
 	FFPCM_24,
 	FFPCM_24_4,
@@ -98,7 +100,7 @@ static FFINL short _ffpcm_flt_8(float f)
 
 #define max16f  (32768.0)
 
-static FFINL short _ffpcm_flt_16le(float f)
+static FFINL short _ffpcm_flt_16le(double f)
 {
 	double d = f * max16f;
 	if (d < -max16f)
@@ -154,6 +156,7 @@ union pcmdata {
 	short **psh;
 	int **pin;
 	float **pf;
+	double **pd;
 };
 
 /** Set non-interleaved array from interleaved data. */
@@ -478,6 +481,14 @@ int ffpcm_convert(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm, const 
 		}
 		break;
 
+	case CASE(FFPCM_16, FFPCM_FLOAT64):
+		for (ich = 0;  ich != nch;  ich++) {
+			for (i = 0;  i != samples;  i++) {
+				to.pd[ich][i * ostep] = _ffpcm_16le_flt(from.psh[ich][i * istep]);
+			}
+		}
+		break;
+
 // int24
 	case CASE(FFPCM_24, FFPCM_16):
 		for (ich = 0;  ich != nch;  ich++) {
@@ -601,6 +612,39 @@ int ffpcm_convert(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm, const 
 		for (ich = 0;  ich != nch;  ich++) {
 			for (i = 0;  i != samples;  i++) {
 				to.pf[ich][i * ostep] = from.pf[ich][i * istep];
+			}
+		}
+		break;
+
+	case CASE(FFPCM_FLOAT, FFPCM_FLOAT64):
+		for (ich = 0;  ich != nch;  ich++) {
+			for (i = 0;  i != samples;  i++) {
+				to.pd[ich][i * ostep] = from.pf[ich][i * istep];
+			}
+		}
+		break;
+
+// float64
+	case CASE(FFPCM_FLOAT64, FFPCM_16):
+		for (ich = 0;  ich != nch;  ich++) {
+			for (i = 0;  i != samples;  i++) {
+				to.psh[ich][i * ostep] = _ffpcm_flt_16le(from.pd[ich][i * istep]);
+			}
+		}
+		break;
+
+	case CASE(FFPCM_FLOAT64, FFPCM_FLOAT):
+		for (ich = 0;  ich != nch;  ich++) {
+			for (i = 0;  i != samples;  i++) {
+				to.pf[ich][i * ostep] = from.pd[ich][i * istep];
+			}
+		}
+		break;
+
+	case CASE(FFPCM_FLOAT64, FFPCM_FLOAT64):
+		for (ich = 0;  ich != nch;  ich++) {
+			for (i = 0;  i != samples;  i++) {
+				to.pd[ich][i * ostep] = from.pd[ich][i * istep];
 			}
 		}
 		break;
