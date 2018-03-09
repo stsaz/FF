@@ -43,6 +43,7 @@ enum Z7_T {
 	T_MTime = 0x14,
 	T_WinAttributes = 0x15,
 	T_EncodedHeader = 0x17,
+	T_Dummy = 0x19,
 };
 
 enum Z7_F {
@@ -51,6 +52,7 @@ enum Z7_F {
 	F_LAST = 0x400,
 	F_SIZE = 0x800, //read block size (varint) before block body
 	F_SELF = 0x1000,
+	F_MULTI = 0x2000, //allow multiple occurrences
 	F_ALLOC_FILES = 0x4000, //allocate files array before processing this block
 };
 

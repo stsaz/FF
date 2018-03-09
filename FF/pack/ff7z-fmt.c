@@ -24,6 +24,7 @@ static int z7_mtimes_read(ffarr *stms, ffstr *d);
 static int z7_winattrs_read(ffarr *stms, ffstr *d);
 static int z7_emptystms_read(ffarr *stms, ffstr *d);
 static int z7_emptyfiles_read(ffarr *stms, ffstr *d);
+static int z7_dummy_read(ffarr *stms, ffstr *d);
 
 
 // 32 bytes
@@ -125,7 +126,7 @@ int z7_find_block(uint blk_id, const z7_bblock **pblock, struct z7_block *parent
 			return FF7Z_EUKNID;
 	}
 
-	if (ffbit_set32(&parent->used, i))
+	if (ffbit_set32(&parent->used, i) && !(blk->flags & F_MULTI))
 		return FF7Z_EDUPBLOCK;
 
 	uint prio = GET_PRIO(blk->flags);
@@ -530,7 +531,13 @@ static int z7_emptyfiles_read(ffarr *stms, ffstr *d)
 	return 0;
 }
 
-/*
+static int z7_dummy_read(ffarr *stms, ffstr *d)
+{
+	ffstr_shift(d, d->len);
+	return 0;
+}
+
+/* Read filenames.  Put names of empty files into the last stream.
 byte External
 {
  ushort Name[]
@@ -737,6 +744,7 @@ Header (0x01)
   Name (0x11)
   MTime (0x14)
   WinAttributes (0x15)
+  Dummy (0x19)
 EncodedHeader (0x17)
  PackInfo
   ...
@@ -799,5 +807,6 @@ static const z7_bblock z7_fileinfo_children[] = {
 	{ T_Name | F_REQ | F_SIZE, &z7_names_read },
 	{ T_MTime | F_SIZE, &z7_mtimes_read },
 	{ T_WinAttributes | F_SIZE, &z7_winattrs_read },
+	{ T_Dummy | F_SIZE | F_MULTI, &z7_dummy_read },
 	{ T_End | F_LAST, NULL },
 };
