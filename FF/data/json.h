@@ -20,11 +20,39 @@ enum FFJSON_T {
 /** Get type name. */
 FF_EXTN const char * ffjson_stype(int type);
 
+typedef struct ffjson {
+	uint state, nextst;
+	uint type;
+	int ret;
+	uint line;
+	uint ch;
+	uint flags;
+	union {
+		int64 intval;
+		double fltval;
+		struct {
+			char esc[5];
+			uint esc_len;
+			uint esc_hiword;
+		};
+		uint bareval_idx;
+	};
+
+	ffstr val;
+	ffstr3 buf;
+	ffarr ctxs;
+} ffjson;
+
 /** Initialize parser. */
-FF_EXTN void ffjson_parseinit(ffparser *p);
+FF_EXTN void ffjson_parseinit(ffjson *p);
+
+FF_EXTN void ffjson_parseclose(ffjson *p);
 
 /** Reuse the parser. */
-FF_EXTN void ffjson_parsereset(ffparser *p);
+FF_EXTN void ffjson_parsereset(ffjson *p);
+
+/** Get full error message. */
+FF_EXTN const char* ffjson_errmsg(ffjson *p, int r, char *buf, size_t cap);
 
 /** Unescape 1 character from JSON text.
 @text: escape sequence without the leading backslash.
@@ -40,20 +68,28 @@ FF_EXTN size_t ffjson_escape(char *dst, size_t cap, const char *s, size_t len);
 
 /** Parse JSON.
 Return FFPARS_E.  p->type is set to one of FFJSON_T. */
-FF_EXTN int ffjson_parse(ffparser *p, const char *data, size_t *len);
+FF_EXTN int ffjson_parse(ffjson *p, const char *data, size_t *len);
+
+static FFINL int ffjson_parsestr(ffjson *p, ffstr *data)
+{
+	size_t n = data->len;
+	int r = ffjson_parse(p, data->ptr, &n);
+	ffstr_shift(data, n);
+	return r;
+}
 
 /** Parse the whole data.
 Return enum FFPARS_E. */
-FF_EXTN int ffjson_validate(ffparser *json, const char *data, size_t len);
+FF_EXTN int ffjson_validate(ffjson *json, const char *data, size_t len);
 
 
 /** Initialize parser and scheme. */
-static FFINL void ffjson_scheminit(ffparser_schem *ps, ffparser *p, const ffpars_arg *top) {
+static FFINL void ffjson_scheminit(ffparser_schem *ps, ffjson *p, const ffpars_arg *top) {
 	ffjson_parseinit(p);
 	ffpars_scheminit(ps, p, top);
 }
 
-static FFINL void ffjson_scheminit2(ffparser_schem *ps, ffparser *p, const ffpars_arg *top, void *obj) {
+static FFINL void ffjson_scheminit2(ffparser_schem *ps, ffjson *p, const ffpars_arg *top, void *obj) {
 	ffjson_parseinit(p);
 	ffpars_scheminit(ps, p, top);
 	ps->udata = obj;
@@ -98,7 +134,7 @@ enum FFJSON_F {
 	, _FFJSON_PRETTYMASK = FFJSON_PRETTY | FFJSON_PRETTY2SPC | FFJSON_PRETTY4SPC
 
 	, FFJSON_FSTRZ = FFJSON_TSTR | (1 << 27) //null terminated string
-	, FFJSON_FKEYNAME = FFJSON_FSTRZ | FFJSON_FNOESC
+	, FFJSON_FKEYNAME = FFJSON_FSTRZ
 	, FFJSON_FINTVAL = FFJSON_TINT | (1 << 27) //integer value (int or int64)
 	, FFJSON_F32BIT = 1 << 26 //32-bit integer
 	, FFJSON_FMORE = 1 << 25 //TSTR: don't finalize the object because more data will follow

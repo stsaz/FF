@@ -19,7 +19,7 @@ int test_json_parse(const char *testJsonFile)
 {
 	fffd f;
 	char ch;
-	ffparser json;
+	ffjson json;
 	int rc;
 	size_t n;
 	ffbool again = 0;
@@ -90,14 +90,14 @@ int test_json_parse(const char *testJsonFile)
 	ffarr_free(&out);
 
 	ffjson_cookfinbuf(&ck);
-	ffpars_free(&json);
+	ffjson_parseclose(&json);
 	(void)fffile_close(f);
 	return 0;
 }
 
 static int test_json_err()
 {
-	ffparser json;
+	ffjson json;
 
 	ffjson_parseinit(&json);
 	x(FFPARS_EBADCHAR == ffjson_validate(&json, FFSTR("{,")));
@@ -150,7 +150,7 @@ static int test_json_err()
 int test_json_schem(const char *testJsonFile)
 {
 	obj_s o;
-	ffparser json;
+	ffjson json;
 	ffparser_schem ps;
 	int rc;
 	const char *js
@@ -190,7 +190,7 @@ int test_json_schem(const char *testJsonFile)
 	ffstr_free(&o.s);
 	ffmem_free(o.o[0]);
 	ffmem_free(o.o[1]);
-	ffpars_free(&json);
+	ffjson_parseclose(&json);
 	ffpars_schemfree(&ps);
 	return 0;
 }
