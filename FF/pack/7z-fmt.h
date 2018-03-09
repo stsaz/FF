@@ -83,6 +83,8 @@ typedef struct z7_stream {
 	struct z7_coder coder[2];
 	ffarr files; //ff7zfile[]
 	uint64 ifile;
+
+	ffarr empty; // bit-array of total files in archive. Valid for the last stream that contains empty files.
 } z7_stream;
 
 FF_EXTN const struct z7_bblock z7_ctx_top[];

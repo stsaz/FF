@@ -172,7 +172,7 @@ static int z7_packinfo_read(ffarr *stms, ffstr *d)
 	if (n == 0)
 		return FF7Z_EUNSUPP;
 
-	if (NULL == ffarr_alloczT(stms, n, z7_stream))
+	if (NULL == ffarr_alloczT(stms, n + 1 /*stream for empty files*/ , z7_stream))
 		return FF7Z_ESYS;
 	stms->len = n;
 	z7_stream *s = (void*)stms->ptr;
@@ -479,13 +479,12 @@ static int z7_fileinfo_read(ffarr *stms, ffstr *d)
 
 	if (n > all) {
 		// add one more stream with empty files and directory entries
-		if (NULL == (s = ffarr_pushT(stms, z7_stream)))
-			return FF7Z_ESYS;
-		ffmem_tzero(s);
-
+		s = ffarr_pushT(stms, z7_stream);
 		if (NULL == ffarr_alloczT(&s->files, n - all, ff7zfile))
 			return FF7Z_ESYS;
 		s->files.len = n - all;
+		if (NULL == ffarr_alloczT(&s->empty, ffbit_nbytes(n), byte))
+			return FF7Z_ESYS;
 	}
 	return 0;
 }
@@ -495,35 +494,29 @@ bit IsEmptyStream[NumFiles]
 */
 static int z7_emptystms_read(ffarr *stms, ffstr *d)
 {
-	const z7_stream *s = (void*)stms->ptr;
-	size_t all = 0, i;
-	uint bit, bit_abs;
+	size_t i, bit_abs, n0 = 0;
+	uint bit;
 
 	for (i = 0;  i != d->len;  i++) {
 		uint n = ffint_ntoh32(d->ptr + i) & 0xff000000;
 
 		while (0 <= (int)(bit = ffbit_find32(n) - 1)) {
 			bit_abs = i * 8 + bit;
-			FFDBG_PRINTLN(10, "empty stream:%u", bit_abs);
-
-			for (;;) {
-				if (s == ffarr_endT(stms, z7_stream))
-					return FF7Z_EDATA; // bit index is larger than total files number
-				if ((size_t)bit_abs < all + s->files.len) {
-					if (s->off != 0)
-						return FF7Z_EUNSUPP; // empty file within non-empty stream
-					goto done;
-				}
-
-				all += s->files.len;
-				s++;
-			}
-
-			ffbit_reset32(&n, bit);
+			FFDBG_PRINTLN(10, "empty:%L", bit_abs);
+			(void)bit_abs;
+			ffbit_reset32(&n, 31 - bit);
+			n0++;
 		}
 	}
 
-done:
+	z7_stream *sem = ffarr_lastT(stms, z7_stream);
+	if ((n0 != 0 && sem->empty.cap == 0)
+		|| n0 != sem->files.len)
+		return FF7Z_EDATA; // invalid number of empty files
+
+	i = ffmin(d->len, sem->empty.cap);
+	ffmemcpy(sem->empty.ptr, d->ptr, i);
+
 	ffarr_shift(d, d->len);
 	return 0;
 }
@@ -548,19 +541,30 @@ static int z7_names_read(ffarr *stms, ffstr *d)
 {
 	int r;
 	uint ext;
-	ssize_t n;
+	ssize_t n, cnt = 0;
 
 	if (0 != z7_readbyte(d, &ext))
 		return FF7Z_EMORE;
 	if (!!ext)
 		return FF7Z_EUNSUPP;
 
+	z7_stream *sem = ffarr_lastT(stms, z7_stream);
+	ff7zfile *fem = (void*)sem->files.ptr;
+	size_t ifem = 0;
+	if (sem->empty.cap == 0)
+		sem = NULL;
+
 	z7_stream *s;
 	FFARR_WALKT(stms, s, z7_stream) {
 
 		ff7zfile *f = (void*)s->files.ptr;
+		size_t i = 0;
+		if (s == sem) {
+			i = ifem;
+			sem = NULL;
+		}
 
-		for (size_t i = 0;  i != s->files.len;  i++) {
+		while (i != s->files.len) {
 
 			if (0 > (n = ffutf16_findc(d->ptr, d->len, 0)))
 				return FF7Z_EMORE;
@@ -575,10 +579,16 @@ static int z7_names_read(ffarr *stms, ffstr *d)
 				return FF7Z_EDATA;
 			}
 			ffstr_shift(d, n);
-			FFDBG_PRINTLN(10, "name[%L]:%*s", i, (size_t)r - 1, a.ptr);
+			FFDBG_PRINTLN(10, "name[%L][%L](%L):%*s"
+				, s - (z7_stream*)stms->ptr, i, cnt, (size_t)r - 1, a.ptr);
 			a.len = ffpath_norm(a.ptr, a.cap, a.ptr, r - 1, FFPATH_MERGEDOTS | FFPATH_FORCESLASH | FFPATH_TOREL);
 			a.ptr[a.len] = '\0';
-			f[i].name = a.ptr;
+
+			if (sem != NULL && ffbit_ntest(sem->empty.ptr, cnt))
+				fem[ifem++].name = a.ptr;
+			else
+				f[i++].name = a.ptr;
+			cnt++;
 		}
 	}
 
@@ -597,7 +607,7 @@ byte External
 */
 static int z7_mtimes_read(ffarr *stms, ffstr *d)
 {
-	uint all, ext;
+	uint all, ext, cnt = 0;
 
 	if (d->len < 2)
 		return FF7Z_EMORE;
@@ -610,19 +620,38 @@ static int z7_mtimes_read(ffarr *stms, ffstr *d)
 	if (!!ext)
 		return FF7Z_EUNSUPP;
 
+	z7_stream *sem = ffarr_lastT(stms, z7_stream);
+	ff7zfile *fem = (void*)sem->files.ptr;
+	size_t ifem = 0;
+	if (sem->empty.cap == 0)
+		sem = NULL;
+
 	z7_stream *s;
 	FFARR_WALKT(stms, s, z7_stream) {
 
-		if (d->len < 8 * s->files.len)
-			return FF7Z_EMORE;
-
 		ff7zfile *f = (void*)s->files.ptr;
-		for (size_t i = 0;  i != s->files.len;  i++) {
+		size_t i = 0;
+		if (s == sem) {
+			i = ifem;
+			sem = NULL;
+		}
+
+		while (i != s->files.len) {
+
+			if (d->len < 8)
+				return FF7Z_EMORE;
+
 			fftime_winftime ft;
 			ft.lo = ffint_ltoh32(d->ptr);
 			ft.hi = ffint_ltoh32(d->ptr + 4);
 			ffstr_shift(d, 8);
-			f[i].mtime = fftime_from_winftime(&ft);
+
+			fftime t = fftime_from_winftime(&ft);
+			if (sem != NULL && ffbit_ntest(sem->empty.ptr, cnt))
+				fem[ifem++].mtime = t;
+			else
+				f[i++].mtime = t;
+			cnt++;
 		}
 	}
 
@@ -639,7 +668,7 @@ uint32 Attributes[Defined]
 */
 static int z7_winattrs_read(ffarr *stms, ffstr *d)
 {
-	uint n, all, ext;
+	uint n, all, ext, cnt = 0;
 
 	if (d->len < 2)
 		return FF7Z_EMORE;
@@ -652,18 +681,36 @@ static int z7_winattrs_read(ffarr *stms, ffstr *d)
 	if (!!ext)
 		return FF7Z_EUNSUPP;
 
+	z7_stream *sem = ffarr_lastT(stms, z7_stream);
+	ff7zfile *fem = (void*)sem->files.ptr;
+	size_t ifem = 0;
+	if (sem->empty.cap == 0)
+		sem = NULL;
+
 	z7_stream *s;
 	FFARR_WALKT(stms, s, z7_stream) {
 
-		if (d->len < 4 * s->files.len)
-			return FF7Z_EMORE;
-
 		ff7zfile *f = (void*)s->files.ptr;
-		for (size_t i = 0;  i != s->files.len;  i++) {
+		size_t i = 0;
+		if (s == sem) {
+			i = ifem;
+			sem = NULL;
+		}
+
+		while (i != s->files.len) {
+
+			if (d->len < 4)
+				return FF7Z_EMORE;
+
 			n = ffint_ltoh32(d->ptr);
 			ffstr_shift(d, 4);
 			FFDBG_PRINTLN(10, "Attributes[%L]:%xu", i, n);
-			f[i].attr = n;
+
+			if (sem != NULL && ffbit_ntest(sem->empty.ptr, cnt))
+				fem[ifem++].attr = n;
+			else
+				f[i++].attr = n;
+			cnt++;
 		}
 	}
 

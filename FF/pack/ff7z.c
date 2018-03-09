@@ -149,6 +149,7 @@ static void z7_streams_free(ffarr *stms)
 			ffmem_safefree(f->name);
 		}
 		ffarr_free(&s->files);
+		ffarr_free(&s->empty);
 	}
 	ffarr_free(stms);
 }
