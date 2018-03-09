@@ -9,9 +9,8 @@ enum { PLS_LINE, PLS_HDR, PLS_PAIR, PLS_RET };
 
 void ffpls_init(ffpls *p)
 {
-	ffpars_init(&p->pars);
-	p->pars.state = PLS_LINE,  p->pars.nextst = PLS_HDR;
-	p->pars.line = 0;
+	ffmem_tzero(p);
+	p->state = PLS_LINE,  p->nextst = PLS_HDR;
 	p->idx = (uint)-1;
 }
 
@@ -22,36 +21,36 @@ int ffpls_parse(ffpls *p, ffstr *data)
 	ffstr line = {0}, name;
 
 	for (;;) {
-	switch (p->pars.state) {
+	switch (p->state) {
 
 	case PLS_LINE:
 		pos = ffs_find(data->ptr, data->len, '\n');
-		if (p->pars.buf.len + pos - data->ptr > FF_TEXT_LINE_MAX)
+		if (p->buf.len + pos - data->ptr > FF_TEXT_LINE_MAX)
 			return -FFPARS_EBIGVAL;
-		r = ffarr_append_until(&p->pars.buf, data->ptr, data->len, p->pars.buf.len + pos - data->ptr + 1);
+		r = ffarr_append_until(&p->buf, data->ptr, data->len, p->buf.len + pos - data->ptr + 1);
 		if (r == 0)
 			return FFPARS_MORE;
 		else if (r < 0)
 			return -FFPARS_ESYS;
 
 		ffstr_shift(data, r);
-		ffstr_set2(&line, &p->pars.buf);
-		p->pars.buf.len = 0;
+		ffstr_set2(&line, &p->buf);
+		p->buf.len = 0;
 		pos = ffs_rskipof(line.ptr, line.len, "\r\n", 2);
 		line.len = pos - line.ptr;
-		p->pars.line++;
-		p->pars.state = p->pars.nextst;
+		p->line++;
+		p->state = p->nextst;
 		continue;
 
 	case PLS_HDR:
 		if (!ffstr_ieqcz(&line, "[playlist]"))
 			return FFPARS_EBADVAL;
-		p->pars.state = PLS_LINE,  p->pars.nextst = PLS_PAIR;
+		p->state = PLS_LINE,  p->nextst = PLS_PAIR;
 		continue;
 
 	case PLS_PAIR: {
-		p->pars.state = PLS_LINE,  p->pars.nextst = PLS_PAIR;
-		if (NULL == ffs_split2by(line.ptr, line.len, '=', &name, &p->pars.val))
+		p->state = PLS_LINE,  p->nextst = PLS_PAIR;
+		if (NULL == ffs_split2by(line.ptr, line.len, '=', &name, &p->val))
 			continue;
 
 		ffstr key;
@@ -70,16 +69,16 @@ int ffpls_parse(ffpls *p, ffstr *data)
 
 		if (p->idx != (uint)-1 && p->idx != num) {
 			p->idx = (uint)-1;
-			p->pars.type = r;
-			p->pars.state = PLS_RET;
+			p->type = r;
+			p->state = PLS_RET;
 			return FFPLS_READY;
 		}
 		p->idx = num;
 		return r;
 
 	case PLS_RET:
-		p->pars.state = PLS_LINE,  p->pars.nextst = PLS_PAIR;
-		return p->pars.type;
+		p->state = PLS_LINE,  p->nextst = PLS_PAIR;
+		return p->type;
 	}
 	}
 	}

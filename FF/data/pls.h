@@ -25,11 +25,20 @@ enum FFPLS_T {
 };
 
 typedef struct ffpls {
-	ffparser pars;
+	uint state, nextst;
+	uint type;
+	uint line;
 	uint idx; //index of the current entry
+	ffstr val;
+	ffarr buf;
 } ffpls;
 
 FF_EXTN void ffpls_init(ffpls *p);
+
+static FFINL void ffpls_close(ffpls *p)
+{
+	ffarr_free(&p->buf);
+}
 
 /** Parse data from .pls file.
 Return enum FFPLS_T;  <0 on error (enum FFPARS_E). */
