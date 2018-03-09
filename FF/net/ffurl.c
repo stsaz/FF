@@ -458,28 +458,46 @@ uint ffuri_scheme2port(const char *scheme, size_t schemelen)
 }
 
 
-static int _ffurlqs_process_str(ffparser *p, const char **pd)
+static int val_store(ffarr *buf, const char *s, size_t len)
+{
+	if (NULL == ffarr_grow(buf, len, 256 | FFARR_GROWQUARTER))
+		return FFPARS_ESYS;
+	ffarr_append(buf, s, len);
+	return 0;
+}
+
+static int val_add(ffarr *buf, const char *s, size_t len)
+{
+	if (buf->cap != 0)
+		return val_store(buf, s, len);
+
+	if (buf->len == 0)
+		buf->ptr = (char*)s;
+	buf->len += len;
+	return 0;
+}
+
+static int _ffurlqs_process_str(ffurlqs *p, const char **pd)
 {
 	const char *d = *pd;
 	char c;
 
 	if (*d == '+') {
 		c = ' ';
-		return _ffpars_copyBuf(p, &c, sizeof(char));
+		return val_store(&p->buf, &c, 1);
 
 	} else if (*d == '%') {
 		//no check for invalid hex char
 		int b = (ffchar_tohex(d[1]) << 4);
 		c = b | ffchar_tohex(d[2]);
 		*pd += FFSLEN("XX");
-		return _ffpars_copyBuf(p, &c, sizeof(char));
+		return val_store(&p->buf, &c, 1);
 	}
 
-	c = *d;
-	return _ffpars_addchar(p, c);
+	return val_add(&p->buf, d, 1);
 }
 
-int ffurlqs_parse(ffparser *p, const char *d, size_t *len)
+int ffurlqs_parse(ffurlqs *p, const char *d, size_t *len)
 {
 	enum {
 		qs_key_start, qs_key, qs_val_start, qs_val
@@ -498,8 +516,7 @@ int ffurlqs_parse(ffparser *p, const char *d, size_t *len)
 			if (ch == '&')
 				break;
 
-			ffpars_cleardata(p);
-			p->val.ptr = (char*)d;
+			ffarr_free(&p->buf);
 			st = qs_key;
 			//break;
 
@@ -514,8 +531,7 @@ int ffurlqs_parse(ffparser *p, const char *d, size_t *len)
 			break;
 
 		case qs_val_start:
-			ffpars_cleardata(p);
-			p->val.ptr = (char*)d;
+			ffarr_free(&p->buf);
 			st = qs_val;
 			//break;
 
@@ -539,42 +555,49 @@ int ffurlqs_parse(ffparser *p, const char *d, size_t *len)
 	if (r == FFPARS_MORE && st == qs_val)
 		r = FFPARS_VAL; //the last value
 
+	ffstr_set2(&p->val, &p->buf);
 	p->state = st;
 	*len = d - datao;
-	p->ret = (char)r;
 	return r;
 }
 
-int ffurlqs_parseinit(ffparser *p)
+void ffurlqs_parseinit(ffurlqs *p)
 {
-	char *ctx;
-	ffpars_init(p);
-
-	ctx = ffarr_push(&p->ctxs, char);
-	if (ctx == NULL)
-		return 1;
-
-	*ctx = FFPARS_OPEN;
-	p->type = FFPARS_TOBJ;
-	return 0;
+	ffmem_tzero(p);
 }
 
-int ffurlqs_scheminit(ffparser_schem *ps, ffparser *p, const ffpars_ctx *ctx)
+int ffurlqs_scheminit(ffparser_schem *ps, ffurlqs *p, const ffpars_ctx *ctx)
 {
 	const ffpars_arg top = { NULL, FFPARS_TOBJ | FFPARS_FPTR, FFPARS_DST(ctx) };
 	ffpars_scheminit(ps, p, &top);
 
-	if (0 != ffurlqs_parseinit(p))
-		return 1;
-	if (FFPARS_OPEN != ffpars_schemrun(ps, FFPARS_OPEN))
+	ffurlqs_parseinit(p);
+	if (FFPARS_OPEN != _ffpars_schemrun(ps, FFPARS_OPEN))
 		return 1;
 
 	return 0;
 }
 
+int ffurlqs_schemrun(ffparser_schem *ps, int r)
+{
+	ffurlqs *p = ps->p;
+
+	if (ps->ctxs.len == 0)
+		return FFPARS_ECONF;
+
+	switch (r) {
+	case FFPARS_KEY:
+		return _ffpars_schemrun_key(ps, &ffarr_back(&ps->ctxs), &p->val);
+	case FFPARS_VAL:
+		return ffpars_arg_process(ps->curarg, &p->val, ffarr_back(&ps->ctxs).obj, ps);
+	default:
+		return FFPARS_EINTL;
+	}
+}
+
 int ffurlqs_schemfin(ffparser_schem *ps)
 {
-	int r = ffpars_schemrun(ps, FFPARS_CLOSE);
+	int r = _ffpars_schemrun(ps, FFPARS_CLOSE);
 	if (r != FFPARS_CLOSE)
 		return r;
 	return 0;

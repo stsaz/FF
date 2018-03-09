@@ -211,7 +211,7 @@ static const ffpars_arg qs_kv_args[] = {
 static int test_qs_parse(void)
 {
 	ffparser_schem ps;
-	ffparser p;
+	ffurlqs p;
 	ffstr input;
 	int rc;
 	size_t len;
@@ -231,7 +231,7 @@ static int test_qs_parse(void)
 		x(!ffpars_iserr(rc));
 		ffstr_shift(&input, len);
 
-		rc = ffpars_schemrun(&ps, rc);
+		rc = ffurlqs_schemrun(&ps, rc);
 		x(!ffpars_iserr(rc));
 	}
 
@@ -241,7 +241,7 @@ static int test_qs_parse(void)
 	x(ffstr_eqcz(&qsd.v2, "my val2"));
 
 	x(0 == ffurlqs_schemfin(&ps));
-	ffpars_free(&p);
+	ffurlqs_parseclose(&p);
 	ffpars_schemfree(&ps);
 
 	ffstr_free(&qsd.v);

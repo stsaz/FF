@@ -117,13 +117,28 @@ Return 0 if unknown. */
 FF_EXTN uint ffuri_scheme2port(const char *scheme, size_t schemelen);
 
 
+typedef struct ffurlqs {
+	uint state, nextst;
+	uint ch;
+
+	ffstr val;
+	ffarr buf;
+} ffurlqs;
+
 /** Parse and decode query string.
 @d: full and valid query string. */
-FF_EXTN int ffurlqs_parse(ffparser *p, const char *d, size_t *len);
+FF_EXTN int ffurlqs_parse(ffurlqs *p, const char *d, size_t *len);
 
-FF_EXTN int ffurlqs_parseinit(ffparser *p);
+FF_EXTN void ffurlqs_parseinit(ffurlqs *p);
 
-FF_EXTN int ffurlqs_scheminit(ffparser_schem *ps, ffparser *p, const ffpars_ctx *ctx);
+static FFINL void ffurlqs_parseclose(ffurlqs *p)
+{
+	ffarr_free(&p->buf);
+}
+
+FF_EXTN int ffurlqs_scheminit(ffparser_schem *ps, ffurlqs *p, const ffpars_ctx *ctx);
+
+FF_EXTN int ffurlqs_schemrun(ffparser_schem *ps, int r);
 
 FF_EXTN int ffurlqs_schemfin(ffparser_schem *ps);
 
