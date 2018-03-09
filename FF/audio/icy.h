@@ -66,9 +66,15 @@ FF_EXTN int fficy_parse(fficy *ic, const char *data, size_t *len, ffstr *dst);
 #define fficy_metasize(nmeta)  ((uint)(byte)(nmeta) * 16)
 
 
-typedef ffparser fficymeta;
+typedef struct fficymeta {
+	uint state;
+	ffstr val;
+} fficymeta;
 
-#define fficy_metaparse_init(p)  ffpars_init(p)
+static FFINL void fficy_metaparse_init(fficymeta *p)
+{
+	ffmem_tzero(p);
+}
 
 /** Parse ICY meta.  Get next key and its value (KEY='VAL';...).
 Return enum FFPARS_E. */
