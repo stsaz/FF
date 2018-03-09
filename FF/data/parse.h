@@ -53,83 +53,6 @@ enum FFPARS_E {
 /** Get error message. */
 FF_EXTN const char * ffpars_errstr(int code);
 
-typedef struct ffparser {
-	ffstr val; ///< the current value
-	byte state
-		, nextst
-		, type; ///< contains the entity type (front-end specific)
-	char ret;
-	uint line; ///< the current line number
-	uint ch; ///< the current char number within the line
-	uint flags;
-	uint esc_hiword;
-	union {
-		int64 intval; ///< for integer and boolean
-		double fltval; ///< floating point number
-		char esc[8]; ///< temporary buffer for unescaping
-	};
-
-	ffstr3 buf; ///< temporary buffer
-	ffarr ctxs; ///< stack of contexts
-	ffstr tmp;
-} ffparser;
-
-/** Prepare the parser. */
-FF_EXTN void ffpars_init(ffparser *p);
-
-/** Reuse the parser. */
-FF_EXTN void ffpars_reset(ffparser *p);
-
-/** Free dynamic memory used by parser. */
-FF_EXTN void ffpars_free(ffparser *p);
-
-/** Get full error message. */
-FF_EXTN const char* ffpars_errmsg(ffparser *p, int r, char *buf, size_t cap);
-
-/** Copy the current value to the private buffer.
-Return 0 on success. */
-FF_EXTN int ffpars_savedata(ffparser *p);
-
-/** Forget the current value. */
-static FFINL void ffpars_cleardata(ffparser *p) {
-	ffstr_null(&p->val);
-	p->buf.len = 0;
-	p->intval = 0;
-}
-
-/** Default memory alloc/free function. */
-FF_EXTN void * ffpars_defmemfunc(void *d, size_t sz);
-
-enum FFPARS_IDX {
-	FFPARS_IWSPACE
-	, FFPARS_ICMT_BEGIN, FFPARS_ICMT_LINE, FFPARS_ICMT_MLINE, FFPARS_ICMT_MLINESLASH
-};
-
-FF_EXTN const char ff_escchar[7];
-FF_EXTN const char ff_escbyte[7];
-
-FF_EXTN int _ffpars_hdlCmt(int *st, int ch);
-FF_EXTN int _ffpars_copyBuf(ffparser *p, const char *text, size_t len);
-
-static FFINL int _ffpars_addchar(ffparser *p, int ch) {
-	char c = (char)ch;
-	if (p->val.ptr != p->buf.ptr) {
-		p->val.len++;
-		return 0;
-	}
-	return _ffpars_copyBuf(p, &c, sizeof(char));
-}
-
-static FFINL int _ffpars_addchar2(ffparser *p, const char *src)
-{
-	if (p->val.ptr == NULL)
-		p->val.ptr = (char*)src;
-	if (p->val.ptr != p->buf.ptr) {
-		p->val.len++;
-		return 0;
-	}
-	return _ffpars_copyBuf(p, src, sizeof(char));
-}
 
 enum FFPARS_F {
 	FFPARS_FTYPEMASK = 0x0f,
@@ -281,6 +204,10 @@ FF_EXTN int64 ffpars_getint(const ffpars_arg *a, union ffpars_val u);
 Return 0 or enum FFPARS_E. */
 FF_EXTN int ffpars_arg_process(const ffpars_arg *a, const ffstr *val, void *obj, void *ps);
 
+/**
+@val: int64* | double* */
+FF_EXTN int _ffpars_arg_process2(const ffpars_arg *a, const void *val, void *obj, void *ps);
+
 
 struct ffpars_ctx {
 	void *obj;
@@ -320,7 +247,7 @@ enum FFPARS_SCHEMFLAG {
 };
 
 struct ffparser_schem {
-	ffparser *p; ///< parser front-end
+	void *p; // parser back-end
 	size_t flags;
 	void *udata; ///< user-defined data
 	struct { FFARR(ffpars_ctx) } ctxs;
@@ -330,18 +257,20 @@ struct ffparser_schem {
 };
 
 /** Initialize parser with a scheme. */
-FF_EXTN void ffpars_scheminit(ffparser_schem *ps, ffparser *p, const ffpars_arg *top);
+FF_EXTN void ffpars_scheminit(ffparser_schem *ps, void *p, const ffpars_arg *top);
 
 static FFINL void ffpars_schemfree(ffparser_schem *ps) {
 	ffarr_free(&ps->ctxs);
 	ffstr_free(&ps->vals[0]);
 }
 
+FF_EXTN int _ffpars_schemrun_key(ffparser_schem *ps, ffpars_ctx *ctx, const ffstr *val);
+
 /** Process the currently parsed entity according to the scheme.
 Return enum FFPARS_E. */
-FF_EXTN int ffpars_schemrun(ffparser_schem *ps, int e);
+FF_EXTN int _ffpars_schemrun(ffparser_schem *ps, int e);
 
-FF_EXTN int ffpars_skipctx(ffparser_schem *ps);
+FF_EXTN int _ffpars_skipctx(ffparser_schem *ps, int r);
 
 /** Set the next context. */
 FF_EXTN int ffpars_setctx(ffparser_schem *ps, void *o, const ffpars_arg *args, uint nargs);

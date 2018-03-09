@@ -59,7 +59,10 @@ static int arrItem(ffparser_schem *ps, void *obj, const ffstr *val)
 static int arrItemInt(ffparser_schem *ps, void *obj, const int64 *val)
 {
 	obj_s *o = obj;
-	o->ar[o->iar++] = ps->p->val;
+	if (*val != 11)
+		return FFPARS_EBADVAL;
+	ffstr_setz(&o->ar[o->iar], "11");
+	o->iar++;
 	return 0;
 }
 static int arrClose(ffparser_schem *ps, void *obj)

@@ -42,105 +42,6 @@ const char * ffpars_errstr(int code)
 	return _ffpars_serr[code];
 }
 
-const char ff_escchar[] = "\"\\bfrnt";
-const char ff_escbyte[] = "\"\\\b\f\r\n\t";
-
-void ffpars_init(ffparser *p)
-{
-	ffpars_reset(p);
-	p->line = 1;
-	p->ctxs.ptr = p->buf.ptr = NULL;
-	p->ctxs.cap = p->buf.cap = 0;
-}
-
-void ffpars_reset(ffparser *p)
-{
-	ffpars_cleardata(p);
-	p->intval = 0;
-	p->state = 0;
-	p->type = 0;
-	p->line = 1;
-	p->ch = 0;
-	p->ctxs.len = 0;
-	p->flags = 0;
-}
-
-void ffpars_free(ffparser *p)
-{
-	ffarr_free(&p->buf);
-	ffarr_free(&p->ctxs);
-}
-
-const char* ffpars_errmsg(ffparser *p, int r, char *buf, size_t cap)
-{
-	char *end = buf + cap;
-	size_t n = ffs_fmt(buf, end, "%u:%u near \"%S\" : %s%Z"
-		, p->line, p->ch, &p->val, ffpars_errstr(r));
-	if (r == FFPARS_ESYS) {
-		if (n != 0)
-			n--;
-		n += ffs_fmt(buf + n, end, " : %E%Z", fferr_last());
-	}
-	return (n != 0) ? buf : "";
-}
-
-int _ffpars_hdlCmt(int *st, int ch)
-{
-	switch (*st) {
-	case FFPARS_ICMT_BEGIN:
-		if (ch == '/')
-			*st = FFPARS_ICMT_LINE;
-		else if (ch == '*')
-			*st = FFPARS_ICMT_MLINE;
-		else
-			return FFPARS_EBADCMT; // "//" or "/*" only
-		break;
-
-	case FFPARS_ICMT_LINE:
-		if (ch == '\n')
-			*st = FFPARS_IWSPACE; //end of line comment
-		break;
-
-	case FFPARS_ICMT_MLINE:
-		if (ch == '*')
-			*st = FFPARS_ICMT_MLINESLASH;
-		break;
-
-	case FFPARS_ICMT_MLINESLASH:
-		if (ch == '/')
-			*st = FFPARS_IWSPACE; //end of multiline comment
-		else
-			*st = FFPARS_ICMT_MLINE; //skipped '*' within multiline comment
-		break;
-	}
-	return 0;
-}
-
-int _ffpars_copyBuf(ffparser *p, const char *text, size_t len)
-{
-	size_t all = len;
-	if (p->val.ptr != p->buf.ptr)
-		all = p->val.len + len;
-
-	if (NULL == ffarr_grow(&p->buf, all, 64 | FFARR_GROWQUARTER))
-		return FFPARS_ESYS;
-
-	if (all != len)
-		ffarr_append(&p->buf, p->val.ptr, p->val.len); //the first allocation, copy what we've processed so far
-
-	ffarr_append(&p->buf, text, len);
-	ffstr_set(&p->val, p->buf.ptr, p->buf.len);
-	return 0;
-}
-
-int ffpars_savedata(ffparser *p)
-{
-	int rc = 0;
-	if (p->val.len != 0 && p->val.ptr != p->buf.ptr)
-		rc = _ffpars_copyBuf(p, NULL, 0);
-	return rc;
-}
-
 
 const ffpars_arg* ffpars_ctx_findarg(ffpars_ctx *ctx, const char *name, size_t len, uint flags)
 {
@@ -196,7 +97,6 @@ done:
 }
 
 
-static int scHdlKey(ffparser_schem *ps, ffpars_ctx *ctx);
 static int _ffpars_enum(const ffpars_arg *a, const ffstr *val, void *obj, void *ps);
 static int _ffpars_bits(size_t f, int64 i, union ffpars_val dst);
 static int _ffpars_int(const ffpars_arg *a, int64 val, void *obj, void *ps);
@@ -205,7 +105,7 @@ static int _ffpars_str(const ffpars_arg *a, const ffstr *val, void *obj, void *p
 static int scOpenBrace(ffparser_schem *ps);
 static int scCloseBrace(ffparser_schem *ps);
 
-void ffpars_scheminit(ffparser_schem *ps, ffparser *p, const ffpars_arg *top)
+void ffpars_scheminit(ffparser_schem *ps, void *p, const ffpars_arg *top)
 {
 	ffmem_tzero(ps);
 	ps->p = p;
@@ -213,14 +113,14 @@ void ffpars_scheminit(ffparser_schem *ps, ffparser *p, const ffpars_arg *top)
 }
 
 // search key name in the current context
-static int scHdlKey(ffparser_schem *ps, ffpars_ctx *ctx)
+int _ffpars_schemrun_key(ffparser_schem *ps, ffpars_ctx *ctx, const ffstr *val)
 {
 	uint f = 0;
 
 	if (ps->flags & FFPARS_KEYICASE)
 		f |= FFPARS_CTX_FKEYICASE;
 	ps->curarg = NULL;
-	const ffpars_arg *arg = ffpars_ctx_findarg(ctx, ps->p->val.ptr, ps->p->val.len, FFPARS_CTX_FDUP | f);
+	const ffpars_arg *arg = ffpars_ctx_findarg(ctx, val->ptr, val->len, FFPARS_CTX_FDUP | f);
 	if (arg == NULL)
 		return FFPARS_EUKNKEY;
 	else if (arg == (void*)-1)
@@ -502,6 +402,7 @@ int ffpars_arg_process(const ffpars_arg *a, const ffstr *val, void *obj, void *p
 	int er = 0;
 	int64 intval;
 	double fltval;
+	ffbool boolval;
 
 	switch (a->flags & FFPARS_FTYPEMASK) {
 
@@ -526,10 +427,13 @@ int ffpars_arg_process(const ffpars_arg *a, const ffstr *val, void *obj, void *p
 		break;
 
 	case FFPARS_TBOOL:
-		if (val->len > 1
-			|| !ffstr_toint(val, &intval, FFS_INT64))
-			return FFPARS_EBADINT;
-		er = _ffpars_intval(a, intval, obj, ps);
+		if (ffstr_toint(val, &boolval, FFS_INT32)) {
+			if (!(boolval == 0 || boolval == 1))
+				return FFPARS_EBADBOOL;
+
+		} else if (!ffstr_tobool(val, &boolval, 0))
+			return FFPARS_EBADBOOL;
+		er = _ffpars_intval(a, boolval, obj, ps);
 		break;
 
 	case FFPARS_TFLOAT:
@@ -545,6 +449,23 @@ int ffpars_arg_process(const ffpars_arg *a, const ffstr *val, void *obj, void *p
 	return er;
 }
 
+int _ffpars_arg_process2(const ffpars_arg *a, const void *val, void *obj, void *ps)
+{
+	int r;
+	switch (a->flags & FFPARS_FTYPEMASK) {
+	case FFPARS_TINT:
+		r = _ffpars_int(a, *(int64*)val, obj, ps);
+		break;
+	case FFPARS_TBOOL:
+		r = _ffpars_intval(a, *(int64*)val, obj, ps);
+		break;
+	case FFPARS_TFLOAT:
+		r = _ffpars_flt(a, *(double*)val, obj, ps);
+		break;
+	}
+	return r;
+}
+
 /* if the ctx is object: 'curarg' is already set by FFPARS_KEY handler
 if FPTR flag: copy the ffpars_ctx structure from the pointer specified in scheme
 if no FPTR flag: call object handler func */
@@ -556,30 +477,22 @@ static int scOpenBrace(ffparser_schem *ps)
 	int er = 0;
 	void *o;
 
-	if (NULL == (ctx = ffarr_pushgrowT((ffarr*)&ps->ctxs, 4, ffpars_ctx)))
-		return FFPARS_ESYS;
-	memset(ctx, 0, sizeof(ffpars_ctx));
-
-	curctx = &ps->ctxs.ptr[ps->ctxs.len - 2];
-
 	if (curarg->flags & FFPARS_FPTR) {
-		*ctx = *curarg->dst.ctx;
+		ctx = curarg->dst.ctx;
+		if (0 != ffpars_setctx(ps, ctx->obj, ctx->args, ctx->nargs))
+			return FFPARS_ESYS;
 	}
 	else {
-		if (ps->flags & _FFPARS_SCOBJ) {
-			ps->flags &= ~_FFPARS_SCOBJ;
-			o = ps->udata;
-		} else {
-			if (ps->ctxs.len < 2)
-				return FFPARS_ECONF;
-			o = curctx->obj;
-		}
+		curctx = ffarr_lastT(&ps->ctxs, ffpars_ctx);
+		o = curctx->obj;
+		if (0 != ffpars_setctx(ps, NULL, NULL, 0))
+			return FFPARS_ESYS;
+		if (ps->ctxs.len < 2)
+			return FFPARS_ECONF;
 
+		ctx = ffarr_lastT(&ps->ctxs, ffpars_ctx);
 		er = curarg->dst.f_obj(ps, o, ctx);
-		if (er == 0) {
-			ps->curarg = NULL;
-			ps->vals[0].len = 0;
-		} else
+		if (er != 0)
 			ps->ctxs.len--;
 	}
 
@@ -649,12 +562,12 @@ void ffpars_ctx_skip(ffpars_ctx *ctx)
 	ffpars_setargs(ctx, NULL, empty_args, FFCNT(empty_args));
 }
 
-int ffpars_skipctx(ffparser_schem *ps)
+int _ffpars_skipctx(ffparser_schem *ps, int ret)
 {
 	if (ps->ctxs.len != 0 && ffarr_back(&ps->ctxs).args == empty_args) {
 		ffpars_ctx *ctx;
 
-		switch (ps->p->ret) {
+		switch (ret) {
 		case FFPARS_OPEN:
 			ctx = ffarr_push(&ps->ctxs, ffpars_ctx);
 			if (ctx == NULL)
@@ -666,12 +579,12 @@ int ffpars_skipctx(ffparser_schem *ps)
 			ps->ctxs.len--;
 			break;
 		}
-		return ps->p->ret;
+		return ret;
 	}
 	return 0;
 }
 
-int ffpars_schemrun(ffparser_schem *ps, int e)
+int _ffpars_schemrun(ffparser_schem *ps, int e)
 {
 	int rc = 0;
 
@@ -679,33 +592,6 @@ int ffpars_schemrun(ffparser_schem *ps, int e)
 		return e;
 
 	switch (e) {
-	case FFPARS_KEY:
-		if (ps->ctxs.len == 0)
-			return FFPARS_ECONF;
-
-		rc = scHdlKey(ps, &ffarr_back(&ps->ctxs));
-		break;
-
-	case FFPARS_VAL:
-		if (ps->ctxs.len == 0)
-			return FFPARS_ECONF;
-
-		switch (ps->curarg->flags & FFPARS_FTYPEMASK) {
-		case FFPARS_TINT:
-			rc = _ffpars_int(ps->curarg, ps->p->intval, ffarr_back(&ps->ctxs).obj, ps);
-			break;
-		case FFPARS_TBOOL:
-			rc = _ffpars_intval(ps->curarg, ps->p->intval, ffarr_back(&ps->ctxs).obj, ps);
-			break;
-		case FFPARS_TFLOAT:
-			rc = _ffpars_flt(ps->curarg, ps->p->fltval, ffarr_back(&ps->ctxs).obj, ps);
-			break;
-		default:
-			rc = ffpars_arg_process(ps->curarg, &ps->p->val, ffarr_back(&ps->ctxs).obj, ps);
-			break;
-		}
-		break;
-
 	case FFPARS_OPEN:
 		rc = scOpenBrace(ps);
 		break;
