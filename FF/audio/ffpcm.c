@@ -112,7 +112,7 @@ static FFINL short _ffpcm_flt_16le(double f)
 
 #define max24f  (8388608.0)
 
-static FFINL int _ffpcm_flt_24(float f)
+static FFINL int _ffpcm_flt_24(double f)
 {
 	double d = f * max24f;
 	if (d < -max24f)
@@ -122,7 +122,7 @@ static FFINL int _ffpcm_flt_24(float f)
 	return ffint_ftoi(d);
 }
 
-#define _ffpcm_24_flt(n)  ((float)(n) * (1 / max24f))
+#define _ffpcm_24_flt(n)  ((double)(n) * (1 / max24f))
 
 #define max32f  (2147483648.0)
 
@@ -532,6 +532,14 @@ int ffpcm_convert(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm, const 
 		}
 		break;
 
+	case CASE(FFPCM_24, FFPCM_FLOAT64):
+		for (ich = 0;  ich != nch;  ich++) {
+			for (i = 0;  i != samples;  i++) {
+				to.pd[ich][i * ostep] = _ffpcm_24_flt(ffint_ltoh24s(&from.pb[ich][i * istep * 3]));
+			}
+		}
+		break;
+
 // int32
 	case CASE(FFPCM_32, FFPCM_16):
 		for (ich = 0;  ich != nch;  ich++) {
@@ -629,6 +637,14 @@ int ffpcm_convert(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm, const 
 		for (ich = 0;  ich != nch;  ich++) {
 			for (i = 0;  i != samples;  i++) {
 				to.psh[ich][i * ostep] = _ffpcm_flt_16le(from.pd[ich][i * istep]);
+			}
+		}
+		break;
+
+	case CASE(FFPCM_FLOAT64, FFPCM_24):
+		for (ich = 0;  ich != nch;  ich++) {
+			for (i = 0;  i != samples;  i++) {
+				ffint_htol24(&to.pb[ich][i * ostep * 3], _ffpcm_flt_24(from.pd[ich][i * istep]));
 			}
 		}
 		break;
