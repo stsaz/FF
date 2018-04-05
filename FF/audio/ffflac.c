@@ -250,8 +250,7 @@ static int _ffflac_meta(ffflac *f)
 		if (f->sktab.len != 0)
 			break; //take only the first seek table
 
-		if (f->total_size == 0 || f->info.total_samples == 0
-			|| f->info.minblock == 0 || f->info.minblock != f->info.maxblock)
+		if (f->total_size == 0 || f->info.total_samples == 0)
 			break; //seeking not supported
 
 		f->st = I_SEEKTBL;
@@ -307,10 +306,10 @@ static int _ffflac_seek(ffflac *f)
 	sk.off = f->off - f->framesoff - (f->buf.len - f->bufoff);
 	sk.lastoff = f->skoff;
 	sk.pt = f->seekpt;
-	sk.fr_index = f->frame.num * f->frame.samples;
+	sk.fr_index = f->frame.pos;
 	sk.fr_samples = f->frame.samples;
-	sk.avg_fr_samples = f->info.minblock;
-	sk.fr_size = sizeof(struct flac_frame); //note: frame body size is not known, this may slightly reduce efficiency of ffpcm_seek()
+	sk.avg_fr_samples = (f->info.minblock + f->info.maxblock) / 2;
+	sk.fr_size = FLAC_MINFRAMEHDR;
 	sk.flags = FFPCM_SEEK_ALLOW_BINSCH;
 
 	r = ffpcm_seek(&sk);
@@ -348,6 +347,8 @@ static int _ffflac_findhdr(ffflac *f, ffflac_frame *fr)
 
 	hdroff = f->buf.len - f->bufoff;
 	hdrlen = flac_frame_find(f->buf.ptr + f->bufoff, &hdroff, fr);
+	if (fr->num != (uint)-1)
+		fr->pos = fr->num * f->info.minblock;
 
 	if (hdrlen == 0) {
 		if (f->fin)
@@ -396,9 +397,12 @@ static int _ffflac_getframe(ffflac *f, ffstr *sframe)
 		return FFFLAC_RERR;
 	}
 
-	frlen = f->buf.len - f->bufoff - sizeof(struct flac_frame);
-	hdrlen = flac_frame_find(f->buf.ptr + f->bufoff + sizeof(struct flac_frame), &frlen, &fr);
-	frlen += sizeof(struct flac_frame);
+	frlen = f->buf.len - f->bufoff - FLAC_MINFRAMEHDR;
+	hdrlen = flac_frame_find(f->buf.ptr + f->bufoff + FLAC_MINFRAMEHDR, &frlen, &fr);
+	frlen += FLAC_MINFRAMEHDR;
+
+	if (fr.num != (uint)-1)
+		fr.pos = fr.num * f->info.minblock;
 
 	if (hdrlen == 0 && !f->fin) {
 
@@ -541,8 +545,8 @@ int ffflac_decode(ffflac *f)
 		if (0 != (r = _ffflac_getframe(f, &sframe)))
 			return r;
 
-		FFDBG_PRINT(10, "%s(): frame #%u: size:%L, samples:%u\n"
-			, FF_FUNC, f->frame.num, sframe.len, f->frame.samples);
+		FFDBG_PRINT(10, "%s(): frame #%d: pos:%U  size:%L, samples:%u\n"
+			, FF_FUNC, f->frame.num, f->frame.pos, sframe.len, f->frame.samples);
 
 		r = flac_decode(f->dec, sframe.ptr, sframe.len, &out);
 		if (r != 0) {
@@ -554,7 +558,7 @@ int ffflac_decode(ffflac *f)
 
 		f->pcm = (void**)f->out;
 		f->pcmlen = f->frame.samples;
-		f->frsample = f->frame.num * f->info.minblock;
+		f->frsample = f->frame.pos;
 		isrc = 0;
 		if (f->seek_ok) {
 			f->seek_ok = 0;

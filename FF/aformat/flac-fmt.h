@@ -63,25 +63,13 @@ struct flac_streaminfo {
 	byte md5[16];
 };
 
-struct flac_frame {
-	byte sync[2]; //FF F8
-	byte rate :4
-		, samples :4;
-	byte reserved :1
-		, bps :3
-		, channels :4;
-	// number[1..6];
-	// samples[0..2]; //=samples-1
-	// rate[0..2];
-	// crc8;
-};
-
 #define FLAC_SYNC  "fLaC"
 
 enum {
 	FLAC_SYNCLEN = 4,
 	FLAC_MINSIZE = FLAC_SYNCLEN + sizeof(struct flac_hdr) + sizeof(struct flac_streaminfo),
-	FLAC_MAXFRAMEHDR = sizeof(struct flac_frame) + 6 + 2 + 2 + 1,
+	FLAC_MINFRAMEHDR = 4 + 1 + 1,
+	FLAC_MAXFRAMEHDR = 4 + 7 + 2 + 2 + 1,
 };
 
 
@@ -119,7 +107,8 @@ FF_EXTN uint flac_seektab_add(ffpcm_seekpt *pts, size_t npts, uint idx, uint64 n
 FF_EXTN uint flac_seektab_write(void *out, size_t cap, const ffpcm_seekpt *pts, size_t npts, uint blksize);
 
 typedef struct ffflac_frame {
-	uint num;
+	uint num; //-1 for variable-blocksize stream
+	uint64 pos;
 	uint samples;
 	uint rate;
 	uint channels;

@@ -383,31 +383,61 @@ const char* flac_frame_rate(uint *prate, const char *d, size_t len)
 
 static const byte flac_bps[] = { 0, 8, 12, 0, 16, 20, 24, 0 };
 
+enum FR_HDR {
+	FR_SYNC = 14, //=0x3ffe
+	FR_RES = 1,
+	FR_BLKSIZE_VAR = 1,
+
+	FR_SAMPLES = 4,
+	FR_RATE = 4,
+
+	FR_CHAN = 4,
+	FR_BPS = 3,
+	FR_RES2 = 1,
+
+	// frame_number[1..6] or sample_number[1..7]
+	// samples[0..2] //=samples-1
+	// rate[0..2]
+	// crc8
+};
+
 /**
 Return the position after the header;  0 on error. */
 uint flac_frame_parse(ffflac_frame *fr, const char *data, size_t len)
 {
 	const char *d = data, *end = d + len;
-	const struct flac_frame *f = (void*)d;
 
-	if (!(f->sync[0] == 0xff && f->sync[1] == 0xf8 && f->reserved == 0))
+	FF_ASSERT(len >= 4);
+	uint v = ffint_ntoh32(d);
+	uint sync = ffbit_read32(v, 0, FR_SYNC);
+	ffbool res = ffbit_read32(v, FR_SYNC, FR_RES);
+	ffbool res2 = ffbit_read32(v, 24 + FR_CHAN + FR_BPS, FR_RES2);
+	if (!(sync == 0x3ffe && res == 0 && res2 == 0))
 		return 0;
-	d += sizeof(struct flac_frame);
+	d += 4;
 
-	int r = ffutf8_decode1(d, end - d, &fr->num);
+	ffbool bsvar = ffbit_read32(v, FR_SYNC+FR_RES, FR_BLKSIZE_VAR);
+	int r;
+	if (!bsvar) {
+		r = ffutf8_decode1(d, end - d, &fr->num);
+		fr->pos = 0;
+	} else {
+		fr->num = -1;
+		r = ffutf8_decode1_64(d, end - d, &fr->pos);
+	}
 	if (r <= 0)
 		return 0;
 	d += r;
 
-	fr->samples = f->samples;
+	fr->samples = ffbit_read32(v, 16, FR_SAMPLES);
 	if (NULL == (d = flac_frame_samples(&fr->samples, d, end - d)))
 		return 0;
 
-	fr->rate = f->rate;
+	fr->rate = ffbit_read32(v, 16 + FR_SAMPLES, FR_RATE);
 	if (NULL == (d = flac_frame_rate(&fr->rate, d, end - d)))
 		return 0;
 
-	fr->channels = f->channels;
+	fr->channels = ffbit_read32(v, 24, FR_CHAN);
 	if (fr->channels >= 0x0b)
 		return 0; //reserved
 	else if (fr->channels & 0x08)
@@ -415,9 +445,10 @@ uint flac_frame_parse(ffflac_frame *fr, const char *data, size_t len)
 	else
 		fr->channels = fr->channels + 1;
 
-	if ((f->bps & 3) == 3)
+	uint bps = ffbit_read32(v, 24 + FR_CHAN, FR_BPS);
+	if ((bps & 3) == 3)
 		return 0; //reserved
-	fr->bps = flac_bps[f->bps];
+	fr->bps = flac_bps[bps];
 
 	if ((byte)*d != flac_crc8(data, d - data))
 		return 0; //header CRC mismatch
@@ -436,7 +467,7 @@ uint flac_frame_find(const char *data, size_t *len, ffflac_frame *fr)
 		if ((byte)d[0] != 0xff && NULL == (d = ffs_findc(d, end - d, 0xff)))
 			break;
 
-		if ((end - d) >= (ssize_t)sizeof(struct flac_frame)) {
+		if ((end - d) >= (ssize_t)FLAC_MINFRAMEHDR) {
 			uint r = flac_frame_parse(&frame, d, end - d);
 			if (r != 0 && (fr->channels == 0
 				|| (fr->channels == frame.channels
