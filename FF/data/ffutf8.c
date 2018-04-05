@@ -22,7 +22,7 @@ int ffu_coding(const char *data, size_t len)
 }
 
 
-static const byte utf8_b1masks[] = { 0x1f, 0x0f, 0x07, 0x03, 0x01 };
+static const byte utf8_b1masks[] = { 0x1f, 0x0f, 0x07, 0x03, 0x01, 0 };
 
 int ffutf8_decode1(const char *utf8, size_t len, uint *val)
 {
@@ -35,6 +35,36 @@ int ffutf8_decode1(const char *utf8, size_t len, uint *val)
 
 	n = ffbit_find32(~(d << 24) & 0xfe000000);
 	if (n < 3 || n == 8)
+		return 0; //invalid first byte
+	n--;
+	r = d & utf8_b1masks[n - 2];
+
+	if (len < n)
+		return -(int)n; //need more data
+
+	for (i = 1;  i != n;  i++) {
+		d = (byte)utf8[i];
+		if ((d & 0xc0) != 0x80)
+			return 0; //invalid
+		r = (r << 6) | (d & ~0xc0);
+	}
+
+	*val = r;
+	return n;
+}
+
+int ffutf8_decode1_64(const char *utf8, size_t len, uint64 *val)
+{
+	uint i, n, d = (byte)utf8[0];
+	uint64 r;
+
+	if ((d & 0x80) == 0) {
+		*val = d;
+		return 1;
+	}
+
+	n = ffbit_find32(~(d << 24) & 0xff000000);
+	if (n < 3)
 		return 0; //invalid first byte
 	n--;
 	r = d & utf8_b1masks[n - 2];

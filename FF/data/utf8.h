@@ -39,6 +39,12 @@ FF_EXTN ffbool ffutf8_valid(const char *data, size_t len);
 Return the number of bytes parsed;  negative value if more data is needed;  0 on error. */
 FF_EXTN int ffutf8_decode1(const char *utf8, size_t len, uint *val);
 
+/** Decode a UTF-8 number (extended to hold 36-bit value):
+...
+11111110 10xxxxxx*6
+*/
+FF_EXTN int ffutf8_decode1_64(const char *utf8, size_t len, uint64 *val);
+
 /** Convert one unicode character to UTF-8.
 Return bytes written. */
 FF_EXTN uint ffutf8_encode1(char *dst, size_t cap, uint uch);
