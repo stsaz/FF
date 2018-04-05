@@ -127,18 +127,30 @@ int test_time()
 	s.len = fftime_tostr(&dt, buf, FFCNT(buf), FFTIME_WDMY);
 	x(ffstr_eqcz(&s, "Mon, 19 May 2014 08:52:36 GMT"));
 
-	{
 	ffdtm dt2;
 	x(FFSLEN("Mon, 19 May 2014 08:52:36 GMT") == fftime_fromstr(&dt2, FFSTR("Mon, 19 May 2014 08:52:36 GMT"), FFTIME_WDMY));
 	dt2.nsec = dt.nsec;
 	x(!ffmemcmp(&dt2, &dt, sizeof(ffdtm)));
 	x(0 == fftime_fromstr(&dt2, FFSTR("Mon, 19 May 2014 08:52:36 GM"), FFTIME_WDMY));
 	x(0 == fftime_fromstr(&dt2, FFSTR("Mon, 19 May 2014 25:52:36 GMT"), FFTIME_WDMY));
-	}
 
 	fftime_join(&t, &dt, FFTIME_TZUTC);
 	x(fftime_sec(&t) == fftime_strtounix(FFSTR("Mon, 19 May 2014 08:52:36 GMT"), FFTIME_WDMY));
 	x((time_t)-1 == fftime_strtounix(FFSTR("Mon, 19 May 201408:52:36 GMT"), FFTIME_WDMY));
+
+	x(0 == fftime_fromstr(&dt, FFSTR(":52:36.023"), FFTIME_HMS_MSEC_VAR));
+	x(FFSLEN("125:52:36.023") == fftime_fromstr(&dt, FFSTR("125:52:36.023"), FFTIME_HMS_MSEC_VAR)
+		&& dt.hour == 125 && dt.min == 52 && dt.sec == 36 && fftime_msec(&dt) == 23);
+	x(FFSLEN("8:52:36.023") == fftime_fromstr(&dt, FFSTR("8:52:36.023"), FFTIME_HMS_MSEC_VAR)
+		&& dt.hour == 8 && dt.min == 52 && dt.sec == 36 && fftime_msec(&dt) == 23);
+	x(FFSLEN("08:52:36") == fftime_fromstr(&dt, FFSTR("08:52:36"), FFTIME_HMS_MSEC_VAR)
+		&& dt.hour == 8 && dt.min == 52 && dt.sec == 36 && fftime_msec(&dt) == 0);
+	x(FFSLEN("52:36") == fftime_fromstr(&dt, FFSTR("52:36"), FFTIME_HMS_MSEC_VAR)
+		&& dt.hour == 0 && dt.min == 52 && dt.sec == 36 && fftime_msec(&dt) == 0);
+	x(FFSLEN("36") == fftime_fromstr(&dt, FFSTR("36"), FFTIME_HMS_MSEC_VAR)
+		&& dt.hour == 0 && dt.min == 0 && dt.sec == 36 && fftime_msec(&dt) == 0);
+	x(FFSLEN("36.023") == fftime_fromstr(&dt, FFSTR("36.023"), FFTIME_HMS_MSEC_VAR)
+		&& dt.hour == 0 && dt.min == 0 && dt.sec == 36 && fftime_msec(&dt) == 23);
 
 	return 0;
 }

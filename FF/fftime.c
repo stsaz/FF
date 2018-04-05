@@ -508,7 +508,7 @@ static int time_fromstr(ffdtm *t, const ffstr *ss, uint fmt)
 		s += i;
 		break;
 
-	case FFTIME_HMS_MSEC_VAR:
+	case FFTIME_HMS_MSEC_VAR & ~FFTIME_NOCHECK:
 		if (0 == (i = ffs_toint(s, s_end - s, &t->sec, FFS_INT32)))
 			goto fail;
 		s += i;
@@ -539,8 +539,6 @@ msec:
 			fftime_setmsec(t, ms);
 			s += i;
 		}
-
-		fftime_norm(t, FFTIME_CHKTIME);
 		break;
 
 	case 0:
@@ -550,7 +548,7 @@ msec:
 		goto fail;
 	}
 
-	if (!fftime_chk(t, FFTIME_CHKTIME))
+	if (!(fmt & FFTIME_NOCHECK) && !fftime_chk(t, FFTIME_CHKTIME))
 		return -1;
 
 	return s - ss->ptr;

@@ -88,6 +88,8 @@ FF_EXTN fftime* fftime_join(fftime *t, const ffdtm *dt, enum FF_TIMEZONE tz);
 
 
 enum FFTIME_FMT {
+	FFTIME_NOCHECK = 1 << 31, // allow time value overflow (e.g. 25 hours)
+
 	//date:
 	FFTIME_DATE_YMD = 2	// yyyy-MM-dd
 	, FFTIME_DATE_WDMY = 3	// Wed, 07 Sep 2011
@@ -99,7 +101,7 @@ enum FFTIME_FMT {
 	, FFTIME_HMS = 0x20	// hh:mm:ss
 	, FFTIME_HMS_MSEC = 0x30 // hh:mm:ss.msc
 	, FFTIME_HMS_GMT = 0x40	// hh:mm:ss GMT
-	, FFTIME_HMS_MSEC_VAR = 0x50 // [h:][m:][s][.ms]
+	, FFTIME_HMS_MSEC_VAR = 0x50 | FFTIME_NOCHECK // [[h:]m:]s[.ms]
 
 	//date & time:
 	, FFTIME_YMD = FFTIME_DATE_YMD | FFTIME_HMS	// yyyy-MM-dd hh:mm:ss, ISO 8601
