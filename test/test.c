@@ -383,6 +383,7 @@ static int test_icy(void)
 
 
 FF_EXTN int test_ring(void);
+FF_EXTN int test_ringbuf(void);
 FF_EXTN int test_tq(void);
 FF_EXTN int test_regex(void);
 FF_EXTN int test_num(void);
@@ -397,7 +398,7 @@ struct test_s {
 #define F(nm) { #nm, &test_ ## nm }
 static const struct test_s _fftests[] = {
 	F(str), F(regex)
-	, F(num), F(bits), F(list), F(rbt), F(rbtlist), F(htable), F(ring), F(tq), F(crc)
+	, F(num), F(bits), F(list), F(rbt), F(rbtlist), F(htable), F(ring), F(ringbuf), F(tq), F(crc)
 	, F(fmap), F(time), F(timerq), F(sendfile), F(path), F(direxp), F(env)
 	, F(url), F(http), F(dns), F(icy)
 	, F(json), F(conf), F(args), F(cue)

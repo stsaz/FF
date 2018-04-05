@@ -390,6 +390,51 @@ int test_ring(void)
 	return 0;
 }
 
+int test_ringbuf(void)
+{
+	FFTEST_FUNC;
+	char buf[8];
+	ffstr s;
+	ffringbuf rb;
+	ffringbuf_init(&rb, buf, 8);
+	x(ffringbuf_empty(&rb));
+
+	// write until full, read all
+	ffringbuf_reset(&rb);
+	x(3 == ffringbuf_write(&rb, "123", 3));
+	x(3 == ffringbuf_canread(&rb));
+	x(4 == ffringbuf_write(&rb, "45678", 5));
+	x(7 == ffringbuf_canread(&rb));
+	x(ffringbuf_full(&rb));
+	ffringbuf_readptr(&rb, &s, rb.cap);
+	x(ffstr_eqz(&s, "1234567"));
+	x(ffringbuf_empty(&rb));
+
+	// write (overwrite) by chunks, read all
+	ffringbuf_reset(&rb);
+	ffringbuf_overwrite(&rb, "1", 1);
+	ffringbuf_readptr(&rb, &s, rb.cap);
+	x(ffstr_eqz(&s, "1"));
+	ffringbuf_overwrite(&rb, "234", 3);
+	ffringbuf_overwrite(&rb, "56789", 5);
+	x(ffringbuf_full(&rb));
+	ffringbuf_readptr(&rb, &s, rb.cap);
+	x(ffstr_eqz(&s, "345678"));
+	ffringbuf_readptr(&rb, &s, rb.cap);
+	x(ffstr_eqz(&s, "9"));
+	x(ffringbuf_empty(&rb));
+
+	// write (overwrite) in 1 chunk, read all
+	ffringbuf_reset(&rb);
+	x(ffringbuf_empty(&rb));
+	ffringbuf_overwrite(&rb, "12345678", 8);
+	x(ffringbuf_full(&rb));
+	ffringbuf_readptr(&rb, &s, rb.cap);
+	x(ffstr_eqz(&s, "2345678"));
+
+	return 0;
+}
+
 
 struct tq {
 	fftaskmgr tq;
