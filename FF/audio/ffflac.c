@@ -5,6 +5,7 @@ Copyright (c) 2015 Simon Zolin
 #include <FF/audio/flac.h>
 #include <FF/number.h>
 #include <FF/crc.h>
+#include <FF/mtags/mmtag.h>
 #include <FFOS/error.h>
 
 enum {
@@ -141,7 +142,7 @@ void ffflac_close(ffflac *f)
 }
 
 enum {
-	I_INFO, I_META, I_SKIPMETA, I_TAG, I_TAG_PARSE, I_SEEKTBL, I_METALAST,
+	I_INFO, I_META, I_SKIPMETA, I_TAG, I_TAG_PARSE, I_SEEKTBL, I_PIC, I_METALAST,
 	I_INIT, I_DATA, I_FRHDR, I_FROK, I_SEEK, I_FIN
 };
 
@@ -254,6 +255,10 @@ static int _ffflac_meta(ffflac *f)
 			break; //seeking not supported
 
 		f->st = I_SEEKTBL;
+		return 0;
+
+	case FLAC_TPIC:
+		f->st = I_PIC;
 		return 0;
 	}
 
@@ -507,6 +512,28 @@ int ffflac_decode(ffflac *f)
 		}
 		f->st = (f->hdrlast) ? I_METALAST : I_META;
 		break;
+
+	case I_PIC:
+		r = ffarr_append_until(&f->buf, f->data, f->datalen, f->blksize);
+		if (r == 0)
+			return FFFLAC_RMORE;
+		else if (r == -1) {
+			f->errtype = FLAC_ESYS;
+			return FFFLAC_RERR;
+		}
+		FFARR_SHIFT(f->data, f->datalen, r);
+		f->off += f->blksize;
+		f->buf.len = 0;
+
+		if (0 != (r = flac_meta_pic(f->buf.ptr, f->blksize, &f->vtag.val))) {
+			f->st = I_SKIPMETA;
+			f->errtype = r;
+			return FFFLAC_RWARN;
+		}
+		f->vtag.tag = FFMMTAG_PICTURE;
+		f->vtag.name.len = 0;
+		f->st = (f->hdrlast) ? I_METALAST : I_META;
+		return FFFLAC_RTAG;
 
 	case I_METALAST:
 		f->st = I_INIT;

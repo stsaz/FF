@@ -4,6 +4,7 @@ Copyright (c) 2016 Simon Zolin
 
 #pragma once
 
+#include <FF/array.h>
 #include <FF/audio/pcm.h>
 
 
@@ -42,6 +43,7 @@ enum FLAC_TYPE {
 	FLAC_TPADDING,
 	FLAC_TSEEKTABLE = 3,
 	FLAC_TTAGS,
+	FLAC_TPIC = 6,
 };
 
 struct flac_hdr {
@@ -105,6 +107,8 @@ FF_EXTN uint flac_seektab_size(size_t npts);
 FF_EXTN int flac_seektab_init(_ffflac_seektab *sktab, uint64 total_samples, uint interval);
 FF_EXTN uint flac_seektab_add(ffpcm_seekpt *pts, size_t npts, uint idx, uint64 nsamps, uint frlen, uint blksize);
 FF_EXTN uint flac_seektab_write(void *out, size_t cap, const ffpcm_seekpt *pts, size_t npts, uint blksize);
+
+FF_EXTN int flac_meta_pic(const char *data, size_t len, ffstr *pic);
 
 typedef struct ffflac_frame {
 	uint num; //-1 for variable-blocksize stream

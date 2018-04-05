@@ -317,6 +317,48 @@ uint flac_seektab_write(void *out, size_t cap, const ffpcm_seekpt *pts, size_t n
 }
 
 
+/*
+type[4]
+mime_len[4]
+mime[]
+desc_len[4]
+desc[]
+n[4*4]
+data_len[4]
+data[]
+*/
+/** Parse picture block and return picture data. */
+int flac_meta_pic(const char *data, size_t len, ffstr *pic)
+{
+	const char *d = data, *end = data + len;
+	if (end - d < 8)
+		return FLAC_ETAG;
+	d += 4;
+	uint mime_len = ffint_ntoh32(d);
+	d += 4;
+	if (end - d < (int)mime_len)
+		return FLAC_ETAG;
+	d += mime_len;
+
+	uint desc_len = ffint_ntoh32(d);
+	d += 4;
+	if (end - d < (int)desc_len + 4*4)
+		return FLAC_ETAG;
+	d += desc_len + 4*4;
+
+	uint data_len = ffint_ntoh32(d);
+	d += 4;
+	if (end - d < (int)data_len)
+		return FLAC_ETAG;
+
+	FFDBG_PRINTLN(10, "mime:%u  desc:%u  data:%u"
+		, mime_len, desc_len, data_len);
+
+	ffstr_set(pic, d, data_len);
+	return 0;
+}
+
+
 const char* flac_frame_samples(uint *psamples, const char *d, size_t len)
 {
 	uint samples = *psamples;
