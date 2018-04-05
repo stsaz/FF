@@ -338,24 +338,18 @@ static int _ffflac_seek(ffflac *f)
 Return 0 on success. */
 static int _ffflac_findhdr(ffflac *f, ffflac_frame *fr)
 {
-	size_t hdroff;
-	uint hdrlen;
-
-	fr->channels = f->fmt.channels;
-	fr->rate = f->fmt.sample_rate;
-	fr->bps = ffpcm_bits(f->fmt.format);
+	ssize_t r;
 
 	if (NULL == ffarr_append(&f->buf, f->data, f->datalen)) {
 		f->errtype = FLAC_ESYS;
 		return FFFLAC_RERR;
 	}
 
-	hdroff = f->buf.len - f->bufoff;
-	hdrlen = flac_frame_find(f->buf.ptr + f->bufoff, &hdroff, fr);
+	r = flac_frame_find(f->buf.ptr + f->bufoff, f->buf.len - f->bufoff, fr, f->first_framehdr);
 	if (fr->num != (uint)-1)
 		fr->pos = fr->num * f->info.minblock;
 
-	if (hdrlen == 0) {
+	if (r < 0) {
 		if (f->fin)
 			return FFFLAC_RDONE;
 
@@ -377,8 +371,8 @@ static int _ffflac_findhdr(ffflac *f, ffflac_frame *fr)
 	f->off += f->datalen;
 	FFARR_SHIFT(f->data, f->datalen, f->datalen);
 
-	if (hdroff != 0) {
-		f->bufoff += hdroff;
+	if (r != 0) {
+		f->bufoff += r;
 		f->errtype = FLAC_ESYNC;
 		return FFFLAC_RWARN;
 	}
@@ -391,25 +385,22 @@ static int _ffflac_getframe(ffflac *f, ffstr *sframe)
 {
 	ffflac_frame fr;
 	size_t frlen;
-	uint hdrlen;
-
-	fr.channels = f->fmt.channels;
-	fr.rate = f->fmt.sample_rate;
-	fr.bps = ffpcm_bits(f->fmt.format);
+	ssize_t r;
 
 	if (NULL == ffarr_append(&f->buf, f->data, f->datalen)) {
 		f->errtype = FLAC_ESYS;
 		return FFFLAC_RERR;
 	}
 
-	frlen = f->buf.len - f->bufoff - FLAC_MINFRAMEHDR;
-	hdrlen = flac_frame_find(f->buf.ptr + f->bufoff + FLAC_MINFRAMEHDR, &frlen, &fr);
-	frlen += FLAC_MINFRAMEHDR;
+	frlen = f->buf.len - f->bufoff;
+	r = flac_frame_find(f->buf.ptr + f->bufoff + FLAC_MINFRAMEHDR, frlen - FLAC_MINFRAMEHDR, &fr, f->first_framehdr);
+	if (r >= 0)
+		frlen = r + FLAC_MINFRAMEHDR;
 
 	if (fr.num != (uint)-1)
 		fr.pos = fr.num * f->info.minblock;
 
-	if (hdrlen == 0 && !f->fin) {
+	if (r < 0 && !f->fin) {
 
 		f->bytes_skipped += f->datalen;
 		if (f->bytes_skipped > FLAC_MAXFRAME) {
@@ -427,6 +418,9 @@ static int _ffflac_getframe(ffflac *f, ffstr *sframe)
 		f->bytes_skipped = 0;
 
 	ffstr_set(sframe, f->buf.ptr + f->bufoff, frlen);
+	if (*(uint*)f->first_framehdr == 0)
+		*(uint*)f->first_framehdr = *(uint*)sframe->ptr;
+
 	f->bufoff += frlen;
 	f->off += f->datalen;
 	FFARR_SHIFT(f->data, f->datalen, f->datalen);

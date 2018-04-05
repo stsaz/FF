@@ -623,7 +623,8 @@ FF_EXTN size_t fffile_fmt(fffd fd, ffstr3 *buf, const char *fmt, ...);
 */
 FF_EXTN int fffile_readall(ffarr *a, const char *fn, uint64 limit);
 
-/** Create (overwrite) file from buffer. */
+/** Create (overwrite) file from buffer.
+@flags: O_* (default: O_CREAT | O_TRUNC) */
 FF_EXTN int fffile_writeall(const char *fn, const char *d, size_t len, uint flags);
 
 /** Buffered data output.

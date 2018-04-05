@@ -6,6 +6,7 @@ Copyright (c) 2014 Simon Zolin
 
 #include <FF/gui/winapi.h>
 #include <FF/data/parse.h>
+#include <FF/data/conf.h>
 
 
 typedef struct ffui_loader ffui_loader;
@@ -105,7 +106,8 @@ typedef struct ffui_loaderw {
 	ffui_ldr_getctl_t getctl;
 	void *udata;
 
-	ffstr3 buf;
+	ffconfw confw;
+	uint fin :1;
 } ffui_loaderw;
 
 FF_EXTN void ffui_ldrw_fin(ffui_loaderw *ldr);

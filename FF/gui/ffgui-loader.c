@@ -165,6 +165,7 @@ static int new_editbox(ffparser_schem *ps, void *obj, ffpars_ctx *ctx);
 // COMBOBOX
 static int combx_style(ffparser_schem *ps, void *obj, const ffstr *val);
 static const ffpars_arg combx_args[] = {
+	{ "text",	FFPARS_TSTR, FFPARS_DST(&label_text) },
 	{ "style",	FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&combx_style) },
 	{ "font",	FFPARS_TOBJ, FFPARS_DST(&label_font) },
 	{ "position",	FFPARS_TINT | FFPARS_FSIGN | FFPARS_FLIST, FFPARS_DST(&label_pos) },
@@ -1630,7 +1631,7 @@ done:
 
 void ffui_ldrw_fin(ffui_loaderw *ldr)
 {
-	ffarr_free(&ldr->buf);
+	ffconf_wdestroy(&ldr->confw);
 }
 
 void ffui_ldr_setv(ffui_loaderw *ldr, const char *const *names, size_t nn, uint flags)
@@ -1641,6 +1642,8 @@ void ffui_ldr_setv(ffui_loaderw *ldr, const char *const *names, size_t nn, uint 
 	ffui_ctl *c;
 	ffstr settname, ctlname, val;
 	ffarr s = {0};
+
+	ldr->confw.flags |= FFCONF_GROW;
 
 	for (i = 0;  i != nn;  i++) {
 		ffstr_setz(&settname, names[i]);
@@ -1670,6 +1673,7 @@ void ffui_ldr_setv(ffui_loaderw *ldr, const char *const *names, size_t nn, uint 
 			}
 			break;
 
+		case FFUI_UID_COMBOBOX:
 		case FFUI_UID_EDITBOX:
 			if (ffstr_eqcz(&val, "text")) {
 				ffstr ss;
@@ -1682,9 +1686,8 @@ void ffui_ldr_setv(ffui_loaderw *ldr, const char *const *names, size_t nn, uint 
 
 		case FFUI_UID_TRACKBAR:
 			if (ffstr_eqcz(&val, "value")) {
-				n = ffs_fmt(buf, buf + sizeof(buf), "%u", ffui_trk_val(c));
-				ffstr_set(&s, buf, n);
-				set = 1;
+				ffconf_writez(&ldr->confw, settname.ptr, FFCONF_TKEY | FFCONF_ASIS);
+				ffconf_writeint(&ldr->confw, ffui_trk_val(c), 0, FFCONF_TVAL);
 			}
 			break;
 
@@ -1702,27 +1705,23 @@ void ffui_ldr_setv(ffui_loaderw *ldr, const char *const *names, size_t nn, uint 
 
 void ffui_ldr_set(ffui_loaderw *ldr, const char *name, const char *val, size_t len, uint flags)
 {
-	if (flags & FFUI_LDR_FSTR)
-		ffstr_catfmt(&ldr->buf, "%s \"%*s\"\n", name, len, val);
-	else
-		ffstr_catfmt(&ldr->buf, "%s %*s\n", name, len, val);
+	ldr->confw.flags |= FFCONF_GROW;
+	ffconf_writez(&ldr->confw, name, FFCONF_TKEY | FFCONF_ASIS);
+	if (flags & FFUI_LDR_FSTR) {
+		ffconf_write(&ldr->confw, val, len, FFCONF_TVAL);
+	} else
+		ffconf_write(&ldr->confw, val, len, FFCONF_TVAL | FFCONF_ASIS);
 }
 
 int ffui_ldr_write(ffui_loaderw *ldr, const char *fn)
 {
-	int r = -1;
-	fffd f;
-
-	if (FF_BADFD == (f = fffile_open(fn, O_CREAT | O_TRUNC | O_WRONLY)))
-		goto done;
-	if (ldr->buf.len != (size_t)fffile_write(f, ldr->buf.ptr, ldr->buf.len))
-		goto done;
-	r = 0;
-
-done:
-	if (f != FF_BADFD && 0 != fffile_close(f))
-		return -1;
-	return r;
+	ffstr buf;
+	if (!ldr->fin) {
+		ldr->fin = 1;
+		ffconf_writefin(&ldr->confw);
+	}
+	ffconf_output(&ldr->confw, &buf);
+	return fffile_writeall(fn, buf.ptr, buf.len, 0);
 }
 
 void ffui_ldr_loadconf(ffui_loader *g, const char *fn)
@@ -1777,6 +1776,10 @@ void ffui_ldr_loadconf(ffui_loader *g, const char *fn)
 
 			case FFUI_UID_EDITBOX:
 				ffpars_setargs(&ctx, g, editbox_args, FFCNT(editbox_args));
+				break;
+
+			case FFUI_UID_COMBOBOX:
+				ffpars_setargs(&ctx, g, combx_args, FFCNT(combx_args));
 				break;
 
 			case FFUI_UID_TRACKBAR:

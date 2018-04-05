@@ -191,6 +191,8 @@ int flac_seektab(const char *data, size_t len, _ffflac_seektab *sktab, uint64 to
 	for (i = 0;  i != npts;  i++) {
 		sp->sample = ffint_ntoh64(st[i].sample_number);
 		sp->off = ffint_ntoh64(st[i].stream_offset);
+		FFDBG_PRINTLN(10, "seekpoint: sample:%U  off:%xU"
+			, sp->sample, sp->off);
 		sp++;
 	}
 
@@ -359,7 +361,7 @@ int flac_meta_pic(const char *data, size_t len, ffstr *pic)
 }
 
 
-const char* flac_frame_samples(uint *psamples, const char *d, size_t len)
+static const char* flac_frame_samples(uint *psamples, const char *d, size_t len)
 {
 	uint samples = *psamples;
 	switch (samples) {
@@ -390,14 +392,16 @@ const char* flac_frame_samples(uint *psamples, const char *d, size_t len)
 	return d;
 }
 
-static const uint flac_rates[] = {
-	0, 88200, 176400, 192000, 8000, 16000, 22050, 24000, 32000, 44100, 48000, 96000
+static const ushort flac_rates[] = {
+	0, 88200/10, 176400/10, 192000/10, 8000/10, 16000/10, 22050/10, 24000/10, 32000/10, 44100/10, 48000/10, 96000/10
 };
 
-const char* flac_frame_rate(uint *prate, const char *d, size_t len)
+static const char* flac_frame_rate(uint *prate, const char *d, size_t len)
 {
 	uint rate = *prate;
 	switch (rate) {
+	case 0:
+		break;
 	case 0x0c:
 		if (len < 1)
 			return NULL;
@@ -417,13 +421,13 @@ const char* flac_frame_rate(uint *prate, const char *d, size_t len)
 	case 0x0f:
 		return NULL; //invalid
 	default:
-		rate = flac_rates[rate];
+		rate = flac_rates[rate] * 10;
 	}
 	*prate = rate;
 	return d;
 }
 
-static const byte flac_bps[] = { 0, 8, 12, 0, 16, 20, 24, 0 };
+static const byte flac_bps[] = { 0, 8, 12, 0, 16, 20, 24 };
 
 enum FR_HDR {
 	FR_SYNC = 14, //=0x3ffe
@@ -442,6 +446,8 @@ enum FR_HDR {
 	// rate[0..2]
 	// crc8
 };
+
+#define FR_CONSTMASK  0xffff0f0f
 
 /**
 Return the position after the header;  0 on error. */
@@ -499,30 +505,26 @@ uint flac_frame_parse(ffflac_frame *fr, const char *data, size_t len)
 }
 
 /** Find a valid frame header.
-Return header size, *len is set to the header position;  0 if not found. */
-uint flac_frame_find(const char *data, size_t *len, ffflac_frame *fr)
+Return header position;  <0 if not found. */
+ssize_t flac_frame_find(const char *data, size_t len, ffflac_frame *fr, byte hdr[4])
 {
-	const char *d = data, *end = d + *len;
-	ffflac_frame frame;
+	const char *d = data, *end = d + len;
+	uint h = ffint_ntoh32(hdr) & FR_CONSTMASK;
 
 	while (d != end) {
 		if ((byte)d[0] != 0xff && NULL == (d = ffs_findc(d, end - d, 0xff)))
 			break;
 
-		if ((end - d) >= (ssize_t)FLAC_MINFRAMEHDR) {
-			uint r = flac_frame_parse(&frame, d, end - d);
-			if (r != 0 && (fr->channels == 0
-				|| (fr->channels == frame.channels
-					&& fr->rate == frame.rate
-					&& fr->bps == frame.bps))) {
-				*fr = frame;
-				*len = d - data;
-				return r;
-			}
+		if ((end - d) >= (ssize_t)FLAC_MINFRAMEHDR
+			&& (h == 0 || (ffint_ntoh32(d) & FR_CONSTMASK) == h)) {
+
+			uint r = flac_frame_parse(fr, d, end - d);
+			if (r != 0)
+				return d - data;
 		}
 
 		d++;
 	}
 
-	return 0;
+	return -1;
 }

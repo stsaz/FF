@@ -23,6 +23,7 @@ typedef struct ffflac {
 		, total_size;
 	uint framesoff;
 	ffflac_frame frame;
+	byte first_framehdr[4];
 	uint64 seeksample;
 	uint64 frsample;
 	unsigned fin :1

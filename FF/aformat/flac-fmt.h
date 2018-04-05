@@ -47,8 +47,13 @@ enum FLAC_TYPE {
 };
 
 struct flac_hdr {
+#if defined FF_BIG_ENDIAN
+	byte last :1
+		, type :7;
+#else
 	byte type :7 //enum FLAC_TYPE
 		, last :1;
+#endif
 	byte size[3];
 };
 
@@ -120,4 +125,4 @@ typedef struct ffflac_frame {
 } ffflac_frame;
 
 FF_EXTN uint flac_frame_parse(ffflac_frame *fr, const char *data, size_t len);
-FF_EXTN uint flac_frame_find(const char *d, size_t *len, ffflac_frame *fr);
+FF_EXTN ssize_t flac_frame_find(const char *data, size_t len, ffflac_frame *fr, byte hdr[4]);

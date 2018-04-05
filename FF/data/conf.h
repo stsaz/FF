@@ -102,6 +102,7 @@ enum FFCONF_WRITE {
 	*/
 	FFCONF_PRETTY = 0x0100,
 	FFCONF_GROW = 0x0200, // auto-grow ffconfw.buf
+	FFCONF_ASIS = 0x0400, // don't escape, don't use quotes
 };
 
 enum FFCONF_LEN {
@@ -145,6 +146,9 @@ static FFINL size_t ffconf_writeint(ffconfw *c, int64 data, uint intflags, uint 
 	uint n = ffs_fromint(data, buf, sizeof(buf), intflags);
 	return ffconf_write(c, buf, n, flags);
 }
+
+#define ffconf_writefin(c) \
+	ffconf_write(c, NULL, 0, FFCONF_FIN)
 
 /** Get output data. */
 #define ffconf_output(c, out)  ffstr_set2(out, &(c)->buf)
