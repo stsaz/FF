@@ -2,6 +2,10 @@
 Copyright (c) 2016 Simon Zolin
 */
 
+/*
+SOI SOFn SOS EOI
+*/
+
 #pragma once
 
 #include <FF/pic/pic.h>
@@ -11,6 +15,8 @@ Copyright (c) 2016 Simon Zolin
 
 #include <jpeg/jpeg-ff.h>
 
+#define FFJPEG_MIME "image/jpeg"
+
 
 enum FFJPEG_E {
 	FFJPEG_EFMT = 1,
@@ -18,6 +24,27 @@ enum FFJPEG_E {
 
 	FFJPEG_ESYS,
 };
+
+
+/** .jpeg reader */
+struct ffjpegr {
+	uint state, nxstate;
+	uint gathlen;
+	ffarr buf;
+	ffstr chunk;
+	struct {
+		uint width, height;
+		uint bpp;
+	} info;
+	ffstr input;
+};
+
+FF_EXTN int ffjpegr_open(struct ffjpegr *j);
+FF_EXTN void ffjpegr_close(struct ffjpegr *j);
+
+/**
+Return enum FFJPEG_R. */
+FF_EXTN int ffjpegr_read(struct ffjpegr *j);
 
 
 typedef struct ffjpeg {
