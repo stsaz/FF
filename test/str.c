@@ -717,6 +717,7 @@ int test_regex(void)
 static void test_utf(void)
 {
 	char utf8[FFUTF8_MAXCHARLEN];
+	char utf16[8];
 	size_t sl, r;
 	uint n;
 
@@ -748,6 +749,13 @@ static void test_utf(void)
 
 	sl = 4;
 	x(FFU_UTF8 == ffutf_bom("\xef\xbb\xbf\x00", &sl) && sl == 3);
+
+	r = 4;
+	x(4 == ffutf8_to_utf16(NULL, 0, "\xd1\x8f\xd1\x8f", &r, FFU_FWHOLE | FFU_UTF16BE)
+		&& r == 4);
+	x(4 == ffutf8_to_utf16(utf16, sizeof(utf16), "\xd1\x8f\xd1\x8f", &r, FFU_FWHOLE | FFU_UTF16BE)
+		&& r == 4);
+	x(!memcmp(utf16, "\x04\x4f\x04\x4f", 4));
 }
 
 static void test_str_fromsize(void)

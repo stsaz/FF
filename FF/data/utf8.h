@@ -89,6 +89,11 @@ static FFINL size_t ffutf8_encodewhole(char *dst, size_t cap, const char *src, s
 
 FF_EXTN size_t ffutf8_strencode(ffstr3 *dst, const char *src, size_t len, uint flags);
 
+/** Convert data to UTF-16.
+Note: incomplete implementation
+@flags: enum FFU_FLAGS (Note: requires FFU_FWHOLE | FFU_UTF16BE) */
+FF_EXTN size_t ffutf8_to_utf16(char *dst, size_t cap, const char *src, size_t *len, uint flags);
+
 
 /** Find a character.
 @len: length of buffer in bytes

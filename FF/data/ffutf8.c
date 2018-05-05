@@ -402,6 +402,45 @@ size_t ffutf8_strencode(ffstr3 *dst, const char *src, size_t len, uint flags)
 	return r;
 }
 
+size_t ffutf8_to_utf16(char *dst, size_t cap, const char *src, size_t *len, uint flags)
+{
+	const char *d = src, *end = src + *len;
+	int r;
+	uint n;
+	size_t cnt = 0;
+
+	if ((flags & (FFU_FWHOLE | FFU_UTF16BE)) != (uint)(FFU_FWHOLE | FFU_UTF16BE))
+		return 0;
+
+	if (dst == NULL) {
+		while (d != end) {
+			r = ffutf8_decode1(d, end - d, &n);
+			if (r <= 0)
+				return 0;
+			d += r;
+
+			if (!ffutf16_basic(n) || n > 0xffff)
+				return 0;
+			cnt += 2;
+		}
+		return cnt;
+	}
+
+	while (d != end) {
+		r = ffutf8_decode1(d, end - d, &n);
+		if (r <= 0)
+			return 0;
+		d += r;
+
+		if (!ffutf16_basic(n) || n > 0xffff)
+			return 0;
+		ffint_hton16(dst + cnt, n);
+		cnt += 2;
+	}
+
+	return cnt;
+}
+
 
 ssize_t ffutf16_findc(const char *s, size_t len, int ch)
 {
