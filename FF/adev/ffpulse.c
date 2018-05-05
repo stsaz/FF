@@ -199,6 +199,8 @@ static void stm_on_write(pa_stream *s, size_t nbytes, void *udata)
 	if (snd->callback_wait) {
 		snd->callback_wait = 0;
 		snd->handler(snd->udata);
+	} else {
+		snd->callback = 1;
 	}
 }
 
@@ -354,7 +356,20 @@ err:
 
 int ffpulse_async(ffpulse_buf *snd, uint enable)
 {
-	snd->callback_wait = enable;
+	FFDBG_PRINTLN(10, "", 0);
+
+	if (!enable) {
+		snd->callback_wait = snd->callback = 0;
+		return 0;
+	}
+
+	if (snd->callback) {
+		snd->callback = 0;
+		snd->handler(snd->udata);
+		return 1;
+	}
+
+	snd->callback_wait = 1;
 	return 0;
 }
 
@@ -376,6 +391,7 @@ static void op_wait(pa_operation *op)
 
 int ffpulse_start(ffpulse_buf *snd)
 {
+	FFDBG_PRINTLN(10, "corked:%u", pa_stream_is_corked(snd->stm));
 	if (!pa_stream_is_corked(snd->stm))
 		return 0;
 
@@ -387,6 +403,7 @@ int ffpulse_start(ffpulse_buf *snd)
 
 int ffpulse_stop(ffpulse_buf *snd)
 {
+	FFDBG_PRINTLN(10, "corked:%u", pa_stream_is_corked(snd->stm));
 	if (pa_stream_is_corked(snd->stm))
 		return 0;
 
@@ -398,6 +415,7 @@ int ffpulse_stop(ffpulse_buf *snd)
 
 int ffpulse_clear(ffpulse_buf *snd)
 {
+	FFDBG_PRINTLN(10, "", 0);
 	pa_operation *op = pa_stream_flush(snd->stm, &stm_on_op, snd);
 	op_wait(op);
 	pa_operation_unref(op);

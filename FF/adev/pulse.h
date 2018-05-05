@@ -50,6 +50,7 @@ typedef struct ffpulse_buf {
 	uint bufsize;
 	uint nfy_interval; //minimum interval between calls to user handler function (msec)
 	uint autostart :1; //auto-start processing when audio buffer is full
+	uint callback :1; //set when audio event has been received but user isn't expecting it
 	uint callback_wait :1; //set while user is expecting an event
 	uint draining :1;
 
