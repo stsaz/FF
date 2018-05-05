@@ -319,12 +319,15 @@ uint flac_seektab_write(void *out, size_t cap, const ffpcm_seekpt *pts, size_t n
 
 
 /*
-type[4]
+type[4] // 0:Other 3:FrontCover 4:BackCover
 mime_len[4]
 mime[]
 desc_len[4]
 desc[]
-n[4*4]
+width[4]
+height[4]
+bpp[4]
+ncolors[4]
 data_len[4]
 data[]
 */
@@ -357,6 +360,46 @@ int flac_meta_pic(const char *data, size_t len, ffstr *pic)
 
 	ffstr_set(pic, d, data_len);
 	return 0;
+}
+
+/** Write picture block data.
+@data: if NULL:return the number of bytes needed.
+Return -1 on error. */
+int flac_pic_write(char *data, size_t cap, const struct flac_picinfo *info, const ffstr *pic, uint islast)
+{
+	ffstr mime, desc;
+	ffstr_setz(&mime, info->mime);
+	ffstr_setz(&desc, info->desc);
+	size_t n = sizeof(struct flac_hdr) + 4 + 4+mime.len + 4+desc.len + 4*4 + 4+pic->len;
+
+	if (data == NULL)
+		return n;
+
+	char *d = data, *end = data + cap;
+	if (end - d < (ssize_t)n
+		|| n < (mime.len | desc.len | pic->len))
+		return -1;
+
+	d += sizeof(struct flac_hdr);
+
+	ffint_hton32(d, 3);  d += 4;
+
+	ffint_hton32(d, mime.len);  d += 4;
+	d = ffs_copy(d, end, mime.ptr, mime.len);
+
+	ffint_hton32(d, desc.len);  d += 4;
+	d = ffs_copy(d, end, desc.ptr, desc.len);
+
+	ffint_hton32(d, info->width);  d += 4;
+	ffint_hton32(d, info->height);  d += 4;
+	ffint_hton32(d, info->bpp);  d += 4;
+	ffint_hton32(d, 0);  d += 4;
+
+	ffint_hton32(d, pic->len);  d += 4;
+	d = ffs_copy(d, end, pic->ptr, pic->len);
+
+	flac_sethdr(data, FLAC_TPIC, islast, (d - data) - sizeof(struct flac_hdr));
+	return d - data;
 }
 
 

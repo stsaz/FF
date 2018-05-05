@@ -97,7 +97,7 @@ static int _ffflac_whdr(ffflac_cook *f)
 	ffarr_acq(&f->outbuf, &f->vtag.out);
 	uint padding = ffmax((int)(f->min_meta - taglen), 0);
 
-	uint nblocks = 1 + (padding != 0) + (f->sktab.len != 0);
+	uint nblocks = 1 + (padding != 0) + (f->picdata.len != 0) + (f->sktab.len != 0);
 
 	flac_sethdr(f->outbuf.ptr + tagoff, FLAC_TTAGS, (nblocks == 1), taglen);
 
@@ -112,7 +112,7 @@ static int _ffflac_whdr(ffflac_cook *f)
 }
 
 enum {
-	W_HDR, W_SEEKTAB_SPACE,
+	W_HDR, W_PIC, W_SEEKTAB_SPACE,
 	W_FRAMES,
 	W_SEEK0, W_INFO_WRITE, W_SEEKTAB_SEEK, W_SEEKTAB_WRITE,
 };
@@ -120,6 +120,7 @@ enum {
 /* FLAC write:
 Reserve the space in output file for FLAC stream info.
 Write vorbis comments and padding.
+Write picture.
 Write empty seek table.
 After all frames have been written,
   seek back to the beginning and write the complete FLAC stream info and seek table.
@@ -137,8 +138,23 @@ int ffflac_write(ffflac_cook *f, uint in_frsamps)
 
 		ffstr_set2(&f->out, &f->outbuf);
 		f->outbuf.len = 0;
-		f->state = W_SEEKTAB_SPACE;
+		f->state = W_PIC;
 		return FFFLAC_RDATA;
+
+	case W_PIC: {
+		f->state = W_SEEKTAB_SPACE;
+		if (f->picdata.len == 0)
+			continue;
+		ssize_t n = flac_pic_write(NULL, 0, &f->picinfo, &f->picdata, 0);
+		if (NULL == ffarr_realloc(&f->outbuf, n))
+			return ERR(f, FLAC_ESYS);
+		n = flac_pic_write(f->outbuf.ptr, f->outbuf.cap, &f->picinfo, &f->picdata, (f->sktab.len == 0));
+		if (n < 0)
+			return ERR(f, FLAC_EHDR);
+		ffstr_set(&f->out, f->outbuf.ptr, n);
+		f->hdrlen += n;
+		return FFFLAC_RDATA;
+	}
 
 	case W_SEEKTAB_SPACE: {
 		f->state = W_FRAMES;

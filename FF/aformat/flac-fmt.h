@@ -114,6 +114,13 @@ FF_EXTN uint flac_seektab_add(ffpcm_seekpt *pts, size_t npts, uint idx, uint64 n
 FF_EXTN uint flac_seektab_write(void *out, size_t cap, const ffpcm_seekpt *pts, size_t npts, uint blksize);
 
 FF_EXTN int flac_meta_pic(const char *data, size_t len, ffstr *pic);
+struct flac_picinfo {
+	const char *mime;
+	const char *desc;
+	uint width, height;
+	uint bpp;
+};
+FF_EXTN int flac_pic_write(char *data, size_t cap, const struct flac_picinfo *info, const ffstr *pic, uint islast);
 
 typedef struct ffflac_frame {
 	uint num; //-1 for variable-blocksize stream

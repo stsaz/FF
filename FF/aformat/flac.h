@@ -6,7 +6,7 @@ Copyright (c) 2017 Simon Zolin
 fLaC (HDR STREAMINFO) [HDR BLOCK]... (FRAME_HDR SUBFRAME... FRAME_FOOTER)...
 
 ffflac_cook:
-fLaC INFO VORBIS_CMT [PADDING] [SEEKTABLE] (FRAME)...
+fLaC INFO VORBIS_CMT [PADDING] [PICTURE] [SEEKTABLE] (FRAME)...
 */
 
 #pragma once
@@ -25,6 +25,8 @@ typedef struct ffflac_cook {
 	ffflac_info info;
 
 	ffvorbtag_cook vtag;
+	struct flac_picinfo picinfo;
+	ffstr picdata;
 	uint min_meta; // minimum size of meta data (add padding block if needed)
 	uint64 hdrlen;
 
@@ -64,6 +66,18 @@ FF_EXTN int ffflac_addtag(ffflac_cook *f, const char *name, const char *val, siz
 
 #define ffflac_iaddtag(f, tag, val, vallen) \
 	ffflac_addtag(f, ffvorbtag_str[tag], val, vallen)
+
+/** Set picture.
+Data must be valid until the header is written. */
+static FFINL void ffflac_setpic(ffflac_cook *f, const struct flac_picinfo *info, const ffstr *pic)
+{
+	f->picinfo = *info;
+	if (f->picinfo.mime == NULL)
+		f->picinfo.mime = "";
+	if (f->picinfo.desc == NULL)
+		f->picinfo.desc = "";
+	f->picdata = *pic;
+}
 
 /** Get an absolute file offset to seek. */
 #define ffflac_wseekoff(f)  ((f)->seekoff)
