@@ -75,7 +75,7 @@ int fffile_readall(ffarr *a, const char *fn, uint64 limit)
 
 	if (fsz != FF_TOSIZE(fsz))
 		goto end;
-	if (NULL == ffarr_realloc_grow(a, fsz))
+	if (NULL == ffarr_realloc(a, fsz))
 		goto end;
 
 	if (fsz != (size_t)fffile_read(fd, a->ptr, fsz))

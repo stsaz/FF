@@ -25,9 +25,15 @@ void * _ffarr_realloc(ffarr *ar, size_t newlen, size_t elsz)
 		newlen = 1; //ffmem_realloc() returns NULL if requested buffer size is 0
 
 	if (ar->cap != 0) {
-		if (ar->cap == newlen)
+		if (ar->cap >= newlen)
 			return ar->ptr; //nothing to do
-		d = ar->ptr;
+		if (ar->len == 0) {
+			// allocate new data unless we have data to preserve
+			ffmem_free(ar->ptr);
+			ffarr_null(ar);
+		} else {
+			d = ar->ptr;
+		}
 	}
 	d = ffmem_realloc(d, newlen * elsz);
 	if (d == NULL)

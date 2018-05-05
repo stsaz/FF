@@ -186,7 +186,8 @@ do { \
 
 FF_EXTN void * _ffarr_realloc(ffarr *ar, size_t newlen, size_t elsz);
 
-/** Reallocate array memory.
+/** Reallocate array memory if new size is larger.
+Pointing buffer: transform into an allocated buffer, copying data.
 Return NULL on error. */
 #define ffarr_realloc(ar, newlen) \
 	_ffarr_realloc((ffarr*)(ar), newlen, sizeof(*(ar)->ptr))
@@ -216,20 +217,6 @@ static FFINL void* _ffarr_allocz(ffarr *ar, size_t len, size_t elsz)
 
 #define ffarr_reallocT(ar, len, T) \
 	_ffarr_realloc(ar, len, sizeof(T))
-
-/** Reallocate only if new size is larger. */
-static FFINL char* _ffarr_realloc_grow(ffarr *ar, size_t len, size_t elsz)
-{
-	if (ar->cap >= len)
-		return ar->ptr;
-	return (char*)_ffarr_realloc(ar, len, elsz);
-}
-
-#define ffarr_realloc_growT(ar, len, T) \
-	_ffarr_realloc_grow(ar, len, sizeof(T))
-
-#define ffarr_realloc_grow(ar, len) \
-	_ffarr_realloc_grow(ar, len, sizeof(char))
 
 enum { FFARR_GROWQUARTER = 0x80000000 };
 

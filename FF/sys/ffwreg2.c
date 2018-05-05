@@ -116,7 +116,7 @@ static int name_tostr(ffwreg_enum *e, ffarr *name, const void *wname, size_t len
 
 	if (e->flags & FFWREG_ENUM_FULLPATH)
 		nname += ffsz_len(e->path) + FFSLEN("\\");
-	if (NULL == ffarr_realloc_grow(name, nname))
+	if (NULL == ffarr_realloc(name, nname))
 		return -1;
 
 	s = name->ptr;
@@ -221,9 +221,9 @@ int ffwreg_nextval(ffwreg_enum *e, ffwreg key)
 			DWORD name_maxlen, val_maxlen;
 			if (0 != RegQueryInfoKey(key, NULL, NULL, NULL, NULL, NULL, NULL, NULL, &name_maxlen, &val_maxlen, NULL, NULL))
 				return -1;
-			if (NULL == ffarr_realloc_growT(&e->wname, name_maxlen + 1, ffsyschar))
+			if (NULL == ffarr_reallocT(&e->wname, name_maxlen + 1, ffsyschar))
 				return -1;
-			if (NULL == ffarr_realloc_grow(&e->wval, val_maxlen))
+			if (NULL == ffarr_realloc(&e->wval, val_maxlen))
 				return -1;
 
 		} else if (r == ERROR_NO_MORE_ITEMS)
