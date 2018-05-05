@@ -749,9 +749,9 @@ int ffpcm_gain(const ffpcmex *pcm, float gain, const void *in, void *out, uint s
 }
 
 
-int ffpcm_peak(const ffpcmex *fmt, const void *data, size_t samples, float *maxpeak)
+int ffpcm_peak(const ffpcmex *fmt, const void *data, size_t samples, double *maxpeak)
 {
-	float max_f = 0.0;
+	double max_f = 0.0;
 	uint max_sh = 0;
 	uint ich, nch = fmt->channels, step = 1;
 	size_t i;
@@ -795,7 +795,7 @@ int ffpcm_peak(const ffpcmex *fmt, const void *data, size_t samples, float *maxp
 	case FFPCM_32:
 		for (ich = 0;  ich != nch;  ich++) {
 			for (i = 0;  i != samples;  i++) {
-				int n = ffint_ltoh32(&d.pb[ich][i * step * 3]);
+				int n = ffint_ltoh32(&d.pin[ich][i * step]);
 				uint u = ffabs(n);
 				if (max_sh < u)
 					max_sh = u;
@@ -807,7 +807,7 @@ int ffpcm_peak(const ffpcmex *fmt, const void *data, size_t samples, float *maxp
 	case FFPCM_FLOAT:
 		for (ich = 0;  ich != nch;  ich++) {
 			for (i = 0;  i != samples;  i++) {
-				float f = ffabs(d.pf[ich][i * step]);
+				double f = ffabs(d.pf[ich][i * step]);
 				if (max_f < f)
 					max_f = f;
 			}

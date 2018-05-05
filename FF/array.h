@@ -398,6 +398,8 @@ static FFINL int ffstr_popfront(ffstr *s)
 #define ffs_copystr(dst, bufend, pstr)  ffs_copy(dst, bufend, (pstr)->ptr, (pstr)->len)
 
 /** Split string by a character.
+If split-character isn't found, the second string will be empty.
+@first, @second: optional
 @at: pointer within the range [s..s+len] or NULL.
 Return @at or NULL. */
 FF_EXTN const char* ffs_split2(const char *s, size_t len, const char *at, ffstr *first, ffstr *second);

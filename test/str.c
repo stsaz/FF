@@ -725,6 +725,11 @@ static void test_utf(void)
 
 	FFTEST_FUNC;
 
+	x(2 == ffutf8_size(0x044f));
+	x(2 == ffutf8_encode1(utf8, 2, 0x044f));
+	x(!memcmp(utf8, "\xd1\x8f", 2));
+
+	x(2 == ffutf8_decode1("\xd1\x8f", 2, &n) && n == 0x044f);
 	x(3 == ffutf8_decode1("\xef\xbf\xbd\x00", 4, &n) && n == 0xfffd);
 	x(-3 == ffutf8_decode1("\xef\xbf", 2, &n));
 	x(0 == ffutf8_decode1("\xff", 1, &n));

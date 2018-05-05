@@ -13,6 +13,7 @@ static const char *const flac_errs[] = {
 	"invalid header",
 	"too large meta",
 	"bad tags",
+	"bad picture",
 	"bad seek table",
 	"seek error",
 	"unrecognized data before frame header",

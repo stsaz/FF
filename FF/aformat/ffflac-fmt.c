@@ -336,24 +336,24 @@ int flac_meta_pic(const char *data, size_t len, ffstr *pic)
 {
 	const char *d = data, *end = data + len;
 	if (end - d < 8)
-		return FLAC_ETAG;
+		return FLAC_EPIC;
 	d += 4;
 	uint mime_len = ffint_ntoh32(d);
 	d += 4;
 	if (end - d < (int)mime_len)
-		return FLAC_ETAG;
+		return FLAC_EPIC;
 	d += mime_len;
 
 	uint desc_len = ffint_ntoh32(d);
 	d += 4;
 	if (end - d < (int)desc_len + 4*4)
-		return FLAC_ETAG;
+		return FLAC_EPIC;
 	d += desc_len + 4*4;
 
 	uint data_len = ffint_ntoh32(d);
 	d += 4;
 	if (end - d < (int)data_len)
-		return FLAC_ETAG;
+		return FLAC_EPIC;
 
 	FFDBG_PRINTLN(10, "mime:%u  desc:%u  data:%u"
 		, mime_len, desc_len, data_len);

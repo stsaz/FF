@@ -230,9 +230,10 @@ static int iso_ent_parse(const void *p, size_t len, ffiso_file *f, uint64 off)
 		|| ent->namelen == 0)
 		return -FFISO_ELARGE;
 
-	FFDBG_PRINTLN(6, "Dir Ent: off:%xU  body-off:%xu  body-len:%xu  flags:%xu  ext_attr_len:%u  name:%*s"
+	FFDBG_PRINTLN(6, "Dir Ent: off:%xU  body-off:%xu  body-len:%xu  flags:%xu  ext_attr_len:%u  length:%u  RR-len:%u  name:%*s"
 		, off, ffint_ltoh32(ent->body_off) * FFISO_SECT, ffint_ltoh32(ent->body_len)
 		, ent->flags, ent->ext_attr_len
+		, ent->len, ent->len - iso_ent_len(ent)
 		, (size_t)ent->namelen, ent->name);
 
 	if (ent->ext_attr_len != 0)
@@ -425,13 +426,15 @@ static int iso_rr_parse(const void *p, size_t len, ffiso_file *f)
 
 
 static const char* const iso_errs[] = {
-	"unsupported logical block size",
-	"no primary volume descriptor",
-	"empty root directory in primary volume descriptor",
-	"primary volume: bad id",
-	"primary volume: bad version",
-	"unsupported feature",
-	"too large value",
+	"unsupported logical block size", //FFISO_ELOGBLK
+	"no primary volume descriptor", //FFISO_ENOPRIM
+	"empty root directory in primary volume descriptor", //FFISO_EPRIMEMPTY
+	"primary volume: bad id", //FFISO_EPRIMID
+	"primary volume: bad version", //FFISO_EPRIMVER
+	"unsupported feature", //FFISO_EUNSUPP
+	"too large value", //FFISO_ELARGE
+	"not ready", //FFISO_ENOTREADY
+	"invalid order of directories", //FFISO_EDIRORDER
 };
 
 const char* ffiso_errstr(ffiso *c)
@@ -540,7 +543,7 @@ int ffiso_read(ffiso *c)
 
 		const struct iso_voldesc_prim *prim = (void*)(c->d.ptr + sizeof(struct iso_voldesc));
 		ffiso_file f;
-		r = iso_ent_parse(prim->root_dir, sizeof(prim->root_dir), &f, c->inoff);
+		r = iso_ent_parse(prim->root_dir, sizeof(prim->root_dir), &f, c->inoff - FFISO_SECT);
 		if (r < 0)
 			return ERR(c, -r);
 		else if (r == 0)
@@ -561,7 +564,7 @@ int ffiso_read(ffiso *c)
 			&& 0 == iso_voldesc_parse_prim(c->d.ptr)) {
 			const struct iso_voldesc_prim *jlt = (void*)(c->d.ptr + sizeof(struct iso_voldesc));
 			ffiso_file f;
-			r = iso_ent_parse(jlt->root_dir, sizeof(jlt->root_dir), &f, c->inoff);
+			r = iso_ent_parse(jlt->root_dir, sizeof(jlt->root_dir), &f, c->inoff - FFISO_SECT);
 			if (r > 0) {
 				if (NULL == ffarr_alloc(&c->fn, 255 * 4))
 					return ERR(c, FFISO_ESYS);
@@ -600,7 +603,7 @@ int ffiso_read(ffiso *c)
 			continue;
 		}
 
-		r = iso_ent_parse(c->d.ptr, c->d.len, &c->curfile, c->inoff);
+		r = iso_ent_parse(c->d.ptr, c->d.len, &c->curfile, c->inoff - FFISO_SECT);
 		if (r < 0)
 			return ERR(c, -r);
 		else if (r == 0) {

@@ -11,104 +11,110 @@ FEATURES
 --------
 
 * Base - `FF/`
-	* string
-	* array
-	* linked-list
-	* red-black tree
-	* hash table
-	* operations with bits
+	* string - `FF/string.h`
+	* array - `FF/array.h`
+	* linked-list - `FF/chain.h`, `FF/list.h`
+	* red-black tree - `FF/rbtree.h`
+	* hash table - `FF/hashtab.h`
+	* operations with bits - `FF/bitops.h`
+	* ring buffer - `FF/ring.h`
+	* date and time functions - `FF/time.h`
 
 * System - `FF/sys/`
-	* filesystem path functions
-	* user task queue
-	* timer queue
-	* file mapping
+	* filesystem path functions - `FF/path.h`
+	* filesystem directory functions - `FF/sys/dir.h`
+	* user task queue - `FF/sys/taskqueue.h`
+	* timer queue - `FF/sys/timer-queue.h`
+	* file mapping - `FF/sys/filemap.h`
+	* send file - `FF/sys/sendfile.h`
+	* Windows registry functions - `FF/sys/wreg.h`
+	* Windows object handler - `FF/sys/wohandler.h`
 
 * Network - `FF/net/`
-	* URL parser
-	* IPv4/IPv6 address conversion functions
-	* HTTP
-	* DNS
-	* SSL (libssl, libcrypto)
+	* URL parser - `FF/net/url.h`
+	* IPv4/IPv6 address conversion functions - `FF/net/url.h`
+	* Ethernet, IP, ARP, ICMP, TCP, UDP packets - `FF/net/proto.h`
+	* HTTP - `FF/net/http.h`
+	* DNS - `FF/net/dns.h`
+	* SSL (libssl, libcrypto) - `FF/net/ssl.h`
 
 * Data - `FF/data/`
-	* JSON: parse and serialize
-	* configuration parser
-	* command-line arguments parser
-	* deserialization of structured data using a predefined scheme
-	* UTF-8 decode/encode
-	* CRC32
+	* JSON reader/writer  - `FF/data/json.h`
+	* configuration file reader/writer  - `FF/data/conf.h`
+	* command-line arguments parser  - `FF/data/psarg.h`
+	* deserialization of structured data using a predefined scheme  - `FF/data/parse.h`
+	* UTF-8 decode/encode  - `FF/data/utf8.h`
+	* CRC32 - `FF/crc.h`
 
 * Compression - `FF/pack/`
-	* deflate (libz)
-	* LZMA (liblzma)
+	* deflate (libz) - `FF/pack/gz.h`
+	* LZMA (liblzma) - `FF/pack/7z.h`
 
 * Packing - `FF/pack/`
-	* .xz (r)
-	* .gz (rw)
-	* .zip (rw)
-	* .7z (r)
-	* .tar (rw)
-	* .iso (r)
+	* .xz (read) - `FF/pack/xz.h`
+	* .gz (read/write) - `FF/pack/gz.h`
+	* .zip (read/write) - `FF/pack/zip.h`
+	* .7z (read) - `FF/pack/7z.h`
+	* .tar (read/write) - `FF/pack/tar.h`
+	* .iso (read) - `FF/pack/iso.h`
 
 * Picture - `FF/pic/`
-	* BMP
-	* JPEG (libjpeg)
-	* PNG (libpng)
+	* BMP - `FF/pic/bmp.h`
+	* JPEG (libjpeg) - `FF/pic/jpeg.h`
+	* PNG (libpng) - `FF/pic/png.h`
 
 * GUI - `FF/gui/`
-	* GUI loader
-	* Windows API GUI
+	* GUI loader - `FF/gui/loader.h`
+	* Windows API GUI - `FF/gui/winapi.h`
 
 * Database - `FF/db/`
-	* SQLite (libsqlite)
+	* SQLite (libsqlite) - `FF/db/sqlite.h`
 
 ### Multimedia
 
-* Audio container - `FF/audio/`
-	* .aac (r)
-	* .flac (w)
-	* .mp3 (rw)
-	* .mpc (r)
-	* .wav (rw)
+* Audio container - `FF/aformat/`
+	* .aac (read) - `FF/aformat/aac-adts.h`
+	* .flac (write) - `FF/aformat/flac.h`
+	* .mp3 (read/write) - `FF/aformat/mp3.h`
+	* .mpc (read) - `FF/aformat/mpc.h`
+	* .wav (read/write) - `FF/aformat/wav.h`
 
 * Multimedia container - `FF/mformat/`
-	* .avi (r)
-	* .mkv (r)
-	* .mp4 (rw)
-	* .ogg (rw)
+	* .avi (read) - `FF/mformat/avi.h`
+	* .mkv (read) - `FF/mformat/mkv.h`
+	* .mp4 (read/write) - `FF/mformat/mp4.h`
+	* .ogg (read/write) - `FF/mformat/ogg.h`
 
 * Multimedia meta - `FF/mtags/`
-	* APE tag
-	* ID3v1
-	* ID3v2
-	* Vorbis comments
+	* APE tag - `FF/mtags/apetag.h`
+	* ID3v1, ID3v2 - `FF/mtags/id3.h`
+	* Vorbis comments - `FF/mtags/vorbistag.h`
 
 * Multimedia playlist - `FF/data/`
-	* .cue (r)
-	* .m3u (rw)
-	* .pls (r)
+	* .cue (read) - `FF/data/cue.h`
+	* .m3u (read/write) - `FF/data/m3u.h`
+	* .pls (read) - `FF/data/pls.h`
 
 * Audio I/O - `FF/adev/`
-	* Direct Sound playback/capture
-	* WASAPI playback/capture
-	* ALSA playback/capture
-	* Pulse Audio playback
-	* OSS playback
+	* Direct Sound playback/capture - `FF/adev/dsound.h`
+	* WASAPI playback/capture - `FF/adev/wasapi.h`
+	* ALSA playback/capture - `FF/adev/alsa.h`
+	* Pulse Audio playback - `FF/adev/pulse.h`
+	* OSS playback - `FF/adev/oss.h`
 
-* Audio - `FF/aformat/`, `FF/audio/`
-	* ICY
-	* PCM operations: mix, convert, gain/attenuate
-	* sample rate conversion (libsoxr)
-	* APE (libMAC)
-	* AAC (libfdk-aac)
-	* Vorbis (libvorbis)
-	* Opus (libopus)
-	* MPEG (libmpg123, libmp3lame)
-	* Musepack (libmpc)
-	* FLAC (libflac)
-	* ALAC (libalac)
-	* WavPack (libwavpack)
+* Audio - `FF/audio/`
+	* ICY - `FF/audio/icy.h`
+	* PCM operations: mix, convert, gain/attenuate - `FF/audio/pcm.h`
+	* sample rate conversion (libsoxr) - `FF/audio/soxr.h`
+	* APE (libMAC) - `FF/audio/ape.h`
+	* AAC (libfdk-aac) - `FF/audio/aac.h`
+	* Vorbis (libvorbis) - `FF/audio/vorbis.h`
+	* Opus (libopus) - `FF/audio/opus.h`
+	* MPEG (libmpg123, libmp3lame) - `FF/audio/mpeg.h`
+	* Musepack (libmpc) - `FF/audio/musepack.h`
+	* FLAC (libflac) - `FF/audio/flac.h`
+	* ALAC (libalac) - `FF/audio/alac.h`
+	* WavPack (libwavpack) - `FF/audio/wavpack.h`
 
 
 --------

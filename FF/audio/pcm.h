@@ -111,7 +111,7 @@ FF_EXTN int ffpcm_gain(const ffpcmex *pcm, float gain, const void *in, void *out
 
 
 /** Find the highest peak value. */
-FF_EXTN int ffpcm_peak(const ffpcmex *fmt, const void *data, size_t samples, float *maxpeak);
+FF_EXTN int ffpcm_peak(const ffpcmex *fmt, const void *data, size_t samples, double *maxpeak);
 
 /**
 Return 0 to continue;  !=0 to stop. */
@@ -147,6 +147,9 @@ struct ffpcm_seek {
 /** Find a frame containing the specified sample.
 A hybrid algorithm is used:
 . Sample-based: estimate offset using the target sample position within the given range of samples.
+  AUDIO: ... [A1 A2 A3 A4] ...
+  FILE:  ... [..^........] ...
+  Get approximate file offset (^) using position of target audio sample A2 within search boundary [...].
 . Binary search.
 Return 0 on success;  1 if file seek is needed (s->off is set to file offset);  -1 on error. */
 FF_EXTN int ffpcm_seek(struct ffpcm_seek *s);

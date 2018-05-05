@@ -87,6 +87,7 @@ enum {
 };
 
 #define ffsz_len(sz)  strlen(sz)
+#define ffsz_safelen(sz)  ((sz != NULL) ? strlen(sz) : 0)
 #define ffsz_findof(sz, accept)  strpbrk(sz, accept)
 #define ffsz_cmp(sz1, sz2)  strcmp(sz1, sz2)
 
