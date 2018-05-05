@@ -113,6 +113,14 @@ FF_EXTN int ffpcm_gain(const ffpcmex *pcm, float gain, const void *in, void *out
 /** Find the highest peak value. */
 FF_EXTN int ffpcm_peak(const ffpcmex *fmt, const void *data, size_t samples, float *maxpeak);
 
+/**
+Return 0 to continue;  !=0 to stop. */
+typedef int (*ffpcm_process_func)(void *udata, double val);
+
+/** Process PCM data.
+Return sample number at which user stopped;  -1: done;  <0: error. */
+ssize_t ffpcm_process(const ffpcmex *fmt, const void *data, size_t samples, ffpcm_process_func func, void *udata);
+
 
 typedef struct ffpcm_seekpt {
 	uint64 sample;

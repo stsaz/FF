@@ -822,6 +822,80 @@ int ffpcm_peak(const ffpcmex *fmt, const void *data, size_t samples, float *maxp
 	return 0;
 }
 
+ssize_t ffpcm_process(const ffpcmex *fmt, const void *data, size_t samples, ffpcm_process_func func, void *udata)
+{
+	double f;
+	union pcmdata d;
+	void *ni[8];
+	uint i, ich, nch = fmt->channels, step = 1, u;
+
+	d.sh = (void*)data;
+
+	if (fmt->channels > 8)
+		return -1;
+
+	if (fmt->ileaved) {
+		d.pb = pcm_setni(ni, d.b, fmt->format, nch);
+		step = nch;
+	}
+
+	switch (fmt->format) {
+
+	case FFPCM_16:
+		for (ich = 0;  ich != nch;  ich++) {
+			for (i = 0;  i != samples;  i++) {
+				u = ffabs(d.psh[ich][i * step]);
+				f = _ffpcm_16le_flt(u);
+				if (0 != func(udata, f))
+					goto done;
+			}
+		}
+		break;
+
+	case FFPCM_24:
+		for (ich = 0;  ich != nch;  ich++) {
+			for (i = 0;  i != samples;  i++) {
+				int n = ffint_ltoh24s(&d.pb[ich][i * step * 3]);
+				u = ffabs(n);
+				f = _ffpcm_24_flt(u);
+				if (0 != func(udata, f))
+					goto done;
+			}
+		}
+		break;
+
+	case FFPCM_32:
+		for (ich = 0;  ich != nch;  ich++) {
+			for (i = 0;  i != samples;  i++) {
+				int n = ffint_ltoh32(&d.pin[ich][i * step]);
+				u = ffabs(n);
+				f = _ffpcm_32_flt(u);
+				if (0 != func(udata, f))
+					goto done;
+			}
+		}
+		break;
+
+	case FFPCM_FLOAT:
+		for (ich = 0;  ich != nch;  ich++) {
+			for (i = 0;  i != samples;  i++) {
+				f = ffabs(d.pf[ich][i * step]);
+				if (0 != func(udata, f))
+					goto done;
+			}
+		}
+		break;
+
+	default:
+		return -2;
+	}
+
+	return -1;
+
+done:
+	return i;
+}
+
 
 int ffpcm_seek(struct ffpcm_seek *s)
 {
