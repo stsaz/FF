@@ -307,6 +307,7 @@ void ffiso_close(ffiso *c)
 		ffmem_free(f);
 	}
 	ffarr_free(&c->fn);
+	ffarr_free(&c->fullfn);
 	ffarr_free(&c->buf);
 }
 
@@ -470,9 +471,9 @@ int ffiso_read(ffiso *c)
 
 		// "name" -> "curdir/name"
 		if (c->curdir != NULL) {
-			ffarr a = {0};
-			ffstr_catfmt(&a, "%S/%S", &c->curdir->name, &c->curfile.name);
-			ffstr_set2(&c->curfile.name, &a);
+			c->fullfn.len = 0;
+			ffstr_catfmt(&c->fullfn, "%S/%S", &c->curdir->name, &c->curfile.name);
+			ffstr_set2(&c->curfile.name, &c->fullfn);
 		}
 
 		return FFISO_FILEMETA;

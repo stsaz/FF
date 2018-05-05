@@ -50,6 +50,7 @@ typedef struct ffiso {
 	ffarr buf;
 	ffstr d;
 	ffarr fn;
+	ffarr fullfn;
 
 	uint64 inoff;
 	ffstr in;
