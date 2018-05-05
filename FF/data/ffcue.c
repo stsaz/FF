@@ -27,7 +27,7 @@ enum {
 	CUE_LINE, CUE_KEY, CUE_VAL,
 	CUE_GLOB, CUE_GLOB_NXLINE, CUE_REM_VAL,
 	CUE_FILE, CUE_FILE_NXLINE, CUE_FILETYPE,
-	CUE_FILE_TRACK, CUE_FILE_TRACK_NXLINE,
+	CUE_FILE_TRACK, CUE_FILE_TRACK_NXLINE, CUE_TRK_REM_VAL,
 };
 
 void ffcue_init(ffcuep *p)
@@ -134,6 +134,12 @@ int ffcue_parse(ffcuep *p, const char *data, size_t *len)
 
 	case CUE_FILE_TRACK:
 		switch (cmd) {
+
+		case CMD_REM:
+			p->state = CUE_VAL,  p->nextst = CUE_TRK_REM_VAL;
+			p->ret = FFCUE_REM_NAME;
+			continue;
+
 		case CMD_PERFORMER:
 		case CMD_TITLE:
 			p->ret = (cmd == CMD_PERFORMER) ? FFCUE_TRK_PERFORMER : FFCUE_TRK_TITLE;
@@ -162,6 +168,11 @@ int ffcue_parse(ffcuep *p, const char *data, size_t *len)
 
 	case CUE_FILE_TRACK_NXLINE:
 		p->state = CUE_LINE,  p->nextst = CUE_FILE_TRACK;
+		continue;
+
+	case CUE_TRK_REM_VAL:
+		p->state = CUE_VAL,  p->nextst = CUE_FILE_TRACK_NXLINE;
+		p->ret = FFCUE_REM_VAL;
 		continue;
 
 	}
