@@ -1024,7 +1024,7 @@ uint ffs_tofloat(const char *s, size_t len, double *dst, int flags)
 
 			//case iExpE:
 			if (ffchar_lower(ch) != 'e')
-				break;
+				goto proc;
 			st = iExpSign;
 			break;
 
@@ -1036,12 +1036,13 @@ uint ffs_tofloat(const char *s, size_t len, double *dst, int flags)
 
 		case iExp:
 			if (!ffchar_isdigit(ch))
-				break;
+				goto proc;
 			e = e * 10 + ffchar_tonum(ch);
 			break;
 		}
 	}
 
+proc:
 	exp += (negexp ? -e : e);
 
 	if (digits == 0 || st == iExpSign

@@ -279,11 +279,13 @@ int test_strtoint()
 static int test_strtoflt()
 {
 	double d;
-	x(0 != ffs_tofloat(FFSTR("1/"), &d, 0) && d == 1);
-	x(0 != ffs_tofloat(FFSTR("1."), &d, 0) && d == 1.);
-	x(0 != ffs_tofloat(FFSTR(".1"), &d, 0) && d == .1);
-	x(0 != ffs_tofloat(FFSTR("1.1"), &d, 0) && d == 1.1);
-	x(0 != ffs_tofloat(FFSTR("0.0"), &d, 0) && d == 0.0);
+	x(1 == ffs_tofloat(FFSTR("1/"), &d, 0) && d == 1);
+	x(1 == ffs_tofloat(FFSTR("1,0"), &d, 0) && d == 1);
+	x(2 == ffs_tofloat(FFSTR("30#5"), &d, 0) && d == 30);
+	x(2 == ffs_tofloat(FFSTR("1."), &d, 0) && d == 1.);
+	x(2 == ffs_tofloat(FFSTR(".1"), &d, 0) && d == .1);
+	x(3 == ffs_tofloat(FFSTR("1.1"), &d, 0) && d == 1.1);
+	x(3 == ffs_tofloat(FFSTR("0.0"), &d, 0) && d == 0.0);
 
 	x(0 != ffs_tofloat(FFSTR("1e1"), &d, 0) && d == 1e1);
 	x(0 != ffs_tofloat(FFSTR("1e+1"), &d, 0) && d == 1e+1);
