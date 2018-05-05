@@ -2,6 +2,10 @@
 Copyright (c) 2016 Simon Zolin
 */
 
+/*
+SIGN IHDR IDAT... IEND
+*/
+
 #pragma once
 
 #include <FF/pic/pic.h>
@@ -10,6 +14,8 @@ Copyright (c) 2016 Simon Zolin
 
 #include <png/png-ff.h>
 
+#define FFPNG_MIME "image/png"
+
 
 enum FFPNG_E {
 	FFPNG_EFMT = 1,
@@ -17,6 +23,27 @@ enum FFPNG_E {
 
 	FFPNG_ESYS,
 };
+
+
+/** .png reader */
+struct ffpngr {
+	uint state, nxstate;
+	uint gathlen;
+	ffarr buf;
+	ffstr chunk;
+	struct {
+		uint width, height;
+		uint bpp;
+	} info;
+	ffstr input;
+};
+
+FF_EXTN int ffpngr_open(struct ffpngr *p);
+FF_EXTN void ffpngr_close(struct ffpngr *p);
+
+/**
+Return enum FFPNG_R. */
+FF_EXTN int ffpngr_read(struct ffpngr *p);
 
 
 typedef struct ffpng {
@@ -54,6 +81,8 @@ FF_EXTN void ffpng_close(ffpng *p);
 #define ffpng_input(p, _data, len)  ffstr_set(&(p)->data, _data, len)
 #define ffpng_output(p)  (p)->rgb
 
+/**
+Return enum FFPNG_R. */
 FF_EXTN int ffpng_read(ffpng *p);
 
 
