@@ -6,6 +6,7 @@ Copyright (c) 2017 Simon Zolin
 #include <FF/number.h>
 #include <FF/time.h>
 #include <FF/data/utf8.h>
+#include <FF/path.h>
 
 
 enum { FFISO_SECT = 2048 };
@@ -105,11 +106,18 @@ struct iso_voldesc_prim {
 
 
 static int iso_voldesc_parse_prim(const void *p);
+static void iso_voldesc_prim_write(void *buf, uint type, uint root_dir_off, uint root_dir_size, uint nsectors);
 static void iso_date_parse(const struct iso_date *d, ffdtm *dt);
 static uint iso_ent_len(const struct iso_fent *ent);
 static int iso_ent_parse(const void *p, size_t len, ffiso_file *f, uint64 off);
 static ffstr iso_ent_name(const ffstr *name);
 static int iso_rr_parse(const void *p, size_t len, ffiso_file *f);
+static int iso_ent_write(void *buf, size_t cap, const struct ffiso_file *f, uint64 off, uint flags);
+static int iso_dirs_count(ffarr *dirs, uint64 *off, uint flags);
+static int iso_dirs_copy(ffarr *dst, ffarr *src);
+static int iso_dirs_countall(ffiso_cook *c);
+static void iso_files_setoffsets(ffarr *dirs, uint64 off);
+static int iso_dir_write(ffiso_cook *c, uint joliet);
 
 
 /** Parse primary volume descriptor. */
@@ -133,6 +141,45 @@ static int iso_voldesc_parse_prim(const void *p)
 	return 0;
 }
 
+static void* iso_voldesc_write(void *buf, uint type)
+{
+	struct iso_voldesc *vd = buf;
+	vd->type = type;
+	ffmemcpy(vd->id, "CD001", 5);
+	vd->ver = 1;
+	return vd->data;
+}
+
+static void iso_write32(byte *dst, uint val)
+{
+	ffint_htol32(dst, val);
+	ffint_hton32(dst + 4, val);
+}
+static void iso_write16(byte *dst, uint val)
+{
+	ffint_htol16(dst, val);
+	ffint_hton16(dst + 2, val);
+}
+
+static void iso_voldesc_prim_write(void *buf, uint type, uint root_dir_off, uint root_dir_size, uint nsectors)
+{
+	ffmem_zero(buf, FFISO_SECT);
+	struct iso_voldesc_prim *prim = iso_voldesc_write(buf, type);
+	prim->name[0] = ' ';
+	iso_write32(prim->vol_size, nsectors);
+	iso_write16(prim->log_blksize, FFISO_SECT);
+
+	struct ffiso_file f = {0};
+	ffstr_set(&f.name, "\x00", 1);
+	f.off = root_dir_off;
+	f.size = root_dir_size;
+	f.attr = FFUNIX_FILE_DIR;
+	iso_ent_write(prim->root_dir, sizeof(prim->root_dir), &f, root_dir_off, 0);
+
+	FFDBG_PRINTLN(5, "Prim Vol Desc:  vol-size:%u  off:%xu  size:%xu"
+		, nsectors, root_dir_off, root_dir_size);
+}
+
 /** Parse date from file entry. */
 static void iso_date_parse(const struct iso_date *d, ffdtm *dt)
 {
@@ -147,10 +194,25 @@ static void iso_date_parse(const struct iso_date *d, ffdtm *dt)
 	dt->yday = 0;
 }
 
+/** Write file entry date. */
+static void iso_date_write(struct iso_date *d, const ffdtm *dt)
+{
+	d->year = dt->year - 1900;
+	d->month = dt->month;
+	d->day = dt->day;
+	d->hour = dt->hour;
+	d->min = dt->min;
+	d->sec = dt->sec;
+}
+
 /** Get length of file entry before RR extensions. */
 static uint iso_ent_len(const struct iso_fent *ent)
 {
 	return FFOFF(struct iso_fent, name) + ent->namelen + !(ent->namelen % 2);
+}
+static uint iso_ent_len2(uint namelen)
+{
+	return FFOFF(struct iso_fent, name) + namelen + !(namelen % 2);
 }
 
 /** Parse file entry.
@@ -195,6 +257,103 @@ static int iso_ent_parse(const void *p, size_t len, ffiso_file *f, uint64 off)
 	fftime_join(&f->mtime, &dt, FFTIME_TZLOCAL);
 
 done:
+	return ent->len;
+}
+
+enum ENT_WRITE_F {
+	ENT_WRITE_RR = 1,
+	ENT_WRITE_JLT = 2,
+	// ENT_WRITE_CUT = 4, //cut large filenames, don't return error
+};
+
+/** Write file entry.
+@buf: must be filled with zeros.
+ if NULL: return output space required.
+@flags: enum ENT_WRITE_F
+Return bytes written;  <0 on error. */
+static int iso_ent_write(void *buf, size_t cap, const struct ffiso_file *f, uint64 off, uint flags)
+{
+	uint nlen, fnlen, reserved, rrlen;
+	size_t n;
+	FF_ASSERT(f->name.len != 0);
+
+	reserved = 0;
+	if ((f->attr & FFUNIX_FILE_DIR)
+		&& f->name.len == 1
+		&& (f->name.ptr[0] == 0x00 || f->name.ptr[0] == 0x01))
+		reserved = 1;
+
+	// determine filename length
+	if (reserved)
+		nlen = fnlen = 1;
+	else if (flags & ENT_WRITE_JLT) {
+		n = f->name.len;
+		nlen = ffutf8_to_utf16(NULL, 0, f->name.ptr, &n, FFU_FWHOLE | FFU_UTF16BE);
+		if (nlen >= 255) {
+			// if (!(flags & ENT_WRITE_CUT))
+				return -FFISO_ELARGE;
+			nlen = ffmin(nlen, 254);
+		}
+		fnlen = nlen;
+
+	} else {
+		nlen = ffmin(f->name.len, FFSLEN("12345678.123"));
+		fnlen = nlen;
+		if (!(f->attr & FFUNIX_FILE_DIR))
+			fnlen += FFSLEN(";1");
+	}
+
+	// get RR extensions length
+	rrlen = 0;
+	if (!reserved && (flags & ENT_WRITE_RR)) {
+		rrlen = sizeof(struct iso_rr) + sizeof(struct iso_rr_nm) + f->name.len;
+	}
+
+	if (iso_ent_len2(fnlen) + rrlen > 255)
+		return -FFISO_ELARGE;
+
+	if (buf == NULL)
+		return iso_ent_len2(fnlen) + rrlen;
+
+	if (cap < iso_ent_len2(fnlen) + rrlen)
+		return -FFISO_ELARGE;
+
+	struct iso_fent *ent = buf;
+	ent->namelen = fnlen;
+	ent->len = iso_ent_len(ent) + rrlen;
+	iso_write32(ent->body_off, f->off / FFISO_SECT);
+	iso_write32(ent->body_len, f->size);
+
+	ffdtm dt;
+	fftime_split(&dt, &f->mtime, FFTIME_TZLOCAL);
+	iso_date_write(&ent->date, &dt);
+
+	if (f->attr & FFUNIX_FILE_DIR)
+		ent->flags = ISO_FDIR;
+
+	// write filename
+	if (reserved)
+		ent->name[0] = f->name.ptr[0];
+	else if (flags & ENT_WRITE_JLT) {
+		n = nlen;
+		ffutf8_to_utf16((char*)ent->name, 255, f->name.ptr, &n, FFU_FWHOLE | FFU_UTF16BE);
+	} else {
+		ffs_upper((char*)ent->name, (char*)ent->name + nlen, f->name.ptr, nlen);
+		if (!(f->attr & FFUNIX_FILE_DIR))
+			ffs_copyz((char*)ent->name + nlen, (char*)buf + 255, ";1");
+	}
+
+	// write RR NM extension
+	if (rrlen != 0) {
+		struct iso_rr *rr = buf + iso_ent_len(ent);
+		ffmemcpy(rr->id, "NM", 2);
+		rr->len = rrlen;
+		struct iso_rr_nm *nm = (void*)rr->data;
+		ffs_copy((char*)nm->data, (char*)buf + 255, f->name.ptr, f->name.len);
+	}
+
+	FFDBG_PRINTLN(6, "Dir Ent: off:%xU  body-off:%xu  body-len:%xu  flags:%xu  name:%S  length:%u  RR-len:%u"
+		, off, f->off, f->size, ent->flags, &f->name, ent->len, rrlen);
 	return ent->len;
 }
 
@@ -535,4 +694,476 @@ void ffiso_readfile(ffiso *c, ffiso_file *f)
 	c->inoff = f->off;
 	c->fsize = f->size;
 	c->state = R_FDATA_SEEK;
+}
+
+
+struct dir {
+	struct ffiso_file info;
+	uint parent_dir;
+	uint ifile; //index in parent's files array representing this directory
+	ffarr files; //ffiso_file[]
+};
+
+int ffiso_wcreate(ffiso_cook *c, uint flags)
+{
+	if (NULL == ffarr_alloc(&c->buf, 16 * FFISO_SECT))
+		return -1;
+	c->ifile = -1;
+	struct dir *d;
+	d = ffarr_pushgrowT(&c->dirs, 64, struct dir);
+	if (d == NULL)
+		return FFISO_ESYS;
+	ffmem_tzero(d);
+	return 0;
+}
+
+void ffiso_wclose(ffiso_cook *c)
+{
+	struct dir *d;
+	struct ffiso_file *f;
+	FFARR_WALKT(&c->dirs, d, struct dir) {
+		FFARR_WALKT(&d->files, f, struct ffiso_file) {
+			ffstr_free(&f->name);
+		}
+		ffarr_free(&d->files);
+		ffstr_free(&d->info.name);
+	}
+	ffarr_free(&c->dirs);
+
+	FFARR_WALKT(&c->dirs_jlt, d, struct dir) {
+		ffarr_free(&d->files);
+	}
+
+	ffarr_free(&c->buf);
+}
+
+enum W {
+	W_DIR_WAIT, W_EMPTY, W_EMPTY_VD, W_DIR, W_DIR_JLT, W_FILE_NEXT, W_FILE, W_FILE_DONE,
+	W_VOLDESC_SEEK, W_VOLDESC_PRIM, W_VOLDESC_JLT, W_VOLDESC_TERM, W_DONE, W_ERR,
+};
+
+/** Set offset and size for each directory. */
+static int iso_dirs_count(ffarr *dirs, uint64 *off, uint flags)
+{
+	int r;
+	uint64 size;
+	struct dir *d, *parent;
+	struct ffiso_file *f;
+
+	FFARR_WALKT(dirs, d, struct dir) {
+
+		size = iso_ent_len2(1) * 2;
+
+		FFARR_WALKT(&d->files, f, struct ffiso_file) {
+			r = iso_ent_write(NULL, 0, f, 0, flags);
+			if (r < 0)
+				return -r;
+			size += r;
+		}
+
+		if (size > (uint)-1)
+			return FFISO_ELARGE;
+
+		d->info.size = size;
+		d->info.off = *off;
+		if ((void*)d != (void*)dirs->ptr) {
+			// set info in the parent's file array
+			parent = ffarr_itemT(dirs, d->parent_dir, struct dir);
+			f = ffarr_itemT(&parent->files, d->ifile, struct ffiso_file);
+			f->size = size;
+			f->off = *off;
+		}
+		*off += ff_align_ceil2(size, FFISO_SECT);
+	}
+
+	return 0;
+}
+
+/** Copy meta data of directories and files.  Names are not copied. */
+static int iso_dirs_copy(ffarr *dst, ffarr *src)
+{
+	if (NULL == ffarr_allocT(dst, src->len, struct dir))
+		return -1;
+
+	struct dir *d, *jd = (void*)dst->ptr;
+	FFARR_WALKT(src, d, struct dir) {
+		*jd = *d;
+		if (NULL == ffarr_allocT(&jd->files, d->files.len, struct ffiso_file))
+			return -1;
+		ffmemcpy(jd->files.ptr, d->files.ptr, d->files.len * sizeof(struct ffiso_file));
+		jd->files.len = d->files.len;
+		jd++;
+		dst->len++;
+	}
+
+	return 0;
+}
+
+/** Set offset for each file. */
+static void iso_files_setoffsets(ffarr *dirs, uint64 off)
+{
+	struct dir *d;
+	struct ffiso_file *f;
+	FFARR_WALKT(dirs, d, struct dir) {
+		FFARR_WALKT(&d->files, f, struct ffiso_file) {
+			if (!(f->attr & FFUNIX_FILE_DIR)) {
+				f->off = off;
+				off += ff_align_ceil2(f->size, FFISO_SECT);
+			}
+		}
+	}
+}
+
+/** Set offset and size for each directory.
+Set offset for each file. */
+static int iso_dirs_countall(ffiso_cook *c)
+{
+	int r;
+	uint64 off = (16 + 3) * FFISO_SECT;
+	uint flags = !(c->options & FFISO_NORR) ? ENT_WRITE_RR : 0;
+
+	if (0 != (r = iso_dirs_count(&c->dirs, &off, flags)))
+		return r;
+
+	if (!(c->options & FFISO_NOJOLIET)) {
+		if (0 != iso_dirs_copy(&c->dirs_jlt, &c->dirs))
+			return FFISO_ESYS;
+
+		if (0 != (r = iso_dirs_count(&c->dirs_jlt, &off, ENT_WRITE_JLT)))
+			return r;
+	}
+
+	iso_files_setoffsets(&c->dirs, off);
+
+	if (!(c->options & FFISO_NOJOLIET))
+		iso_files_setoffsets(&c->dirs_jlt, off);
+
+	return 0;
+}
+
+/** Write directory contents. */
+static int iso_dir_write(ffiso_cook *c, uint joliet)
+{
+	int r;
+	ffarr *dirs = (joliet) ? &c->dirs_jlt : &c->dirs;
+	const struct dir *d = ffarr_itemT(dirs, c->idir++, struct dir);
+	uint size_al = ff_align_ceil2(d->info.size, FFISO_SECT);
+	uint flags = !(c->options & FFISO_NORR) ? ENT_WRITE_RR : 0;
+	if (joliet)
+		flags = ENT_WRITE_JLT;
+	c->buf.len = 0;
+	if (NULL == ffarr_realloc(&c->buf, size_al))
+		return FFISO_ESYS;
+	ffmem_zero(c->buf.ptr, size_al);
+
+	struct ffiso_file f = {0};
+
+	f.off = d->info.off;
+	f.size = d->info.size;
+	f.attr = FFUNIX_FILE_DIR;
+	ffstr_set(&f.name, "\x00", 1);
+	r = iso_ent_write(ffarr_end(&c->buf), ffarr_unused(&c->buf), &f, c->off, flags);
+	c->buf.len += r;
+
+	ffstr_set(&f.name, "\x01", 1);
+	const struct dir *parent = ffarr_itemT(dirs, d->parent_dir, struct dir);
+	f.off = parent->info.off;
+	f.size = ff_align_ceil2(parent->info.size, FFISO_SECT);
+	f.attr = FFUNIX_FILE_DIR;
+	r = iso_ent_write(ffarr_end(&c->buf), ffarr_unused(&c->buf), &f, c->off, flags);
+	c->buf.len += r;
+
+	struct ffiso_file *pf;
+	FFARR_WALKT(&d->files, pf, struct ffiso_file) {
+		r = iso_ent_write(ffarr_end(&c->buf), ffarr_unused(&c->buf), pf, c->off, flags);
+		c->buf.len += r;
+	}
+
+	c->buf.len = size_al;
+	return 0;
+}
+
+/* ISO-9660 write:
+. Get the complete and sorted file list from user
+ . ffiso_wfile()
+. Write empty 16 sectors (FFISO_DATA)
+. Write 3 empty sectors for volume descriptors
+. For each directory estimate offset and size of its contents
+. Write all directories contents
+. Write files data
+ . ffiso_wfilenext()
+ . Write file data
+. ffiso_wfinish()
+. Seek to the beginning
+. Write "primary" volume descriptor
+. Write "joliet" volume descriptor
+. Write "terminate" volume descriptor (FFISO_DATA, FFISO_DONE)
+
+Example of placement of directory contents and file data:
+
+primary-VD -> /
+joliet-primary-VD -> JOLIET-/
+term-VD
+
+/:
+  "." -> /
+  ".." -> /
+  "a" -> /a
+    (RR entry)...
+  "d" -> /d
+  "z" -> /z
+
+/d:
+  "." -> /d
+  ".." -> /
+  "a" -> /d/a
+
+(JOLIET DIR CONTENTS)
+
+/a: <data>
+/z: <data>
+/d/a: <data>
+*/
+int ffiso_write(ffiso_cook *c)
+{
+	int r;
+
+	for (;;) {
+	switch ((enum W)c->state) {
+
+	case W_DIR_WAIT:
+		if (c->dirs.len != 0) {
+			c->state = W_EMPTY;
+			continue;
+		}
+		return FFISO_MORE;
+
+	case W_EMPTY:
+		ffmem_zero(c->buf.ptr, 16 * FFISO_SECT);
+		ffstr_set(&c->out, c->buf.ptr, 16 * FFISO_SECT);
+		c->off += c->out.len;
+		c->state = W_EMPTY_VD;
+		return FFISO_DATA;
+
+	case W_EMPTY_VD:
+		ffstr_set(&c->out, c->buf.ptr, 3 * FFISO_SECT);
+		c->off += c->out.len;
+		if (0 != (r = iso_dirs_countall(c)))
+			return r;
+		c->idir = 0;
+		c->state = W_DIR;
+		return FFISO_DATA;
+
+	case W_DIR:
+	case W_DIR_JLT:
+		if (c->idir == c->dirs.len) {
+			c->idir = 0;
+			if (c->state == W_DIR && !(c->options & FFISO_NOJOLIET)) {
+				c->state = W_DIR_JLT;
+				continue;
+			}
+			c->state = W_FILE_NEXT;
+			return FFISO_MORE;
+		}
+		if (0 != (r = iso_dir_write(c, (c->state == W_DIR_JLT))))
+			return ERR(c, r);
+		ffstr_set(&c->out, c->buf.ptr, c->buf.len);
+		c->off += c->out.len;
+		c->nsectors += c->buf.len / FFISO_SECT;
+		return FFISO_DATA;
+
+	case W_FILE: {
+		ffstr_set2(&c->out, &c->in);
+		c->off += c->out.len;
+		c->curfile_size += c->out.len;
+		const struct dir *d = ffarr_itemT(&c->dirs, c->idir, struct dir);
+		const struct ffiso_file *f = ffarr_itemT(&d->files, c->ifile, struct ffiso_file);
+		if (c->curfile_size > f->size)
+			return ERR(c, FFISO_ELARGE);
+		if (c->curfile_size == f->size)
+			c->state = W_FILE_DONE;
+		c->in.len = 0;
+		c->nsectors += c->buf.len / FFISO_SECT;
+		return FFISO_DATA;
+	}
+
+	case W_FILE_DONE:
+		c->state = W_FILE_NEXT;
+		ffmem_zero(c->buf.ptr, FFISO_SECT);
+		ffstr_set(&c->out, c->buf.ptr, FFISO_SECT - (c->curfile_size % FFISO_SECT));
+		c->nsectors++;
+		return FFISO_DATA;
+
+	case W_FILE_NEXT:
+		return FFISO_MORE;
+
+
+	case W_VOLDESC_SEEK:
+		c->off = 16 * FFISO_SECT;
+		c->state = W_VOLDESC_PRIM;
+		return FFISO_SEEK;
+
+	case W_VOLDESC_PRIM: {
+		const struct dir *d = (void*)c->dirs.ptr;
+		iso_voldesc_prim_write(c->buf.ptr, ISO_T_PRIM
+			, d->info.off, d->info.size, 16 + 3 + c->nsectors);
+
+		ffstr_set(&c->out, c->buf.ptr, FFISO_SECT);
+		c->off += FFISO_SECT;
+		c->state = !(c->options & FFISO_NOJOLIET) ? W_VOLDESC_JLT : W_VOLDESC_TERM;
+		return FFISO_DATA;
+	}
+
+	case W_VOLDESC_JLT: {
+		const struct dir *jd = (void*)c->dirs_jlt.ptr;
+		ffmem_zero(c->buf.ptr, FFISO_SECT);
+		iso_voldesc_prim_write(c->buf.ptr, ISO_T_JOLIET
+			, jd->info.off, jd->info.size, 16 + 3 + c->nsectors);
+
+		ffstr_set(&c->out, c->buf.ptr, FFISO_SECT);
+		c->off += FFISO_SECT;
+		c->state = W_VOLDESC_TERM;
+		return FFISO_DATA;
+	}
+
+	case W_VOLDESC_TERM:
+		ffmem_zero(c->buf.ptr, FFISO_SECT);
+		iso_voldesc_write(c->buf.ptr, ISO_T_TERM);
+
+		ffstr_set(&c->out, c->buf.ptr, FFISO_SECT);
+		c->off += FFISO_SECT;
+		c->state = W_DONE;
+		return FFISO_DATA;
+
+	case W_DONE:
+		return FFISO_DONE;
+
+	case W_ERR:
+		return ERR(c, FFISO_ENOTREADY);
+	}
+	}
+	return 0;
+}
+
+static struct dir* dir_find(ffiso_cook *c, const ffstr *path)
+{
+	struct dir *d;
+	FFARR_WALKT(&c->dirs, d, struct dir) {
+		if (ffstr_eq2(path, &d->info.name))
+			return d;
+	}
+	return NULL;
+}
+
+void ffiso_wfile(ffiso_cook *c, const ffiso_file *f)
+{
+	if (c->state != W_DIR_WAIT) {
+		c->err = FFISO_ENOTREADY;
+		goto err;
+	}
+
+	struct dir *parent, *d;
+	ffiso_file *nf;
+	ffstr path, name;
+
+	ffpath_split2(f->name.ptr, f->name.len, &path, &name);
+	parent = dir_find(c, &path);
+	if (parent == NULL) {
+		c->err = FFISO_EDIRORDER; // trying to add "dir/file" with no "dir" added previously
+		goto err;
+	}
+
+	if (f->attr & FFUNIX_FILE_DIR) {
+		uint i = parent - (struct dir*)c->dirs.ptr;
+		d = ffarr_pushgrowT(&c->dirs, 64, struct dir);
+		if (d == NULL) {
+			c->err = FFISO_ESYS;
+			goto err;
+		}
+		ffmem_tzero(d);
+		d->parent_dir = i;
+		parent = ffarr_itemT(&c->dirs, d->parent_dir, struct dir);
+		d->ifile = parent->files.len;
+		if (NULL == ffstr_alcopystr(&d->info.name, &f->name)) {
+			c->dirs.len--; {
+			c->err = FFISO_ESYS;
+			goto err;
+		}
+		}
+	}
+
+	nf = ffarr_pushgrowT(&parent->files, 64, ffiso_file);
+	if (nf == NULL) {
+		c->err = FFISO_ESYS;
+		goto err;
+	}
+	ffmem_tzero(nf);
+	if (NULL == ffstr_alcopystr(&nf->name, &name)) {
+		parent->files.len--;
+		c->err = FFISO_ESYS;
+		goto err;
+	}
+	nf->attr = f->attr;
+	nf->mtime = f->mtime;
+	nf->size = f->size;
+	return;
+
+err:
+	c->state = W_ERR;
+}
+
+static struct ffiso_file* file_next(ffiso_cook *c)
+{
+	struct dir *d = (void*)c->dirs.ptr;
+	c->ifile++;
+
+	for (uint i = c->idir;  i != c->dirs.len;  i++) {
+
+		struct ffiso_file *f = (void*)d[i].files.ptr;
+
+		for (uint k = c->ifile;  k != d[i].files.len;  k++) {
+
+			if (!(f[k].attr & FFUNIX_FILE_DIR)) {
+				c->idir = i;
+				c->ifile = k;
+				return &f[k];
+			}
+		}
+		c->ifile = 0;
+	}
+	return NULL;
+}
+
+void ffiso_wfilenext(ffiso_cook *c)
+{
+	if (c->state != W_FILE_NEXT) {
+		c->err = FFISO_ENOTREADY;
+		c->state = W_ERR;
+		return;
+	}
+
+	const struct ffiso_file *f = file_next(c);
+	if (f == NULL) {
+		c->err = FFISO_ENOTREADY;
+		c->state = W_ERR;
+		return;
+	}
+
+	const struct dir *d = ffarr_itemT(&c->dirs, c->idir, struct dir);
+	(void)d;
+	FFDBG_PRINTLN(10, "writing file data for %S/%S"
+		, &d->info.name, &f->name);
+
+	c->state = W_FILE;
+	c->curfile_size = 0;
+}
+
+void ffiso_wfinish(ffiso_cook *c)
+{
+	if (c->state != W_FILE_NEXT) {
+		c->err = FFISO_ENOTREADY;
+		c->state = W_ERR;
+		return;
+	}
+	c->state = W_VOLDESC_SEEK;
 }

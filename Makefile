@@ -35,7 +35,8 @@ FF_TEST_HDR := $(wildcard $(FF)/test/*.h)
 
 FF_TEST_SRC := \
 	$(FF)/test/base.c $(FF)/test/conf.c $(FF)/test/http.c $(FF)/test/json.c $(FF)/test/str.c \
-	$(FF)/test/test.c $(FF)/test/time.c $(FF)/test/url.c $(FF)/test/cue.c $(FF)/test/sys.c
+	$(FF)/test/test.c $(FF)/test/time.c $(FF)/test/url.c $(FF)/test/cue.c $(FF)/test/sys.c \
+	$(FF)/test/arc.c
 # $(FF)/test/compat.cpp
 FF_TEST_OBJ := $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_TEST_SRC)))))
 
@@ -59,6 +60,7 @@ FF_TEST_O := $(FFOS_OBJ) $(FF_OBJ) \
 	$(FF_OBJ_DIR)/ffcue.o \
 	$(FF_OBJ_DIR)/ffxml.o \
 	$(FF_OBJ_DIR)/ffsendfile.o \
+	$(FF_OBJ_DIR)/ffiso.o \
 	$(FF_OBJ_DIR)/fftest.o $(FF_TEST_OBJ)
 
 $(FF_TEST_BIN): $(FF_TEST_O)

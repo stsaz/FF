@@ -79,6 +79,7 @@ enum FFISO_R {
 	FFISO_LISTEND, //reached the end of meta data
 	FFISO_DATA, //call ffiso_output() to get file data
 	FFISO_FILEDONE, //file data is finished
+	FFISO_DONE, //output .iso is finished
 };
 
 /**
@@ -104,3 +105,37 @@ FF_EXTN void ffiso_readfile(ffiso *c, ffiso_file *f);
 #define ffiso_output(c)  ((c)->out)
 
 #define ffiso_offset(c)  ((c)->inoff)
+
+
+typedef struct ffiso_cook {
+	uint state;
+	int err;
+	uint64 off;
+	ffarr buf;
+	ffstr in, out;
+	ffarr dirs; //struct dir[]
+	ffarr dirs_jlt; //struct dir[]
+	uint idir;
+	int ifile;
+	uint nsectors;
+	uint64 curfile_size;
+	uint options; //enum FFISO_OPT
+	uint filedone :1;
+} ffiso_cook;
+
+FF_EXTN int ffiso_wcreate(ffiso_cook *c, uint flags);
+FF_EXTN void ffiso_wclose(ffiso_cook *c);
+
+FF_EXTN int ffiso_write(ffiso_cook *c);
+
+/** Add a new file.
+'f.name' must be normalized.
+Files inside directories must be added after the parent directory level is complete
+ ("dir/file" after "a", "dir", "z"). */
+FF_EXTN void ffiso_wfile(ffiso_cook *c, const ffiso_file *f);
+
+/** Prepare to add a new file data. */
+FF_EXTN void ffiso_wfilenext(ffiso_cook *c);
+
+/** All input data is processed. */
+FF_EXTN void ffiso_wfinish(ffiso_cook *c);
