@@ -12,10 +12,26 @@ Copyright (c) 2015 Simon Zolin
 #include <flac/FLAC-ff.h>
 
 
-typedef struct ffflac {
+typedef struct ffflac_dec {
 	flac_decoder *dec;
+	int err;
+	uint errtype;
+	ffflac_info info;
+	uint64 frsample;
+	uint64 seeksample;
+	ffflac_frame frame;
+	ffstr in;
+
+	size_t pcmlen;
+	void **pcm;
+	const void *out[FLAC__MAX_CHANNELS];
+} ffflac_dec;
+
+
+typedef struct ffflac {
 	int st;
 	int err;
+	uint errtype;
 	ffpcm fmt;
 	ffstr3 buf;
 	uint bufoff;
@@ -25,11 +41,9 @@ typedef struct ffflac {
 	ffflac_frame frame;
 	byte first_framehdr[4];
 	uint64 seeksample;
-	uint64 frsample;
 	unsigned fin :1
 		, hdrlast :1
 		, seek_ok :1
-		, errtype :8
 		;
 
 	ffflac_info info;
@@ -44,9 +58,12 @@ typedef struct ffflac {
 	const char *data;
 	uint bytes_skipped; // bytes skipped while trying to find sync
 
+	ffstr output;
+
+	// deprecated:
+	ffflac_dec decoder;
 	size_t pcmlen;
 	void **pcm;
-	const void *out[FLAC__MAX_CHANNELS];
 } ffflac;
 
 FF_EXTN const char* ffflac_errstr(ffflac *f);
@@ -75,10 +92,34 @@ FF_EXTN void ffflac_seek(ffflac *f, uint64 sample);
 #define ffflac_seekoff(f)  ((f)->off)
 
 /** Return enum FFFLAC_R. */
-FF_EXTN int ffflac_decode(ffflac *f);
+FF_EXTN int ffflac_read(ffflac *f);
+FF_EXTN int ffflac_read_decode(ffflac *f); // deprecated
 
 /** Get an absolute sample number. */
-#define ffflac_cursample(f)  ((f)->frsample)
+#define ffflac_cursample(f)  ((f)->decoder.frsample)
+
+
+FF_EXTN const char* ffflac_dec_errstr(ffflac_dec *f);
+
+/** Return 0 on success. */
+FF_EXTN int ffflac_dec_open(ffflac_dec *f, const ffflac_info *info);
+
+FF_EXTN void ffflac_dec_close(ffflac_dec *f);
+
+#define ffflac_dec_seek(f, sample) \
+	(f)->seeksample = sample
+
+#define ffflac_dec_input(f, fr, input) \
+	(f)->frame = *(fr),  (f)->in = *(input)
+
+/** Return enum FFFLAC_R. */
+FF_EXTN int ffflac_decode(ffflac_dec *f);
+
+static FFINL size_t ffflac_dec_output(ffflac_dec *f, void ***pcm)
+{
+	*pcm = f->pcm;
+	return f->pcmlen;
+}
 
 
 enum FFFLAC_ENC_OPT {
