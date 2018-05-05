@@ -82,6 +82,7 @@ int ffflac_addtag(ffflac_cook *f, const char *name, const char *val, size_t vall
 	return 0;
 }
 
+/** Get buffer with INFO, TAGS and PADDING blocks. */
 static int _ffflac_whdr(ffflac_cook *f)
 {
 	if (f->seektable_int != 0 && f->total_samples != 0) {
@@ -96,33 +97,30 @@ static int _ffflac_whdr(ffflac_cook *f)
 	ffarr_acq(&f->outbuf, &f->vtag.out);
 	uint padding = ffmax((int)(f->min_meta - taglen), 0);
 
-	flac_sethdr(f->outbuf.ptr + tagoff, FLAC_TTAGS, (padding == 0 && f->sktab.len == 0), taglen);
+	uint nblocks = 1 + (padding != 0) + (f->sktab.len != 0);
 
-	if (NULL == ffarr_realloc(&f->outbuf, flac_hdrsize(taglen, padding, f->sktab.len)))
+	flac_sethdr(f->outbuf.ptr + tagoff, FLAC_TTAGS, (nblocks == 1), taglen);
+
+	if (NULL == ffarr_realloc(&f->outbuf, flac_hdrsize(taglen, padding)))
 		return ERR(f, FLAC_ESYS);
 
 	if (padding != 0)
-		f->outbuf.len += flac_padding_write(ffarr_end(&f->outbuf), padding, f->sktab.len == 0);
-
-	if (f->sktab.len != 0) {
-		f->seektab_off = f->outbuf.len;
-		uint len = flac_seektab_size(f->sktab.len);
-		ffmem_zero(ffarr_end(&f->outbuf), len);
-		f->outbuf.len += len;
-	}
+		f->outbuf.len += flac_padding_write(ffarr_end(&f->outbuf), padding, (nblocks == 2));
 
 	f->hdrlen = f->outbuf.len;
 	return 0;
 }
 
 enum {
-	W_HDR, W_FRAMES,
+	W_HDR, W_SEEKTAB_SPACE,
+	W_FRAMES,
 	W_SEEK0, W_INFO_WRITE, W_SEEKTAB_SEEK, W_SEEKTAB_WRITE,
 };
 
 /* FLAC write:
-Reserve the space in output file for FLAC stream info and seek table.
+Reserve the space in output file for FLAC stream info.
 Write vorbis comments and padding.
+Write empty seek table.
 After all frames have been written,
   seek back to the beginning and write the complete FLAC stream info and seek table.
 */
@@ -139,8 +137,21 @@ int ffflac_write(ffflac_cook *f, uint in_frsamps)
 
 		ffstr_set2(&f->out, &f->outbuf);
 		f->outbuf.len = 0;
-		f->state = W_FRAMES;
+		f->state = W_SEEKTAB_SPACE;
 		return FFFLAC_RDATA;
+
+	case W_SEEKTAB_SPACE: {
+		f->state = W_FRAMES;
+		if (f->sktab.len == 0)
+			continue;
+		uint len = flac_seektab_size(f->sktab.len);
+		if (NULL == ffarr_realloc(&f->outbuf, len))
+			return ERR(f, FLAC_ESYS);
+		f->seektab_off = f->hdrlen;
+		ffmem_zero(f->outbuf.ptr, len);
+		ffstr_set(&f->out, f->outbuf.ptr, len);
+		return FFFLAC_RDATA;
+	}
 
 	case W_FRAMES:
 		if (f->fin) {

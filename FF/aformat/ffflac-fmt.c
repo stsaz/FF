@@ -23,13 +23,12 @@ int flac_hdr(const char *data, size_t size, uint *blocksize, uint *islast)
 	return hdr->type;
 }
 
-/** Return the size required for the whole header. */
-uint flac_hdrsize(uint tags_size, uint padding, size_t seekpts)
+/** Return the size required for INFO, TAGS and PADDING blocks. */
+uint flac_hdrsize(uint tags_size, uint padding)
 {
 	return FLAC_MINSIZE
 		+ sizeof(struct flac_hdr) + tags_size
-		+ sizeof(struct flac_hdr) + padding
-		+ flac_seektab_size(seekpts);
+		+ sizeof(struct flac_hdr) + padding;
 }
 
 void flac_sethdr(void *dst, uint type, uint islast, uint size)

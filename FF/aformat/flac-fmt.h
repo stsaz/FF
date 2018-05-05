@@ -80,7 +80,7 @@ enum {
 };
 
 
-FF_EXTN uint flac_hdrsize(uint tags_size, uint padding, size_t seekpts);
+FF_EXTN uint flac_hdrsize(uint tags_size, uint padding);
 FF_EXTN int flac_hdr(const char *data, size_t size, uint *blocksize, uint *islast);
 FF_EXTN void flac_sethdr(void *dst, uint type, uint islast, uint size);
 
