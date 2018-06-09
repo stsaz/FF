@@ -616,6 +616,10 @@ FF_EXTN int fffile_readall(ffarr *a, const char *fn, uint64 limit);
 @flags: O_* (default: O_CREAT | O_TRUNC) */
 FF_EXTN int fffile_writeall(const char *fn, const char *d, size_t len, uint flags);
 
+/** Compare files by content.
+@limit: maximum amount of data to process (0:unlimited). */
+FF_EXTN int fffile_cmp(const char *fn1, const char *fn2, uint64 limit);
+
 /** Buffered data output.
 @dst is set if an output data block is ready.
 Return the number of processed bytes. */

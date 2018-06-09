@@ -14,6 +14,31 @@ Copyright (c) 2017 Simon Zolin
 #define x FFTEST_BOOL
 
 
+int test_file(void)
+{
+	FFTEST_FUNC;
+
+	const char *fn1 = TESTDIR "/f1.tmp",  *fn2 = TESTDIR "/f2.tmp";
+	ffarr a = {};
+	ffarr_alloc(&a, 100 * 1024);
+	ffs_fill(a.ptr, ffarr_edge(&a), 'A', 100 * 1024);
+	a.len = a.cap;
+
+	ffarr_back(&a) = 'B';
+	x(0 == fffile_writeall(fn1, a.ptr, a.len, 0));
+	ffarr_back(&a) = 'C';
+	x(0 == fffile_writeall(fn2, a.ptr, a.len, 0));
+
+	x(fffile_cmp(fn1, fn2, 0) < 0);
+	x(fffile_cmp(fn2, fn1, 0) > 0);
+	x(fffile_cmp(fn2, fn1, 100 * 1024 - 1) == 0);
+
+	fffile_rm(fn1);
+	fffile_rm(fn2);
+	ffarr_free(&a);
+	return 0;
+}
+
 int test_fmap()
 {
 	fffd fd;
