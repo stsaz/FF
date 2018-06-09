@@ -318,6 +318,7 @@ static int _ffmpg_streaminfo(ffmpgr *m, const char *p, uint datalen, const char 
 		m->total_len = (m->total_size - m->dataoff) * 1000 / (ffmpg_hdr_bitrate(h) / 8);
 
 	m->total_samples = ffpcm_samples(m->total_len, ffmpg_hdr_sample_rate(h));
+	m->duration_inaccurate = 1;
 	return 0;
 }
 

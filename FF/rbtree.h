@@ -99,6 +99,11 @@ static FFINL void ffrbt_init(ffrbtree *tr) {
 /** Insert node.
 'ancestor': search starting at this node (optional parameter). */
 FF_EXTN void ffrbt_insert(ffrbtree *tr, ffrbt_node *nod, ffrbt_node *ancestor);
+#define ffrbt_insert4(tr, nod, ancestor, node_key) \
+do { \
+	(nod)->key = (node_key); \
+	ffrbt_insert(tr, nod, ancestor); \
+} while (0)
 
 /** Remove node. */
 FF_EXTN void ffrbt_rm(ffrbtree *tr, ffrbt_node *nod);

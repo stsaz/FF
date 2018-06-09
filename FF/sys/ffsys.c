@@ -13,6 +13,19 @@ Copyright (c) 2014 Simon Zolin
 #include <FFOS/error.h>
 
 
+/** Make directories for a filename. */
+int fffile_makepath(char *fn, size_t off)
+{
+	ffstr dir;
+	ffpath_split2(fn, ffsz_len(fn), &dir, NULL);
+	char *s = dir.ptr + dir.len;
+	char c = *s;
+	*s = '\0';
+	int r = ffdir_rmake(dir.ptr, off);
+	*s = c;
+	return r;
+}
+
 static const char s_fmode[] = ".pc.d.b.-.l.s...";
 static const char s_fperm_set[] = "rwxrwxrwx";
 

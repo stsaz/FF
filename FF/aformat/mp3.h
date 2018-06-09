@@ -51,6 +51,7 @@ typedef struct ffmpgr {
 	uint fr_body :1
 		, lostsync :1
 		, frame2 :1
+		, duration_inaccurate :1
 		;
 } ffmpgr;
 

@@ -37,6 +37,7 @@ FEATURES
 	* HTTP - `FF/net/http.h`
 	* DNS - `FF/net/dns.h`
 	* SSL (libssl, libcrypto) - `FF/net/ssl.h`
+	* TLS reader - `FF/net/tls.h`
 
 * Data - `FF/data/`
 	* JSON reader/writer  - `FF/data/json.h`
@@ -56,7 +57,7 @@ FEATURES
 	* .zip (read/write) - `FF/pack/zip.h`
 	* .7z (read) - `FF/pack/7z.h`
 	* .tar (read/write) - `FF/pack/tar.h`
-	* .iso (read) - `FF/pack/iso.h`
+	* .iso (read/write) - `FF/pack/iso.h`
 
 * Picture - `FF/pic/`
 	* BMP - `FF/pic/bmp.h`

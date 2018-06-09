@@ -20,19 +20,19 @@ static int _ffmp4_boxdata(ffmp4_cook *m, const struct bbox *b);
 
 
 static const char *const mp4_errs[] = {
-	"",
-	"invalid data",
-	"box is larger than its parent",
-	"too small box",
-	"unsupported order of boxes",
-	"duplicate box",
-	"mandatory box not found",
-	"no audio format info",
-	"unsupported audio codec",
-	"trying to add more frames than expected",
-	"co64 output isn't supported",
+	"", //MP4_EOK
+	"invalid data", //MP4_EDATA
+	"box is larger than its parent", //MP4_ELARGE
+	"too small box", //MP4_ESMALL
+	"unsupported order of boxes", //MP4_EORDER
+	"duplicate box", //MP4_EDUPBOX
+	"mandatory box not found", //MP4_ENOREQ
+	"no audio format info", //MP4_ENOFMT
+	"unsupported audio codec", //MP4_EACODEC
+	"trying to add more frames than expected", //MP4_ENFRAMES
+	"co64 output isn't supported", //MP4_ECO64
 
-	"invalid seek position",
+	"invalid seek position", //MP4_ESEEK
 };
 
 const char* ffmp4_errstr(ffmp4 *m)

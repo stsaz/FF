@@ -1289,6 +1289,8 @@ format:
 #endif
 		case 's': {
 			const char *s = va_arg(va, char *);
+			if (s == NULL)
+				s = "(null)";
 			if (swidth == (size_t)-1) {
 				p = buf;
 				buf = ffs_copyz(buf, end, s);
