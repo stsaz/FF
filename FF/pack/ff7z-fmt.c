@@ -12,19 +12,20 @@ Copyright (c) 2017 Simon Zolin
 typedef struct z7_bblock z7_bblock;
 static int z7_packinfo_read(ffarr *stms, ffstr *d);
 static int z7_packsizes_read(ffarr *stms, ffstr *d);
-static int z7_stmcoders_read(ffarr *stms, ffstr *d);
-static int z7_datasizes_read(ffarr *stms, ffstr *d);
-static int z7_datacrcs_read(ffarr *stms, ffstr *d);
-static int z7_stmfiles_read(ffarr *stms, ffstr *d);
-static int z7_fsizes_read(ffarr *stms, ffstr *d);
-static int z7_fcrcs_read(ffarr *stms, ffstr *d);
-static int z7_fileinfo_read(ffarr *stms, ffstr *d);
-static int z7_names_read(ffarr *stms, ffstr *d);
-static int z7_mtimes_read(ffarr *stms, ffstr *d);
-static int z7_winattrs_read(ffarr *stms, ffstr *d);
-static int z7_emptystms_read(ffarr *stms, ffstr *d);
-static int z7_emptyfiles_read(ffarr *stms, ffstr *d);
-static int z7_dummy_read(ffarr *stms, ffstr *d);
+static int z7_folder_read(struct z7_folder *fo, ffstr *d, ffarr2 *stms);
+static int z7_folders_read(ffarr *stms, ffstr *d);
+static int z7_datasizes_read(ffarr *folders, ffstr *d);
+static int z7_datacrcs_read(ffarr *folders, ffstr *d);
+static int z7_stmfiles_read(ffarr *folders, ffstr *d);
+static int z7_fsizes_read(ffarr *folders, ffstr *d);
+static int z7_fcrcs_read(ffarr *folders, ffstr *d);
+static int z7_fileinfo_read(ffarr *folders, ffstr *d);
+static int z7_names_read(ffarr *folders, ffstr *d);
+static int z7_mtimes_read(ffarr *folders, ffstr *d);
+static int z7_winattrs_read(ffarr *folders, ffstr *d);
+static int z7_emptystms_read(ffarr *folders, ffstr *d);
+static int z7_emptyfiles_read(ffarr *folders, ffstr *d);
+static int z7_dummy_read(ffarr *folders, ffstr *d);
 
 
 // 32 bytes
@@ -173,10 +174,10 @@ static int z7_packinfo_read(ffarr *stms, ffstr *d)
 	if (n == 0)
 		return FF7Z_EUNSUPP;
 
-	if (NULL == ffarr_alloczT(stms, n + 1 /*stream for empty files*/ , z7_stream))
+	if (NULL == ffarr_alloczT(stms, n, struct z7_stream))
 		return FF7Z_ESYS;
 	stms->len = n;
-	z7_stream *s = (void*)stms->ptr;
+	struct z7_stream *s = (void*)stms->ptr;
 	s->off = off;
 	return 0;
 }
@@ -187,7 +188,7 @@ varint PackSize[NumPackStreams]
 static int z7_packsizes_read(ffarr *stms, ffstr *d)
 {
 	int r;
-	z7_stream *s = (void*)stms->ptr;
+	struct z7_stream *s = (void*)stms->ptr;
 	uint64 n, off = s->off;
 
 	for (size_t i = 0;  i != stms->len;  i++) {
@@ -204,133 +205,207 @@ static int z7_packsizes_read(ffarr *stms, ffstr *d)
 }
 
 enum FOLDER_F {
+	/** BCJ2 decoder has 4 input streams, 3 of them must be decompressed separately:
+	stream0 -> lzma -\
+	stream1 -> lzma -\
+	stream2 -> lzma -\
+	stream3         -> bcj2
+	*/
+	F_COMPLEXCODER = 0x10,
 	F_ATTRS = 0x20,
 };
 
-static const char* const z7_method[] = {
-	"\x03\x01\x01",
-	"\x03\x03\x01\x03",
-	"\x04\x01\x08",
-	"\x21",
+static const char z7_method[][4] = {
+	"\x00", //FF7Z_M_STORE
+	"\x03\x01\x01", //FF7Z_M_LZMA1
+	"\x03\x03\x01\x03", //FF7Z_M_X86
+	"\x03\x03\x01\x1b", //FF7Z_M_X86_BCJ2
+	"\x04\x01\x08", //FF7Z_M_DEFLATE
+	"\x21", //FF7Z_M_LZMA2
 };
+
+/** Read data for 1 folder. */
+static int z7_folder_read(struct z7_folder *fo, ffstr *d, ffarr2 *stms)
+{
+	int r;
+	uint64 n, coders_n, in_streams;
+
+	if (0 == z7_readint(d, &coders_n))
+		return FF7Z_EMORE;
+	FFDBG_PRINTLN(10, "coders:%U", coders_n);
+	if (coders_n - 1 > Z7_MAX_CODERS)
+		return FF7Z_EDATA;
+
+	in_streams = coders_n;
+	fo->coders = coders_n;
+
+	for (uint i = 0;  i != coders_n;  i++) {
+
+		struct z7_coder *cod = &fo->coder[i];
+		uint flags;
+		if (0 != z7_readbyte(d, &flags))
+			return FF7Z_EMORE;
+
+		uint methlen = flags & 0x0f;
+		flags &= 0xf0;
+		if (d->len < methlen)
+			return FF7Z_EMORE;
+		FFDBG_PRINTLN(10, " coder:%*xb  flags:%xu", (size_t)methlen, d->ptr, flags);
+		r = ffcharr_findsorted(z7_method, FFCNT(z7_method), sizeof(*z7_method), d->ptr, methlen);
+		if (r >= 0)
+			cod->method = r + 1;
+		ffstr_shift(d, methlen);
+
+		if (flags & F_COMPLEXCODER) {
+			uint64 in;
+			if (0 == z7_readint(d, &in))
+				return FF7Z_EMORE;
+			if (0 == z7_readint(d, &n))
+				return FF7Z_EMORE;
+			FFDBG_PRINTLN(10, "  complex-coder: in:%U  out:%U", in, n);
+			if (in - 1 > Z7_MAX_CODERS || n != 1)
+				return FF7Z_EDATA;
+			flags &= ~F_COMPLEXCODER;
+			in_streams += in - 1;
+		}
+
+		if (flags & F_ATTRS) {
+			if (0 == z7_readint(d, &n))
+				return FF7Z_EMORE;
+			if (d->len < n)
+				return FF7Z_EMORE;
+			FFDBG_PRINTLN(10, "  props:%*xb", (size_t)n, d->ptr);
+			if (n >= FFCNT(cod->props))
+				return FF7Z_EUNSUPP;
+			ffmemcpy(cod->props, d->ptr, n);
+			cod->nprops = n;
+			ffstr_shift(d, n);
+			flags &= ~F_ATTRS;
+		}
+
+		if (flags != 0)
+			return FF7Z_EFOLDER_FLAGS;
+	}
+
+	uint bonds = coders_n - 1;
+	for (uint i = 0;  i != bonds;  i++) {
+		uint64 in, out;
+		if (0 == z7_readint(d, &in))
+			return FF7Z_EMORE;
+		if (0 == z7_readint(d, &out))
+			return FF7Z_EMORE;
+		FFDBG_PRINTLN(10, " bond: in:%U  out:%U", in, out);
+		fo->coder[coders_n - 1].input_coders[i] = i + 1;
+	}
+
+	uint pack_streams = in_streams - bonds;
+	if (pack_streams > stms->len)
+		return FF7Z_EDATA;
+	if (pack_streams != 1) {
+		for (uint i = 0;  i != pack_streams;  i++) {
+			if (0 == z7_readint(d, &n))
+				return FF7Z_EMORE;
+			FFDBG_PRINTLN(10, " pack-stream:%U", n);
+		}
+	}
+
+	struct z7_stream *stm = (void*)stms->ptr;
+	for (uint i = 0;  i != pack_streams;  i++) {
+		fo->coder[i].stream.off = stm->off;
+		fo->coder[i].stream.pack_size = stm->pack_size;
+		stm++;
+	}
+	ffarr_set(stms, stm, stms->len - pack_streams);
+	return 0;
+}
 
 /*
 varint NumFolders
 byte External
  0:
   {
+   // set NumInStreams = 0
    varint NumCoders
    {
     byte CodecIdSize :4
     byte Flags :4 //enum FOLDER_F
     byte CodecId[CodecIdSize]
+
+    F_COMPLEXCODER:
+     varint +=NumInStreams;
+     varint NumOutStreams; //=1
+    else
+     ++NumInStreams
+
     F_ATTRS:
      varint PropertiesSize
      byte Properties[PropertiesSize]
    } [NumCoders]
 
    {
-    UINT64 InIndex;
-    UINT64 OutIndex;
+    varint InIndex;
+    varint OutIndex;
    } [NumCoders - 1]
+
+   varint PackStream[NumInStreams - (NumCoders - 1)]
 
   } [NumFolders]
 */
-static int z7_stmcoders_read(ffarr *stms, ffstr *d)
+static int z7_folders_read(ffarr *stms, ffstr *d)
 {
 	int r;
-	uint i, ic, ext;
-	uint64 folders, n, coders_n;
-	z7_stream *s = (void*)stms->ptr;
+	uint ext;
+	uint64 folders;
+	struct z7_folder *fo;
+	ffarr a = {};
+	ffarr2 streams;
 
-	if (0 == (r = z7_readint(d, &folders)))
+	if (0 == z7_readint(d, &folders))
 		return FF7Z_EMORE;
 	FFDBG_PRINTLN(10, "folders:%U", folders);
-
-	if (folders != stms->len)
-		return FF7Z_EUNSUPP;
 
 	if (0 != z7_readbyte(d, &ext))
 		return FF7Z_EMORE;
 	if (!!ext)
 		return FF7Z_EUNSUPP;
 
-	for (i = 0;  i != folders;  i++) {
+	if (NULL == ffarr_alloczT(&a, folders + 1 /*folder for empty files*/, struct z7_folder))
+		return FF7Z_ESYS;
+	fo = (void*)a.ptr;
 
-		if (0 == (r = z7_readint(d, &coders_n)))
-			return FF7Z_EMORE;
-		FFDBG_PRINTLN(10, "coders:%U", coders_n);
-		if (coders_n > FFCNT(s[i].coder))
-			return FF7Z_EUNSUPP;
-		for (ic = 0;  ic != coders_n;  ic++) {
+	ffstr_set2(&streams, stms);
 
-			struct z7_coder *cod = &s[i].coder[ic];
-			uint flags;
-			if (0 != z7_readbyte(d, &flags))
-				return FF7Z_EMORE;
-
-			n = flags & 0x0f;
-			flags &= 0xf0;
-			if (d->len < n)
-				return FF7Z_EMORE;
-			FFDBG_PRINTLN(10, " coder:%*xb  flags:%xu", (size_t)n, d->ptr, flags);
-			r = ffszarr_findsorted(z7_method, FFCNT(z7_method), d->ptr, n);
-			if (r >= 0)
-				cod->method = r + 1;
-			else if (n == 1 && d->ptr[0] == 0x00)
-				cod->method = FF7Z_M_STORE;
-			ffstr_shift(d, n);
-
-			if (flags & F_ATTRS) {
-				if (0 == (r = z7_readint(d, &n)))
-					return FF7Z_EMORE;
-				if (d->len < n)
-					return FF7Z_EMORE;
-				FFDBG_PRINTLN(10, "  props:%*xb", (size_t)n, d->ptr);
-				if (n >= FFCNT(cod->props))
-					return FF7Z_EUNSUPP;
-				ffmemcpy(cod->props, d->ptr, n);
-				cod->nprops = n;
-				ffstr_shift(d, n);
-				flags &= ~F_ATTRS;
-			}
-
-			if (flags != 0)
-				return FF7Z_EFOLDER_FLAGS;
-		}
-
-		for (ic = 0;  ic != coders_n - 1;  ic++) {
-			uint64 in, out;
-			if (0 == (r = z7_readint(d, &in)))
-				return FF7Z_EMORE;
-			if (0 == (r = z7_readint(d, &out)))
-				return FF7Z_EMORE;
-			FFDBG_PRINTLN(10, "  in:%U  out:%U", in, out);
+	for (size_t i = 0;  i != folders;  i++) {
+		if (0 != (r = z7_folder_read(&fo[i], d, &streams))) {
+			ffarr_free(&a);
+			return r;
 		}
 	}
 
+	// replace stream[] array with folder[]
+	a.len = folders;
+	ffarr_free(stms);
+	*stms = a;
 	return 0;
 }
 
 /*
 varint UnPackSize[folders][folder.coders]
 */
-static int z7_datasizes_read(ffarr *stms, ffstr *d)
+static int z7_datasizes_read(ffarr *folders, ffstr *d)
 {
 	uint64 n = 0;
 	int r;
-	z7_stream *s = (void*)stms->ptr;
+	struct z7_folder *fo = (void*)folders->ptr;
 
-	for (size_t i = 0;  i != stms->len;  i++) {
-		for (uint ic = 0;  ic != FFCNT(s->coder);  ic++) {
-			if (s[i].coder[ic].method == 0)
-				break;
+	for (size_t i = 0;  i != folders->len;  i++) {
+		for (uint ic = 0;  ic != fo[i].coders;  ic++) {
 			if (0 == (r = z7_readint(d, &n)))
 				return FF7Z_EMORE;
-			FFDBG_PRINTLN(10, "stream#%L  coder#%u  unpacked size:%xU", i, ic, n);
+			fo[i].coder[ic].unpack_size = n;
+			FFDBG_PRINTLN(10, "folder#%L  coder#%u  unpacked size:%xU", i, ic, n);
 		}
-
-		s[i].unpack_size = n;
+		fo[i].unpack_size = n;
 	}
 	return 0;
 }
@@ -341,24 +416,24 @@ byte AllAreDefined
   bit Defined[NumFolders]
 uint CRC[NumDefined]
 */
-static int z7_datacrcs_read(ffarr *stms, ffstr *d)
+static int z7_datacrcs_read(ffarr *folders, ffstr *d)
 {
 	uint all;
-	z7_stream *s = (void*)stms->ptr;
+	struct z7_folder *fo = (void*)folders->ptr;
 
 	if (0 != z7_readbyte(d, &all))
 		return FF7Z_EMORE;
 	if (!all)
 		return FF7Z_EUNSUPP;
 
-	if (d->len < sizeof(int) * stms->len)
+	if (d->len < sizeof(int) * folders->len)
 		return FF7Z_EMORE;
 
-	for (size_t i = 0;  i != stms->len;  i++) {
+	for (size_t i = 0;  i != folders->len;  i++) {
 		uint n = ffint_ltoh32(d->ptr);
 		ffstr_shift(d, sizeof(int));
-		FFDBG_PRINTLN(10, "stream#%L CRC:%xu", i, n);
-		s[i].crc = n;
+		FFDBG_PRINTLN(10, "folder#%L CRC:%xu", i, n);
+		fo[i].crc = n;
 	}
 
 	return 0;
@@ -367,58 +442,61 @@ static int z7_datacrcs_read(ffarr *stms, ffstr *d)
 /*
 varint NumUnPackStreamsInFolders[folders]
 */
-static int z7_stmfiles_read(ffarr *stms, ffstr *d)
+static int z7_stmfiles_read(ffarr *folders, ffstr *d)
 {
 	int r;
 	uint64 n;
-	z7_stream *s = (void*)stms->ptr;
+	struct z7_folder *fo = (void*)folders->ptr;
 
-	for (size_t i = 0;  i != stms->len;  i++) {
+	for (size_t i = 0;  i != folders->len;  i++) {
 
 		if (0 == (r = z7_readint(d, &n)))
 			return FF7Z_EMORE;
-		FFDBG_PRINTLN(10, "stream#%L  files:%U", i, n);
+		FFDBG_PRINTLN(10, "folder#%L  files:%U", i, n);
 		if (n == 0)
 			return FF7Z_EDATA;
 
-		if (NULL == ffarr_alloczT(&s[i].files, n, ff7zfile))
+		if (NULL == ffarr_alloczT(&fo[i].files, n, ff7zfile))
 			return FF7Z_ESYS;
-		s[i].files.len = n;
+		fo[i].files.len = n;
 	}
 
 	return 0;
 }
 
 /* List of unpacked file size for non-empty files.
-varint UnPackSize[streams][stream.files]
+varint UnPackSize[folders][folder.files]
 */
-static int z7_fsizes_read(ffarr *stms, ffstr *d)
+static int z7_fsizes_read(ffarr *folders, ffstr *d)
 {
 	int r;
 	size_t i;
 	uint64 n, off;
 	ff7zfile *f;
-	z7_stream *s;
+	struct z7_folder *fo = (void*)folders->ptr;
 
-	FFARR_WALKT(stms, s, z7_stream) {
-		f = (void*)s->files.ptr;
+	for (size_t ifo = 0;  ifo != folders->len;  ifo++) {
+		f = (void*)fo[ifo].files.ptr;
 		off = 0;
 
-		for (i = 0;  i != s->files.len - 1;  i++) {
+		for (i = 0;  i != fo[ifo].files.len - 1;  i++) {
 
 			if (0 == (r = z7_readint(d, &n)))
 				return FF7Z_EMORE;
 			f[i].off = off;
 			f[i].size = n;
-			FFDBG_PRINTLN(10, "file[%L]  size:%xU  off:%xU", i, f[i].size, f[i].off);
+			FFDBG_PRINTLN(10, "folder#%u  file[%L]  size:%xU  off:%xU"
+				, ifo, i, f[i].size, f[i].off);
 			off += n;
-			if (off > s->unpack_size)
+			if (off > fo[ifo].unpack_size)
 				return FF7Z_EDATA;
 		}
 
-		f[i].size = s->unpack_size - off;
+		n = fo[ifo].unpack_size - off;
 		f[i].off = off;
-		FFDBG_PRINTLN(10, "file[%L]  size:%xU  off:%xU", i, f[i].size, f[i].off);
+		f[i].size = n;
+		FFDBG_PRINTLN(10, "folder#%u  file[%L]  size:%xU  off:%xU"
+			, ifo, i, f[i].size, f[i].off);
 	}
 
 	return 0;
@@ -430,23 +508,22 @@ byte AllAreDefined
   bit Defined[NumStreams]
 uint CRC[NumDefined]
 */
-static int z7_fcrcs_read(ffarr *stms, ffstr *d)
+static int z7_fcrcs_read(ffarr *folders, ffstr *d)
 {
 	uint all;
-
 	if (0 != z7_readbyte(d, &all))
 		return FF7Z_EMORE;
 	if (!all)
 		return FF7Z_EUNSUPP;
 
-	z7_stream *s;
-	FFARR_WALKT(stms, s, z7_stream) {
+	struct z7_folder *fo;
+	FFARR_WALKT(folders, fo, struct z7_folder) {
 
-		if (d->len < sizeof(int) * s->files.len)
+		if (d->len < sizeof(int) * fo->files.len)
 			return FF7Z_EMORE;
 
-		ff7zfile *f = (void*)s->files.ptr;
-		for (size_t i = 0;  i != s->files.len;  i++) {
+		ff7zfile *f = (void*)fo->files.ptr;
+		for (size_t i = 0;  i != fo->files.len;  i++) {
 			uint n = ffint_ltoh32(d->ptr);
 			ffstr_shift(d, sizeof(int));
 			f[i].crc = n;
@@ -459,7 +536,7 @@ static int z7_fcrcs_read(ffarr *stms, ffstr *d)
 /* Get the number of all files (both nonempty and empty) and directories.
 varint NumFiles
 */
-static int z7_fileinfo_read(ffarr *stms, ffstr *d)
+static int z7_fileinfo_read(ffarr *folders, ffstr *d)
 {
 	int r;
 	uint64 n;
@@ -470,9 +547,9 @@ static int z7_fileinfo_read(ffarr *stms, ffstr *d)
 		return FF7Z_EUNSUPP;
 
 	uint64 all = 0;
-	z7_stream *s;
-	FFARR_WALKT(stms, s, z7_stream) {
-		all += s->files.len;
+	struct z7_folder *fo;
+	FFARR_WALKT(folders, fo, struct z7_folder) {
+		all += fo->files.len;
 	}
 
 	if (n < all)
@@ -480,11 +557,11 @@ static int z7_fileinfo_read(ffarr *stms, ffstr *d)
 
 	if (n > all) {
 		// add one more stream with empty files and directory entries
-		s = ffarr_pushT(stms, z7_stream);
-		if (NULL == ffarr_alloczT(&s->files, n - all, ff7zfile))
+		fo = ffarr_pushT(folders, struct z7_folder);
+		if (NULL == ffarr_alloczT(&fo->files, n - all, ff7zfile))
 			return FF7Z_ESYS;
-		s->files.len = n - all;
-		if (NULL == ffarr_alloczT(&s->empty, ffbit_nbytes(n), byte))
+		fo->files.len = n - all;
+		if (NULL == ffarr_alloczT(&fo->empty, ffbit_nbytes(n), byte))
 			return FF7Z_ESYS;
 	}
 	return 0;
@@ -493,7 +570,7 @@ static int z7_fileinfo_read(ffarr *stms, ffstr *d)
 /* List of empty files.
 bit IsEmptyStream[NumFiles]
 */
-static int z7_emptystms_read(ffarr *stms, ffstr *d)
+static int z7_emptystms_read(ffarr *folders, ffstr *d)
 {
 	size_t i, bit_abs, n0 = 0;
 	uint bit;
@@ -510,13 +587,13 @@ static int z7_emptystms_read(ffarr *stms, ffstr *d)
 		}
 	}
 
-	z7_stream *sem = ffarr_lastT(stms, z7_stream);
-	if ((n0 != 0 && sem->empty.cap == 0)
-		|| n0 != sem->files.len)
+	struct z7_folder *fo_empty = ffarr_lastT(folders, struct z7_folder);
+	if ((n0 != 0 && fo_empty->empty.cap == 0)
+		|| n0 != fo_empty->files.len)
 		return FF7Z_EDATA; // invalid number of empty files
 
-	i = ffmin(d->len, sem->empty.cap);
-	ffmemcpy(sem->empty.ptr, d->ptr, i);
+	i = ffmin(d->len, fo_empty->empty.cap);
+	ffmemcpy(fo_empty->empty.ptr, d->ptr, i);
 
 	ffarr_shift(d, d->len);
 	return 0;
@@ -525,13 +602,13 @@ static int z7_emptystms_read(ffarr *stms, ffstr *d)
 /*
 bit IsEmptyFile[NumEmptyStreams]
 */
-static int z7_emptyfiles_read(ffarr *stms, ffstr *d)
+static int z7_emptyfiles_read(ffarr *folders, ffstr *d)
 {
 	ffstr_shift(d, d->len);
 	return 0;
 }
 
-static int z7_dummy_read(ffarr *stms, ffstr *d)
+static int z7_dummy_read(ffarr *folders, ffstr *d)
 {
 	ffstr_shift(d, d->len);
 	return 0;
@@ -544,7 +621,7 @@ byte External
  ushort 0
 } [Files]
 */
-static int z7_names_read(ffarr *stms, ffstr *d)
+static int z7_names_read(ffarr *folders, ffstr *d)
 {
 	int r;
 	uint ext;
@@ -555,23 +632,23 @@ static int z7_names_read(ffarr *stms, ffstr *d)
 	if (!!ext)
 		return FF7Z_EUNSUPP;
 
-	z7_stream *sem = ffarr_lastT(stms, z7_stream);
-	ff7zfile *fem = (void*)sem->files.ptr;
+	struct z7_folder *fo_empty = ffarr_lastT(folders, struct z7_folder);
+	ff7zfile *fem = (void*)fo_empty->files.ptr;
 	size_t ifem = 0;
-	if (sem->empty.cap == 0)
-		sem = NULL;
+	if (fo_empty->empty.cap == 0)
+		fo_empty = NULL;
 
-	z7_stream *s;
-	FFARR_WALKT(stms, s, z7_stream) {
+	struct z7_folder *fo = (void*)folders->ptr;
+	for (size_t ifo = 0;  ifo != folders->len;  ifo++) {
 
-		ff7zfile *f = (void*)s->files.ptr;
+		ff7zfile *f = (void*)fo[ifo].files.ptr;
 		size_t i = 0;
-		if (s == sem) {
+		if (&fo[ifo] == fo_empty) {
 			i = ifem;
-			sem = NULL;
+			fo_empty = NULL;
 		}
 
-		while (i != s->files.len) {
+		while (i != fo[ifo].files.len) {
 
 			if (0 > (n = ffutf16_findc(d->ptr, d->len, 0)))
 				return FF7Z_EMORE;
@@ -586,12 +663,12 @@ static int z7_names_read(ffarr *stms, ffstr *d)
 				return FF7Z_EDATA;
 			}
 			ffstr_shift(d, n);
-			FFDBG_PRINTLN(10, "name[%L][%L](%L):%*s"
-				, s - (z7_stream*)stms->ptr, i, cnt, (size_t)r - 1, a.ptr);
+			FFDBG_PRINTLN(10, "folder#%L name[%L](%L):%*s"
+				, ifo, i, cnt, (size_t)r - 1, a.ptr);
 			a.len = ffpath_norm(a.ptr, a.cap, a.ptr, r - 1, FFPATH_MERGEDOTS | FFPATH_FORCESLASH | FFPATH_TOREL);
 			a.ptr[a.len] = '\0';
 
-			if (sem != NULL && ffbit_ntest(sem->empty.ptr, cnt))
+			if (fo_empty != NULL && ffbit_ntest(fo_empty->empty.ptr, cnt))
 				fem[ifem++].name = a.ptr;
 			else
 				f[i++].name = a.ptr;
@@ -612,7 +689,7 @@ byte External
  uint32 TimeHi
 } [NumDefined]
 */
-static int z7_mtimes_read(ffarr *stms, ffstr *d)
+static int z7_mtimes_read(ffarr *folders, ffstr *d)
 {
 	uint all, ext, cnt = 0;
 
@@ -627,23 +704,23 @@ static int z7_mtimes_read(ffarr *stms, ffstr *d)
 	if (!!ext)
 		return FF7Z_EUNSUPP;
 
-	z7_stream *sem = ffarr_lastT(stms, z7_stream);
-	ff7zfile *fem = (void*)sem->files.ptr;
+	struct z7_folder *fo_empty = ffarr_lastT(folders, struct z7_folder);
+	ff7zfile *fem = (void*)fo_empty->files.ptr;
 	size_t ifem = 0;
-	if (sem->empty.cap == 0)
-		sem = NULL;
+	if (fo_empty->empty.cap == 0)
+		fo_empty = NULL;
 
-	z7_stream *s;
-	FFARR_WALKT(stms, s, z7_stream) {
+	struct z7_folder *fo;
+	FFARR_WALKT(folders, fo, struct z7_folder) {
 
-		ff7zfile *f = (void*)s->files.ptr;
+		ff7zfile *f = (void*)fo->files.ptr;
 		size_t i = 0;
-		if (s == sem) {
+		if (fo == fo_empty) {
 			i = ifem;
-			sem = NULL;
+			fo_empty = NULL;
 		}
 
-		while (i != s->files.len) {
+		while (i != fo->files.len) {
 
 			if (d->len < 8)
 				return FF7Z_EMORE;
@@ -654,7 +731,7 @@ static int z7_mtimes_read(ffarr *stms, ffstr *d)
 			ffstr_shift(d, 8);
 
 			fftime t = fftime_from_winftime(&ft);
-			if (sem != NULL && ffbit_ntest(sem->empty.ptr, cnt))
+			if (fo_empty != NULL && ffbit_ntest(fo_empty->empty.ptr, cnt))
 				fem[ifem++].mtime = t;
 			else
 				f[i++].mtime = t;
@@ -673,7 +750,7 @@ byte External
 uint32 Attributes[Defined]
 }
 */
-static int z7_winattrs_read(ffarr *stms, ffstr *d)
+static int z7_winattrs_read(ffarr *folders, ffstr *d)
 {
 	uint n, all, ext, cnt = 0;
 
@@ -688,23 +765,23 @@ static int z7_winattrs_read(ffarr *stms, ffstr *d)
 	if (!!ext)
 		return FF7Z_EUNSUPP;
 
-	z7_stream *sem = ffarr_lastT(stms, z7_stream);
-	ff7zfile *fem = (void*)sem->files.ptr;
+	struct z7_folder *fo_empty = ffarr_lastT(folders, struct z7_folder);
+	ff7zfile *fem = (void*)fo_empty->files.ptr;
 	size_t ifem = 0;
-	if (sem->empty.cap == 0)
-		sem = NULL;
+	if (fo_empty->empty.cap == 0)
+		fo_empty = NULL;
 
-	z7_stream *s;
-	FFARR_WALKT(stms, s, z7_stream) {
+	struct z7_folder *fo;
+	FFARR_WALKT(folders, fo, struct z7_folder) {
 
-		ff7zfile *f = (void*)s->files.ptr;
+		ff7zfile *f = (void*)fo->files.ptr;
 		size_t i = 0;
-		if (s == sem) {
+		if (fo == fo_empty) {
 			i = ifem;
-			sem = NULL;
+			fo_empty = NULL;
 		}
 
-		while (i != s->files.len) {
+		while (i != fo->files.len) {
 
 			if (d->len < 4)
 				return FF7Z_EMORE;
@@ -713,7 +790,7 @@ static int z7_winattrs_read(ffarr *stms, ffstr *d)
 			ffstr_shift(d, 4);
 			FFDBG_PRINTLN(10, "Attributes[%L]:%xu", i, n);
 
-			if (sem != NULL && ffbit_ntest(sem->empty.ptr, cnt))
+			if (fo_empty != NULL && ffbit_ntest(fo_empty->empty.ptr, cnt))
 				fem[ifem++].attr = n;
 			else
 				f[i++].attr = n;
@@ -787,16 +864,16 @@ static const z7_bblock z7_packinfo_children[] = {
 };
 
 static const z7_bblock z7_unpackinfo_children[] = {
-	{ T_Folder | PRIO(1), &z7_stmcoders_read },
+	{ T_Folder | PRIO(1), &z7_folders_read },
 	{ T_UnPackSize | PRIO(2), &z7_datasizes_read },
 	{ T_CRC, &z7_datacrcs_read },
 	{ T_End | F_LAST, NULL },
 };
 
 static const z7_bblock z7_substminfo_children[] = {
-	{ T_NumUnPackStream | F_ALLOC_FILES | PRIO(1), &z7_stmfiles_read },
+	{ T_NumUnPackStream | PRIO(1), &z7_stmfiles_read },
 	{ T_Size | PRIO(2), &z7_fsizes_read },
-	{ T_CRC | F_ALLOC_FILES, &z7_fcrcs_read },
+	{ T_CRC, &z7_fcrcs_read },
 	{ T_End | F_LAST, NULL },
 };
 

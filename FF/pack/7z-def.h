@@ -30,11 +30,12 @@ enum FF7Z_E {
 
 enum FF7Z_METHOD {
 	FF7Z_M_UKN,
+	FF7Z_M_STORE,
 	FF7Z_M_LZMA1,
 	FF7Z_M_X86,
+	FF7Z_M_X86_BCJ2,
 	FF7Z_M_DEFLATE,
 	FF7Z_M_LZMA2,
-	FF7Z_M_STORE,
 };
 
 typedef struct ff7zfile {

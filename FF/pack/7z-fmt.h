@@ -11,6 +11,7 @@ Copyright (c) 2017 Simon Zolin
 enum {
 	Z7_GHDR_LEN = 32,
 	Z7_MAX_BLOCK_DEPTH = 4 + 1,
+	Z7_MAX_CODERS = 4,
 };
 
 
@@ -53,7 +54,6 @@ enum Z7_F {
 	F_SIZE = 0x800, //read block size (varint) before block body
 	F_SELF = 0x1000,
 	F_MULTI = 0x2000, //allow multiple occurrences
-	F_ALLOC_FILES = 0x4000, //allocate files array before processing this block
 };
 
 #define PRIO(n)  (n) << 24
@@ -71,23 +71,30 @@ struct z7_block {
 	const struct z7_bblock *children;
 };
 
-struct z7_coder {
-	byte method;
-	byte nprops;
-	byte props[8];
-};
-
-typedef struct z7_stream {
+struct z7_stream {
 	uint64 off;
 	uint64 pack_size;
+};
+
+struct z7_coder {
+	uint method;
+	uint nprops;
+	byte props[8];
+	struct z7_stream stream;
+	byte input_coders[Z7_MAX_CODERS];
 	uint64 unpack_size;
+};
+
+struct z7_folder {
+	uint coders;
 	uint crc;
-	struct z7_coder coder[2];
+	struct z7_coder coder[Z7_MAX_CODERS];
 	ffarr files; //ff7zfile[]
 	uint64 ifile;
+	uint64 unpack_size;
 
 	ffarr empty; // bit-array of total files in archive. Valid for the last stream that contains empty files.
-} z7_stream;
+};
 
 FF_EXTN const struct z7_bblock z7_ctx_top[];
 

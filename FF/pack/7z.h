@@ -3,9 +3,25 @@ Copyright (c) 2017 Simon Zolin
 */
 
 /*
+File structure:
 SIG_HDR
 STREAM_PACKED(FILE_DATA...)...
 META_PACKED(META META_HDR) | META
+
+Meta data structure:
+STREAM { offset packed_size } []
+FOLDER {
+	CODER { id properties stream input_coders[] } []
+} []
+CODER { unpacked_size } []
+FOLDER {
+	datafile_unpacked_size[]
+	datafile_crc[]
+} []
+empty_file_index[]
+file_name[]
+file_mtime[]
+file_attr[]
 */
 
 
@@ -16,7 +32,7 @@ META_PACKED(META META_HDR) | META
 #include <FF/time.h>
 
 
-struct z7_stream;
+struct z7_folder;
 struct z7_filter;
 struct z7_block;
 
@@ -25,7 +41,6 @@ typedef struct ff7z {
 	uint nxst;
 	int err;
 	uint64 off;
-	uint files_init :1;
 	uint hdr_packed :1;
 
 	uint gst;
@@ -36,8 +51,8 @@ typedef struct ff7z {
 	struct z7_block *blks;
 	uint iblk;
 
-	ffarr stms; //z7_stream[] = (data stream)... (empty files stream)
-	struct z7_stream *curstm;
+	ffarr folders; //z7_folder[] = (folder)... (folder for empty files)
+	struct z7_folder *cur_folder;
 
 	struct z7_filter *filters;
 	uint nfilters;

@@ -25,6 +25,11 @@ struct z7_filter {
 	ffarr buf;
 	ffstr in;
 	union {
+		struct {
+			uint64 off;
+			uint64 size;
+			ff7z *z;
+		} input;
 		lzma_decoder *lzma;
 		z_ctx *zlib;
 		struct {
@@ -39,11 +44,14 @@ struct z7_filter {
 
 static int z7_blk_proc(ff7z *z, const struct z7_bblock *blk);
 static int z7_prep_unpackhdr(ff7z *z);
-static int z7_filters_create(ff7z *z, z7_stream *s);
+static int z7_prep_unpackfile(ff7z *z);
+static int z7_filters_create(ff7z *z, struct z7_folder *fo);
 static void z7_filters_close(ff7z *z);
 static int z7_filters_call(ff7z *z);
 static int z7_filter_init(z7_filter *c, const struct z7_coder *coder);
-static void z7_streams_free(ffarr *stms);
+static void z7_folders_free(ffarr *folders);
+
+static int z7_input_process(z7_filter *c);
 
 static int z7_deflate_init(z7_filter *c, uint method);
 static int z7_deflate_process(z7_filter *c);
@@ -106,24 +114,47 @@ void ff7z_open(ff7z *z)
 	z->st = R_START;
 }
 
-static int z7_filters_create(ff7z *z, z7_stream *s)
+static int z7_filters_create(ff7z *z, struct z7_folder *fo)
 {
 	int r;
 	uint i, k = 0;
 
-	if (NULL == (z->filters = ffmem_allocT(2 + 1, z7_filter)))
+	if (NULL == (z->filters = ffmem_callocT(1 + Z7_MAX_CODERS + 1, z7_filter)))
 		return FF7Z_ESYS;
 
-	for (i = 0;  i != FFCNT(s->coder);  i++) {
-		if (s->coder[i].method == 0)
-			break;
-		if (s->coder[i].method == FF7Z_M_STORE)
+	for (i = 0;  i != fo->coders;  i++) {
+		struct z7_coder *cod = &fo->coder[i];
+		z7_filter *fi;
+		if (cod->stream.off != 0 || cod->stream.pack_size != 0) {
+			if (k != 0)
+				return FF7Z_EUNSUPP;
+			fi = &z->filters[k++];
+			if (cod->input_coders[0] != 0)
+				return FF7Z_EUNSUPP;
+			fi->input.off = cod->stream.off;
+			fi->input.size = cod->stream.pack_size;
+			fi->input.z = z;
+			fi->process = &z7_input_process;
+		} else if (cod->input_coders[0] == 0
+			|| (int)cod->input_coders[0] - 1 != (int)i - 1
+			|| cod->input_coders[1] != 0) {
+			/* Currently only a simple coder chain is supported:
+			input -> unpack -> x86 -> bounds
+			unpack must have an assigned input stream
+			x86's input must be unpack's output
+			*/
+			return FF7Z_EUNSUPP;
+		}
+
+		if (cod->method == FF7Z_M_STORE)
 			continue;
-		if (0 != (r = z7_filter_init(&z->filters[k++], &s->coder[i])))
+		fi = &z->filters[k++];
+		if (0 != (r = z7_filter_init(fi, cod)))
 			return r;
 	}
-	ffmem_tzero(&z->filters[k]);
+
 	z->filters[k].process = &z7_bounds_process;
+
 	z->ifilter = 0;
 	z->nfilters = k + 1;
 	return 0;
@@ -140,18 +171,18 @@ static void z7_filters_close(ff7z *z)
 	z->nfilters = 0;
 }
 
-static void z7_streams_free(ffarr *stms)
+static void z7_folders_free(ffarr *folders)
 {
-	z7_stream *s;
-	FFARR_WALKT(stms, s, z7_stream) {
+	struct z7_folder *fo;
+	FFARR_WALKT(folders, fo, struct z7_folder) {
 		ff7zfile *f;
-		FFARR_WALKT(&s->files, f, ff7zfile) {
+		FFARR_WALKT(&fo->files, f, ff7zfile) {
 			ffmem_safefree(f->name);
 		}
-		ffarr_free(&s->files);
-		ffarr_free(&s->empty);
+		ffarr_free(&fo->files);
+		ffarr_free(&fo->empty);
 	}
-	ffarr_free(stms);
+	ffarr_free(folders);
 }
 
 void ff7z_close(ff7z *z)
@@ -159,13 +190,14 @@ void ff7z_close(ff7z *z)
 	ffarr_free(&z->buf);
 	ffarr_free(&z->gbuf);
 	z7_filters_close(z);
-	z7_streams_free(&z->stms);
+	z7_folders_free(&z->folders);
 	ffmem_safefree0(z->blks);
 }
 
 enum {
 	FILT_MORE,
 	FILT_DATA,
+	FILT_SEEK,
 	FILT_ERR,
 	FILT_DONE,
 };
@@ -173,8 +205,6 @@ enum {
 static int z7_filter_init(z7_filter *c, const struct z7_coder *coder)
 {
 	int r;
-	ffmem_tzero(c);
-
 	switch (coder->method) {
 
 	case FF7Z_M_DEFLATE:
@@ -195,6 +225,32 @@ static int z7_filter_init(z7_filter *c, const struct z7_coder *coder)
 
 	c->init = 1;
 	return 0;
+}
+
+
+/** Take input data from user and pass to the next filter.
+Return seek request if needed. */
+static int z7_input_process(z7_filter *c)
+{
+	ff7z *z = c->input.z;
+
+	if (c->input.size == 0)
+		return FILT_DONE;
+
+	if (z->off != c->input.off) {
+		z->off = c->input.off;
+		return FILT_SEEK;
+	}
+	if (z->input.len == 0)
+		return FILT_MORE;
+
+	size_t n = ffmin(c->input.size, z->input.len);
+	ffstr_set(&c->buf, z->input.ptr, n);
+	ffstr_shift(&z->input, n);
+	z->off += n;
+	c->input.off += n;
+	c->input.size -= n;
+	return FILT_DATA;
 }
 
 
@@ -224,7 +280,6 @@ static int z7_deflate_process(z7_filter *c)
 {
 	int r;
 	size_t n = c->in.len;
-	c->buf.len = 0;
 	r = z_inflate(c->zlib, c->in.ptr, &n, ffarr_end(&c->buf), ffarr_unused(&c->buf), 0);
 	if (r == Z_DONE)
 		return FILT_DONE;
@@ -234,12 +289,10 @@ static int z7_deflate_process(z7_filter *c)
 	}
 
 	ffarr_shift(&c->in, n);
-	c->read += n;
 	if (r == 0)
 		return FILT_MORE;
 
 	c->buf.len += r;
-	c->written += r;
 	return FILT_DATA;
 }
 
@@ -286,7 +339,6 @@ static int z7_lzma_process(z7_filter *c)
 {
 	int r;
 	size_t n = c->in.len;
-	c->buf.len = 0;
 	if (c->fin && n == 0 && c->allow_fin)
 		n = (size_t)-1;
 	r = lzma_decode(c->lzma, c->in.ptr, &n, ffarr_end(&c->buf), ffarr_unused(&c->buf));
@@ -298,12 +350,10 @@ static int z7_lzma_process(z7_filter *c)
 	}
 
 	ffarr_shift(&c->in, n);
-	c->read += n;
 	if (r == 0)
 		return FILT_MORE;
 
 	c->buf.len += r;
-	c->written += r;
 	return FILT_DATA;
 }
 
@@ -312,10 +362,9 @@ static int z7_bounds_process(z7_filter *c)
 {
 	ffstr s = c->in;
 	size_t n = ffstr_crop_abs(&s, c->read, c->bounds.off, c->bounds.size);
-	c->read += n;
 	ffstr_shift(&c->in, n);
 	if (s.len == 0) {
-		if (c->read == c->bounds.off + c->bounds.size)
+		if (c->read + n == c->bounds.off + c->bounds.size)
 			return FILT_DONE;
 		return FILT_MORE;
 	}
@@ -326,8 +375,8 @@ static int z7_bounds_process(z7_filter *c)
 static int z7_filters_call(ff7z *z)
 {
 	int r;
-	const ff7zfile *f = (void*)z->curstm->files.ptr;
-	f = &f[z->curstm->ifile - 1];
+	const ff7zfile *f = (void*)z->cur_folder->files.ptr;
+	f = &f[z->cur_folder->ifile - 1];
 	z7_filter *c, *next;
 	size_t inlen;
 
@@ -335,6 +384,7 @@ static int z7_filters_call(ff7z *z)
 	inlen = c->in.len;
 	(void)inlen;
 	r = c->process(c);
+	c->read += inlen - c->in.len;
 
 	switch (r) {
 
@@ -342,21 +392,14 @@ static int z7_filters_call(ff7z *z)
 		if (c->fin)
 			return ERR(z, FF7Z_EDATA);
 
-		if (z->ifilter == 0) {
-			if (z->input.len == 0)
-				return FF7Z_MORE;
-			ffstr_set2(&c->in, &z->input);
-			ffstr_crop_abs(&c->in, z->off, z->curstm->off, z->curstm->pack_size);
-			size_t n = c->in.ptr + c->in.len - z->input.ptr;
-			ffstr_shift(&z->input, n);
-			z->off += n;
-			break;
-		}
+		if (z->ifilter == 0)
+			return FF7Z_MORE;
 
 		z->ifilter--;
 		break;
 
 	case FILT_DATA:
+		c->written += c->buf.len;
 		FFDBG_PRINTLN(10, "filter#%u: %xL->%xL [%xU->%xU]"
 			, z->ifilter, inlen, c->buf.len, c->read, c->written);
 
@@ -368,6 +411,7 @@ static int z7_filters_call(ff7z *z)
 
 		next = c + 1;
 		ffstr_set2(&next->in, &c->buf);
+		c->buf.len = 0;
 		z->ifilter++;
 		break;
 
@@ -383,6 +427,11 @@ static int z7_filters_call(ff7z *z)
 		z->ifilter++;
 		break;
 
+	case FILT_SEEK:
+		if (z->ifilter != 0)
+			return ERR(z, 0);
+		return FF7Z_SEEK;
+
 	case FILT_ERR:
 		return ERR(z, c->err);
 	}
@@ -393,28 +442,57 @@ static int z7_filters_call(ff7z *z)
 static int z7_prep_unpackhdr(ff7z *z)
 {
 	int r;
-	z7_stream *s = (void*)z->stms.ptr;
+	struct z7_folder *fo = (void*)z->folders.ptr;
 
 	if (z->hdr_packed)
 		return FF7Z_EDATA; //one more packed header
 
-	if (s->files.len != 0)
+	if (fo->files.len != 0)
 		return FF7Z_EDATA; //files inside header
-	if (NULL == ffarr_alloczT(&s->files, 1, ff7zfile))
+	if (NULL == ffarr_alloczT(&fo->files, 1, ff7zfile))
 		return FF7Z_ESYS;
-	s->files.len = 1;
-	ff7zfile *f = (void*)s->files.ptr;
-	f->size = s->unpack_size;
-	f->crc = s->crc;
-	s->ifile = 1;
+	fo->files.len = 1;
+	ff7zfile *f = (void*)fo->files.ptr;
+	f->size = fo->unpack_size;
+	f->crc = fo->crc;
+	fo->ifile = 1;
 
-	if (NULL == ffarr_realloc(&z->buf, s->unpack_size))
+	if (NULL == ffarr_realloc(&z->buf, fo->unpack_size))
 		return FF7Z_ESYS;
-	if (0 != (r = z7_filters_create(z, s)))
+	if (0 != (r = z7_filters_create(z, fo)))
 		return r;
 	z->filters[z->nfilters - 1].bounds.size = f->size;
 	z->hdr_packed = 1;
-	z->curstm = s;
+	z->cur_folder = fo;
+	return 0;
+}
+
+static int z7_prep_unpackfile(ff7z *z)
+{
+	int r;
+	const ff7zfile *f = (void*)z->cur_folder->files.ptr;
+	f = &f[z->cur_folder->ifile - 1];
+	FFDBG_PRINTLN(10, "unpacking file '%s'  size:%xU  offset:%xU  CRC:%xu"
+		, f->name, f->size, f->off, f->crc);
+
+	if (z->cur_folder->coder[0].stream.off == 0) {
+		z->st = R_FDONE;
+		return 0;
+	}
+	z->st = R_FDATA;
+
+	z->crc = 0;
+	if (z->nfilters == 0) {
+		if (0 != (r = z7_filters_create(z, z->cur_folder)))
+			return ERR(z, r);
+		z->filters[z->nfilters - 1].bounds.off = f->off;
+		z->filters[z->nfilters - 1].bounds.size = f->size;
+		z->off = z->cur_folder->coder[0].stream.off;
+		return FF7Z_SEEK;
+	}
+
+	z->filters[z->nfilters - 1].bounds.off = f->off;
+	z->filters[z->nfilters - 1].bounds.size = f->size;
 	return 0;
 }
 
@@ -437,34 +515,20 @@ static int z7_blk_proc(ff7z *z, const struct z7_bblock *blk)
 		ffstr_set(&d, z->gdata.ptr, size);
 	}
 
-	if ((blk->flags & F_ALLOC_FILES) && !z->files_init) {
-		if (id == T_CRC) {
-			z7_stream *s;
-			FFARR_WALKT(&z->stms, s, z7_stream) {
-				if (NULL == ffarr_alloczT(&s->files, 1, ff7zfile))
-					return FF7Z_ESYS;
-				s->files.len = 1;
-				ff7zfile *f = (void*)s->files.ptr;
-				f->size = s->unpack_size;
-			}
-		}
-		z->files_init = 1;
-	}
-
-	int (*proc)(ffarr *stms, ffstr *d);
+	int (*proc)(ffarr *folders, ffstr *d);
 
 	if (blk->flags & F_CHILDREN) {
 		z->blks[z->iblk].children = blk->data;
 
 		if (z->blks[z->iblk].children[0].flags & F_SELF) {
 			proc = z->blks[z->iblk].children[0].data;
-			if (0 != (r = proc(&z->stms, &d)))
+			if (0 != (r = proc(&z->folders, &d)))
 				return r;
 		}
 
 	} else {
 		proc = blk->data;
-		if (0 != (r = proc(&z->stms, &d)))
+		if (0 != (r = proc(&z->folders, &d)))
 			return r;
 
 		ffmem_tzero(&z->blks[z->iblk]);
@@ -526,7 +590,7 @@ int ff7z_read(ff7z *z)
 		if (z->gdata.len == 0) {
 			if (z->iblk != 0)
 				return ERR(z, FF7Z_EDATA);
-			z->curstm = (void*)z->stms.ptr;
+			z->cur_folder = (void*)z->folders.ptr;
 			return FF7Z_FILEHDR;
 		}
 		uint64 blk_id;
@@ -554,8 +618,6 @@ int ff7z_read(ff7z *z)
 				if (0 != (r = z7_prep_unpackhdr(z)))
 					return ERR(z, r);
 				z->st = R_META_UNPACK;
-				z->off = z->curstm->off;
-				return FF7Z_SEEK;
 			}
 			continue;
 		}
@@ -571,8 +633,8 @@ int ff7z_read(ff7z *z)
 
 		if (r == FF7Z_FILEDONE) {
 			z7_filters_close(z);
-			z7_streams_free(&z->stms);
-			z->curstm = NULL;
+			z7_folders_free(&z->folders);
+			z->cur_folder = NULL;
 
 			ffstr_set2(&z->gdata, &z->buf);
 			z->buf.len = 0;
@@ -587,32 +649,10 @@ int ff7z_read(ff7z *z)
 
 		return r;
 
-	case R_FSTART: {
-		const ff7zfile *f = (void*)z->curstm->files.ptr;
-		f = &f[z->curstm->ifile - 1];
-		FFDBG_PRINTLN(10, "unpacking file '%s'  size:%xU  offset:%xU  CRC:%xU"
-			, f->name, f->size, f->off, f->crc);
-
-		if (z->curstm->off == 0) {
-			z->st = R_FDONE;
-			continue;
-		}
-		z->st = R_FDATA;
-
-		z->crc = 0;
-		if (z->nfilters == 0) {
-			if (0 != (r = z7_filters_create(z, z->curstm)))
-				return ERR(z, r);
-			z->filters[z->nfilters - 1].bounds.off = f->off;
-			z->filters[z->nfilters - 1].bounds.size = f->size;
-			z->off = z->curstm->off;
-			return FF7Z_SEEK;
-		}
-
-		z->filters[z->nfilters - 1].bounds.off = f->off;
-		z->filters[z->nfilters - 1].bounds.size = f->size;
-		// break
-	}
+	case R_FSTART:
+		if (0 != (r = z7_prep_unpackfile(z)))
+			return r;
+		continue;
 
 	case R_FDATA:
 		if (0 == (r = z7_filters_call(z)))
@@ -636,18 +676,18 @@ int ff7z_read(ff7z *z)
 
 const ff7zfile* ff7z_nextfile(ff7z *z)
 {
-	if (z->curstm == NULL)
+	if (z->cur_folder == NULL)
 		return NULL;
 
-	if (z->curstm->ifile == z->curstm->files.len) {
-		if (z->curstm == ffarr_lastT(&z->stms, z7_stream))
+	if (z->cur_folder->ifile == z->cur_folder->files.len) {
+		if (z->cur_folder == ffarr_lastT(&z->folders, struct z7_folder))
 			return NULL;
 		z7_filters_close(z);
-		z->curstm->ifile = 0;
-		z->curstm++;
+		z->cur_folder->ifile = 0;
+		z->cur_folder++;
 	}
 
-	const ff7zfile *f = (void*)z->curstm->files.ptr;
+	const ff7zfile *f = (void*)z->cur_folder->files.ptr;
 	z->st = R_FSTART;
-	return &f[z->curstm->ifile++];
+	return &f[z->cur_folder->ifile++];
 }
