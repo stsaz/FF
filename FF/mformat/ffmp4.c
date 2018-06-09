@@ -539,12 +539,15 @@ int ffmp4_read(ffmp4 *m)
 }
 
 
-int ffmp4_create_aac(ffmp4_cook *m, const ffpcm *fmt, const ffstr *conf)
+int ffmp4_create_aac(ffmp4_cook *m, struct ffmp4_info *info)
 {
 	if (NULL == ffarr_alloc(&m->buf, 64 * 1024))
 		return ERR(m, MP4_ESYS);
-
-	m->fmt = *fmt;
+	m->info.total_samples = info->total_samples;
+	m->info.frame_samples = info->frame_samples;
+	m->info.enc_delay = info->enc_delay;
+	m->info.bitrate = info->bitrate;
+	m->fmt = info->fmt;
 	m->chunk_frames = (m->fmt.sample_rate / 2) / m->info.frame_samples;
 	m->stream = (m->info.total_samples == 0);
 	if (!m->stream) {
@@ -558,8 +561,8 @@ int ffmp4_create_aac(ffmp4_cook *m, const ffpcm *fmt, const ffstr *conf)
 		m->ctx[0] = &mp4_ctx_global_stream[0];
 	}
 
-	ffs_copy(m->aconf, m->aconf + sizeof(m->aconf), conf->ptr, conf->len);
-	m->aconf_len = conf->len;
+	ffs_copy(m->aconf, m->aconf + sizeof(m->aconf), info->conf.ptr, info->conf.len);
+	m->aconf_len = info->conf.len;
 	return 0;
 }
 

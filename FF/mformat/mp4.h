@@ -165,9 +165,18 @@ typedef struct ffmp4_cook {
 
 const char* ffmp4_werrstr(ffmp4_cook *m);
 
+struct ffmp4_info {
+	ffpcm fmt;
+	ffstr conf;
+	uint64 total_samples; //0:use stream writing mode (header after body)
+	uint frame_samples;
+	uint enc_delay;
+	uint bitrate;
+};
+
 /**
-@m->info: total_samples, frame_samples, enc_delay must be set by caller. */
-FF_EXTN int ffmp4_create_aac(ffmp4_cook *m, const ffpcm *fmt, const ffstr *conf);
+Return 0 on success. */
+FF_EXTN int ffmp4_create_aac(ffmp4_cook *m, struct ffmp4_info *info);
 
 FF_EXTN void ffmp4_wclose(ffmp4_cook *m);
 
