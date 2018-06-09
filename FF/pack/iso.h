@@ -5,12 +5,16 @@ Copyright (c) 2017 Simon Zolin
 /*
 16 * (sector)
 (prim vol-desc) (vol-desc)... [Joliet-vol-desc] (term vol-desc)
+(path-table-LE) | (path-table-BE)
+[(path-table-Jlt-LE) | (path-table-Jlt-BE)]
 ((dir-ent [RR-ext...]) | [dir-ent-Jlt] | file-data)...
 */
 
+#pragma once
+
 #include <FF/array.h>
+#include <FF/rbtree.h>
 #include <FF/chain.h>
-#include <FFOS/time.h>
 
 
 enum FFISO_E {
@@ -109,26 +113,44 @@ FF_EXTN void ffiso_readfile(ffiso *c, ffiso_file *f);
 #define ffiso_offset(c)  ((c)->inoff)
 
 
+struct ffiso_pathtab {
+	uint size, off_le, off_be;
+};
+
 typedef struct ffiso_cook {
 	uint state;
 	int err;
 	uint64 off;
 	ffarr buf;
 	ffstr in, out;
+	struct ffiso_pathtab pathtab, pathtab_jlt;
 	ffarr dirs; //struct dir[]
 	ffarr dirs_jlt; //struct dir[]
 	uint idir;
 	int ifile;
+	ffrbtree dirnames; // "dir/name" -> struct dir*
 	uint nsectors;
 	uint64 curfile_size;
+	const char *name; //Volume name
 	uint options; //enum FFISO_OPT
 	uint filedone :1;
 } ffiso_cook;
 
+FF_EXTN const char* ffiso_werrstr(ffiso_cook *c);
+
+/**
+@flags: enum FFISO_OPT
+Return 0 on success. */
 FF_EXTN int ffiso_wcreate(ffiso_cook *c, uint flags);
+
 FF_EXTN void ffiso_wclose(ffiso_cook *c);
 
+/**
+Note: no RR PX, no RR CL.
+Return enum FFISO_R. */
 FF_EXTN int ffiso_write(ffiso_cook *c);
+
+#define ffiso_woffset(c)  ((c)->off)
 
 /** Add a new file.
 'f.name' must be normalized.

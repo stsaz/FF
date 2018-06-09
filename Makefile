@@ -60,7 +60,7 @@ FF_TEST_O := $(FFOS_OBJ) $(FF_OBJ) \
 	$(FF_OBJ_DIR)/ffcue.o \
 	$(FF_OBJ_DIR)/ffxml.o \
 	$(FF_OBJ_DIR)/ffsendfile.o \
-	$(FF_OBJ_DIR)/ffiso.o \
+	$(FF_OBJ_DIR)/ffiso.o $(FF_OBJ_DIR)/ffiso-fmt.o \
 	$(FF_OBJ_DIR)/fftest.o $(FF_TEST_OBJ)
 
 $(FF_TEST_BIN): $(FF_TEST_O)

@@ -99,7 +99,7 @@ static void test_iso_write(ffarr *data)
 	ffiso_wfinish(&ck);
 	r = ffiso_write(&ck);
 	x(r == FFISO_SEEK);
-	off = ck.off;
+	off = ffiso_woffset(&ck);
 	for (;;) {
 		r = ffiso_write(&ck);
 		if (r == FFISO_DATA) {
