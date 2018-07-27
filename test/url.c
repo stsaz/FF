@@ -168,6 +168,14 @@ int test_ip6()
 		x(0 == memcmp(&a6, ip6, 16));
 	}
 
+	uint subnet;
+
+	x(0 == ffip6_parse_wildcard(&a6, FFSTR("100:*"), &subnet));
+	x(!memcmp(&a6, "\x01\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0", 16) && subnet == 2 * 8);
+
+	x(0 == ffip6_parse_wildcard(&a6, FFSTR("100:1234:*"), &subnet));
+	x(!memcmp(&a6, "\x01\0\x12\x34\0\0\0\0\0\0\0\0\0\0\0\0", 16) && subnet == 4 * 8);
+
 	x(0 != ffip6_parse(&a6, FFSTR("1234:")));
 	x(0 != ffip6_parse(&a6, FFSTR(":1234")));
 	x(0 != ffip6_parse(&a6, FFSTR(":::")));
@@ -175,6 +183,8 @@ int test_ip6()
 	x(0 != ffip6_parse(&a6, FFSTR("0:12345::")));
 	x(0 != ffip6_parse(&a6, FFSTR("0:123z::")));
 	x(0 != ffip6_parse(&a6, FFSTR("0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:1")));
+	x(0 != ffip6_parse_wildcard(&a6, FFSTR("*:100"), &subnet));
+	x(0 != ffip6_parse_wildcard(&a6, FFSTR("0:*:100"), &subnet));
 
 	return 0;
 }

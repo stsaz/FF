@@ -137,9 +137,19 @@ typedef struct { char a[16]; } ffip6;
 enum { FFIP6_STRLEN = FFSLEN("abcd:") * 8 - 1 };
 
 /** Parse IPv6 address.
+'subnet': (output) subnet mask (multiple of 16)
 Return 0 on success.
 Note: v4-mapped address is not supported. */
-FF_EXTN int ffip6_parse(void *addr, const char *s, size_t len);
+FF_EXTN int ffip6_parse_wildcard(void *addr, const char *s, size_t len, uint *subnet);
+
+static FFINL int ffip6_parse(void *addr, const char *s, size_t len)
+{
+	uint subnet;
+	int r = ffip6_parse_wildcard(addr, s, len, &subnet);
+	if (subnet != 16 * 8)
+		return -1;
+	return r;
+}
 
 /** Convert IPv6 address to string.
 Return the number of characters written.

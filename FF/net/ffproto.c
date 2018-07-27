@@ -130,7 +130,7 @@ int ffip4hdr_tostr(ffip4hdr *ip4, char *buf, size_t cap)
 }
 
 
-int ffip6_parse(void *a, const char *s, size_t len)
+int ffip6_parse_wildcard(void *a, const char *s, size_t len, uint *subnet)
 {
 	uint i, chunk = 0, ndigs = 0;
 	char *dst = (char*)a;
@@ -180,6 +180,13 @@ int ffip6_parse(void *a, const char *s, size_t len)
 			continue;
 		}
 
+		if (ndigs == 0 && b == '*' && i + 1 == len) {
+			// "1:2:*"
+			*subnet = (dst - (char*)a) * 8;
+			ffmem_zero(dst, end - dst);
+			return 0;
+		}
+
 		if (ndigs == 4)
 			return -1; // ":12345"
 
@@ -199,6 +206,7 @@ int ffip6_parse(void *a, const char *s, size_t len)
 	if (dst != end)
 		return -1; // too small input
 
+	*subnet = 16 * 8;
 	return 0;
 }
 
