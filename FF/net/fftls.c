@@ -555,7 +555,7 @@ static const char tls_vers[][8] = {
 const char* fftls_verstr(uint ver)
 {
 	if (ver >= 0x0301 && ver <= 0x0304)
-		return tls_vers[ver];
+		return tls_vers[ver - 0x0301];
 	return "unknown";
 }
 

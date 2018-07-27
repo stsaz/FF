@@ -340,7 +340,7 @@ int64 ffpars_getint(const ffpars_arg *a, union ffpars_val u)
 {
 	size_t f = a->flags;
 	uint width = PARS_WIDTH(f);
-	int64 n;
+	int64 n = 0;
 
 	if (f & FFPARS_FSIGN) {
 		switch (width) {
@@ -352,6 +352,8 @@ int64 ffpars_getint(const ffpars_arg *a, union ffpars_val u)
 			n = *u.i16; break;
 		case 8:
 			n = (char)*u.b; break;
+		default:
+			FF_ASSERT(0);
 		}
 
 	} else {
@@ -364,6 +366,8 @@ int64 ffpars_getint(const ffpars_arg *a, union ffpars_val u)
 			n = (ushort)*u.i16; break;
 		case 8:
 			n = (byte)*u.b; break;
+		default:
+			FF_ASSERT(0);
 		}
 
 		if (f & FFPARS_FBIT) {

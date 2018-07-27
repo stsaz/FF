@@ -17,7 +17,7 @@ endif
 
 FFOS_CFLAGS := $(CFLAGS)
 FF_CFLAGS := $(CFLAGS)
-CFLAGS += -Werror -Wall \
+CFLAGS += -Werror -Wall -DFF_NO_OBSOLETE \
 	-I$(FF) -I$(FF3PT) -I$(FFOS)
 CXXFLAGS += -Werror -Wall \
 	-I$(FF) -I$(FF3PT) -I$(FFOS)

@@ -1163,7 +1163,7 @@ uint ffs_tobool(const char *s, size_t len, ffbool *dst, uint flags)
 
 int ffs_numlist(const char *d, size_t *len, uint *dst)
 {
-	ffstr s;
+	ffstr s = {};
 	size_t n = ffstr_nextval(d, *len, &s, ',' | FFS_NV_KEEPWHITE);
 	*len = n;
 	if (s.len != ffs_toint(s.ptr, s.len, dst, FFS_INT32))

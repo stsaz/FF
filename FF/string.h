@@ -133,8 +133,8 @@ Return 0 if equal.
 Return the mismatch byte position:
  . n+1 if s1 > sz2
  . -n-1 if s1 < sz2. */
-ssize_t ffs_cmpz(const char *s1, size_t len, const char *sz2);
-ssize_t ffs_icmpz(const char *s1, size_t len, const char *sz2);
+FF_EXTN ssize_t ffs_cmpz(const char *s1, size_t len, const char *sz2);
+FF_EXTN ssize_t ffs_icmpz(const char *s1, size_t len, const char *sz2);
 
 
 /** Return TRUE if 'n' characters are equal in both strings.
@@ -728,7 +728,7 @@ Return enum FFSTR_VERCMP. */
 FF_EXTN int ffstr_vercmp(const ffstr *v1, const ffstr *v2);
 
 
-#if defined FF_LINUX
+#if defined FF_LINUX_MAINLINE
 #define FF_QSORT_PARAMS  const void *a, const void *b, void *udata
 #define ff_qsort(ar, n, elsize, func, udata) \
 	qsort_r(ar, n, elsize, func, udata)

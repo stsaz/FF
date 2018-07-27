@@ -6,7 +6,7 @@ Copyright (c) 2015 Simon Zolin
 
 #include <FFOS/types.h>
 
-#ifdef FF_64
+#ifdef FF_AMD64
 #include <emmintrin.h> //SSE2
 #endif
 
@@ -212,10 +212,10 @@ static FFINL int ffint_ftoi(double d)
 {
 	int r;
 
-#ifdef FF_64
+#if defined FF_AMD64
 	r = _mm_cvtsd_si32(_mm_load_sd(&d));
 
-#elif !defined FF_MSVC
+#elif defined FF_X86 && !defined FF_MSVC
 	__asm__ volatile("fistpl %0"
 		: "=m"(r)
 		: "t"(d)

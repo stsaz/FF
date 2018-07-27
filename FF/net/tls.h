@@ -24,7 +24,7 @@ enum FFTLS_R {
 	FFTLS_RKEY_EXCH,
 	FFTLS_RCERT_REQ,
 	FFTLS_RSERV_HELLO_DONE,
-	FFTLS_RDONE,
+	FFTLS_RDONE, // TLS record is processed
 };
 
 typedef struct fftls {
@@ -36,11 +36,15 @@ typedef struct fftls {
 	ffstr in; //unprocessed input data
 	ffstr buf; //data to be processed
 
+	// available after FFTLS_RCLIENT_HELLO, FFTLS_RSERVER_HELLO:
 	ffstr session_id; //session ID from C/S Hello
 	ffstr ciphers; //list of ciphers from C/S Hello (ushort[], network byte order)
-	ffstr hostname; //server name from Client Hello
-	ffstr alpn_protos; //ALPN protocols from C/S Hello (struct alpn_proto[])
-	ffstr cert; //certficate data from Server Certificate
+
+	ffstr hostname; //server name from Client Hello (available after FFTLS_RCLIENT_HELLO_SNI)
+
+	ffstr alpn_protos; //ALPN protocols from C/S Hello (struct alpn_proto[]) (available after FFTLS_RHELLO_ALPN)
+
+	ffstr cert; //certficate data from Server Certificate (available after FFTLS_RCERT)
 } fftls;
 
 /** Set input data. */

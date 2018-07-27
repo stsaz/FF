@@ -42,7 +42,7 @@ static int test_conf_parse(const char *testConfFile)
 		switch (rc) {
 		case FFPARS_KEY:
 			x(conf.type == FFCONF_TKEY);
-			ffstr_catfmt(&buf, "%*c'%*s'  "
+			ffstr_catfmt(&buf, "%*c'%*s'"
 				, (size_t)4 * conf.ctxs.len, (int)' '
 				, (size_t)conf.val.len, conf.val.ptr);
 			break;

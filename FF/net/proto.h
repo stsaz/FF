@@ -78,7 +78,7 @@ static FFINL int ffip4_parse(ffip4 *ip4, const char *s, size_t len)
 	return r;
 }
 
-/** Parse "1.1.1.1/24"
+/** Parse "1.1.1.0/24"
 Return subnet mask bits;  <0 on error. */
 FF_EXTN int ffip4_parse_subnet(ffip4 *ip4, const char *s, size_t len);
 
