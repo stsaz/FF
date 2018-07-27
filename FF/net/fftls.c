@@ -560,6 +560,34 @@ const char* fftls_verstr(uint ver)
 }
 
 
+int fftls_alpn_next(ffstr *buf, ffstr *proto)
+{
+	if (buf->len == 0)
+		return 0;
+	uint len = (byte)buf->ptr[0];
+	if (len > buf->len)
+		return 0;
+	ffstr_set(proto, buf->ptr + 1, len);
+	len++;
+	ffstr_shift(buf, len);
+	return len;
+}
+
+
+int fftls_alert(void *buffer, size_t cap, const void *data, size_t len)
+{
+	if (cap < sizeof(struct rec) + len)
+		return -1;
+	struct rec *r = buffer;
+	r->type = 21;
+	r->ver[0] = 0x03;
+	r->ver[1] = 0x01;
+	ffint_hton16(r->len, len);
+	ffmemcpy(r->data, data, len);
+	return sizeof(struct rec) + len;
+}
+
+
 struct cipher_map {
 	byte id[2];
 	char name[32];

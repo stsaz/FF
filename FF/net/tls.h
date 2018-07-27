@@ -58,3 +58,13 @@ FF_EXTN const char* fftls_cipher_name(ushort ciph);
 
 /** Get TLS version as a string. */
 FF_EXTN const char* fftls_verstr(uint ver);
+
+/** Get next ALPN protocol.
+@buf: input buffer
+@proto: output protocol name (without length)
+Return the number of bytes read;  0 if no more protocols. */
+FF_EXTN int fftls_alpn_next(ffstr *buf, ffstr *proto);
+
+/** Write a TLS alert record.
+Return the number of bytes written;  -1 if not enough space. */
+FF_EXTN int fftls_alert(void *buffer, size_t cap, const void *data, size_t len);
