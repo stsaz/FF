@@ -3,6 +3,7 @@
 ROOT := ..
 FFOS = $(ROOT)/ffos
 FF = $(ROOT)/ff
+FF3PT := $(ROOT)/ff-3pt
 DEBUG := 1
 OPT := 3
 
@@ -17,9 +18,9 @@ endif
 FFOS_CFLAGS := $(CFLAGS)
 FF_CFLAGS := $(CFLAGS)
 CFLAGS += -Werror -Wall \
-	-I$(FF) -I$(FF)-3pt -I$(FFOS)
+	-I$(FF) -I$(FF3PT) -I$(FFOS)
 CXXFLAGS += -Werror -Wall \
-	-I$(FF) -I$(FF)-3pt -I$(FFOS)
+	-I$(FF) -I$(FF3PT) -I$(FFOS)
 
 all: ff $(FF_TEST_BIN)
 
@@ -28,6 +29,7 @@ clean:
 		$(FF_TEST_OBJ) $(FF_OBJ) $(FFOS_OBJ)
 
 include $(FF)/makerules
+include $(FF3PT)/makerules
 
 
 # test
@@ -37,9 +39,11 @@ FF_TEST_SRC := \
 	$(FF)/test/base.c $(FF)/test/conf.c $(FF)/test/http.c $(FF)/test/json.c $(FF)/test/str.c \
 	$(FF)/test/test.c $(FF)/test/time.c $(FF)/test/url.c $(FF)/test/cue.c $(FF)/test/sys.c \
 	$(FF)/test/arc.c \
-	$(FF)/test/tls.c
+	$(FF)/test/tls.c \
+	$(FF)/test/webskt.c
 # $(FF)/test/compat.cpp
 FF_TEST_OBJ := $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_TEST_SRC)))))
+FF_TEST_OBJ += $(FF_OBJ_DIR)/sha1.o $(FF_OBJ_DIR)/base64.o
 
 $(FF_OBJ_DIR)/%.o: $(FF)/test/%.c $(FF_HDR) $(FF_TEST_HDR)
 	$(C) $(CFLAGS)  $< -o$@
@@ -63,6 +67,7 @@ FF_TEST_O := $(FFOS_OBJ) $(FF_OBJ) \
 	$(FF_OBJ_DIR)/ffsendfile.o \
 	$(FF_OBJ_DIR)/ffiso.o $(FF_OBJ_DIR)/ffiso-fmt.o \
 	$(FF_OBJ_DIR)/fftls.o \
+	$(FF_OBJ_DIR)/ffwebskt.o \
 	$(FF_OBJ_DIR)/fftest.o $(FF_TEST_OBJ)
 
 $(FF_TEST_BIN): $(FF_TEST_O)
@@ -77,4 +82,4 @@ FF_TESTSSL_O := $(FFOS_OBJ) $(FF_OBJ) \
 	$(FF_OBJ_DIR)/fftest.o \
 	$(FF_OBJ_DIR)/ssl.o
 fftest-ssl: $(FF_TESTSSL_O)
-	$(LD) $(FF_TESTSSL_O) $(LDFLAGS) -L$(FF)-3pt-bin/$(OS)-$(ARCH) -lcrypto -lssl $(LD_LDL)  -o$@
+	$(LD) $(FF_TESTSSL_O) $(LDFLAGS) -L$(FF3PT)-bin/$(OS)-$(ARCH) -lcrypto -lssl $(LD_LDL)  -o$@

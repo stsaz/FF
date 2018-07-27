@@ -392,6 +392,7 @@ FF_EXTN int test_inchk_speed(void);
 FF_EXTN int test_cue(void);
 extern int test_iso(void);
 extern int test_tls(void);
+extern int test_webskt(void);
 
 struct test_s {
 	const char *nm;
@@ -403,7 +404,7 @@ static const struct test_s _fftests[] = {
 	F(str), F(regex)
 	, F(num), F(bits), F(list), F(rbt), F(rbtlist), F(htable), F(ring), F(ringbuf), F(tq), F(crc)
 	, F(file), F(fmap), F(time), F(timerq), F(sendfile), F(path), F(direxp), F(env)
-	, F(url), F(http), F(dns), F(icy), F(tls)
+	, F(url), F(http), F(dns), F(icy), F(tls), F(webskt)
 	, F(json), F(conf), F(args), F(cue),
 	F(iso),
 };

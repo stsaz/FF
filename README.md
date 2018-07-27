@@ -38,6 +38,7 @@ FEATURES
 	* DNS - `FF/net/dns.h`
 	* SSL (libssl, libcrypto) - `FF/net/ssl.h`
 	* TLS reader - `FF/net/tls.h`
+	* WebSocket reader/writer - `FF/net/websocket.h`
 
 * Data - `FF/data/`
 	* JSON reader/writer  - `FF/data/json.h`
