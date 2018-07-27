@@ -26,26 +26,26 @@ static int test_req()
 
 	test_meth();
 
-	ffhttp_reqinit(&r);
-	x(FFHTTP_OK == ffhttp_reqparse(&r, FFSTR("CONNECT www.host:443 HTTP/1.0" FFCRLF)));
+	ffhttp_req_init(&r);
+	x(FFHTTP_OK == ffhttp_req_line(&r, FFSTR("CONNECT www.host:443 HTTP/1.0" FFCRLF)));
 	x(r.method == FFHTTP_CONNECT);
-	s = ffhttp_reqpath(&r);
+	s = ffhttp_req_path(&r);
 	x(ffstr_eqcz(&s, "www.host:443"));
 
-	ffhttp_reqinit(&r);
-	x(FFHTTP_OK == ffhttp_reqparse(&r, FFSTR("GET /%0f1/2/3 HTTP/1.0" FFCRLF)));
-	ffhttp_reqfree(&r);
+	ffhttp_req_init(&r);
+	x(FFHTTP_OK == ffhttp_req_line(&r, FFSTR("GET /%0f1/2/3 HTTP/1.0" FFCRLF)));
+	ffhttp_req_free(&r);
 
-	ffhttp_reqinit(&r);
-	x(FFHTTP_OK == ffhttp_reqparse(&r, FFSTR("GET /%0a%0d1/2/3 HTTP/1.0" FFCRLF)));
-	ffhttp_reqfree(&r);
+	ffhttp_req_init(&r);
+	x(FFHTTP_OK == ffhttp_req_line(&r, FFSTR("GET /%0a%0d1/2/3 HTTP/1.0" FFCRLF)));
+	ffhttp_req_free(&r);
 
-	ffhttp_reqinit(&r);
-	x(FFHTTP_OK == ffhttp_reqparse(&r, FFSTR("GET /%0a%0d1/2/3?%%00?%g HTTP/1.0" FFCRLF)));
-	ffhttp_reqfree(&r);
+	ffhttp_req_init(&r);
+	x(FFHTTP_OK == ffhttp_req_line(&r, FFSTR("GET /%0a%0d1/2/3?%%00?%g HTTP/1.0" FFCRLF)));
+	ffhttp_req_free(&r);
 
-	ffhttp_reqinit(&r);
-	x((FFHTTP_EURLPARSE | FFURL_EPATH) == ffhttp_reqparse(&r, FFSTR("GET /% ")));
+	ffhttp_req_init(&r);
+	x((FFHTTP_EURLPARSE | FFURL_EPATH) == ffhttp_req_line(&r, FFSTR("GET /% ")));
 
 	//http 09
 	//"GET /" FFCRLF FFCRLF
@@ -60,36 +60,36 @@ static int test_req()
 #define DATA "GET  /file%20name?qu%20e?&ry%01#sharp  HTTP/1.1 " FFCRLF \
 	HDRS
 
-	ffhttp_reqinit(&r);
-	x(FFHTTP_OK == ffhttp_reqparse(&r, FFSTR(DATA)));
+	ffhttp_req_init(&r);
+	x(FFHTTP_OK == ffhttp_req_line(&r, FFSTR(DATA)));
 	s = ffhttp_firstline(&r.h);
 	x(ffstr_eqcz(&s, "GET  /file%20name?qu%20e?&ry%01#sharp  HTTP/1.1 "));
 	x(r.method == FFHTTP_GET);
-	s = ffhttp_reqmethod(&r);
+	s = ffhttp_req_method(&r);
 	x(ffstr_eqcz(&s, "GET"));
-	s = ffhttp_requrl(&r, FFURL_PATHQS);
+	s = ffhttp_req_url(&r, FFURL_PATHQS);
 	x(ffstr_eqcz(&s, "/file%20name?qu%20e?&ry%01"));
-	s = ffhttp_requrl(&r, FFURL_PATH);
+	s = ffhttp_req_url(&r, FFURL_PATH);
 	x(ffstr_eqcz(&s, "/file%20name"));
-	s = ffhttp_requrl(&r, FFURL_QS);
+	s = ffhttp_req_url(&r, FFURL_QS);
 	x(ffstr_eqcz(&s, "qu%20e?&ry%01"));
 
-	s = ffhttp_reqpath(&r);
+	s = ffhttp_req_path(&r);
 	x(ffstr_eqcz(&s, "/file name"));
 	x(r.h.http11 && r.h.ver == 0x0101);
 
 	x(FFHTTP_DONE == ffhttp_reqparsehdrs(&r, FFSTR(DATA)));
 	s = ffhttp_hdrs(&r.h);
 	x(ffstr_eqcz(&s, HDRS));
-	s = ffhttp_requrl(&r, FFURL_FULLHOST);
+	s = ffhttp_req_url(&r, FFURL_FULLHOST);
 	x(ffstr_eqcz(&s, "myhost:8080"));
-	s = ffhttp_reqhost(&r);
+	s = ffhttp_req_host(&r);
 	x(ffstr_eqcz(&s, "myhost"));
 	x(!r.h.conn_close && r.h.has_body && !r.h.chunked && r.h.cont_len == 123456);
 	x(r.h.ce_gzip && !r.h.ce_identity);
 	x(r.accept_gzip && r.accept_chunked);
 
-	ffhttp_reqfree(&r);
+	ffhttp_req_free(&r);
 #undef DATA
 #undef HDRS
 
@@ -98,26 +98,26 @@ static int test_req()
 	"content-length:  123456" FFCRLF \
 	"Transfer-Encoding: chunked" FFCRLF FFCRLF
 
-	ffhttp_reqinit(&r);
-	x(FFHTTP_OK == ffhttp_reqparse(&r, FFSTR(DATA)));
+	ffhttp_req_init(&r);
+	x(FFHTTP_OK == ffhttp_req_line(&r, FFSTR(DATA)));
 	x(FFHTTP_DONE == ffhttp_reqparsehdrs(&r, FFSTR(DATA)));
-	s = ffhttp_requrl(&r, FFURL_FULLHOST);
+	s = ffhttp_req_url(&r, FFURL_FULLHOST);
 	x(ffstr_eqcz(&s, "urlhost:80"));
-	s = ffhttp_reqhost(&r);
+	s = ffhttp_req_host(&r);
 	x(ffstr_eqcz(&s, "urlhost"));
-	s = ffhttp_requrl(&r, FFURL_PATHQS);
+	s = ffhttp_req_url(&r, FFURL_PATHQS);
 	x(ffstr_eqcz(&s, "/file?qs"));
 	x(r.h.chunked && r.h.cont_len == -1 && r.h.has_body && r.h.ce_identity);
-	ffhttp_reqfree(&r);
+	ffhttp_req_free(&r);
 #undef DATA
 
 #define DATA "GET / HTTP/1.0" FFCRLF FFCRLF
-	ffhttp_reqinit(&r);
-	x(FFHTTP_OK == ffhttp_reqparse(&r, FFSTR(DATA)));
+	ffhttp_req_init(&r);
+	x(FFHTTP_OK == ffhttp_req_line(&r, FFSTR(DATA)));
 	x(FFHTTP_DONE == ffhttp_reqparsehdrs(&r, FFSTR(DATA)));
 	x(!r.h.http11 && r.h.ver == 0x0100);
 	x(r.h.conn_close && !r.accept_chunked);
-	ffhttp_reqfree(&r);
+	ffhttp_req_free(&r);
 #undef DATA
 
 #define DATA "GET / HTTP/1.0" FFCRLF \
@@ -126,12 +126,12 @@ static int test_req()
 	"TE: deflate, chunked" FFCRLF \
 	FFCRLF
 
-	ffhttp_reqinit(&r);
-	x(FFHTTP_OK == ffhttp_reqparse(&r, FFSTR(DATA)));
+	ffhttp_req_init(&r);
+	x(FFHTTP_OK == ffhttp_req_line(&r, FFSTR(DATA)));
 	x(FFHTTP_DONE == ffhttp_reqparsehdrs(&r, FFSTR(DATA)));
 	x(!r.h.conn_close && r.accept_chunked);
 	x(r.accept_gzip);
-	ffhttp_reqfree(&r);
+	ffhttp_req_free(&r);
 #undef DATA
 
 #define DATA "GET / HTTP/1.0" FFCRLF \
@@ -139,37 +139,37 @@ static int test_req()
 	"Content-length: 1234" FFCRLF \
 	FFCRLF
 
-	ffhttp_reqinit(&r);
-	x(FFHTTP_OK == ffhttp_reqparse(&r, FFSTR(DATA)));
+	ffhttp_req_init(&r);
+	x(FFHTTP_OK == ffhttp_req_line(&r, FFSTR(DATA)));
 	x(FFHTTP_EDUPHDR == ffhttp_reqparsehdrs(&r, FFSTR(DATA)));
-	ffhttp_reqfree(&r);
+	ffhttp_req_free(&r);
 #undef DATA
 
 #define DATA "DELETE / HTTP/1.1" FFCRLF FFCRLF
-	ffhttp_reqinit(&r);
-	x(FFHTTP_OK == ffhttp_reqparse(&r, FFSTR(DATA)));
+	ffhttp_req_init(&r);
+	x(FFHTTP_OK == ffhttp_req_line(&r, FFSTR(DATA)));
 	x(r.method == FFHTTP_DELETE);
 	x(FFHTTP_EHOST11 == ffhttp_reqparsehdrs(&r, FFSTR(DATA)));
-	ffhttp_reqfree(&r);
+	ffhttp_req_free(&r);
 #undef DATA
 
-	ffhttp_reqinit(&r);
-	x(FFHTTP_OK == ffhttp_reqparse(&r, FFSTR("METHOD ?& HTTP/1.1" FFCRLF)));
+	ffhttp_req_init(&r);
+	x(FFHTTP_OK == ffhttp_req_line(&r, FFSTR("METHOD ?& HTTP/1.1" FFCRLF)));
 	x(r.method == FFHTTP_MUKN);
-	ffhttp_reqfree(&r);
+	ffhttp_req_free(&r);
 
 #define DATA "GET * HTTP/1.1"
-	ffhttp_reqinit(&r);
-	x((FFHTTP_EURLPARSE | FFURL_EHOST) == ffhttp_reqparse(&r, FFSTR(DATA FFCRLF FFCRLF)));
+	ffhttp_req_init(&r);
+	x((FFHTTP_EURLPARSE | FFURL_EHOST) == ffhttp_req_line(&r, FFSTR(DATA FFCRLF FFCRLF)));
 	s = ffhttp_firstline(&r.h);
 	x(ffstr_eqcz(&s, DATA));
-	ffhttp_reqfree(&r);
+	ffhttp_req_free(&r);
 #undef DATA
 
-	ffhttp_reqinit(&r);
+	ffhttp_req_init(&r);
 	x(FFHTTP_EDUPHDR == ffhttp_reqparsehdrs(&r, FFSTR("if-none-match: \"123\"" FFCRLF
 		"if-none-match: \"456\"" FFCRLF)));
-	ffhttp_reqfree(&r);
+	ffhttp_req_free(&r);
 
 	x(NULL != ffhttp_errstr(FFHTTP_ETOOLARGE));
 
@@ -181,29 +181,29 @@ static int test_ver()
 	ffhttp_response r;
 	ffstr s;
 
-	ffhttp_respinit(&r);
-	x(FFHTTP_OK == ffhttp_respparse(&r, FFSTR("HTTP/255.255 200 OK" FFCRLF), 0));
+	ffhttp_resp_init(&r);
+	x(FFHTTP_OK == ffhttp_resp_line(&r, FFSTR("HTTP/255.255 200 OK" FFCRLF), 0));
 	x(r.h.http11 && r.h.ver == 0xffff);
 
-	ffhttp_respinit(&r);
-	x(FFHTTP_OK == ffhttp_respparse(&r, FFSTR("HTTP/1.255 200 OK" FFCRLF), 0));
+	ffhttp_resp_init(&r);
+	x(FFHTTP_OK == ffhttp_resp_line(&r, FFSTR("HTTP/1.255 200 OK" FFCRLF), 0));
 	x(r.h.http11 && r.h.ver == 0x01ff);
 
 #define DATA "HTTP/256.1 200 OK"
-	ffhttp_respinit(&r);
-	x(FFHTTP_EVERSION == ffhttp_respparse(&r, FFSTR(DATA FFCRLF), 0));
+	ffhttp_resp_init(&r);
+	x(FFHTTP_EVERSION == ffhttp_resp_line(&r, FFSTR(DATA FFCRLF), 0));
 	s = ffhttp_firstline(&r.h);
 	x(ffstr_eqcz(&s, DATA));
 #undef DATA
 
-	ffhttp_respinit(&r);
-	x(FFHTTP_EVERSION == ffhttp_respparse(&r, FFSTR("HTTP/1.256 200 OK" FFCRLF), 0));
-	ffhttp_respinit(&r);
-	x(FFHTTP_EVERSION == ffhttp_respparse(&r, FFSTR("HTTP/-1.1 200 OK" FFCRLF), 0));
-	ffhttp_respinit(&r);
-	x(FFHTTP_EVERSION == ffhttp_respparse(&r, FFSTR("HTTP/1.-1 200 OK" FFCRLF), 0));
-	ffhttp_respinit(&r);
-	x(FFHTTP_EVERSION == ffhttp_respparse(&r, FFSTR("HTTP/ 1.1 200 OK" FFCRLF), 0));
+	ffhttp_resp_init(&r);
+	x(FFHTTP_EVERSION == ffhttp_resp_line(&r, FFSTR("HTTP/1.256 200 OK" FFCRLF), 0));
+	ffhttp_resp_init(&r);
+	x(FFHTTP_EVERSION == ffhttp_resp_line(&r, FFSTR("HTTP/-1.1 200 OK" FFCRLF), 0));
+	ffhttp_resp_init(&r);
+	x(FFHTTP_EVERSION == ffhttp_resp_line(&r, FFSTR("HTTP/1.-1 200 OK" FFCRLF), 0));
+	ffhttp_resp_init(&r);
+	x(FFHTTP_EVERSION == ffhttp_resp_line(&r, FFSTR("HTTP/ 1.1 200 OK" FFCRLF), 0));
 
 	return 0;
 }
@@ -218,51 +218,51 @@ static int test_resp()
 #define DATA "HTTP/1.1 200 OK" FFCRLF \
 	"Connection: close" FFCRLF FFCRLF
 
-	ffhttp_respinit(&r);
-	x(FFHTTP_OK == ffhttp_respparse(&r, FFSTR(DATA), 0));
+	ffhttp_resp_init(&r);
+	x(FFHTTP_OK == ffhttp_resp_line(&r, FFSTR(DATA), 0));
 	x(FFHTTP_DONE == ffhttp_respparsehdrs(&r, FFSTR(DATA)));
 	s = ffhttp_firstline(&r.h);
 	x(ffstr_eqcz(&s, "HTTP/1.1 200 OK"));
 	s = ffhttp_hdrs(&r.h);
 	x(ffstr_eqcz(&s, "Connection: close" FFCRLF FFCRLF));
-	s = ffhttp_respstatus(&r);
+	s = ffhttp_resp_status(&r);
 	x(ffstr_eqcz(&s, "200 OK"));
 	x(r.h.ver == 0x0101);
 	x(r.h.has_body && r.h.body_conn_close);
-	ffhttp_respfree(&r);
+	ffhttp_resp_free(&r);
 #undef DATA
 
 #define DATA "HTTP/1.1 304 Not Modified" FFCRLF \
 	"Content-length: 123" FFCRLF FFCRLF
 
-	ffhttp_respinit(&r);
-	x(FFHTTP_OK == ffhttp_respparse(&r, FFSTR(DATA), 0));
+	ffhttp_resp_init(&r);
+	x(FFHTTP_OK == ffhttp_resp_line(&r, FFSTR(DATA), 0));
 	x(FFHTTP_DONE == ffhttp_respparsehdrs(&r, FFSTR(DATA)));
 	x(!r.h.has_body && !r.h.body_conn_close && r.h.cont_len != -1);
-	ffhttp_respfree(&r);
+	ffhttp_resp_free(&r);
 #undef DATA
 
-	ffhttp_respinit(&r);
-	x(FFHTTP_ESTATUS == ffhttp_respparse(&r, FFSTR("HTTP/1.1 0" FFCRLF), 0));
+	ffhttp_resp_init(&r);
+	x(FFHTTP_ESTATUS == ffhttp_resp_line(&r, FFSTR("HTTP/1.1 0" FFCRLF), 0));
 
-	ffhttp_respinit(&r);
-	x(FFHTTP_ESTATUS == ffhttp_respparse(&r, FFSTR("HTTP/1.1 20 OK" FFCRLF), 0));
+	ffhttp_resp_init(&r);
+	x(FFHTTP_ESTATUS == ffhttp_resp_line(&r, FFSTR("HTTP/1.1 20 OK" FFCRLF), 0));
 
 #define DATA "HTTP/1.1 2000 OK"
-	ffhttp_respinit(&r);
-	x(FFHTTP_ESTATUS == ffhttp_respparse(&r, FFSTR(DATA FFCRLF), 0));
+	ffhttp_resp_init(&r);
+	x(FFHTTP_ESTATUS == ffhttp_resp_line(&r, FFSTR(DATA FFCRLF), 0));
 	s = ffhttp_firstline(&r.h);
 	x(ffstr_eqcz(&s, DATA));
 #undef DATA
 
-	ffhttp_respinit(&r);
-	x(FFHTTP_ESTATUS == ffhttp_respparse(&r, FFSTR("HTTP/1.1 " FFCRLF), 0));
+	ffhttp_resp_init(&r);
+	x(FFHTTP_ESTATUS == ffhttp_resp_line(&r, FFSTR("HTTP/1.1 " FFCRLF), 0));
 
-	ffhttp_respinit(&r);
-	x(FFHTTP_EVERSION == ffhttp_respparse(&r, FFSTR("ICY 200 OK" FFCRLF), 0));
+	ffhttp_resp_init(&r);
+	x(FFHTTP_EVERSION == ffhttp_resp_line(&r, FFSTR("ICY 200 OK" FFCRLF), 0));
 
-	ffhttp_respinit(&r);
-	x(FFHTTP_OK == ffhttp_respparse(&r, FFSTR("ICY 200 OK" FFCRLF), FFHTTP_IGN_STATUS_PROTO));
+	ffhttp_resp_init(&r);
+	x(FFHTTP_OK == ffhttp_resp_line(&r, FFSTR("ICY 200 OK" FFCRLF), FFHTTP_IGN_STATUS_PROTO));
 
 	return 0;
 }

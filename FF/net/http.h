@@ -271,20 +271,20 @@ typedef struct ffhttp_request {
 } ffhttp_request;
 
 /** Initialize request parser. */
-static FFINL void ffhttp_reqinit(ffhttp_request *r) {
+static FFINL void ffhttp_req_init(ffhttp_request *r) {
 	memset(r, 0, sizeof(ffhttp_request));
 	ffhttp_init(&r->h);
 }
 
 /** Deallocate memory associated with ffhttp_request. */
-static FFINL void ffhttp_reqfree(ffhttp_request *r) {
+static FFINL void ffhttp_req_free(ffhttp_request *r) {
 	ffhttp_fin(&r->h);
 	ffstr_free(&r->decoded_url);
 }
 
 /** Parse request line.
 Return enum FFHTTP_E. */
-FF_EXTN int ffhttp_reqparse(ffhttp_request *r, const char *data, size_t len);
+FF_EXTN int ffhttp_req_line(ffhttp_request *r, const char *data, size_t len);
 
 /** Parse request header.
 Return enum FFHTTP_E. */
@@ -298,8 +298,22 @@ static FFINL int ffhttp_reqparsehdrs(ffhttp_request *r, const char *data, size_t
 	return e;
 }
 
+/** Parse request line and headers.
+Return FFHTTP_DONE: success;  FFHTTP_MORE: need more data;  enum FFHTTP_E: error. */
+static FFINL int ffhttp_req(ffhttp_request *r, const char *data, size_t len)
+{
+	int e;
+	if (r->h.firstcrlf == 0
+		&& FFHTTP_OK != (e = ffhttp_req_line(r, data, len)))
+		return e;
+
+	while (FFHTTP_OK == (e = ffhttp_reqparsehdr(r, data, len))) {
+	}
+	return e;
+}
+
 /** Get method string. */
-static FFINL ffstr ffhttp_reqmethod(const ffhttp_request *r) {
+static FFINL ffstr ffhttp_req_method(const ffhttp_request *r) {
 	ffstr s;
 	ffstr_set(&s, r->h.base, r->methodlen);
 	return s;
@@ -307,27 +321,38 @@ static FFINL ffstr ffhttp_reqmethod(const ffhttp_request *r) {
 
 /** Get URI component.
 Note: getting scheme is not supported. */
-static FFINL ffstr ffhttp_requrl(const ffhttp_request *r, int component) {
+static FFINL ffstr ffhttp_req_url(const ffhttp_request *r, int component) {
 	return ffurl_get(&r->url, r->h.base, component);
 }
 
 /** Get hostname from request. */
-static FFINL ffstr ffhttp_reqhost(const ffhttp_request *r) {
+static FFINL ffstr ffhttp_req_host(const ffhttp_request *r) {
 	return ffurl_get(&r->url, r->h.base, FFURL_HOST);
 }
 
 /** Get decoded path. */
-static FFINL ffstr ffhttp_reqpath(const ffhttp_request *r) {
+static FFINL ffstr ffhttp_req_path(const ffhttp_request *r) {
 	if (!r->url.complex)
 		return ffurl_get(&r->url, r->h.base, FFURL_PATH);
 	return r->decoded_url;
 }
 
 /** Get HTTP version as a string. */
-static FFINL ffstr ffhttp_reqverstr(const ffhttp_request *r)
+static FFINL ffstr ffhttp_req_verstr(const ffhttp_request *r)
 {
 	return ffrang_get(&r->sver, r->h.base);
 }
+
+#ifndef FF_NO_OBSOLETE
+#define ffhttp_reqinit  ffhttp_req_init
+#define ffhttp_reqfree  ffhttp_req_free
+#define ffhttp_reqparse  ffhttp_req_line
+#define ffhttp_reqmethod  ffhttp_req_method
+#define ffhttp_requrl  ffhttp_req_url
+#define ffhttp_reqhost  ffhttp_req_host
+#define ffhttp_reqpath  ffhttp_req_path
+#define ffhttp_reqverstr  ffhttp_req_verstr
+#endif
 
 
 /** Parsed response. */
@@ -341,12 +366,12 @@ typedef struct ffhttp_response {
 } ffhttp_response;
 
 /** Initialize response parser. */
-static FFINL void ffhttp_respinit(ffhttp_response *r) {
+static FFINL void ffhttp_resp_init(ffhttp_response *r) {
 	memset(r, 0, sizeof(ffhttp_response));
 	ffhttp_init(&r->h);
 }
 
-static FFINL void ffhttp_respfree(ffhttp_response *r) {
+static FFINL void ffhttp_resp_free(ffhttp_response *r) {
 	ffhttp_fin(&r->h);
 }
 
@@ -356,7 +381,7 @@ enum FFHTTP_RESPF {
 
 /** Parse response.
 'flags': enum FFHTTP_RESPF. */
-FF_EXTN int ffhttp_respparse(ffhttp_response *r, const char *data, size_t len, int flags);
+FF_EXTN int ffhttp_resp_line(ffhttp_response *r, const char *data, size_t len, int flags);
 
 /** Parse response header. */
 FF_EXTN int ffhttp_respparsehdr(ffhttp_response *r, const char *data, size_t len);
@@ -369,11 +394,14 @@ static FFINL int ffhttp_respparsehdrs(ffhttp_response *r, const char *data, size
 	return e;
 }
 
-static FFINL int ffhttp_respparse_all(ffhttp_response *r, const char *data, size_t len, uint flags)
+/** Parse response line and headers.
+'flags': enum FFHTTP_RESPF.
+Return FFHTTP_DONE: success;  FFHTTP_MORE: need more data;  enum FFHTTP_E: error. */
+static FFINL int ffhttp_resp(ffhttp_response *r, const char *data, size_t len, uint flags)
 {
 	int e;
-	if (r->code == 0
-		&& FFHTTP_OK != (e = ffhttp_respparse(r, data, len, flags)))
+	if (r->h.firstcrlf == 0
+		&& FFHTTP_OK != (e = ffhttp_resp_line(r, data, len, flags)))
 		return e;
 
 	while (FFHTTP_OK == (e = ffhttp_respparsehdr(r, data, len))) {
@@ -382,7 +410,7 @@ static FFINL int ffhttp_respparse_all(ffhttp_response *r, const char *data, size
 }
 
 /** Get HTTP version as a string. */
-static FFINL ffstr ffhttp_respverstr(const ffhttp_response *r)
+static FFINL ffstr ffhttp_resp_verstr(const ffhttp_response *r)
 {
 	ffstr s;
 	ffstr_set(&s, r->h.base, r->ver_len);
@@ -390,19 +418,31 @@ static FFINL ffstr ffhttp_respverstr(const ffhttp_response *r)
 }
 
 /** Get response status code and message. */
-#define ffhttp_respstatus(r)  ffrang_get(&(r)->status, (r)->h.base)
+#define ffhttp_resp_status(r)  ffrang_get(&(r)->status, (r)->h.base)
 
 /** Get response status code. */
-#define ffhttp_respcode(r)  ((uint)(r)->code)
+#define ffhttp_resp_code(r)  ((uint)(r)->code)
 
 /** Get response status message. */
-#define ffhttp_respmsg(r) \
+#define ffhttp_resp_msg(r) \
 	ffrang_get_off(&(r)->status, (r)->h.base, (r)->status_text_off - (r)->status.off)
 
 /** Return TRUE if response has no body. */
-static FFINL ffbool ffhttp_respnobody(int code) {
+static FFINL ffbool ffhttp_resp_nobody(int code) {
 	return (code == 204 || code == 304 || code < 200);
 }
+
+#ifndef FF_NO_OBSOLETE
+#define ffhttp_respinit  ffhttp_resp_init
+#define ffhttp_respfree  ffhttp_resp_free
+#define ffhttp_respparse  ffhttp_resp_line
+#define ffhttp_respparse_all  ffhttp_resp
+#define ffhttp_respverstr  ffhttp_resp_verstr
+#define ffhttp_respstatus  ffhttp_resp_status
+#define ffhttp_respcode  ffhttp_resp_code
+#define ffhttp_respmsg  ffhttp_resp_msg
+#define ffhttp_respnobody  ffhttp_resp_nobody
+#endif
 
 
 enum FFHTTP_CACHE {

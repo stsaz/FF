@@ -653,7 +653,7 @@ fail:
 	return FFHTTP_EVERSION;
 }
 
-int ffhttp_reqparse(ffhttp_request *r, const char *d, size_t len)
+int ffhttp_req_line(ffhttp_request *r, const char *d, size_t len)
 {
 	enum {
 		iMethod, iBeforeUri, iURL
@@ -943,7 +943,7 @@ int ffhttp_reqparsehdr(ffhttp_request *r, const char *data, size_t len)
 	return FFHTTP_OK;
 }
 
-int ffhttp_respparse(ffhttp_response *r, const char *d, size_t len, int flags)
+int ffhttp_resp_line(ffhttp_response *r, const char *d, size_t len, int flags)
 {
 	enum { iRespStart, iCode, iStatusStr, iLastLf };
 
