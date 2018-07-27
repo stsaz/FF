@@ -186,6 +186,12 @@ FF_EXTN void * ffmemchr(const void *d, int b, size_t len);
 /** Compare two buffers. */
 #define ffmemcmp  memcmp
 
+/** Apply XOR on a data with a key of arbitrary length. */
+FF_EXTN void ffmem_xor(byte *dst, const byte *src, size_t len, const byte *key, size_t nkey);
+
+/** Apply XOR on a data with 4-byte key. */
+FF_EXTN void ffmem_xor4(void *dst, const void *src, size_t len, uint key);
+
 /** Search byte in a buffer.
 Return END if not found. */
 static FFINL char * ffs_find(const char *buf, size_t len, int ch) {

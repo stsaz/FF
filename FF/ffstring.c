@@ -19,6 +19,30 @@ void* ffmemcpy(void *dst, const void *src, size_t len)
 }
 #endif
 
+void ffmem_xor(byte *dst, const byte *src, size_t len, const byte *key, size_t nkey)
+{
+	for (size_t i = 0;  i != len;  i++) {
+		dst[i] = src[i] ^ key[i % nkey];
+	}
+}
+
+void ffmem_xor4(void *dst, const void *src, size_t len, uint key)
+{
+	byte *key1 = (byte*)&key, *dst1 = dst;
+	const byte *src1 = src;
+	uint *dst4 = dst;
+	const uint *src4 = src;
+	size_t i;
+
+	for (i = 0;  i != len / 4;  i++) {
+		dst4[i] = src4[i] ^ key;
+	}
+
+	for (i = i * 4;  i != len;  i++) {
+		dst1[i] = src1[i] ^ key1[i % 4];
+	}
+}
+
 int ffs_icmp(const char *s1, const char *s2, size_t len)
 {
 	size_t i;
