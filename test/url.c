@@ -81,6 +81,14 @@ int test_ip4()
 	x(0 > ffip4_parse(&a4, FFSTR("1.65.192.256")));
 	x(0 > ffip4_parse(&a4, FFSTR("1.65,192.255")));
 
+	uint subnet;
+
+	x(0 == ffip4_parse_wildcard(&a4, FFSTR("65.*"), &subnet));
+	x(!memcmp(&a4, "\x41\0\0\0", 4) && subnet == 1 * 8);
+
+	x(0 == ffip4_parse_wildcard(&a4, FFSTR("65.192.*"), &subnet));
+	x(!memcmp(&a4, "\x41\xc0\0\0", 4) && subnet == 2 * 8);
+
 	x(24 == ffip4_parse_subnet(&a4, FFSTR("1.65.192.0/24")));
 	x(!memcmp(&a4, "\x01\x41\xc0\x00", 4));
 	x(0 > ffip4_parse_subnet(&a4, FFSTR("1.65.192.0/33")));
