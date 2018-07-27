@@ -177,8 +177,10 @@ FF_EXTN int ffip_next(ffip_iter *it, void **ip);
 'port': optional parameter (e.g. "127.0.0.1:80", "[::1]:80"). */
 FF_EXTN uint ffip_tostr(char *buf, size_t cap, uint family, const void *ip, uint port);
 
-/** Split "IP:PORT" address string.
-e.g.: "127.0.0.1:80", "[::1]:80", ":80".
+/** Split "IP[:PORT]" address string.
+e.g.: "127.0.0.1", "127.0.0.1:80", "[::1]:80", ":80".
+@ip: output address.  Brackets aren't included for IPv6 address.
+@port: output port.
 Return 0 on success. */
 FF_EXTN int ffip_split(const char *s, size_t len, ffstr *ip, ffstr *port);
 

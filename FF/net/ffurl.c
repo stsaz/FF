@@ -665,16 +665,23 @@ uint ffip_tostr(char *buf, size_t cap, uint family, const void *ip, uint port)
 
 int ffip_split(const char *data, size_t len, ffstr *ip, ffstr *port)
 {
-	if (NULL == ffs_rsplit2by(data, len, ':', ip, port) || port->len == 0)
-		return -1;
+	const char *pos = ffs_rsplit2by(data, len, ':', ip, port);
 
 	if (ip->len != 0 && ip->ptr[0] == '[') {
-		if (!(ip->len >= FFSLEN("[::]") && ip->ptr[ip->len - 1] == ']')
-			&& NULL == ffs_findc(ip->ptr, ip->len, '.'))
+		if (data[len - 1] == ']') {
+			ip->len = len;
+			ffstr_null(port);
+			pos = NULL;
+		}
+		if (!(ip->len >= FFSLEN("[::]") && ip->ptr[ip->len - 1] == ']'))
 			return -1;
 		ip->ptr += FFSLEN("[");
 		ip->len -= FFSLEN("[]");
 	}
+
+	if (pos != NULL && port->len == 0)
+		return -1; // "ip:"
+
 	return 0;
 }
 

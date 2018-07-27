@@ -494,6 +494,26 @@ int test_url()
 
 	(void)ffurl_errstr(FFURL_EPATH);
 
+	{
+	ffstr ip, port;
+	x(0 == ffip_split(FFSTR("127.0.0.1"), &ip, &port)
+		&& ffstr_eqz(&ip, "127.0.0.1")
+		&& ffstr_eqz(&port, ""));
+	x(0 == ffip_split(FFSTR("127.0.0.1:8080"), &ip, &port)
+		&& ffstr_eqz(&ip, "127.0.0.1")
+		&& ffstr_eqz(&port, "8080"));
+	x(0 == ffip_split(FFSTR("[::1]"), &ip, &port)
+		&& ffstr_eqz(&ip, "::1")
+		&& ffstr_eqz(&port, ""));
+	x(0 == ffip_split(FFSTR("[::1]:8080"), &ip, &port)
+		&& ffstr_eqz(&ip, "::1")
+		&& ffstr_eqz(&port, "8080"));
+	x(0 == ffip_split(FFSTR(":8080"), &ip, &port)
+		&& ffstr_eqz(&ip, "")
+		&& ffstr_eqz(&port, "8080"));
+	x(0 != ffip_split(FFSTR("127.0.0.1:"), &ip, &port));
+	}
+
 	test_urldecode();
 	test_ip4();
 	test_ip6();
