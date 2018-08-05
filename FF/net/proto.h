@@ -82,6 +82,11 @@ static FFINL int ffip4_parse(ffip4 *ip4, const char *s, size_t len)
 Return subnet mask bits;  <0 on error. */
 FF_EXTN int ffip4_parse_subnet(ffip4 *ip4, const char *s, size_t len);
 
+/** Convert subnet bits to mask.
+32 -> "255.255.255.255"
+Return bytes written;  -1 on error. */
+FF_EXTN int ffip4_mask(uint bits, char *mask, size_t cap);
+
 
 /** Convert IPv4 address to string.
 Return the number of characters written. */

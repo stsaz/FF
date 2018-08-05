@@ -104,6 +104,27 @@ int ffip4_parse_subnet(ffip4 *ip4, const char *s, size_t len)
 	return subnet;
 }
 
+int ffip4_mask(uint bits, char *mask, size_t cap)
+{
+	union {
+		uint m;
+		byte b[4];
+	} u;
+	if (bits > 32)
+		return -1;
+	else if (bits == 32)
+		u.m = 0xffffffff;
+	else {
+		u.m = ~(0xffffffff >> bits);
+		u.m = ffhton32(u.m);
+	}
+	ssize_t r = ffs_fmt2(mask, cap, "%u.%u.%u.%u"
+		, u.b[0], u.b[1], u.b[2], u.b[3]);
+	if (r < 0)
+		return -1;
+	return r;
+}
+
 size_t ffip4_tostr(char *dst, size_t cap, const ffip4 *ip4)
 {
 	char *p = dst, *end = dst + cap;

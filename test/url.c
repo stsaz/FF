@@ -101,6 +101,16 @@ int test_ip4()
 	sip.len = ffip_tostr(buf, FFCNT(buf), AF_INET, (void*)"\x7f\0\0\x01", 8080);
 	x(ffstr_eqz(&sip, "127.0.0.1:8080"));
 
+	x(ffip4_mask(33, buf, FFCNT(buf)) < 0);
+	sip.len = ffip4_mask(32, buf, FFCNT(buf));
+	x(ffstr_eqz(&sip, "255.255.255.255"));
+	sip.len = ffip4_mask(31, buf, FFCNT(buf));
+	x(ffstr_eqz(&sip, "255.255.255.254"));
+	sip.len = ffip4_mask(16, buf, FFCNT(buf));
+	x(ffstr_eqz(&sip, "255.255.0.0"));
+	sip.len = ffip4_mask(0, buf, FFCNT(buf));
+	x(ffstr_eqz(&sip, "0.0.0.0"));
+
 	return 0;
 }
 
