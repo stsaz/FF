@@ -96,6 +96,14 @@ int test_tls(void)
 	x(ffstr_eqz(&tls.hostname, "www.google.com"));
 	x(FFTLS_RHELLO_ALPN == fftls_read(&tls));
 	x(ffstr_eq(&tls.alpn_protos, tls13_clienthello_alpn, FFSLEN(tls13_clienthello_alpn)));
+
+	ffstr alpn;
+	x(3 == fftls_alpn_next(&tls.alpn_protos, &alpn));
+	x(ffstr_eqz(&alpn, "h2"));
+	x(9 == fftls_alpn_next(&tls.alpn_protos, &alpn));
+	x(ffstr_eqz(&alpn, "http/1.1"));
+	x(0 == fftls_alpn_next(&tls.alpn_protos, &alpn));
+
 	x(FFTLS_RDONE == fftls_read(&tls));
 	x(fftls_ver(&tls) == 0x7f17);
 

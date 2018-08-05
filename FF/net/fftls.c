@@ -562,15 +562,12 @@ const char* fftls_verstr(uint ver)
 
 int fftls_alpn_next(ffstr *buf, ffstr *proto)
 {
-	if (buf->len == 0)
+	int len;
+	if ((len = datalen8(buf)) < 0)
 		return 0;
-	uint len = (byte)buf->ptr[0];
-	if (len > buf->len)
-		return 0;
-	ffstr_set(proto, buf->ptr + 1, len);
-	len++;
+	ffstr_set(proto, buf->ptr, len);
 	ffstr_shift(buf, len);
-	return len;
+	return len + 1;
 }
 
 
