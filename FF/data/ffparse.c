@@ -461,7 +461,7 @@ int ffpars_arg_process(const ffpars_arg *a, const ffstr *val, void *obj, void *p
 
 int _ffpars_arg_process2(const ffpars_arg *a, const void *val, void *obj, void *ps)
 {
-	int r;
+	int r = 0;
 	switch (a->flags & FFPARS_FTYPEMASK) {
 	case FFPARS_TINT:
 		r = _ffpars_int(a, *(int64*)val, obj, ps);
@@ -472,6 +472,8 @@ int _ffpars_arg_process2(const ffpars_arg *a, const void *val, void *obj, void *
 	case FFPARS_TFLOAT:
 		r = _ffpars_flt(a, *(double*)val, obj, ps);
 		break;
+	default:
+		FF_ASSERT(0);
 	}
 	return r;
 }
