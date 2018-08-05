@@ -4,8 +4,6 @@ Copyright (c) 2014 Simon Zolin
 
 #include <FF/list.h>
 #include <FF/rbtree.h>
-#include <FF/crc.h>
-#include <FF/hashtab.h>
 #include <FF/number.h>
 #include <FF/ring.h>
 #include <FF/sys/taskqueue.h>
@@ -256,73 +254,6 @@ int test_list()
 	ffchain_unlink(&i3);
 	x(i1.next == &i2 && i2.prev == &i1);
 
-	return 0;
-}
-
-
-typedef struct svc_table_t {
-	int port;
-	char *svc;
-} svc_table_t;
-
-static const svc_table_t svc_table[] = {
-	{ 80, "http" }
-	, { 8080, "http-alt" }
-	, { 443, "https" }
-	, { 20, "ftp-data" }
-	, { 21, "ftp" }
-	, { 22, "ssh" }
-	, { 23, "telnet" }
-	, { 25, "smtp" }
-	, { 110, "pop3" }
-	, { 53, "dns" }
-	, { 123, "ntp" }
-};
-
-static int cmpkey(void *udata, const char *key, size_t klen, void *param) {
-	svc_table_t *t = udata;
-	return strncmp(t->svc, key, klen);
-}
-
-static int walk(void *udata, void *param) {
-	int *n = param;
-	(*n)++;
-	return 0;
-}
-
-int test_htable()
-{
-	ffhstab ht;
-	size_t i;
-	int n = 0;
-
-	FFTEST_FUNC;
-
-	x(0 == ffhst_init(&ht, FFCNT(svc_table)));
-	ht.cmpkey = &cmpkey;
-
-	for (i = 0;  i < FFCNT(svc_table);  i++) {
-		const svc_table_t *t = &svc_table[i];
-		uint hash = ffcrc32_get(t->svc, strlen(t->svc));
-		x(ffhst_ins(&ht, hash, (void*)t) >= 0);
-	}
-
-	for (i = 0;  i < FFCNT(svc_table);  i++) {
-		const svc_table_t *t = &svc_table[i];
-		uint hash = ffcrc32_get(t->svc, strlen(t->svc));
-		t = ffhst_find(&ht, hash, t->svc, strlen(t->svc), NULL);
-		x(t == &svc_table[i]);
-	}
-
-	x(0 == ffhst_walk(&ht, &walk, &n));
-	x(n == ht.len);
-
-	ffarr a = {0};
-	ffhst_print(&ht, &a);
-	ffarr_free(&a);
-	ffhst_print(&ht, NULL);
-
-	ffhst_free(&ht);
 	return 0;
 }
 

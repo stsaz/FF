@@ -16,8 +16,8 @@ FF_TEST_BIN := fftest
 endif
 
 FFOS_CFLAGS := $(CFLAGS)
-FF_CFLAGS := $(CFLAGS)
-CFLAGS += -Werror -Wall -DFF_NO_OBSOLETE \
+FF_CFLAGS := $(CFLAGS) -DFFHST_DEBUG
+CFLAGS += -Werror -Wall -DFF_NO_OBSOLETE -DFFHST_DEBUG \
 	-I$(FF) -I$(FF3PT) -I$(FFOS)
 CXXFLAGS += -Werror -Wall \
 	-I$(FF) -I$(FF3PT) -I$(FFOS)
@@ -40,7 +40,8 @@ FF_TEST_SRC := \
 	$(FF)/test/test.c $(FF)/test/time.c $(FF)/test/url.c $(FF)/test/cue.c $(FF)/test/sys.c \
 	$(FF)/test/arc.c \
 	$(FF)/test/tls.c \
-	$(FF)/test/webskt.c
+	$(FF)/test/webskt.c \
+	$(FF)/test/hashtab.c
 # $(FF)/test/compat.cpp
 FF_TEST_OBJ := $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_TEST_SRC)))))
 FF_TEST_OBJ += $(FF_OBJ_DIR)/sha1.o $(FF_OBJ_DIR)/base64.o

@@ -161,11 +161,11 @@ Include:
 
 Initialize:
 
-	int foo_cmpkey(void *val, const char *key, size_t keylen, void *param);
+	int foo_cmpkey(void *val, const void *key, void *param);
 
 	ffhstab hst = {};
 	hst.cmpkey = &foo_cmpkey;
-	ffhst_init(&hst, /*nslots=*/ N);
+	ffhst_init(&hst, /*items=*/ N);
 
 Insert:
 
@@ -184,13 +184,13 @@ Insert:
 
 Search:
 
-	int foo_cmpkey(void *val, const char *key, size_t keylen, void *param)
+	int foo_cmpkey(void *val, const void *key, void *param)
 	{
 		struct foo *obj = val;
-		return !ffs_cmpz(key, keylen, obj->key);
+		return !ffsz_eq(key, obj->key);
 	}
 
-	struct foo *obj = ffhst_find(&hst, /*hash=*/ 0x1234, "keyname", 7, param);
+	struct foo *obj = ffhst_find(&hst, /*hash=*/ 0x1234, "keyname", param);
 	if (obj == NULL)
 		return; // there's no element with key = "keyname"
 

@@ -6,27 +6,43 @@ Copyright (c) 2014 Simon Zolin
 #include <FFOS/error.h>
 #include <FF/hashtab.h>
 
-#define hst_slot(ht, hash)  &((ht)->slots[((hash) % (ht)->nslots)])
 
-#define hst_ext_size(nitems)  (sizeof(ffhst_ext) + (nitems) * sizeof(ffhst_item))
+#define _FFHST_SLOT_ITEMS  1
+#define _FFHST_HIWAT  75
 
-#define hst_slot_empty(slot)  ((slot)->item.val == NULL)
+typedef struct ffhst_item {
+	uint keyhash;
+	uint flags;
+	void *val;
+} ffhst_item;
 
-#define hst_slot_isext(slot)  ((slot)->empty == 0)
+struct ffhst_slot {
+	ffhst_item item[_FFHST_SLOT_ITEMS];
+};
 
-#define hst_slot_ext(slot)  ((slot)->ext)
 
-#define hst_slot_setext(slot, ext)  (slot)->ext = (ext)
+#define hst_slot(ht, hash)  ((hash) & (ht)->slot_mask)
+#define hst_slot_item(ht, slot)  (&(ht)->slots[slot].item[0])
+#define hst_slot_empty(ht, slot)  ((ht)->slots[slot].item[0].flags == 0)
+#define hst_slot_setbusy(ht, slot)  ((ht)->slots[slot].item[0].flags = 1)
 
-#define hst_ext_tail(ext)  ((ext)->items + (ext)->len)
-
-int ffhst_init(ffhstab *ht, size_t nslots)
+static size_t hst_slot_collnext(const ffhstab *ht, size_t slot)
 {
-	ht->slots = ffmem_calloc(nslots, sizeof(ffhst_slot));
+	return (slot + 1) & ht->slot_mask;
+}
+
+int ffhst_init(ffhstab *ht, size_t items)
+{
+	size_t n = items / _FFHST_SLOT_ITEMS + 1;
+	ht->nslots = ff_align_power2(n);
+	if (ht->nslots * _FFHST_HIWAT / 100 < n)
+		ht->nslots = ff_align_power2(ht->nslots + 1);
+
+	ht->slots = ffmem_calloc(ht->nslots, sizeof(struct ffhst_slot));
 	if (ht->slots == NULL)
 		return -1;
 
-	ht->nslots = nslots;
+	ht->slot_mask = ht->nslots - 1;
 	ht->len = 0;
 
 #ifdef FFHST_DEBUG
@@ -37,19 +53,6 @@ int ffhst_init(ffhstab *ht, size_t nslots)
 
 void ffhst_free(ffhstab *ht)
 {
-	ffhst_slot *slot;
-	void *end;
-
-	if (ht->slots == NULL)
-		return;
-
-	end = ht->slots + ht->len;
-	for (slot = ht->slots;  slot != end;  slot++) {
-		if (!hst_slot_empty(slot)
-			&& hst_slot_isext(slot))
-			ffmem_free(hst_slot_ext(slot));
-	}
-
 	ffmem_free(ht->slots);
 	ht->slots = NULL;
 	ht->len = ht->nslots = 0;
@@ -57,116 +60,80 @@ void ffhst_free(ffhstab *ht)
 
 int ffhst_ins(ffhstab *ht, uint hash, void *val)
 {
-	ffhst_slot *slot = hst_slot(ht, hash);
+	size_t slot = hst_slot(ht, hash);
 	ffhst_item *it;
-	int r = 1;
+	uint r = 1;
 
-	if (hash == 0 || val == NULL) {
-		fferr_set(EINVAL);
+	if (ht->len + 1 > ht->nslots)
 		return -1;
-	}
 
-	if (hst_slot_empty(slot))
-		it = &slot->item;
-
-	else {
-		ffhst_ext *ext;
-
-		if (!hst_slot_isext(slot)) {
-			//there is one item stored directly inside the slot
-			ext = ffmem_alloc(hst_ext_size(2));
-			if (ext == NULL)
-				return -1;
-
-			ext->items[0] = slot->item; //move item from the slot into a separate buffer
-			slot->empty = 0;
-			it = &ext->items[1];
-			ext->len = 2;
-
-		} else {
-			ext = hst_slot_ext(slot);
-			ext = ffmem_realloc(ext, hst_ext_size(ext->len + 1));
-			if (ext == NULL)
-				return -1;
-
-			it = hst_ext_tail(ext);
-			ext->len++;
+	if (!hst_slot_empty(ht, slot)) {
+		for (;;) {
+			if (hst_slot_empty(ht, slot))
+				break;
+			r++;
+			slot = hst_slot_collnext(ht, slot);
 		}
 
-		hst_slot_setext(slot, ext);
-		r = (int)ext->len;
-
+		(void)r;
 #ifdef FFHST_DEBUG
 		ht->ncoll++;
-		if (ht->maxcoll < ext->len)
-			ht->maxcoll = ext->len;
+		if (ht->maxcoll < r)
+			ht->maxcoll = r;
 #endif
 	}
 
+	it = hst_slot_item(ht, slot);
+	hst_slot_setbusy(ht, slot);
 	it->keyhash = hash;
 	it->val = val;
 	ht->len++;
 	return r;
 }
 
-void * ffhst_find(const ffhstab *ht, uint hash, const char *key, size_t keylen, void *param)
+static int hst_cmpkey(const ffhstab *ht, const ffhst_item *it, const void *key, void *param)
 {
-	ffhst_slot *slot;
-	ffhst_item *it, *tail;
+	return ht->cmpkey(it->val, key, param);
+}
 
-	if (ht->len == 0)
-		return NULL;
+void* ffhst_find_el(const ffhstab *ht, uint hash, const void *key, void *param)
+{
+	size_t slot = hst_slot(ht, hash);
 
-	slot = hst_slot(ht, hash);
-	if (hst_slot_empty(slot))
-		return NULL;
+	for (;;) {
+		if (hst_slot_empty(ht, slot))
+			break;
 
-	if (!hst_slot_isext(slot)) {
-		it = &slot->item;
-		tail = it + 1;
-
-	} else {
-		ffhst_ext *ext = hst_slot_ext(slot);
-		it = ext->items;
-		tail = hst_ext_tail(ext);
-	}
-
-	for (;  it != tail;  it++) {
+		const ffhst_item *it = hst_slot_item(ht, slot);
 		if (it->keyhash == hash
-			&& 0 == ht->cmpkey(it->val, key, keylen, param))
-			return it->val;
+			&& 0 == hst_cmpkey(ht, it, key, param))
+			return (void*)it;
+
+		slot = hst_slot_collnext(ht, slot);
 	}
 
 	return NULL;
 }
 
+void* ffhst_value(const void *element)
+{
+	const ffhst_item *it = element;
+	return it->val;
+}
+
 int ffhst_walk(ffhstab *ht, ffhst_walk_func func, void *param)
 {
-	ffhst_slot *slot;
-	ffhst_ext *ext;
-	void *tail, *end;
-	ffhst_item *it;
+	size_t slot;
 	int r;
 
-	end = ht->slots + ht->nslots;
-	for (slot = ht->slots;  slot != end;  slot++) {
-		if (hst_slot_empty(slot))
+	for (slot = 0;  slot != ht->nslots;  slot++) {
+		if (hst_slot_empty(ht, slot))
 			continue;
 
-		if (!hst_slot_isext(slot)) {
-			r = func(slot->item.val, param);
-			if (r != 0)
-				return r; //user has interrupted the processing
-			continue;
-		}
-
-		ext = hst_slot_ext(slot);
-		tail = hst_ext_tail(ext);
-		for (it = ext->items;  it != tail;  it++) {
-			r = func(it->val, param);
-			if (r != 0)
-				return r;
-		}
+		const ffhst_item *it = hst_slot_item(ht, slot);
+		r = func(it->val, param);
+		if (r != 0)
+			return r; //user has interrupted the processing
 	}
 
 	return 0;
@@ -174,44 +141,28 @@ int ffhst_walk(ffhstab *ht, ffhst_walk_func func, void *param)
 
 void ffhst_print(ffhstab *ht, ffarr *dst)
 {
-	ffhst_slot *slot;
-	ffhst_ext *ext;
-	void *tail, *end;
-	ffhst_item *it;
+	size_t slot;
 	ffarr a = {0};
-	size_t ncoll = 0, maxcoll = 0, empty = 0, n;
+	size_t ncoll = 0, maxcoll = 0, empty = 0;
 
 	ffarr_alloc(&a, ht->nslots * FFSLEN("[000] = 00000000\n"));
 
 	ffstr_catfmt(&a, "hst:%p  len:%L  items:\n"
 		, ht, ht->len);
 
-	end = ht->slots + ht->nslots;
-	for (slot = ht->slots;  slot != end;  slot++) {
+	for (slot = 0;  slot != ht->nslots;  slot++) {
 		ffstr_catfmt(&a, "[%03u]"
-			, (int)(slot - ht->slots));
-		if (hst_slot_empty(slot)) {
+			, (int)slot);
+		if (hst_slot_empty(ht, slot)) {
 			empty++;
 			ffstr_catfmt(&a, " .\n");
 			continue;
 		}
 
-		if (!hst_slot_isext(slot)) {
-			ffstr_catfmt(&a, " %08xu = %p\n", slot->item.keyhash, slot->item.val);
-			continue;
-		}
-
-		ext = hst_slot_ext(slot);
-		tail = hst_ext_tail(ext);
-		n = 0;
-		for (it = ext->items;  it != tail;  it++) {
-			if (it != ext->items)
-				ffstr_catfmt(&a, "     ");
-			ffstr_catfmt(&a, " %08xu = %p\n", it->keyhash, it->val);
-			n++;
-		}
-		ncoll++;
-		ffint_setmax(maxcoll, n);
+		const ffhst_item *it = hst_slot_item(ht, slot);
+		ffstr_catfmt(&a, " %08xu = %p\n", it->keyhash, it->val);
+		if (slot != hst_slot(ht, it->keyhash))
+			ncoll++;
 	}
 
 	ffstr_catfmt(&a, "used:%L/%L  ncoll:%L  maxcoll:%L\n"

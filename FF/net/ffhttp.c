@@ -30,9 +30,9 @@ struct _ffhttp_headr {
 };
 
 static int ht_headr_fill(ffhttp_headers *h);
-static int ht_headr_cmpkey(void *val, const char *key, size_t keylen, void *param);
+static int ht_headr_cmpkey(void *val, const void *key, void *param);
 
-static int ht_knhdr_cmpkey(void *val, const char *key, size_t keylen, void *param);
+static int ht_knhdr_cmpkey(void *val, const void *key, void *param);
 
 
 #pragma pack(push, 8)
@@ -175,10 +175,11 @@ void _ffhttp_print_hdr_hashes(void)
 
 static ffhstab ht_known_hdrs;
 
-static int ht_knhdr_cmpkey(void *val, const char *key, size_t keylen, void *param)
+static int ht_knhdr_cmpkey(void *val, const void *key, void *param)
 {
+	const ffstr *k = key;
 	size_t i = (size_t)val;
-	return ffstr_ieq(&ffhttp_shdr[i], key, keylen) ? 0 : -1;
+	return ffstr_ieq2(&ffhttp_shdr[i], k) ? 0 : -1;
 }
 
 int ffhttp_initheaders()
@@ -411,7 +412,7 @@ done:
 
 	{
 		ffstr sname = ffrang_get(name, d);
-		h->ihdr = (int)(size_t)ffhst_find(&ht_known_hdrs, h->crc, sname.ptr, sname.len, NULL);
+		h->ihdr = (int)(size_t)ffhst_find(&ht_known_hdrs, h->crc, &sname, NULL);
 	}
 
 	return FFHTTP_OK;
@@ -535,18 +536,21 @@ static int ht_headr_fill(ffhttp_headers *h)
 	return 0;
 }
 
-static int ht_headr_cmpkey(void *val, const char *key, size_t keylen, void *param)
+static int ht_headr_cmpkey(void *val, const void *key, void *param)
 {
 	const ffhttp_headers *h = param;
 	const _ffhttp_headr *hh = val;
 	ffstr name = ffrang_get(&hh->key, h->base);
-	return ffstr_ieq(&name, key, keylen) ? 0 : -1;
+	const ffstr *k = key;
+	return ffstr_ieq2(&name, k) ? 0 : -1;
 }
 
 int ffhttp_findhdr(const ffhttp_headers *h, const char *name, size_t namelen, ffstr *dst)
 {
 	uint hash = ffcrc32_iget(name, namelen);
-	const _ffhttp_headr *hh = ffhst_find(&h->htheaders, hash, name, namelen, (void*)h);
+	ffstr sname;
+	ffstr_set(&sname, name, namelen);
+	const _ffhttp_headr *hh = ffhst_find(&h->htheaders, hash, &sname, (void*)h);
 	if (hh == NULL)
 		return 0;
 	if (dst != NULL)
@@ -568,7 +572,7 @@ int ffhttp_gethdr(const ffhttp_headers *h, uint idx, ffstr *key, ffstr *val)
 	if (val != NULL)
 		*val = ffrang_get(&hh->val, h->base);
 
-	i = (int)(size_t)ffhst_find(&ht_known_hdrs, hh->hash, key->ptr, key->len, NULL);
+	i = (int)(size_t)ffhst_find(&ht_known_hdrs, hh->hash, key, NULL);
 	return i;
 }
 
