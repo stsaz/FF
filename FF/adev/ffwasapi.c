@@ -24,7 +24,6 @@ IOCP posted event -> ffkev_call() -> real handler
 #include <FFOS/error.h>
 
 
-static void _ffwas_onplay_excl(void *udata);
 static void _ffwas_getfmt(ffwasapi *w, ffpcm *fmt);
 
 
@@ -403,6 +402,7 @@ int ffwas_open(ffwasapi *w, const WCHAR *id, ffpcm *fmt, uint bufsize, uint flag
 		}
 		if (0 != (r = IAudioClient_SetEventHandle(w->cli, w->evt)))
 			goto fail;
+		fflk_init(&w->lk);
 	}
 
 	if (0 != (r = IAudioClient_GetBufferSize(w->cli, &w->bufsize)))
@@ -410,15 +410,6 @@ int ffwas_open(ffwasapi *w, const WCHAR *id, ffpcm *fmt, uint bufsize, uint flag
 
 	if (0 != (r = IAudioClient_GetService(w->cli, cli_guids[w->capture], (void**)&w->rend)))
 		goto fail;
-
-	if (aflags & AUDCLNT_STREAMFLAGS_EVENTCALLBACK) {
-		fflk_init(&w->lk);
-
-		if (0 != (r = ffwoh_add(w->woh, w->evt, &_ffwas_onplay_excl, w))) {
-			r = fferr_last();
-			goto fail;
-		}
-	}
 
 	r = 0;
 
@@ -439,7 +430,6 @@ void ffwas_close(ffwasapi *w)
 {
 	ffwas_async(w, 0);
 	if (w->evt != NULL) {
-		ffwoh_rm(w->woh, w->evt);
 		CloseHandle(w->evt);
 		w->evt = NULL;
 	}
@@ -463,7 +453,7 @@ int ffwas_filled(ffwasapi *w)
 	return filled * w->frsize;
 }
 
-static void _ffwas_onplay_excl(void *udata)
+void _ffwas_onplay_excl(void *udata)
 {
 	ffwasapi *w = udata;
 

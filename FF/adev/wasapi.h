@@ -59,7 +59,6 @@ typedef struct ffwasapi {
 	uint wpos;
 	uint actvbufs;
 	uint evt_recvd;
-	ffwoh *woh;
 	HANDLE evt;
 	ffsnd_handler handler;
 	void *udata;
@@ -91,13 +90,14 @@ enum FFWAS_F {
 };
 
 /** Set parameters required for event notifications in exclusive mode.
-Must be called before ffwas_open(). */
-#define ffwas_excl(w, _woh, _handler, _udata) \
+After ffwas_open() is done, user registers _ffwas_onplay_excl() as a handler for 'w->evt' event object. */
+#define ffwas_excl(w, _handler, _udata) \
 do { \
-	(w)->woh = (_woh); \
 	(w)->handler = (_handler); \
 	(w)->udata = (_udata); \
 } while (0)
+
+FF_EXTN void _ffwas_onplay_excl(void *udata);
 
 /** Open device.
 In shared mode there's only one supported sample rate.  In exclusive mode a device may support different sample rates.
@@ -108,6 +108,8 @@ Return AUDCLNT_E* on error.
   shared mode: 'fmt' is set to the format which is configured for the device. */
 FF_EXTN int ffwas_open(ffwasapi *w, const WCHAR *dev_id, ffpcm *fmt, uint bufsize_msec, uint flags);
 
+/**
+In exclusive mode user unregisters 'w->evt' event object from WOH before calling this function. */
 FF_EXTN void ffwas_close(ffwasapi *w);
 
 /** Return the number of bytes left in sound buffer. */
