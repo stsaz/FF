@@ -114,6 +114,13 @@ typedef struct ffui_pos {
 
 FF_EXTN void ffui_pos_limit(ffui_pos *r, const ffui_pos *screen);
 
+FF_EXTN uint ffui_dpi();
+FF_EXTN void ffui_dpi_set(uint dpi);
+FF_EXTN int ffui_dpi_scale(int x);
+FF_EXTN int ffui_dpi_descale(int x);
+FF_EXTN void ffui_dpi_scalepos(ffui_pos *r);
+FF_EXTN void ffui_dpi_descalepos(ffui_pos *r);
+
 
 // ICON
 typedef struct ffui_icon {

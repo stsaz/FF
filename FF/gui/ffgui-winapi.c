@@ -343,10 +343,7 @@ void ffui_getpos2(void *ctl, ffui_pos *r, uint flags)
 		ffui_pos_fromrect(r, &rect);
 	}
 	if (flags & FFUI_FPOS_DPISCALE) {
-		r->x = dpi_descale(r->x);
-		r->y = dpi_descale(r->y);
-		r->cx = dpi_descale(r->cx);
-		r->cy = dpi_descale(r->cy);
+		ffui_dpi_descalepos(r);
 	}
 }
 
@@ -1106,6 +1103,41 @@ char* ffui_tree_text(ffui_view *t, void *item)
 	return NULL;
 }
 
+
+uint ffui_dpi()
+{
+	return _ffui_dpi;
+}
+
+void ffui_dpi_set(uint dpi)
+{
+	_ffui_dpi = dpi;
+}
+
+int ffui_dpi_scale(int x)
+{
+	return dpi_scale(x);
+}
+int ffui_dpi_descale(int x)
+{
+	return dpi_descale(x);
+}
+
+void ffui_dpi_scalepos(ffui_pos *r)
+{
+	r->x = dpi_scale(r->x);
+	r->y = dpi_scale(r->y);
+	r->cx = dpi_scale(r->cx);
+	r->cy = dpi_scale(r->cy);
+}
+
+void ffui_dpi_descalepos(ffui_pos *r)
+{
+	r->x = dpi_descale(r->x);
+	r->y = dpi_descale(r->y);
+	r->cx = dpi_descale(r->cx);
+	r->cy = dpi_descale(r->cy);
+}
 
 void ffui_pos_limit(ffui_pos *r, const ffui_pos *screen)
 {
