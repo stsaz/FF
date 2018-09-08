@@ -698,28 +698,30 @@ static int new_tray(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 static int font_name(ffparser_schem *ps, void *obj, const ffstr *val)
 {
 	ffui_loader *g = obj;
-	ffqz_copys(g->fnt.lf.lfFaceName, FFCNT(g->fnt.lf.lfFaceName), val->ptr, val->len);
+	ffui_font_set(&g->fnt, val, 0, 0);
 	return 0;
 }
 
 static int font_height(ffparser_schem *ps, void *obj, const int64 *val)
 {
 	ffui_loader *g = obj;
-	ffui_font_setheight(&g->fnt, (int)*val);
+	ffui_font_set(&g->fnt, NULL, (int)*val, 0);
 	return 0;
 }
 
 static int font_style(ffparser_schem *ps, void *obj, const ffstr *val)
 {
 	ffui_loader *g = obj;
+	uint f = 0;
 	if (ffstr_eqcz(val, "bold"))
-		g->fnt.lf.lfWeight = FW_BOLD;
+		f = FFUI_FONT_BOLD;
 	else if (ffstr_eqcz(val, "italic"))
-		g->fnt.lf.lfItalic = 1;
+		f = FFUI_FONT_ITALIC;
 	else if (ffstr_eqcz(val, "underline"))
-		g->fnt.lf.lfUnderline = 1;
+		f = FFUI_FONT_UNDERLINE;
 	else
 		return FFPARS_EBADVAL;
+	ffui_font_set(&g->fnt, NULL, 0, f);
 	return 0;
 }
 
@@ -729,7 +731,7 @@ static int font_done(ffparser_schem *ps, void *obj)
 	HFONT f;
 	g->fnt.lf.lfCharSet = OEM_CHARSET;
 	g->fnt.lf.lfQuality = PROOF_QUALITY;
-	f = CreateFontIndirect(&g->fnt.lf);
+	f = ffui_font_create(&g->fnt);
 	if (f == NULL)
 		return FFPARS_ESYS;
 	if (g->ctl == (void*)g->wnd)

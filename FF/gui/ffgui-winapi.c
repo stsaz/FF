@@ -273,9 +273,22 @@ int ffui_iconlist_create(ffui_iconlist *il, uint width, uint height)
 }
 
 
-void ffui_font_setheight(ffui_font *fnt, int height)
+void ffui_font_set(ffui_font *fnt, const ffstr *name, int height, uint flags)
 {
-	fnt->lf.lfHeight = -(LONG)(height * _ffui_dpi / 72);
+	if (name != NULL) {
+		fnt->lf.lfCharSet = OEM_CHARSET;
+		fnt->lf.lfQuality = PROOF_QUALITY;
+		ffqz_copys(fnt->lf.lfFaceName, FFCNT(fnt->lf.lfFaceName), name->ptr, name->len);
+	}
+	if (height != 0) {
+		fnt->lf.lfHeight = -(LONG)(height * _ffui_dpi / 72);
+	}
+	if (flags & FFUI_FONT_BOLD)
+		fnt->lf.lfWeight = FW_BOLD;
+	if (flags & FFUI_FONT_ITALIC)
+		fnt->lf.lfItalic = 1;
+	if (flags & FFUI_FONT_UNDERLINE)
+		fnt->lf.lfUnderline = 1;
 }
 
 

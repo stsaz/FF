@@ -87,7 +87,22 @@ typedef struct ffui_font {
 	LOGFONT lf;
 } ffui_font;
 
-FF_EXTN void ffui_font_setheight(ffui_font *fnt, int height);
+enum FFUI_FONT {
+	FFUI_FONT_BOLD = 1,
+	FFUI_FONT_ITALIC = 2,
+	FFUI_FONT_UNDERLINE = 4,
+};
+
+/** Set font attributes.
+flags: enum FFUI_FONT */
+FF_EXTN void ffui_font_set(ffui_font *fnt, const ffstr *name, int height, uint flags);
+
+/** Create font.
+Return NULL on error. */
+static FFINL HFONT ffui_font_create(ffui_font *fnt)
+{
+	return CreateFontIndirect(&fnt->lf);
+}
 
 
 typedef struct ffui_pos {
