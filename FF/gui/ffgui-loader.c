@@ -655,6 +655,7 @@ static int tray_icon(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 	ffui_loader *g = obj;
 	ffmem_zero(&g->tr.ico, sizeof(_ffui_ldr_icon_t));
 	g->tr.ico.ldr = g;
+	g->tr.ico.cx = g->tr.ico.cy = 16;
 	ffpars_setargs(ctx, &g->tr.ico, icon_args, FFCNT(icon_args));
 	return 0;
 }

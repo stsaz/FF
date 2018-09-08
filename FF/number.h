@@ -23,6 +23,11 @@ static FFINL size_t ffint_increset2(size_t n, size_t cap)
 	return (n + 1) & (cap - 1);
 }
 
+/** Add and reset to 0 on reaching the limit. */
+#define ffint_add_reset2(num, add, cap) \
+	(((num) + (add)) & ((cap) - 1))
+
+
 #define ffint_cmp(a, b) \
 	(((a) == (b)) ? 0 : ((a) < (b)) ? -1 : 1)
 

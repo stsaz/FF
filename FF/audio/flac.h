@@ -50,6 +50,7 @@ FF_EXTN int ffflac_decode(ffflac_dec *f);
 /** Get an absolute sample number. */
 #define ffflac_dec_cursample(f)  ((f)->frsample)
 
+/** Get output data (non-interleaved PCM). */
 static FFINL size_t ffflac_dec_output(ffflac_dec *f, void ***pcm)
 {
 	*pcm = f->pcm;

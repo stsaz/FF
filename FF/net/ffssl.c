@@ -602,7 +602,7 @@ X509* ffssl_cert_read(const char *data, size_t len, uint flags)
 void* ffssl_cert_key_read(const char *data, size_t len, uint flags)
 {
 	BIO *b;
-	void *key;
+	EVP_PKEY *key;
 
 	if (NULL == (b = BIO_new_mem_buf(data, len)))
 		return NULL;

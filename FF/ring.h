@@ -14,6 +14,8 @@ Readers and writers can run in parallel.
 Empty buffer: [(r,w). . . .]
 Full buffer: [(r)E1 E2 E3 (w).]
 Full buffer: [(w). (r)E1 E2 E3]
+Overlapped:  [. (r)E1 (w). .]
+Overlapped:  [E2 (w). . (r)E1]
 */
 struct ffring {
 	void **d;

@@ -1227,6 +1227,12 @@ int ffui_icon_loadstd(ffui_icon *ico, uint tag)
 	return ffui_icon_load_q(ico, fn, n, 0);
 }
 
+int ffui_icon_loadres(ffui_icon *ico, const ffsyschar *name, uint cx, uint cy)
+{
+	ico->h = LoadImage(GetModuleHandle(NULL), name, IMAGE_ICON, dpi_scale(cx), dpi_scale(cy), 0);
+	return (ico->h == NULL);
+}
+
 
 void ffui_dlg_destroy(ffui_dialog *d)
 {
@@ -1940,6 +1946,11 @@ int ffui_wndproc(ffui_wnd *wnd, size_t *code, HWND h, uint msg, size_t w, size_t
 			wnd_bordstick(dpi_scale(wnd->bordstick), (WINDOWPOS *)l);
 			return 0;
 		}
+		break;
+
+	case WM_PAINT:
+		if (wnd->on_paint != NULL)
+			wnd->on_paint(wnd);
 		break;
 
 	case WM_CTLCOLORSTATIC: {

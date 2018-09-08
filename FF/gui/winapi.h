@@ -162,6 +162,9 @@ enum FFUI_ICON {
 @tag: enum FFUI_ICON */
 FF_EXTN int ffui_icon_loadstd(ffui_icon *ico, uint tag);
 
+/** Load icon from resource. */
+FF_EXTN int ffui_icon_loadres(ffui_icon *ico, const ffsyschar *name, uint cx, uint cy);
+
 
 // ICON LIST
 typedef struct ffui_iconlist {
@@ -1177,6 +1180,9 @@ struct ffui_wnd {
 	void (*on_destroy)(ffui_wnd *wnd);
 	void (*on_action)(ffui_wnd *wnd, int id);
 	void (*on_dropfiles)(ffui_wnd *wnd, ffui_fdrop *df);
+
+	/** WM_PAINT handler. */
+	void (*on_paint)(ffui_wnd *wnd);
 
 	uint onclose_id;
 	uint onminimize_id;

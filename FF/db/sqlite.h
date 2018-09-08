@@ -6,7 +6,9 @@ Copyright 2014 Simon Zolin.
 
 #include <FF/array.h>
 
+#ifndef FF_HAVE_SQLITE
 #include <sqlite/sqlite-ff.h>
+#endif
 
 
 #define FFDB_Q(n)  "?"
@@ -49,7 +51,13 @@ Return FFDB_ROW, SQLITE_DONE or error. */
 /** Clear bindings on SQL statement. */
 #define ffdb_clear_bindings(stmt)  sqlite3_clear_bindings(stmt)
 
-#define ffdb_changes(stmt)  sqlite3_changes(stmt)
+static FFINL void ffdb_reset_clear(ffdb_stmt *stmt)
+{
+	ffdb_reset(stmt);
+	ffdb_clear_bindings(stmt);
+}
+
+#define ffdb_changes(db)  sqlite3_changes(db)
 #define ffdb_fin(stmt)  sqlite3_finalize(stmt)
 
 #define ffdb_params(stmt)  sqlite3_bind_parameter_count(stmt)

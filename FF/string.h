@@ -216,6 +216,16 @@ static FFINL char * ffs_rfind(const char *buf, size_t len, int ch) {
 }
 #endif
 
+/** Find end-of-line marker (LF or CRLF).
+Return byte offset. */
+static inline size_t ffs_findeol(const char *s, size_t len)
+{
+	const char *p = ffs_find(s, len, '\n');
+	if (p != s && p[-1] == '\r')
+		p--;
+	return p - s;
+}
+
 /** Find substring.
 Return END if not found. */
 FF_EXTN char * ffs_finds(const char *buf, size_t len, const char *search, size_t search_len);

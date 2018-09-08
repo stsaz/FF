@@ -24,17 +24,17 @@ static int _ffflac_getframe(ffflac *f, ffstr *sframe);
 	(f)->errtype = e,  FFFLAC_RERR
 
 static const char *const flac_errs[] = {
-	"unsupported PCM format",
-	"invalid header",
-	"too large meta",
-	"bad tags",
-	"bad picture",
-	"bad seek table",
-	"seek error",
-	"unrecognized data before frame header",
-	"can't find sync",
-	"invalid total samples value in FLAC header",
-	"too large total samples value in FLAC header",
+	"unsupported PCM format", //FLAC_EFMT
+	"invalid header", //FLAC_EHDR
+	"too large meta", //FLAC_EBIGMETA
+	"bad tags", //FLAC_ETAG
+	"bad picture", //FLAC_EPIC
+	"bad seek table", //FLAC_ESEEKTAB
+	"seek error", //FLAC_ESEEK
+	"unrecognized data before frame header", //FLAC_ESYNC
+	"can't find sync", //FLAC_ENOSYNC
+	"invalid total samples value in FLAC header", //FLAC_EHDRSAMPLES
+	"too large total samples value in FLAC header", //FLAC_EBIGHDRSAMPLES
 };
 
 const char* _ffflac_errstr(uint e)

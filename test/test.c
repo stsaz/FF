@@ -415,6 +415,8 @@ int main(int argc, const char **argv)
 	size_t i, iarg;
 	ffmem_init();
 
+	fftestobj.flags |= FFTEST_STOPERR;
+
 	if (argc == 1) {
 		printf("Supported tests: all ");
 		for (i = 0;  i < FFCNT(_fftests);  i++) {

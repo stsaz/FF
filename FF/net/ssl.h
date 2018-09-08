@@ -75,7 +75,7 @@ struct ffssl_ctx_conf {
 	ffstr certdata;
 	void *cert;
 
-	char *pkeyfile;
+	char *pkeyfile; //PEM file name containing private key
 	ffstr pkeydata;
 	void *pkey;
 
@@ -194,8 +194,12 @@ FF_EXTN void ffssl_cert_info(X509 *cert, struct ffssl_cert_info *info);
 
 #define ffssl_cert_verify_errstr(e)  X509_verify_cert_error_string(e)
 
+/** Get certificate from PEM data.
+Return NULL on error. */
 FF_EXTN X509* ffssl_cert_read(const char *data, size_t len, uint flags);
 
+/** Get private key from PEM data.
+Return NULL on error. */
 FF_EXTN void* ffssl_cert_key_read(const char *data, size_t len, uint flags);
 
 enum FFSSL_PKEY {

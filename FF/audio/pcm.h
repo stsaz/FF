@@ -119,7 +119,7 @@ typedef int (*ffpcm_process_func)(void *udata, double val);
 
 /** Process PCM data.
 Return sample number at which user stopped;  -1: done;  <0: error. */
-ssize_t ffpcm_process(const ffpcmex *fmt, const void *data, size_t samples, ffpcm_process_func func, void *udata);
+FF_EXTN ssize_t ffpcm_process(const ffpcmex *fmt, const void *data, size_t samples, ffpcm_process_func func, void *udata);
 
 
 typedef struct ffpcm_seekpt {

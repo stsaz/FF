@@ -64,6 +64,12 @@ typedef struct { char a[4]; } ffip4;
 
 enum { FFIP4_STRLEN = FFSLEN("000.000.000.000") };
 
+/** Compare two IPv4 addresses. */
+static FFINL int ffip4_cmp(const ffip4 *ip1, const ffip4 *ip2)
+{
+	return memcmp(ip1, ip2, sizeof(*ip1));
+}
+
 /** Parse IPv4 address.
 'subnet': output subnet mask bits (8, 16, 24 or 32)
 Return 0 if the whole input is parsed;  >0 number of processed bytes;  <0 on error. */
@@ -151,6 +157,12 @@ FF_EXTN uint ffip4_chksum(const void *hdr, uint ihl);
 typedef struct { char a[16]; } ffip6;
 
 enum { FFIP6_STRLEN = FFSLEN("abcd:") * 8 - 1 };
+
+/** Compare two IPv6 addresses. */
+static FFINL int ffip6_cmp(const ffip6 *ip1, const ffip6 *ip2)
+{
+	return memcmp(ip1, ip2, sizeof(*ip1));
+}
 
 /** Parse IPv6 address.
 'subnet': (output) subnet mask (multiple of 16)

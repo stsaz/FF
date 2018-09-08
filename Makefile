@@ -74,6 +74,8 @@ FF_TEST_O := $(FFOS_OBJ) $(FF_OBJ) \
 $(FF_TEST_BIN): $(FF_TEST_O)
 	$(LD) $(FF_TEST_O) $(LDFLAGS) $(LIBS) $(LD_LWS2_32) $(LD_LPTHREAD) -o$@
 
+copy:
+	cp -ur $(FF)/test/  .
 
 FF_TESTSSL_O := $(FFOS_OBJ) $(FF_OBJ) \
 	$(FF_OBJ_DIR)/ffdbg.o \
