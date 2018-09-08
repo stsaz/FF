@@ -558,10 +558,23 @@ static int async_bio_destroy(BIO *bio)
 }
 
 
+static uint64 time_from_ASN1time(const ASN1_TIME *src)
+{
+	time_t t = 0;
+	ASN1_TIME *at = ASN1_TIME_new();
+	X509_time_adj_ex(at, 0, 0, &t);
+	int days = 0, secs = 0;
+	ASN1_TIME_diff(&days, &secs, at, src);
+	ASN1_TIME_free(at);
+	return (int64)days * 24 * 60 * 60 + secs;
+}
+
 void ffssl_cert_info(X509 *cert, struct ffssl_cert_info *info)
 {
 	X509_NAME_oneline(X509_get_subject_name(cert), info->subject, sizeof(info->subject));
 	X509_NAME_oneline(X509_get_issuer_name(cert), info->issuer, sizeof(info->issuer));
+	info->valid_from = time_from_ASN1time(X509_get_notBefore(cert));
+	info->valid_until = time_from_ASN1time(X509_get_notAfter(cert));
 }
 
 X509* ffssl_cert_read(const char *data, size_t len, uint flags)

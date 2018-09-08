@@ -28,6 +28,13 @@ void test_ssl(void)
 	ci.pkey_type = FFSSL_PKEY_RSA;
 	x(!ffssl_cert_create(&cert, &ci));
 
+	struct ffssl_cert_info info;
+	ffssl_cert_info(cert, &info);
+	x(ffstr_eqz(&ci.subject, info.subject));
+	x(ffstr_eqz(&ci.subject, info.issuer));
+	x(info.valid_from == ci.from_time);
+	x(info.valid_until == ci.until_time);
+
 	SSL_CTX *ctx;
 	ffssl_ctx_create(&ctx);
 	struct ffssl_ctx_conf conf = {};

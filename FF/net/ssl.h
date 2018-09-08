@@ -186,6 +186,8 @@ static FFINL void ffssl_setctx(SSL *c, SSL_CTX *ctx)
 struct ffssl_cert_info {
 	char subject[1024];
 	char issuer[1024];
+	uint64 valid_from;
+	uint64 valid_until;
 };
 
 FF_EXTN void ffssl_cert_info(X509 *cert, struct ffssl_cert_info *info);
