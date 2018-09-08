@@ -61,6 +61,7 @@ typedef struct ffringbuf {
 	char *data;
 	size_t cap;
 	size_t r, w;
+	fflock lk;
 } ffringbuf;
 
 /**
@@ -71,6 +72,7 @@ static FFINL void ffringbuf_init(ffringbuf *r, void *p, size_t cap)
 	r->data = p;
 	r->cap = cap;
 	r->r = r->w = 0;
+	fflk_init(&r->lk);
 }
 
 static FFINL void ffringbuf_reset(ffringbuf *r)
@@ -139,3 +141,53 @@ FF_EXTN size_t ffringbuf_read_seq(ffringbuf *r, void *dst, size_t len);
 /** Read from buffer.
 Return bytes copied. */
 FF_EXTN size_t ffringbuf_read(ffringbuf *r, void *dst, size_t len);
+
+
+/* Locked buffer operations. */
+
+static inline void ffringbuf_lock_reset(ffringbuf *r)
+{
+	fflk_lock(&r->lk);
+	ffringbuf_reset(r);
+	fflk_unlock(&r->lk);
+}
+
+static inline int ffringbuf_lock_full(ffringbuf *r)
+{
+	fflk_lock(&r->lk);
+	int rc = ffringbuf_full(r);
+	fflk_unlock(&r->lk);
+	return rc;
+}
+
+static inline int ffringbuf_lock_empty(ffringbuf *r)
+{
+	fflk_lock(&r->lk);
+	int rc = ffringbuf_empty(r);
+	fflk_unlock(&r->lk);
+	return rc;
+}
+
+static inline size_t ffringbuf_lock_canread(ffringbuf *r)
+{
+	fflk_lock(&r->lk);
+	size_t n = ffringbuf_canread(r);
+	fflk_unlock(&r->lk);
+	return n;
+}
+
+static inline size_t ffringbuf_lock_write(ffringbuf *r, const void *data, size_t len)
+{
+	fflk_lock(&r->lk);
+	size_t n = ffringbuf_write(r, data, len);
+	fflk_unlock(&r->lk);
+	return n;
+}
+
+static inline size_t ffringbuf_lock_read(ffringbuf *r, void *dst, size_t len)
+{
+	fflk_lock(&r->lk);
+	size_t n = ffringbuf_read(r, dst, len);
+	fflk_unlock(&r->lk);
+	return n;
+}
