@@ -164,6 +164,10 @@ static OSStatus coraud_ioproc(AudioDeviceID device, const AudioTimeStamp *now
 	, const AudioBufferList *indata, const AudioTimeStamp *intime
 	, AudioBufferList *outdata, const AudioTimeStamp *outtime
 	, void *udata);
+static OSStatus coraud_ioproc_capture(AudioDeviceID device, const AudioTimeStamp *now
+	, const AudioBufferList *indata, const AudioTimeStamp *intime
+	, AudioBufferList *outdata, const AudioTimeStamp *outtime
+	, void *udata);
 
 static const AudioObjectPropertyAddress prop_odev_fmt = {
 	kAudioDevicePropertyStreamFormat, kAudioDevicePropertyScopeOutput, kAudioObjectPropertyElementMaster
@@ -207,7 +211,8 @@ int ffcoraud_open(ffcoraud_buf *snd, int dev, ffpcm *fmt, uint bufsize, uint fla
 	if (r != 0)
 		return r;
 
-	if (0 != AudioDeviceCreateIOProcID(dev, &coraud_ioproc, snd, (AudioDeviceIOProcID*)&snd->aprocid)
+	void *proc = (flags & FFCORAUD_DEV_CAPTURE) ? &coraud_ioproc_capture : &coraud_ioproc;
+	if (0 != AudioDeviceCreateIOProcID(dev, proc, snd, (AudioDeviceIOProcID*)&snd->aprocid)
 		|| snd->aprocid == NULL)
 		goto end;
 
@@ -219,6 +224,12 @@ int ffcoraud_open(ffcoraud_buf *snd, int dev, ffpcm *fmt, uint bufsize, uint fla
 		goto end;
 	snd->data.len = bufsize;
 	ffringbuf_init(&snd->buf, snd->data.ptr, snd->data.len);
+
+	if (flags & FFCORAUD_DEV_CAPTURE) {
+		if (NULL == ffstr_alloc(&snd->data2, bufsize))
+			goto end;
+		snd->data2.len = bufsize;
+	}
 
 	snd->dev = dev;
 	rc = 0;
@@ -235,6 +246,7 @@ void ffcoraud_close(ffcoraud_buf *snd)
 	snd->dev = 0;
 	snd->aprocid = NULL;
 	ffstr_free(&snd->data);
+	ffstr_free(&snd->data2);
 }
 
 int ffcoraud_start(ffcoraud_buf *snd)
@@ -295,4 +307,29 @@ int ffcoraud_stoplazy(ffcoraud_buf *snd)
 
 	ffcoraud_start(snd);
 	return 0;
+}
+
+
+static OSStatus coraud_ioproc_capture(AudioDeviceID device, const AudioTimeStamp *now
+	, const AudioBufferList *indata, const AudioTimeStamp *intime
+	, AudioBufferList *outdata, const AudioTimeStamp *outtime
+	, void *udata)
+{
+	ffcoraud_buf *snd = udata;
+	const float *d = indata->mBuffers[0].mData;
+	size_t n = indata->mBuffers[0].mDataByteSize;
+
+	uint r = ffringbuf_lock_write(&snd->buf, d, n);
+	if (r != n)
+		snd->overrun = 1;
+	return 0;
+}
+
+int ffcoraud_read(ffcoraud_buf *snd, ffstr *data)
+{
+	if (ffringbuf_lock_empty(&snd->buf))
+		return 0;
+	size_t r = ffringbuf_lock_read(&snd->buf, snd->data2.ptr, snd->data2.len);
+	ffstr_set(data, snd->data2.ptr, r);
+	return 1;
 }
