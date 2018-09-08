@@ -19,6 +19,7 @@ typedef struct {
 	ffui_loader *ldr;
 	uint cx;
 	uint cy;
+	uint resource;
 	uint load_small :1;
 } _ffui_ldr_icon_t;
 

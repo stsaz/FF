@@ -17,6 +17,7 @@ static int ico_size(ffparser_schem *ps, void *obj, const int64 *val);
 static int ico_done(ffparser_schem *ps, void *obj);
 static const ffpars_arg icon_args[] = {
 	{ "filename",	FFPARS_TSTR | FFPARS_FCOPY, FFPARS_DSTOFF(_ffui_ldr_icon_t, fn) },
+	{ "resource",	FFPARS_TINT, FFPARS_DSTOFF(_ffui_ldr_icon_t, resource) },
 	{ "index",	FFPARS_TINT, FFPARS_DSTOFF(_ffui_ldr_icon_t, idx) },
 	{ "size",	FFPARS_TINT | FFPARS_FLIST, FFPARS_DST(&ico_size) },
 	{ NULL,	FFPARS_TCLOSE, FFPARS_DST(&ico_done) },
@@ -345,6 +346,23 @@ static int ico_done(ffparser_schem *ps, void *obj)
 {
 	_ffui_ldr_icon_t *ico = obj;
 	char *p, fn[FF_MAXPATH];
+
+	if (ico->resource != 0) {
+		ffsyschar wname[256];
+		ffs_fmt2(fn, sizeof(fn), "#%u%Z", ico->resource);
+		size_t wname_len = FFCNT(wname);
+		ffs_utow(wname, &wname_len, fn, -1);
+		if (0 != ffui_icon_loadres(&ico->icon, wname, ico->cx, ico->cy)) {
+			if (ico->cx == 0)
+				return FFPARS_ESYS;
+			if (0 != ffui_icon_loadres(&ico->icon, wname, 0, 0))
+				return FFPARS_ESYS;
+		}
+		if (ico->load_small
+			&& 0 != ffui_icon_loadres(&ico->icon_small, wname, 16, 16))
+			return FFPARS_ESYS;
+		return 0;
+	}
 
 	p = ffs_copy(fn, fn + FFCNT(fn), ico->ldr->path.ptr, ico->ldr->path.len);
 	ffsz_copy(p, fn + FFCNT(fn) - p, ico->fn.ptr, ico->fn.len);
