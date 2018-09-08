@@ -45,6 +45,8 @@ static long async_bio_ctrl(BIO *bio, int cmd, long num, void *ptr);
 static int async_bio_create(BIO *bio);
 static int async_bio_destroy(BIO *bio);
 
+static EVP_PKEY* _evp_pkey(void *key, uint type);
+
 
 int ffssl_init(void)
 {
@@ -203,9 +205,15 @@ static int _ffssl_ctx_pkey(SSL_CTX *ctx, const struct ffssl_ctx_conf *o)
 			return FFSSL_EUSEPKEY;
 	}
 
-	if (o->pkey != NULL
-		&& 1 != SSL_CTX_use_PrivateKey(ctx, o->pkey))
-		return FFSSL_EUSEPKEY;
+	if (o->pkey != NULL) {
+		EVP_PKEY *pk;
+		if (NULL == (pk = _evp_pkey(o->pkey, FFSSL_PKEY_RSA)))
+			return FFSSL_EUSEPKEY;
+		int r = SSL_CTX_use_PrivateKey(ctx, pk);
+		EVP_PKEY_free(pk);
+		if (r != 1)
+			return FFSSL_EUSEPKEY;
+	}
 
 	return 0;
 }
