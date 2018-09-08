@@ -363,6 +363,23 @@ int test_ringbuf(void)
 	ffringbuf_readptr(&rb, &s, rb.cap);
 	x(ffstr_eqz(&s, "2345678"));
 
+	// ffringbuf_read()
+	char rbuf[8];
+	ffringbuf_reset(&rb);
+	x(3 == ffringbuf_write(&rb, "123", 3));
+	x(3 == ffringbuf_read(&rb, rbuf, sizeof(rbuf)));
+	x(!ffs_cmp(rbuf, "123", 3));
+	x(ffringbuf_empty(&rb));
+	x(5 == ffringbuf_canwrite_seq(&rb));
+	x(7 == ffringbuf_canwrite(&rb));
+	x(7 == ffringbuf_write(&rb, "4567890", 7));
+	x(0 == ffringbuf_canwrite_seq(&rb));
+	x(5 == ffringbuf_canread_seq(&rb));
+	x(7 == ffringbuf_canread(&rb));
+	x(7 == ffringbuf_read(&rb, rbuf, sizeof(rbuf)));
+	x(!ffs_cmp(rbuf, "4567890", 7));
+	x(ffringbuf_empty(&rb));
+
 	return 0;
 }
 

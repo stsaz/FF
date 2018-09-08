@@ -107,16 +107,22 @@ static FFINL size_t ffringbuf_canread_seq(ffringbuf *r)
 /** Return # of bytes available to write. */
 static FFINL size_t ffringbuf_canwrite(ffringbuf *r)
 {
-	return r->cap - 1 - ffringbuf_canread(r);
+	return (r->r - r->w - 1) & (r->cap - 1);
 }
 
 /** Return # of sequential bytes available to write. */
 static FFINL size_t ffringbuf_canwrite_seq(ffringbuf *r)
 {
-	return (r->r > r->w) ? r->r - r->w : r->cap - 1 - r->w;
+	if (r->r > r->w)
+		return r->r - r->w - 1;
+	return (r->r == 0) ? r->cap - r->w - 1 : r->cap - r->w;
 }
 
-/** Append data.
+/** Append data until out of available sequential space.
+Return # of bytes written. */
+FF_EXTN size_t ffringbuf_write_seq(ffringbuf *r, const void *data, size_t len);
+
+/** Append data until buffer is full.
 Return # of bytes written. */
 FF_EXTN size_t ffringbuf_write(ffringbuf *r, const void *data, size_t len);
 
@@ -124,9 +130,12 @@ FF_EXTN size_t ffringbuf_write(ffringbuf *r, const void *data, size_t len);
 FF_EXTN void ffringbuf_overwrite(ffringbuf *r, const void *data, size_t len);
 
 /** Get chunk of sequential data. */
-static FFINL void ffringbuf_readptr(ffringbuf *r, ffstr *dst, size_t len)
-{
-	size_t n = ffmin(len, ffringbuf_canread_seq(r));
-	ffstr_set(dst, r->data + r->r, n);
-	r->r = (r->r + n) & (r->cap - 1);
-}
+FF_EXTN void ffringbuf_readptr(ffringbuf *r, ffstr *dst, size_t len);
+
+/** Read from buffer until out of available sequential data.
+Return bytes copied. */
+FF_EXTN size_t ffringbuf_read_seq(ffringbuf *r, void *dst, size_t len);
+
+/** Read from buffer.
+Return bytes copied. */
+FF_EXTN size_t ffringbuf_read(ffringbuf *r, void *dst, size_t len);

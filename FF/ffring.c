@@ -54,15 +54,20 @@ int ffring_read(ffring *r, void **p)
 }
 
 
-size_t ffringbuf_write(ffringbuf *r, const void *data, size_t len)
+size_t ffringbuf_write_seq(ffringbuf *r, const void *data, size_t len)
 {
-	len = ffmin(len, ffringbuf_canwrite(r));
 	size_t n = ffmin(ffringbuf_canwrite_seq(r), len);
 	ffmemcpy(r->data + r->w, data, n);
-	if (len != n)
-		ffmemcpy(r->data, (byte*)data + n, len - n);
-	r->w = (r->w + len) & (r->cap - 1);
-	return len;
+	r->w = ffint_add_reset2(r->w, n, r->cap);
+	return n;
+}
+
+size_t ffringbuf_write(ffringbuf *r, const void *data, size_t len)
+{
+	size_t n = ffringbuf_write_seq(r, data, len);
+	if (n != len)
+		n += ffringbuf_write_seq(r, (byte*)data + n, len - n);
+	return n;
 }
 
 void ffringbuf_overwrite(ffringbuf *r, const void *data, size_t len)
@@ -76,6 +81,30 @@ void ffringbuf_overwrite(ffringbuf *r, const void *data, size_t len)
 	if (len != n)
 		ffmemcpy(r->data, (byte*)data + n, len - n);
 	size_t ow = ffmax((ssize_t)(len - ffringbuf_canwrite(r)), 0);
-	r->w = (r->w + len) & (r->cap - 1);
-	r->r = (r->r + ow) & (r->cap - 1);
+	r->w = ffint_add_reset2(r->w, len, r->cap);
+	r->r = ffint_add_reset2(r->r, ow, r->cap);
+}
+
+void ffringbuf_readptr(ffringbuf *r, ffstr *dst, size_t len)
+{
+	size_t n = ffmin(len, ffringbuf_canread_seq(r));
+	ffstr_set(dst, r->data + r->r, n);
+	r->r = ffint_add_reset2(r->r, n, r->cap);
+}
+
+size_t ffringbuf_read_seq(ffringbuf *r, void *dst, size_t len)
+{
+	ffstr d;
+	ffringbuf_readptr(r, &d, len);
+	if (d.len != 0)
+		ffmemcpy(dst, d.ptr, d.len);
+	return d.len;
+}
+
+size_t ffringbuf_read(ffringbuf *r, void *dst, size_t len)
+{
+	size_t n = ffringbuf_read_seq(r, dst, len);
+	if (n != len)
+		n += ffringbuf_read_seq(r, (byte*)dst + n, len - n);
+	return n;
 }
