@@ -22,6 +22,12 @@ static const AudioObjectPropertyAddress prop_dev_outname = {
 static const AudioObjectPropertyAddress prop_dev_inname = {
 	kAudioObjectPropertyName, kAudioDevicePropertyScopeInput, kAudioObjectPropertyElementMaster
 };
+static const AudioObjectPropertyAddress prop_dev_outconf = {
+	kAudioDevicePropertyStreamConfiguration, kAudioDevicePropertyScopeOutput, kAudioObjectPropertyElementMaster
+};
+static const AudioObjectPropertyAddress prop_dev_inconf = {
+	kAudioDevicePropertyStreamConfiguration, kAudioDevicePropertyScopeInput, kAudioObjectPropertyElementMaster
+};
 
 /** Get device list. */
 static int dev_list(ffcoraud_dev *d)
@@ -52,11 +58,34 @@ end:
 static int dev_name(ffcoraud_dev *d, uint flags)
 {
 	int rc = -1;
-	CFStringRef cfs = NULL;
-	uint size = sizeof(CFStringRef);
-	const AudioObjectPropertyAddress *a = (flags & FFCORAUD_DEV_CAPTURE) ? &prop_dev_inname : &prop_dev_outname;
+	const AudioObjectPropertyAddress *a;
 	AudioObjectID *devs = d->devs;
-	OSStatus r = AudioObjectGetPropertyData(devs[d->idev], a, 0, NULL, &size, &cfs);
+	AudioBufferList *bufs = NULL;
+	CFStringRef cfs = NULL;
+	OSStatus r;
+	uint size;
+
+	a = (flags & FFCORAUD_DEV_CAPTURE) ? &prop_dev_inconf : &prop_dev_outconf;
+	r = AudioObjectGetPropertyDataSize(devs[d->idev], a, 0, NULL, &size);
+	if (r != kAudioHardwareNoError)
+		goto end;
+
+	if (NULL == (bufs = ffmem_alloc(size)))
+		goto end;
+	r = AudioObjectGetPropertyData(devs[d->idev], a, 0, NULL, &size, bufs);
+	if (r != kAudioHardwareNoError)
+		goto end;
+
+	uint ch = 0;
+	for (uint i = 0;  i != bufs->mNumberBuffers;  i++) {
+		ch |= bufs->mBuffers[i].mNumberChannels;
+	}
+	if (ch == 0)
+		goto end;
+
+	size = sizeof(CFStringRef);
+	a = (flags & FFCORAUD_DEV_CAPTURE) ? &prop_dev_inname : &prop_dev_outname;
+	r = AudioObjectGetPropertyData(devs[d->idev], a, 0, NULL, &size, &cfs);
 	if (r != kAudioHardwareNoError)
 		goto end;
 
@@ -69,10 +98,20 @@ static int dev_name(ffcoraud_dev *d, uint flags)
 	rc = 0;
 
 end:
+	ffmem_free(bufs);
 	if (rc != 0)
 		ffmem_free0(d->name);
-	CFRelease(cfs);
+	if (cfs != NULL)
+		CFRelease(cfs);
 	return rc;
+}
+
+int ffcoraud_dev_id(ffcoraud_dev *d)
+{
+	if (d->idev == 0)
+		return 0;
+	const AudioObjectID *devs = d->devs;
+	return devs[d->idev - 1];
 }
 
 int ffcoraud_devnext(ffcoraud_dev *d, uint flags)
@@ -88,8 +127,10 @@ int ffcoraud_devnext(ffcoraud_dev *d, uint flags)
 		if (d->idev == d->ndev)
 			return 1;
 
-		if (0 != dev_name(d, flags))
+		if (0 != dev_name(d, flags)) {
+			d->idev++;
 			continue;
+		}
 		d->idev++;
 		return 0;
 	}
@@ -127,20 +168,25 @@ static OSStatus coraud_ioproc(AudioDeviceID device, const AudioTimeStamp *now
 static const AudioObjectPropertyAddress prop_odev_fmt = {
 	kAudioDevicePropertyStreamFormat, kAudioDevicePropertyScopeOutput, kAudioObjectPropertyElementMaster
 };
-
-int ffcoraud_open(ffcoraud_buf *snd, int dev, ffpcm *fmt, uint bufsize)
+static const AudioObjectPropertyAddress prop_idev_fmt = {
+	kAudioDevicePropertyStreamFormat, kAudioDevicePropertyScopeInput, kAudioObjectPropertyElementMaster
+};
+int ffcoraud_open(ffcoraud_buf *snd, int dev, ffpcm *fmt, uint bufsize, uint flags)
 {
-	int r = 0;
+	int r = 0, rc = -1;
+
+	FF_ASSERT((flags & (FFCORAUD_DEV_PLAYBACK | FFCORAUD_DEV_CAPTURE)) != (FFCORAUD_DEV_PLAYBACK | FFCORAUD_DEV_CAPTURE));
 
 	if (dev < 0) {
-		dev = coraud_dev_default(FFCORAUD_DEV_PLAYBACK);
+		dev = coraud_dev_default(flags & (FFCORAUD_DEV_PLAYBACK | FFCORAUD_DEV_CAPTURE));
 		if (dev < 0)
 			return -1;
 	}
 
 	AudioStreamBasicDescription asbd = {};
 	uint sz = sizeof(asbd);
-	if (0 != AudioObjectGetPropertyData(dev, &prop_odev_fmt, 0, NULL, &sz, &asbd))
+	const AudioObjectPropertyAddress *a = (flags & FFCORAUD_DEV_CAPTURE) ? &prop_idev_fmt : &prop_odev_fmt;
+	if (0 != AudioObjectGetPropertyData(dev, a, 0, NULL, &sz, &asbd))
 		return -1;
 
 	if (fmt->format != FFPCM_FLOAT) {
@@ -163,14 +209,24 @@ int ffcoraud_open(ffcoraud_buf *snd, int dev, ffpcm *fmt, uint bufsize)
 
 	if (0 != AudioDeviceCreateIOProcID(dev, &coraud_ioproc, snd, (AudioDeviceIOProcID*)&snd->aprocid)
 		|| snd->aprocid == NULL)
-		return -1;
+		goto end;
 
+	if (bufsize == 0)
+		bufsize = 1000;
 	bufsize = ffpcm_bytes(fmt, bufsize);
-	if (NULL == ffarr_alloc(&snd->data, bufsize))
-		return -1;
+	bufsize = ff_align_power2(bufsize);
+	if (NULL == ffstr_alloc(&snd->data, bufsize))
+		goto end;
+	snd->data.len = bufsize;
+	ffringbuf_init(&snd->buf, snd->data.ptr, snd->data.len);
 
 	snd->dev = dev;
-	return 0;
+	rc = 0;
+
+end:
+	if (rc != 0)
+		ffcoraud_close(snd);
+	return rc;
 }
 
 void ffcoraud_close(ffcoraud_buf *snd)
@@ -178,7 +234,7 @@ void ffcoraud_close(ffcoraud_buf *snd)
 	AudioDeviceDestroyIOProcID(snd->dev, snd->aprocid);
 	snd->dev = 0;
 	snd->aprocid = NULL;
-	ffarr_free(&snd->data);
+	ffstr_free(&snd->data);
 }
 
 int ffcoraud_start(ffcoraud_buf *snd)
@@ -199,16 +255,44 @@ static OSStatus coraud_ioproc(AudioDeviceID device, const AudioTimeStamp *now
 	ffcoraud_buf *snd = udata;
 	float *d = outdata->mBuffers[0].mData;
 	size_t n = outdata->mBuffers[0].mDataByteSize;
-	size_t i = ffmin(n, snd->data.len);
-	ffmemcpy(d, snd->data.ptr, i);
-	_ffarr_rmleft(&snd->data, i, sizeof(char));
-	ffmem_zero((char*)d + n, n - i);
+
+	uint r = ffringbuf_lock_read(&snd->buf, d, n);
+	if (r != n) {
+		ffmem_zero((char*)d + n, n - r);
+		snd->overrun = 1;
+	}
 	return 0;
 }
 
-ssize_t ffcoraud_write(ffcoraud_buf *snd, const void *data, size_t len)
+int ffcoraud_write(ffcoraud_buf *snd, const void *data, size_t len)
 {
-	if (NULL == ffarr_append(&snd->data, data, len))
-		return -1;
-	return len;
+	uint n = ffringbuf_lock_write(&snd->buf, data, len);
+
+	if (ffringbuf_lock_full(&snd->buf)) {
+		if (snd->autostart)
+			ffcoraud_start(snd);
+	}
+
+	return n;
+}
+
+int ffcoraud_filled(ffcoraud_buf *snd)
+{
+	return ffringbuf_lock_canread(&snd->buf);
+}
+
+void ffcoraud_clear(ffcoraud_buf *snd)
+{
+	ffringbuf_lock_reset(&snd->buf);
+}
+
+int ffcoraud_stoplazy(ffcoraud_buf *snd)
+{
+	if (ffringbuf_lock_empty(&snd->buf)) {
+		ffcoraud_stop(snd);
+		return 1;
+	}
+
+	ffcoraud_start(snd);
+	return 0;
 }
