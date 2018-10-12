@@ -452,6 +452,10 @@ int ffpars_arg_process(const ffpars_arg *a, const ffstr *val, void *obj, void *p
 		er = _ffpars_flt(a, fltval, obj, ps);
 		break;
 
+	case FFPARS_TANYTHING:
+		er = a->dst.f_0(ps, obj);
+		break;
+
 	default:
 		er = FFPARS_EVALTYPE;
 	}

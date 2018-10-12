@@ -129,6 +129,13 @@ enum FFPARS_T {
 	, FFPARS_TARR ///< new context: sub-array
 	, FFPARS_TENUM ///< byte index in the array of possible values of type string
 	, FFPARS_TSIZE ///< integer with suffix k|m|g|t.  e.g. "1m" = 1 * 1024 * 1024
+
+	/** Any type: the same function will be called for everything.
+	Useful for mapping several array types to one function (JSON).
+	To use the value you need to get the element type from parser backend (e.g. ffconf or ffjson).
+	Maps to 'union ffpars_val.f_0()'. */
+	, FFPARS_TANYTHING
+
 	, FFPARS_TCLOSE ///< notification on closing the current context.  MUST be the last in list.
 
 	, FFPARS_TINT64 = FFPARS_TINT | FFPARS_F64BIT

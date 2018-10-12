@@ -649,6 +649,7 @@ static int ffjson_schemval(ffparser_schem *ps, void *obj, void *dst)
 
 	t = ps->curarg->flags & FFPARS_FTYPEMASK;
 	if (pt != parsTypes[t - FFPARS_TSTR]
+		&& t != FFPARS_TANYTHING
 		&& !(t == FFPARS_TSIZE && pt == FFJSON_TSTR))
 		return FFPARS_EVALTYPE;
 

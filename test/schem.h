@@ -25,7 +25,8 @@ struct obj_s {
 	int iar;
 
 	unsigned arrCloseOk : 1
-		, objCloseOk : 1;
+		, objCloseOk : 1
+		, any : 1;
 
 	ffstr k[4];
 	int ik;
@@ -39,6 +40,12 @@ static int any(ffparser_schem *ps, void *obj, const ffstr *val)
 {
 	obj_s *o = obj;
 	o->k[o->ik++] = *val;
+	return 0;
+}
+static int any2(ffparser_schem *ps, void *obj)
+{
+	obj_s *o = obj;
+	o->any = 1;
 	return 0;
 }
 static int objClose(ffparser_schem *ps, void *obj)
@@ -108,6 +115,7 @@ static const ffpars_arg obj_schem[] = {
 	, { "enum", FFPARS_TENUM | FFPARS_F8BIT, FFPARS_DST(&enumConf) }
 	, { "obj", FFPARS_TOBJ | FFPARS_FNULL | FFPARS_FMULTI, FFPARS_DST(&newObj) }
 	, { "arr", FFPARS_TARR, FFPARS_DST(&newArr) }
+	, { "any", FFPARS_TANYTHING, FFPARS_DST(&any2) }
 
 	, { "list", FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&arrItem) }
 	, { "obj1", FFPARS_TOBJ | FFPARS_FOBJ1, FFPARS_DST(&newObj1) }
@@ -180,6 +188,7 @@ static int objChk(const obj_s *o)
 	x(o->o[1]->objCloseOk == 1);
 
 	x(o->objCloseOk == 1);
+	x(o->any == 1);
 
 	return 0;
 }

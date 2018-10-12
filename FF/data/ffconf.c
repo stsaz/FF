@@ -669,14 +669,15 @@ static int ffconf_schemval(ffparser_schem *ps)
 	int t;
 	int r = 0;
 
+	t = ps->curarg->flags & FFPARS_FTYPEMASK;
+
 	if (p->type == FFCONF_TVALNEXT) {
-		if (!(ps->curarg->flags & FFPARS_FLIST))
+		if (!(t == FFPARS_TANYTHING
+			|| (ps->curarg->flags & FFPARS_FLIST)))
 			return FFPARS_EVALUNEXP; //value has been specified already
 		ps->list_idx++;
 	} else if (p->type == FFCONF_TVAL)
 		ps->list_idx = 0;
-
-	t = ps->curarg->flags & FFPARS_FTYPEMASK;
 
 	switch(t) {
 	case FFPARS_TOBJ:
