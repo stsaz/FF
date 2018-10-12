@@ -431,6 +431,12 @@ typedef struct ffui_btn {
 
 FF_EXTN int ffui_btn_create(ffui_ctl *c, ffui_wnd *parent);
 
+static inline void ffui_btn_seticon(ffui_btn *b, ffui_icon *ico)
+{
+	ffui_styleset(b->h, BS_ICON);
+	ffui_ctl_send(b, BM_SETIMAGE, IMAGE_ICON, ico->h);
+}
+
 
 // CHECKBOX
 typedef struct ffui_chbox {

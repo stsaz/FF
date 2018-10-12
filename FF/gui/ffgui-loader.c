@@ -118,13 +118,16 @@ static int new_image(ffparser_schem *ps, void *obj, ffpars_ctx *ctx);
 // BUTTON
 static int btn_action(ffparser_schem *ps, void *obj, const ffstr *val);
 static int ctl_tooltip(ffparser_schem *ps, void *obj, const ffstr *val);
+static int btn_done(ffparser_schem *ps, void *obj);
 static const ffpars_arg btn_args[] = {
 	{ "text",	FFPARS_TSTR, FFPARS_DST(&label_text) },
 	{ "style",	FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&label_style) },
+	{ "icon",	FFPARS_TOBJ, FFPARS_DST(&image_icon) },
 	{ "font",	FFPARS_TOBJ, FFPARS_DST(&label_font) },
 	{ "position",	FFPARS_TINT | FFPARS_FSIGN | FFPARS_FLIST, FFPARS_DST(&label_pos) },
 	{ "tooltip",	FFPARS_TSTR, FFPARS_DST(&ctl_tooltip) },
 	{ "action",	FFPARS_TSTR, FFPARS_DST(&btn_action) },
+	{ NULL,	FFPARS_TCLOSE, FFPARS_DST(&btn_done) },
 };
 static int new_button(ffparser_schem *ps, void *obj, ffpars_ctx *ctx);
 
@@ -856,6 +859,14 @@ static int ctl_tooltip(ffparser_schem *ps, void *obj, const ffstr *val)
 	return 0;
 }
 
+static int btn_done(ffparser_schem *ps, void *obj)
+{
+	ffui_loader *g = obj;
+	if (g->tr.ico.icon.h != NULL)
+		ffui_btn_seticon(g->btn, &g->tr.ico.icon);
+	return 0;
+}
+
 static int btn_action(ffparser_schem *ps, void *obj, const ffstr *val)
 {
 	ffui_loader *g = obj;
@@ -1016,7 +1027,7 @@ static int new_checkbox(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 	if (0 != ffui_chbox_create(g->ctl, g->wnd))
 		return FFPARS_ESYS;
 
-	ffpars_setargs(ctx, g, chbox_args, FFCNT(btn_args));
+	ffpars_setargs(ctx, g, chbox_args, FFCNT(chbox_args));
 	return 0;
 }
 
@@ -1033,7 +1044,7 @@ static int new_radio(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 	if (0 != ffui_radio_create(g->ctl, g->wnd))
 		return FFPARS_ESYS;
 
-	ffpars_setargs(ctx, g, radio_args, FFCNT(btn_args));
+	ffpars_setargs(ctx, g, radio_args, FFCNT(radio_args));
 	return 0;
 }
 
