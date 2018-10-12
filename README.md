@@ -86,6 +86,7 @@ FEATURES
 
 * Database - `FF/db/`
 	* SQLite (libsqlite) - `FF/db/sqlite.h`
+	* PostgreSQL (libpq) - `FF/db/postgre.h`
 
 ### Multimedia
 

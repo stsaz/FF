@@ -110,6 +110,15 @@ typedef struct ffui_pos {
 		, cx, cy;
 } ffui_pos;
 
+/** ffui_pos -> RECT */
+static inline void ffui_pos_torect(const ffui_pos *p, RECT *r)
+{
+	r->left = p->x;
+	r->top = p->y;
+	r->right = p->x + p->cx;
+	r->bottom = p->y + p->cy;
+}
+
 #define ffui_screenarea(r)  SystemParametersInfo(SPI_GETWORKAREA, 0, r, 0)
 
 FF_EXTN void ffui_pos_limit(ffui_pos *r, const ffui_pos *screen);
@@ -238,6 +247,23 @@ FF_EXTN int ffui_msgdlg_show(const char *title, const char *text, size_t len, ui
 #define ffui_msgdlg_showz(title, text, flags)  ffui_msgdlg_show(title, text, ffsz_len(text), flags)
 
 
+// GDI
+
+/** Bit block transfer */
+static inline void ffui_bitblt(HDC dst, const ffui_pos *r, HDC src, const ffui_point *ptSrc, uint code)
+{
+	BitBlt(dst, r->x, r->y, r->cx, r->cy, src, ptSrc->x, ptSrc->y, code);
+}
+
+/** Draw text */
+static inline void ffui_drawtext_q(HDC dc, const ffui_pos *r, uint fmt, const ffsyschar *text, uint len)
+{
+	RECT rr;
+	ffui_pos_torect(r, &rr);
+	DrawTextEx(dc, (ffsyschar*)text, len, &rr, fmt, NULL);
+}
+
+
 // CONTROL
 enum FFUI_UID {
 	FFUI_UID_WINDOW = 1,
@@ -307,6 +333,9 @@ FF_EXTN int ffui_textstr(void *c, ffstr *dst);
 
 #define ffui_setfocus(c)  SetFocus((c)->h)
 
+/** Enable or disable the control */
+#define ffui_ctl_enable(c, enable)  EnableWindow((c)->h, enable)
+
 FF_EXTN int ffui_ctl_destroy(void *c);
 
 #define ffui_styleset(h, style_bit) \
@@ -363,8 +392,8 @@ typedef struct ffui_edit {
 FF_EXTN int ffui_edit_create(ffui_ctl *c, ffui_wnd *parent);
 FF_EXTN int ffui_text_create(ffui_ctl *c, ffui_wnd *parent);
 
-#define ffui_edit_password(e) \
-	ffui_ctl_send(e, EM_SETPASSWORDCHAR, (wchar_t)0x25CF, 0)
+#define ffui_edit_password(e, enable) \
+	ffui_ctl_send(e, EM_SETPASSWORDCHAR, (enable) ? (wchar_t)0x25CF : 0, 0)
 
 #define ffui_edit_readonly(e, val) \
 	ffui_ctl_send(e, EM_SETREADONLY, val, 0)
@@ -375,6 +404,21 @@ FF_EXTN int ffui_edit_addtext(ffui_edit *c, const char *text, size_t len);
 #define ffui_edit_sel(e, off, n)  ffui_send((e)->h, EM_SETSEL, off, (off) + (n))
 #define ffui_edit_selall(e)  ffui_send((e)->h, EM_SETSEL, 0, -1)
 
+/** Get the number of lines */
+#define ffui_edit_countlines(e)  ffui_send((e)->h, EM_GETLINECOUNT, 0, 0)
+
+/** Get character index under the specified coordinates */
+#define ffui_edit_charfrompos(e, pt) \
+	ffui_send((e)->h, EM_CHARFROMPOS, 0, MAKELPARAM((pt)->x, (pt)->y))
+
+enum FFUI_EDIT_SCROLL {
+	FFUI_EDIT_SCROLL_LINEUP, FFUI_EDIT_SCROLL_LINEDOWN,
+	FFUI_EDIT_SCROLL_PAGEUP, FFUI_EDIT_SCROLL_PAGEDOWN,
+};
+/*
+type: enum FFUI_EDIT_SCROLL */
+#define ffui_edit_scroll(e, type)  ffui_send((e)->h, EM_SCROLL, type, 0)
+
 
 // COMBOBOX
 typedef struct ffui_combx {
@@ -382,6 +426,7 @@ typedef struct ffui_combx {
 	HFONT font;
 	uint change_id;
 	uint popup_id;
+	uint closeup_id;
 	uint edit_change_id;
 	uint edit_update_id;
 } ffui_combx;
@@ -419,7 +464,7 @@ static FFINL void ffui_combx_ins_q(ffui_combx *c, const ffsyschar *txt, int idx)
 FF_EXTN int ffui_combx_textstr(ffui_ctl *c, uint idx, ffstr *dst);
 
 /** Show/hide drop down list */
-#define ffui_combx_popup(c, show)  ffui_ctl_send(c, CB_SHOWDROPDOWN, val, 0)
+#define ffui_combx_popup(c, show)  ffui_ctl_send(c, CB_SHOWDROPDOWN, show, 0)
 
 
 // BUTTON
@@ -477,6 +522,13 @@ typedef struct ffui_label {
 
 FF_EXTN int ffui_lbl_create(ffui_label *c, ffui_wnd *parent);
 
+/**
+type: enum FFUI_CUR */
+static inline void ffui_lbl_setcursor(ffui_label *c, uint type)
+{
+	ffui_ctl_setcursor(c, LoadCursor(NULL, (wchar_t*)(size_t)type));
+}
+
 
 // IMAGE
 typedef struct ffui_img {
@@ -496,6 +548,11 @@ static FFINL void ffui_img_set(ffui_img *im, ffui_icon *ico)
 typedef struct ffui_menu {
 	HMENU h;
 } ffui_menu;
+
+static inline void ffui_menu_createmain(ffui_menu *m)
+{
+	m->h = CreateMenu();
+}
 
 static FFINL int ffui_menu_create(ffui_menu *m)
 {
@@ -525,6 +582,12 @@ do { \
 do { \
 	(mi)->fMask |= MIIM_SUBMENU; \
 	(mi)->hSubMenu = (hsub); \
+} while(0)
+
+#define ffui_menu_setbmp(mi, hbmp) \
+do { \
+	(mi)->fMask |= MIIM_BITMAP; \
+	(mi)->hbmpItem = (hbmp); \
 } while(0)
 
 enum FFUI_MENUSTATE {
@@ -579,12 +642,28 @@ static FFINL int ffui_menu_ins(ffui_menu *m, int pos, ffui_menuitem *mi)
 
 #define ffui_menu_append(m, mi)  ffui_menu_ins(m, -1, mi)
 
+#define ffui_menu_rm(m, pos)  RemoveMenu((m)->h, i, MF_BYPOSITION)
+
 static FFINL int ffui_menu_set(ffui_menu *m, int pos, ffui_menuitem *mi)
 {
 	mi->cbSize = sizeof(MENUITEMINFO);
 	int r = !SetMenuItemInfo(m->h, pos, 1, mi);
 	ffui_menu_itemreset(mi);
 	return r;
+}
+
+static inline int ffui_menu_set_byid(ffui_menu *m, int id, ffui_menuitem *mi)
+{
+	mi->cbSize = sizeof(MENUITEMINFO);
+	int r = !SetMenuItemInfo(m->h, id, 0, mi);
+	ffui_menu_itemreset(mi);
+	return r;
+}
+
+static inline int ffui_menu_get(ffui_menu *m, int pos, ffui_menuitem *mi)
+{
+	mi->cbSize = sizeof(MENUITEMINFO);
+	return !GetMenuItemInfo(m->h, pos, 1, mi);
 }
 
 static FFINL int ffui_menu_destroy(ffui_menu *m)
@@ -603,6 +682,7 @@ typedef struct ffui_trayicon {
 	NOTIFYICONDATA nid;
 	ffui_menu *pmenu;
 	uint lclick_id;
+	uint balloon_click_id;
 	uint visible :1;
 } ffui_trayicon;
 
@@ -610,6 +690,7 @@ FF_EXTN void ffui_tray_create(ffui_trayicon *t, ffui_wnd *wnd);
 
 #define ffui_tray_visible(t)  ((t)->visible)
 
+/** Set tooltip */
 #define ffui_tray_settooltip(t, s, len) \
 do { \
 	(t)->nid.uFlags |= NIF_TIP; \
@@ -624,12 +705,22 @@ do { \
 	(t)->nid.hIcon = (ico)->h; \
 } while (0)
 
-#define ffui_tray_setinfo(t, title, title_len, text, text_len) \
+/** Set balloon tip
+flags: NIIF_WARNING NIIF_ERROR NIIF_INFO NIIF_USER NIIF_LARGE_ICON NIIF_NOSOUND */
+#define ffui_tray_setinfo(t, title, title_len, text, text_len, flags) \
 do { \
 	(t)->nid.uFlags |= NIF_INFO; \
-	(t)->nid.dwInfoFlags |= NIIF_INFO; \
+	(t)->nid.dwInfoFlags = ((flags) != 0) ? (flags) : NIIF_INFO; \
 	ffqz_copys((t)->nid.szInfoTitle, FFCNT((t)->nid.szInfoTitle), title, title_len); \
 	ffqz_copys((t)->nid.szInfo, FFCNT((t)->nid.szInfo), text, text_len); \
+} while (0)
+
+#define ffui_tray_setinfoz(t, title, text, flags) \
+do { \
+	(t)->nid.uFlags |= NIF_INFO; \
+	(t)->nid.dwInfoFlags = ((flags) != 0) ? (flags) : NIIF_INFO; \
+	ffqz_copyz((t)->nid.szInfoTitle, FFCNT((t)->nid.szInfoTitle), title); \
+	ffqz_copyz((t)->nid.szInfo, FFCNT((t)->nid.szInfo), text); \
 } while (0)
 
 static FFINL int ffui_tray_set(ffui_trayicon *t, uint show)
@@ -716,6 +807,8 @@ FF_EXTN int ffui_pgs_create(ffui_ctl *c, ffui_wnd *parent);
 typedef struct ffui_tab {
 	FFUI_CTL;
 	HFONT font;
+	int changing_sel_id;
+	uint changing_sel_keep :1; // User sets it to prevent the tab from changing
 	int chsel_id;
 } ffui_tab;
 
@@ -757,6 +850,19 @@ do { \
 
 FF_EXTN void ffui_tab_settext(ffui_tabitem *it, const char *txt, size_t len);
 #define ffui_tab_settextz(it, sz)  ffui_tab_settext(it, sz, ffsz_len(sz))
+
+/**
+iconlist_idx: image list index */
+#define ffui_tab_seticon(it, iconlist_idx) \
+do { \
+	(it)->item.mask |= TCIF_IMAGE; \
+	(it)->item.iImage = (iconlist_idx); \
+} while (0)
+
+static inline void ffui_tab_seticonlist(ffui_tab *t, ffui_iconlist *il)
+{
+	TabCtrl_SetImageList(t->h, il->h);
+}
 
 static FFINL int ffui_tab_ins(ffui_tab *t, int idx, ffui_tabitem *it)
 {
@@ -946,6 +1052,11 @@ static FFINL void ffui_view_grp(ffui_view *v, int i, ffui_viewgrp *vg)
 
 
 #define ffui_view_nitems(v)  ListView_GetItemCount((v)->h)
+#define ffui_view_setcount(v, n) \
+	ffui_ctl_send(v, LVM_SETITEMCOUNT, n, LVSICF_NOINVALIDATEALL | LVSICF_NOSCROLL)
+
+#define ffui_view_redraw(v, first, last) \
+	ffui_ctl_send(v, LVM_REDRAWITEMS, first, last)
 
 typedef struct ffui_viewitem {
 	LVITEM item;
@@ -1059,7 +1170,9 @@ FF_EXTN int ffui_view_search(ffui_view *v, size_t by);
 #define ffui_view_selcount(v)  ffui_ctl_send(v, LVM_GETSELECTEDCOUNT, 0, 0)
 #define ffui_view_selnext(v, from)  ffui_ctl_send(v, LVM_GETNEXTITEM, from, LVNI_SELECTED)
 #define ffui_view_sel(v, i)  ListView_SetItemState((v)->h, i, LVIS_SELECTED, LVIS_SELECTED)
+#define ffui_view_unsel(v, i)  ListView_SetItemState((v)->h, i, 0, LVIS_SELECTED)
 #define ffui_view_selall(v)  ffui_view_sel(v, -1)
+#define ffui_view_unselall(v)  ffui_view_unsel(v, -1)
 FF_EXTN int ffui_view_sel_invert(ffui_view *v);
 
 #define ffui_view_sort(v, func, udata)  ListView_SortItems((v)->h, func, udata)
@@ -1171,6 +1284,7 @@ struct ffui_wnd {
 	HFONT font;
 	uint top :1 //quit message loop if the window is closed
 		, hide_on_close :1 //window doesn't get destroyed when it's closed
+		, manual_close :1 //don't automatically close window on X button press
 		, popup :1;
 	byte bordstick; //stick window to screen borders
 

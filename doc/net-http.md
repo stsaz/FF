@@ -154,6 +154,10 @@ Close HTTP reader object:
 		case FFHTTP_MORE:
 			data = ...;
 			continue;
+
+		default:
+			printf("%s\n", ffhttp_errstr(r));
+			break;
 		}
 		break;
 	}

@@ -43,12 +43,12 @@ FF_TEST_SRC := \
 	$(FF)/test/webskt.c \
 	$(FF)/test/hashtab.c
 # $(FF)/test/compat.cpp
-FF_TEST_OBJ := $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_TEST_SRC)))))
+FF_TEST_OBJ := $(addprefix ./, $(addsuffix .o, $(notdir $(basename $(FF_TEST_SRC)))))
 FF_TEST_OBJ += $(FF_OBJ_DIR)/sha1.o $(FF_OBJ_DIR)/base64.o
 
-$(FF_OBJ_DIR)/%.o: $(FF)/test/%.c $(FF_HDR) $(FF_TEST_HDR)
+./%.o: $(FF)/test/%.c $(FF_HDR) $(FF_TEST_HDR)
 	$(C) $(CFLAGS)  $< -o$@
-$(FF_OBJ_DIR)/%.o: $(FF)/test/%.cpp $(FF_HDR) $(FF_TEST_HDR)
+./%.o: $(FF)/test/%.cpp $(FF_HDR) $(FF_TEST_HDR)
 	$(CXX) $(CXXFLAGS)  $< -o$@
 
 FF_TEST_O := $(FFOS_OBJ) $(FF_OBJ) \
@@ -83,7 +83,7 @@ FF_TESTSSL_O := $(FFOS_OBJ) $(FF_OBJ) \
 	$(FF_OBJ_DIR)/ffparse.o \
 	$(FF_OBJ_DIR)/ffssl.o \
 	$(FF_OBJ_DIR)/fftest.o \
-	$(FF_OBJ_DIR)/ssl.o
+	./ssl.o
 fftest-ssl: $(FF_TESTSSL_O)
 	$(LD) $(FF_TESTSSL_O) $(LDFLAGS) -L$(FF3PT)-bin/$(OS)-$(ARCH) -lcrypto -lssl $(LD_LDL)  -o$@
 

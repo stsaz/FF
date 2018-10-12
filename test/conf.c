@@ -79,7 +79,7 @@ static int test_conf_parse(const char *testConfFile)
 	}
 
 	ffarr out = {0};
-	fffile_readall(&out, TESTDIR "/test-out.conf", -1);
+	fffile_readall(&out, TESTDATADIR "/test-out.conf", -1);
 	x(ffstr_eq2(&buf, &out));
 	ffarr_free(&out);
 
@@ -389,8 +389,8 @@ int test_conf()
 	FFTEST_FUNC;
 
 	test_conf_write();
-	test_conf_parse(TESTDIR "/schem.conf");
-	test_conf_schem(TESTDIR "/schem.conf");
+	test_conf_parse(TESTDATADIR "/schem.conf");
+	test_conf_schem(TESTDATADIR "/schem.conf");
 	return 0;
 }
 
@@ -434,7 +434,7 @@ static void test_conf_deferred()
 	FFTEST_FUNC;
 
 	ffarr a = {};
-	x(0 == fffile_readall(&a, "test/deferred.conf", -1));
+	x(0 == fffile_readall(&a, TESTDATADIR "/deferred.conf", -1));
 
 	int r;
 	ffparser_schem ps;

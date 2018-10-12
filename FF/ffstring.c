@@ -14,7 +14,7 @@ ffatomic ffmemcpy_total;
 
 void* ffmemcpy(void *dst, const void *src, size_t len)
 {
-	ffmemcpy_total += len;
+	ffatom_add(&ffmemcpy_total, len);
 	return _ffmemcpy(dst, src, len);
 }
 #endif
@@ -1189,6 +1189,28 @@ size_t ffs_hexstr(char *dst, size_t cap, const char *src, size_t len, uint flags
 		d += ffs_hexbyte(d, (byte)src[i], h);
 	}
 	return d - dst;
+}
+
+ssize_t ffs_hex_to_bytes(void *dst, size_t cap, const char *s, size_t len)
+{
+	size_t n = 0;
+	byte *p = dst;
+
+	if (dst == NULL)
+		return len / 2;
+
+	if (cap < len / 2 || len % 2)
+		return -1;
+
+	for (uint i = 0;  i != len;  i += 2) {
+		int b = ffchar_tohex(s[i]);
+		int b2 = ffchar_tohex(s[i + 1]);
+		if (b < 0 || b2 < 0)
+			return -1;
+		p[n++] = (b << 4) | b2;
+	}
+
+	return n;
 }
 
 static uint _ffs_read_int(const char **ps)

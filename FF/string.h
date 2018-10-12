@@ -276,6 +276,7 @@ FF_EXTN ssize_t ffcharr_findsorted(const void *ar, size_t n, size_t m, const cha
 
 #define _ffmemcpy  memcpy
 #ifdef FFMEM_DBG
+#include <FFOS/atomic.h>
 FF_EXTN ffatomic ffmemcpy_total;
 FF_EXTN void* ffmemcpy(void *dst, const void *src, size_t len);
 #else
@@ -601,6 +602,11 @@ enum FFS_HEXSTR {
 @flags: enum FFS_HEXSTR.
 Return the number of bytes written. */
 FF_EXTN size_t ffs_hexstr(char *dst, size_t cap, const char *src, size_t len, uint flags);
+
+/** Convert hex string to bytes data.
+dst: if NULL, return the capacity needed
+Return the number of bytes written;  <0 on error. */
+FF_EXTN ssize_t ffs_hex_to_bytes(void *dst, size_t cap, const char *s, size_t len);
 
 /** Formatted output into string.
 Integer:

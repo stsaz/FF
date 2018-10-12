@@ -3,7 +3,7 @@
 # FF := .
 FF_OBJ_DIR := ./ff-obj
 override FF_CFLAGS += \
-	-Werror -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -Wno-implicit-fallthrough \
+	-Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -Wno-implicit-fallthrough \
 	-I$(FF) -I$(FF)-3pt -I$(FFOS)
 
 
@@ -79,6 +79,7 @@ $(FF_OBJ_DIR)/%.o: $(FF)/FF/net/%.c $(FF_HDR) $(FF_NET_HDR)
 # audio
 FF_AUDIO_HDR := $(wildcard $(FF)/FF/audio/*.h) \
 	$(wildcard $(FF)/FF/aformat/*.h) \
+	$(wildcard $(FF)/FF/mformat/*.h) \
 	$(wildcard $(FF)/FF/avformat/*.h)
 FF_AUDIO_SRC := $(wildcard $(FF)/FF/audio/*.c) \
 	$(wildcard $(FF)/FF/aformat/*.c) \

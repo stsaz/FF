@@ -48,8 +48,8 @@ enum FFCONF_T {
 
 typedef struct ffconf {
 	uint state, nextst;
-	uint type;
-	int ret;
+	uint type; //enum FFCONF_T
+	int ret; //enum FFPARS_E
 	uint line;
 	uint ch;
 	char esc[8];
@@ -68,8 +68,7 @@ FF_EXTN void ffconf_parseclose(ffconf *p);
 FF_EXTN const char* ffconf_errmsg(ffconf *p, int r, char *buf, size_t cap);
 
 /** Parse config.
-Return enum FFPARS_E.
- @p->type: enum FFCONF_T. */
+Return enum FFPARS_E. */
 FF_EXTN int ffconf_parse(ffconf *p, const char *data, size_t *len);
 
 static FFINL int ffconf_parsestr(ffconf *p, ffstr *data)

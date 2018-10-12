@@ -41,6 +41,31 @@ int ffeth_parse(ffeth *eth, const char *s, size_t len)
 	return (len == FFETH_STRLEN) ? 0 : FFETH_STRLEN;
 }
 
+int ffethhdr_tostr(ffeth_hdr *h, char *buf, size_t cap)
+{
+	uint n;
+	char src[FFETH_STRLEN], dst[FFETH_STRLEN];
+
+	ffeth_tostr(src, sizeof(src), &h->saddr);
+	ffeth_tostr(dst, sizeof(dst), &h->daddr);
+
+	const ffvlanhdr *vlan = NULL;
+	uint l3type = ffint_ntoh16(h->type);
+	if (l3type == FFETH_VLAN) {
+		vlan = (void*)(h + 1);
+		l3type = ffint_ntoh16(vlan->eth_type);
+	}
+
+	n = ffs_fmt(buf, buf + cap, "%*s -> %*s  type:%xu"
+		, (size_t)FFETH_STRLEN, src, (size_t)FFETH_STRLEN, dst
+		, l3type);
+
+	if (vlan != NULL)
+		n += ffs_fmt(buf + n, buf + cap, "  VLAN ID:%xu"
+			, ffvlan_id(vlan));
+	return n;
+}
+
 
 int ffip4_parse_wildcard(ffip4 *ip4, const char *s, size_t len, uint *subnet)
 {

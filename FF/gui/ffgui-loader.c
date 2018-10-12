@@ -203,9 +203,10 @@ static const ffpars_arg pgsbar_args[] = {
 static int new_pgsbar(ffparser_schem *ps, void *obj, ffpars_ctx *ctx);
 
 // TAB
+static int tab_style(ffparser_schem *ps, ffui_loader *g, const ffstr *val);
 static int tab_onchange(ffparser_schem *ps, void *obj, const ffstr *val);
 static const ffpars_arg tab_args[] = {
-	{ "style",	FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&label_style) },
+	{ "style",	FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&tab_style) },
 	{ "position",	FFPARS_TINT | FFPARS_FSIGN | FFPARS_FLIST, FFPARS_DST(&label_pos) },
 	{ "font",	FFPARS_TOBJ, FFPARS_DST(&label_font) },
 	{ "onchange",	FFPARS_TSTR, FFPARS_DST(&tab_onchange) },
@@ -362,8 +363,11 @@ static int ico_done(ffparser_schem *ps, void *obj)
 				return FFPARS_ESYS;
 		}
 		if (ico->load_small
-			&& 0 != ffui_icon_loadres(&ico->icon_small, wname, 16, 16))
-			return FFPARS_ESYS;
+			&& 0 != ffui_icon_loadres(&ico->icon_small, wname, 16, 16)) {
+
+			if (0 != ffui_icon_loadres(&ico->icon_small, wname, 0, 0))
+				return FFPARS_ESYS;
+		}
 		return 0;
 	}
 
@@ -499,8 +503,7 @@ static int new_mmenu(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 	if (NULL == (g->menu = ldr_getctl(g, &ps->vals[0])))
 		return FFPARS_EBADVAL;
 
-	if (NULL == (g->menu->h = CreateMenu()))
-		return FFPARS_ESYS;
+	ffui_menu_createmain(g->menu);
 
 	if (!SetMenu(g->wnd->h, g->menu->h))
 		return FFPARS_ESYS;
@@ -733,8 +736,6 @@ static int font_done(ffparser_schem *ps, void *obj)
 {
 	ffui_loader *g = obj;
 	HFONT f;
-	g->fnt.lf.lfCharSet = OEM_CHARSET;
-	g->fnt.lf.lfQuality = PROOF_QUALITY;
 	f = ffui_font_create(&g->fnt);
 	if (f == NULL)
 		return FFPARS_ESYS;
@@ -805,7 +806,7 @@ static int label_cursor(ffparser_schem *ps, void *obj, const ffstr *val)
 	ffui_loader *g = obj;
 
 	if (ffstr_ieqcz(val, "hand"))
-		ffui_ctl_setcursor(g->actl.lbl, LoadCursor(NULL, IDC_HAND));
+		ffui_lbl_setcursor(g->actl.lbl, FFUI_CUR_HAND);
 	else
 		return FFPARS_EBADVAL;
 	return 0;
@@ -897,7 +898,7 @@ static int edit_style(ffparser_schem *ps, void *obj, const ffstr *val)
 		ffui_show(g->ctl, 1);
 
 	else if (ffstr_eqcz(val, "password"))
-		ffui_edit_password(g->ctl);
+		ffui_edit_password(g->ctl, 1);
 
 	else if (ffstr_eqcz(val, "readonly"))
 		ffui_edit_readonly(g->ctl, 1);
@@ -1058,6 +1059,17 @@ static int new_tab(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 	if (0 != ffui_tab_create(g->actl.tab, g->wnd))
 		return FFPARS_ESYS;
 	ffpars_setargs(ctx, g, tab_args, FFCNT(tab_args));
+	return 0;
+}
+
+static int tab_style(ffparser_schem *ps, ffui_loader *g, const ffstr *val)
+{
+	if (ffstr_eqcz(val, "multiline"))
+		ffui_styleset(g->actl.tab->h, TCS_MULTILINE);
+	else if (ffstr_eqcz(val, "fixed-width"))
+		ffui_styleset(g->actl.tab->h, TCS_FIXEDWIDTH);
+	else
+		return label_style(ps, g, val);
 	return 0;
 }
 
@@ -1572,6 +1584,14 @@ void ffui_ldr_init(ffui_loader *g)
 	ffmem_tzero(g);
 	ffpars_setargs(&g->ctx, g, top_args, FFCNT(top_args));
 	ffui_screenarea(&g->screen);
+}
+
+void ffui_ldr_init2(ffui_loader *g, ffui_ldr_getctl_t getctl, ffui_ldr_getcmd_t getcmd, void *udata)
+{
+	ffui_ldr_init(g);
+	g->getctl = getctl;
+	g->getcmd = getcmd;
+	g->udata = udata;
 }
 
 void ffui_ldr_fin(ffui_loader *g)

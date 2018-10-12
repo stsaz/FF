@@ -25,7 +25,8 @@ enum {
 	FFMKV_O_TAGS = 1,
 };
 
-enum {
+/** Codec ID */
+enum FFMKV_CODEC {
 	FFMKV_AUDIO_AAC = 1,
 	FFMKV_AUDIO_ALAC,
 	FFMKV_AUDIO_MPEG,
@@ -49,7 +50,7 @@ typedef struct ffmkv {
 	uint ictx;
 
 	struct {
-		uint format;
+		uint format; //enum FFMKV_CODEC
 		uint bits;
 		uint channels;
 		uint sample_rate;
@@ -100,6 +101,7 @@ FF_EXTN int ffmkv_read(ffmkv *m);
 
 FF_EXTN void ffmkv_seek(ffmkv *m, uint64 sample);
 
+#define ffmkv_off(m)  ((m)->off)
 #define ffmkv_seekoff(m)  ((m)->off)
 
 

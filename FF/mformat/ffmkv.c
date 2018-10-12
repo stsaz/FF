@@ -8,6 +8,7 @@ Copyright (c) 2016 Simon Zolin
 #include <FFOS/error.h>
 
 
+static int mkv_block(ffmkv *m, ffstr *data);
 static int mkv_lacing(ffstr *data, ffarr4 *lacing, uint lace);
 static int mkv_lacing_ebml(ffstr *data, uint *lace, uint n);
 static int mkv_lacing_xiph(ffstr *data, uint *lace, uint n);
@@ -126,6 +127,7 @@ enum MKV_TRKTYPE {
 #define MKV_A_VORBIS  "A_VORBIS"
 #define MKV_A_PCM  "A_PCM/INT/LIT"
 
+/** Translate codec name to ID. */
 static int mkv_codec(const ffstr *name)
 {
 	int r = 0;
@@ -526,6 +528,43 @@ void ffmkv_seek(ffmkv *m, uint64 sample)
 {
 }
 
+/** Read block header. */
+static int mkv_block(ffmkv *m, ffstr *data)
+{
+	int r;
+	struct {
+		uint64 trackno;
+		uint time;
+		uint flags;
+	} sblk;
+
+	if (-1 == (r = mkv_varint_shift(data, &sblk.trackno)))
+		return ERR(m, MKV_EINTVAL);
+
+	if (data->len < 3)
+		return ERR(m, MKV_ESMALL);
+	sblk.time = ffint_ntoh16(data->ptr);
+	sblk.flags = (byte)data->ptr[2];
+	ffarr_shift(data, 3);
+
+	FFDBG_PRINTLN(10, "block: track:%U  time:%u (cluster:%u)  flags:%xu"
+		, sblk.trackno, sblk.time, m->time_clust, sblk.flags);
+
+	if (sblk.trackno != (uint)m->audio_trkno)
+		return FFMKV_RDONE;
+
+	m->nsamples = mkv_units_samples(m, m->time_clust + sblk.time);
+
+	if (sblk.flags & 0x06) {
+		if (0 != (r = mkv_lacing(data, &m->lacing, sblk.flags & 0x06)))
+			return ERR(m, r);
+		m->state = R_LACING;
+		return 1;
+	}
+
+	return 0;
+}
+
 /* MKV read algorithm:
 . gather data for element id
 . gather data for element size
@@ -775,41 +814,18 @@ int ffmkv_read(ffmkv *m)
 			break;
 
 		case T_BLOCK:
-		case T_SBLOCK: {
-			struct {
-				uint64 trackno;
-				uint time;
-				uint flags;
-			} sblk;
-
-			if (-1 == (r = mkv_varint(m->gbuf.ptr, m->gbuf.len, &sblk.trackno)))
-				return ERR(m, MKV_EINTVAL);
-			ffarr_shift(&m->gbuf, r);
-
-			if (m->gbuf.len < 3)
-				return ERR(m, MKV_ESMALL);
-			sblk.time = ffint_ntoh16(m->gbuf.ptr);
-			sblk.flags = (byte)m->gbuf.ptr[2];
-			ffarr_shift(&m->gbuf, 3);
-
-			FFDBG_PRINTLN(10, "block: track:%U  time:%u (cluster:%u)  flags:%xu"
-				, sblk.trackno, sblk.time, m->time_clust, sblk.flags);
-
-			if (sblk.trackno != (uint)m->audio_trkno)
-				break;
-
-			m->nsamples = mkv_units_samples(m, m->time_clust + sblk.time);
-
-			if (sblk.flags & 0x06) {
-				if (0 != (r = mkv_lacing(&m->gbuf, &m->lacing, sblk.flags & 0x06)))
-					return ERR(m, r);
-				m->state = R_LACING;
+		case T_SBLOCK:
+			if (0 != (r = mkv_block(m, &m->gbuf))) {
+				if (m->state == R_LACING)
+					continue;
+				if (r == FFMKV_RDONE)
+					break;
+				return r;
 			}
 
 			m->state = R_SKIP;
 			ffstr_set2(&m->out, &m->gbuf);
 			return FFMKV_RDATA;
-		}
 		}
 
 		if (el->ctx != NULL) {

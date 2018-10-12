@@ -41,6 +41,8 @@ typedef struct ffeth_hdr {
 	byte type[2]; //enum FFETH_T
 } ffeth_hdr;
 
+FF_EXTN int ffethhdr_tostr(ffeth_hdr *h, char *buf, size_t cap);
+
 enum FFETH_T {
 	FFETH_IP4 = 0x0800,
 	FFETH_ARP = 0x0806,

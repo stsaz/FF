@@ -85,7 +85,7 @@ int test_json_parse(const char *testJsonFile)
 	}
 
 	ffarr out = {0};
-	fffile_readall(&out, TESTDIR "/test-out.json", -1);
+	fffile_readall(&out, TESTDATADIR "/test-out.json", -1);
 	x(ffstr_eq2(&ck.buf, &out));
 	ffarr_free(&out);
 
@@ -319,9 +319,9 @@ int test_json()
 	s.len = ffjson_escape(buf, sizeof(buf), FFSTR("\"\\\b\f\r\n\t/я\x01"));
 	x(!ffstr_eqz(&s, "\\\"\\\\\\b\\f\\r\\n\\t/я\\u0000"));
 
-	test_json_parse(TESTDIR "/test.json");
+	test_json_parse(TESTDATADIR "/test.json");
 	test_json_err();
-	test_json_schem(TESTDIR "/schem.json");
+	test_json_schem(TESTDATADIR "/schem.json");
 
 	test_json_generat(TESTDIR "/gen.json");
 	test_json_cook();

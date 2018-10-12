@@ -907,9 +907,18 @@ static void test_str_vercmp(void)
 	x(ffstr_vercmp(&s1, &s2) == FFSTR_VERCMP_ERRV2);
 }
 
+static const char str_sql[] = FFS_QUOTE(
+	select  *
+	from table
+	where id = "?"
+	or id = ?
+);
+
 int test_str()
 {
 	FFTEST_FUNC;
+
+	x(ffsz_eq(str_sql, "select * from table where id = \"?\" or id = ?"));
 
 #define STR "  asdf  "
 	x(STR + 2 == ffs_skip(FFSTR(STR), ' '));

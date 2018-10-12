@@ -19,6 +19,7 @@ Copyright (c) 2014 Simon Zolin
 
 static int _ffui_dpi;
 static uint _curthd_id; //ID of the thread running GUI message loop
+static RECT _screen_area;
 
 enum {
 	_FFUI_WNDSTYLE = 1
@@ -38,7 +39,7 @@ static void tray_nfy(ffui_wnd *wnd, ffui_trayicon *t, size_t l);
 
 static void wnd_bordstick(uint stick, WINDOWPOS *ws);
 static void wnd_cmd(ffui_wnd *wnd, uint w, HWND h);
-static void wnd_nfy(ffui_wnd *wnd, NMHDR *n);
+static void wnd_nfy(ffui_wnd *wnd, NMHDR *n, size_t *code);
 static void wnd_scroll(ffui_wnd *wnd, uint w, HWND h);
 static void wnd_onaction(ffui_wnd *wnd, int id);
 static LRESULT __stdcall wnd_proc(HWND h, uint msg, WPARAM w, LPARAM l);
@@ -98,6 +99,7 @@ int ffui_init(void)
 		ReleaseDC(NULL, hdc);
 	}
 
+	ffui_screenarea(&_screen_area);
 	return 0;
 }
 
@@ -1397,6 +1399,11 @@ static FFINL void tray_nfy(ffui_wnd *wnd, ffui_trayicon *t, size_t l)
 			ffui_menu_show(t->pmenu, pt.x, pt.y, wnd->h);
 		}
 		break;
+
+	case NIN_BALLOONUSERCLICK:
+		if (t->balloon_click_id != 0)
+			wnd->on_action(wnd, t->balloon_click_id);
+		break;
 	}
 }
 
@@ -1509,10 +1516,7 @@ void ffui_wnd_setplacement(ffui_wnd *w, uint showcmd, const ffui_pos *pos)
 	WINDOWPLACEMENT pl = {0};
 	pl.length = sizeof(WINDOWPLACEMENT);
 	pl.showCmd = showcmd;
-	pl.rcNormalPosition.left = pos->x;
-	pl.rcNormalPosition.top = pos->y;
-	pl.rcNormalPosition.right = pos->x + pos->cx;
-	pl.rcNormalPosition.bottom = pos->y + pos->cy;
+	ffui_pos_torect(pos, &pl.rcNormalPosition);
 	SetWindowPlacement(w->h, &pl);
 }
 
@@ -1637,9 +1641,7 @@ static void ffui_wnd_ghotkey_call(ffui_wnd *w, uint hkid)
 
 static FFINL void wnd_bordstick(uint stick, WINDOWPOS *ws)
 {
-	RECT r;
-	ffui_screenarea(&r);
-
+	RECT r = _screen_area;
 	if (stick >= (uint)ffabs(r.left - ws->x))
 		ws->x = r.left;
 	else if (stick >= (uint)ffabs(r.right - (ws->x + ws->cx)))
@@ -1703,6 +1705,10 @@ static FFINL void wnd_cmd(ffui_wnd *wnd, uint w, HWND h)
 			id = ctl.combx->popup_id;
 			break;
 
+		case CBN_CLOSEUP:
+			id = ctl.combx->closeup_id;
+			break;
+
 		case CBN_EDITCHANGE:
 			id = ctl.combx->edit_change_id;
 			break;
@@ -1718,7 +1724,7 @@ static FFINL void wnd_cmd(ffui_wnd *wnd, uint w, HWND h)
 		wnd->on_action(wnd, id);
 }
 
-static FFINL void wnd_nfy(ffui_wnd *wnd, NMHDR *n)
+static FFINL void wnd_nfy(ffui_wnd *wnd, NMHDR *n, size_t *code)
 {
 	uint id = 0;
 	union ffui_anyctl ctl;
@@ -1784,6 +1790,16 @@ static FFINL void wnd_nfy(ffui_wnd *wnd, NMHDR *n)
 		id = ctl.view->chsel_id;
 		break;
 
+
+	case TCN_SELCHANGING:
+		FFDBG_PRINTLN(10, "TCN_SELCHANGING", 0);
+		if (ctl.tab->changing_sel_id != 0) {
+			wnd->on_action(wnd, ctl.tab->changing_sel_id);
+			*code = ctl.tab->changing_sel_keep;
+			ctl.tab->changing_sel_keep = 0;
+			return;
+		}
+		break;
 
 	case TCN_SELCHANGE:
 		id = ctl.tab->chsel_id;
@@ -1858,7 +1874,10 @@ int ffui_wndproc(ffui_wnd *wnd, size_t *code, HWND h, uint msg, size_t w, size_t
 		break;
 
 	case WM_NOTIFY:
-		wnd_nfy(wnd, (NMHDR*)l);
+		*code = 0;
+		wnd_nfy(wnd, (NMHDR*)l, code);
+		if (*code != 0)
+			return 1;
 		break;
 
 	case WM_HSCROLL:
@@ -1878,7 +1897,7 @@ int ffui_wndproc(ffui_wnd *wnd, size_t *code, HWND h, uint msg, size_t w, size_t
 				ffui_show(wnd, 0);
 				return 1;
 			}
-			break;
+			return wnd->manual_close;
 
 		case SC_MINIMIZE:
 			if (wnd->onminimize_id != 0) {

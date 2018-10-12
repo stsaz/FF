@@ -101,6 +101,14 @@ static FFINL size_t ffarr2_addf(ffarr2 *a, const void *src, size_t n, size_t els
 /** Default char-array. */
 typedef struct ffarr { FFARR(char) } ffarr;
 
+/** Char-array with offset field. */
+typedef struct ffarr4 {
+	size_t len;
+	char *ptr;
+	size_t cap;
+	size_t off;
+} ffarr4;
+
 /** Set a buffer. */
 #define ffarr_set(ar, data, n) \
 do { \
@@ -144,6 +152,8 @@ do { \
 	*(dst) = *(src); \
 	(src)->cap = 0; \
 } while (0)
+
+#define ffarr_acquire  ffarr_acq
 
 #define _ffarr_item(ar, idx, elsz)  ((ar)->ptr + idx * elsz)
 #define ffarr_itemT(ar, idx, T)  (&((T*)(ar)->ptr)[idx])
@@ -341,6 +351,30 @@ static FFINL void _ffarr_rmswap(ffarr *ar, void *el, size_t elsz) {
 
 #define ffarr_rmswap(ar, el) \
 	_ffarr_rmswap((ffarr*)ar, (void*)el, sizeof(*(ar)->ptr))
+
+/** Shift elements to the right.
+A[0]...  ( A[i]... )  A[i+n]... ->
+A[0]...  ( ... )  A[i]...
+*/
+static inline void _ffarr_shiftr(ffarr *ar, size_t i, size_t n, size_t elsz)
+{
+	char *dst = ar->ptr + (i + n) * elsz;
+	const char *src = ar->ptr + i * elsz;
+	const char *end = ar->ptr + ar->len * elsz;
+	memmove(dst, src, end - src);
+}
+
+/** Remove elements from the middle and shift other elements to the left:
+A[0]...  ( A[i]... )  A[i+n]...
+*/
+static inline void _ffarr_rmshift_i(ffarr *ar, size_t i, size_t n, size_t elsz)
+{
+	char *dst = ar->ptr + i * elsz;
+	const char *src = ar->ptr + (i + n) * elsz;
+	const char *end = ar->ptr + ar->len * elsz;
+	memmove(dst, src, end - src);
+	ar->len -= n;
+}
 
 /**
 "...DATA..." -> "DATA" */

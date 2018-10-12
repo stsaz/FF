@@ -60,7 +60,8 @@ enum FFPARS_F {
 	/** Data pointer (not a structure's member offset, not a function pointer). */
 	FFPARS_FPTR = 0x10,
 
-	/** The argument must be specified.  Note: up to 63 arguments only. */
+	/** The argument must be specified within its context at least once.
+	Note: up to 63 arguments only. */
 	FFPARS_FREQUIRED = 0x40,
 
 	/** Allow multiple occurences.  Note: up to 63 arguments only. */
@@ -271,6 +272,9 @@ static FFINL void ffpars_schemfree(ffparser_schem *ps) {
 	ffarr_free(&ps->ctxs);
 	ffstr_free(&ps->vals[0]);
 }
+
+/** Get parser back-end (e.g. ffconf, ffjson). */
+#define ffpars_schem_backend(ps)  ((ps)->p)
 
 FF_EXTN int _ffpars_schemrun_key(ffparser_schem *ps, ffpars_ctx *ctx, const ffstr *val);
 

@@ -46,7 +46,7 @@ int test_cue(void)
 
 	FFTEST_FUNC;
 
-	s.len = _test_readfile(TESTDIR "/1.cue", buf, sizeof(buf));
+	s.len = _test_readfile(TESTDATADIR "/1.cue", buf, sizeof(buf));
 	s.ptr = buf;
 
 	for (i = 0;  i != FFCNT(idxs);  i++) {

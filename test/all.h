@@ -29,6 +29,9 @@ FF_EXTN int test_direxp(void);
 FF_EXTN int test_env(void);
 
 #define TESTDIR "./test"
+#ifndef TESTDATADIR
+#define TESTDATADIR "./test/data"
+#endif
 
 #ifdef FF_UNIX
 #define TMPDIR "/tmp"

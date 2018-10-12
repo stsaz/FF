@@ -24,6 +24,9 @@ typedef struct {
 } _ffui_ldr_icon_t;
 
 typedef void* (*ffui_ldr_getctl_t)(void *udata, const ffstr *name);
+
+/** Get command ID by its name.
+Return 0 if not found. */
 typedef int (*ffui_ldr_getcmd_t)(void *udata, const ffstr *name);
 
 struct ffui_loader {
@@ -72,6 +75,13 @@ struct ffui_loader {
 };
 
 FF_EXTN void ffui_ldr_init(ffui_loader *g);
+
+/** Initialize GUI loader.
+getctl: get a pointer to a UI element by its name.
+ Most of the time you just need to call ffui_ldr_findctl() from it.
+getcmd: get command ID by its name
+udata: user data */
+FF_EXTN void ffui_ldr_init2(ffui_loader *g, ffui_ldr_getctl_t getctl, ffui_ldr_getcmd_t getcmd, void *udata);
 
 FF_EXTN void ffui_ldr_fin(ffui_loader *g);
 
