@@ -1229,7 +1229,8 @@ int ffui_icon_loadstd(ffui_icon *ico, uint tag)
 
 int ffui_icon_loadres(ffui_icon *ico, const ffsyschar *name, uint cx, uint cy)
 {
-	ico->h = LoadImage(GetModuleHandle(NULL), name, IMAGE_ICON, dpi_scale(cx), dpi_scale(cy), 0);
+	uint f = (cx == 0 && cy == 0) ? LR_DEFAULTSIZE : 0;
+	ico->h = LoadImage(GetModuleHandle(NULL), name, IMAGE_ICON, dpi_scale(cx), dpi_scale(cy), f);
 	return (ico->h == NULL);
 }
 
