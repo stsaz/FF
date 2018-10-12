@@ -824,6 +824,38 @@ int ffconf_schemrun(ffparser_schem *ps)
 }
 
 
+int ffconf_ctx_copy(ffconf_ctxcopy *cc, const ffconf *conf)
+{
+	if (conf->ret == FFPARS_OPEN)
+		cc->level++;
+
+	else if (conf->ret == FFPARS_CLOSE
+		&& cc->level-- == 0) {
+		if (0 == ffconf_writefin(&cc->wr))
+			return -1;
+		return 1;
+	}
+
+	uint t = conf->type;
+	ffstr val = {};
+	switch (t) {
+	case FFCONF_TOBJ:
+		val.len = (conf->ret == FFPARS_OPEN) ? FFCONF_OPEN : FFCONF_CLOSE;
+		break;
+	case FFCONF_TKEYCTX:
+		return -1;
+	case FFCONF_TVALNEXT:
+		t = FFCONF_TVAL;
+		//fallthrough
+	default:
+		val = conf->val;
+	}
+	if (0 == ffconf_write(&cc->wr, val.ptr, val.len, t))
+		return -1;
+	return 0;
+}
+
+
 int ffconf_loadfile(struct ffconf_loadfile *c)
 {
 	int r;

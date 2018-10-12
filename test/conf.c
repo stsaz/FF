@@ -394,6 +394,89 @@ int test_conf()
 	return 0;
 }
 
+
+// DEFERRED DATA
+
+struct def_s {
+	ffconf_ctxcopy ctx;
+	ffarr data;
+	uint done;
+	uint active;
+};
+static struct def_s defer;
+
+static int deferred_key(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
+{
+	ffconf_ctxcopy_init(&defer.ctx, ps);
+	defer.active = 1;
+	return 0;
+}
+static int deferred_key2(ffparser_schem *ps, void *obj, const ffstr *val)
+{
+	x(ffstr_eqz(val, "done"));
+	defer.done = 1;
+	return 0;
+}
+static const ffpars_arg deferred_args[] = {
+	{ "key",	FFPARS_TOBJ | FFPARS_FOBJ1, FFPARS_DST(&deferred_key) },
+	{ "k",	FFPARS_TSTR, FFPARS_DST(&deferred_key2) },
+};
+
+#define DEFERRED_DATA "\
+key1 val1\n\
+key1 val1 val2\n\
+key2 arg2 {\n\
+key3 val3\n\
+}\n"
+
+static void test_conf_deferred()
+{
+	FFTEST_FUNC;
+
+	ffarr a = {};
+	x(0 == fffile_readall(&a, "test/deferred.conf", -1));
+
+	int r;
+	ffparser_schem ps;
+	ffconf conf;
+	ffpars_ctx ctx;
+	ffpars_setargs(&ctx, NULL, deferred_args, FFCNT(deferred_args));
+	ffconf_scheminit(&ps, &conf, &ctx);
+
+	ffstr data = *(ffstr*)&a;
+	while (data.len != 0) {
+
+		r = ffconf_parsestr(&conf, &data);
+
+		if (defer.active) {
+			int r2 = ffconf_ctx_copy(&defer.ctx, &conf);
+			x(r2 >= 0);
+			if (r2 > 0) {
+				ffstr d = ffconf_ctxcopy_acquire(&defer.ctx);
+				ffarr_set3(&defer.data, d.ptr, d.len, d.len);
+				defer.active = 0;
+			}
+		} else
+			r = ffconf_schemrun(&ps);
+
+		if (ffpars_iserr(r)) {
+			x(0);
+			return;
+		}
+	}
+
+	r = ffconf_schemfin(&ps);
+	if (ffpars_iserr(r))
+		x(0);
+	ffarr_free(&a);
+
+	x(defer.done);
+
+	x(ffstr_eqz((ffstr*)&defer.data, DEFERRED_DATA));
+	ffarr_free(&defer.data);
+	ffconf_ctxcopy_destroy(&defer.ctx);
+}
+
 int test_args()
 {
 	FFTEST_FUNC;
@@ -402,5 +485,6 @@ int test_args()
 	test_args_print();
 	test_args_schem();
 	test_args_err();
+	test_conf_deferred();
 	return 0;
 }

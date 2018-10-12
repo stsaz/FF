@@ -168,6 +168,39 @@ FF_EXTN int ffconf_schemfin(ffparser_schem *ps);
 FF_EXTN int ffconf_schemrun(ffparser_schem *ps);
 
 
+/** Copy data within context.  Useful for deferred processing. */
+typedef struct ffconf_ctxcopy {
+	ffconfw wr;
+	uint level;
+} ffconf_ctxcopy;
+
+static inline void ffconf_ctxcopy_init(ffconf_ctxcopy *cc, ffparser_schem *ps)
+{
+	ffmem_tzero(cc);
+	ffconf_winit(&cc->wr, NULL, 0);
+	ps->ctxs.len--; // when FFPARS_OPEN handler is called, a place for new context is already created
+}
+
+static inline void ffconf_ctxcopy_destroy(ffconf_ctxcopy *cc)
+{
+	ffconf_wdestroy(&cc->wr);
+}
+
+/** Acquire data and reset writer's buffer.
+Free with ffstr_free(). */
+static inline ffstr ffconf_ctxcopy_acquire(ffconf_ctxcopy *cc)
+{
+	ffstr d;
+	ffconf_output(&cc->wr, &d);
+	ffarr_null(&cc->wr.buf);
+	return d;
+}
+
+/** Copy data.
+Return 0: data chunk was copied;  >0: finished;  <0: error. */
+FF_EXTN int ffconf_ctx_copy(ffconf_ctxcopy *cc, const ffconf *conf);
+
+
 struct ffconf_loadfile {
 	const char *fn;
 	void *obj;
