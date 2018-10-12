@@ -8,6 +8,13 @@ Copyright (c) 2016 Simon Zolin
 #include <FFOS/error.h>
 
 
+static int mkv_lacing(ffstr *data, ffarr4 *lacing, uint lace);
+static int mkv_lacing_ebml(ffstr *data, uint *lace, uint n);
+static int mkv_lacing_xiph(ffstr *data, uint *lace, uint n);
+static int mkv_lacing_fixed(ffstr *data, uint *lace, uint n);
+static int ogg_pktlen(const char *data, size_t len, uint *pkt_size);
+
+
 /** Parse variable width integer.
 1xxxxxxx
 01xxxxxx xxxxxxxx
@@ -41,6 +48,26 @@ static int mkv_varint(const void *data, size_t len, uint64 *dst)
 	}
 	*dst = n;
 	return size;
+}
+
+/** Parse variable width integer and shift input data. */
+static int mkv_varint_shift(ffstr *data, uint64 *dst)
+{
+	int r;
+	if (-1 == (r = mkv_varint(data->ptr, data->len, dst)))
+		return -1;
+	ffarr_shift(data, r);
+	return r;
+}
+
+/** Get 1-byte integer and shift input data. */
+static int mkv_getbyte_shift(ffstr *data, uint *dst)
+{
+	if (data->len == 0)
+		return -1;
+	*dst = data->ptr[0];
+	ffarr_shift(data, 1);
+	return 1;
 }
 
 static int mkv_int_ntoh(uint64 *dst, const char *d, size_t len)
@@ -347,7 +374,7 @@ static const char* const mkv_errstr[] = {
 	"too large element",
 	"too small element",
 	"unsupported order of elements",
-	"lacing isn't supported",
+	"lacing: bad frame size",
 	"bad Vorbis codec private data",
 };
 
@@ -361,8 +388,113 @@ const char* ffmkv_errstr(ffmkv *m)
 #define ERR(m, e) \
 	(m)->err = (e), FFMKV_RERR
 
+/** Read lacing data.
+byte num_frames
+byte Xiph[] | byte EBML[]
+*/
+static int mkv_lacing(ffstr *data, ffarr4 *lacing, uint lace)
+{
+	int r;
+	uint nframes;
+	if (0 > mkv_getbyte_shift(data, &nframes))
+		return MKV_EINTVAL;
+
+	lacing->len = 0;
+	if (NULL == ffarr_reallocT((ffarr*)lacing, nframes, uint))
+		return MKV_ESYS;
+
+	switch (lace) {
+	case 0x02:
+		if (0 != (r = mkv_lacing_xiph(data, (void*)lacing->ptr, nframes)))
+			return r;
+		break;
+
+	case 0x04:
+		if (0 != (r = mkv_lacing_fixed(data, (void*)lacing->ptr, nframes)))
+			return r;
+		break;
+
+	case 0x06:
+		if (0 != (r = mkv_lacing_ebml(data, (void*)lacing->ptr, nframes)))
+			return r;
+		break;
+	}
+
+	lacing->len = nframes;
+	lacing->off = 0;
+	return 0;
+}
+
+/** Read EBML lacing.
+varint size_first
+varint size_delta[]
+*/
+static int mkv_lacing_ebml(ffstr *data, uint *lace, uint n)
+{
+	int r;
+	int64 val, prev;
+
+	if (0 > (r = mkv_varint_shift(data, (uint64*)&prev))
+		|| prev > (uint)-1)
+		return MKV_ELACING;
+	*lace++ = prev;
+
+	FFDBG_PRINTLN(10, "EBML lacing: [%u] 0x%xU %*xb"
+		, n, prev, (size_t)n - 1, data->ptr);
+
+	for (uint i = 1;  i != n;  i++) {
+		if (0 > (r = mkv_varint_shift(data, (uint64*)&val)))
+			return MKV_ELACING;
+
+		switch (r) {
+		case 1:
+			//.sxx xxxx  0..0x3e: negative;  0x40..0x7f: positive
+			val = val - 0x3f;
+			break;
+		case 2:
+			//..sx xxxx xxxx xxxx
+			val = val - 0x1fff;
+			break;
+		default:
+			return MKV_ELACING;
+		}
+
+		if (prev + val < 0)
+			return MKV_ELACING;
+		*lace++ = prev + val;
+		prev = prev + val;
+	}
+
+	return 0;
+}
+
+/** Read Xiph lacing. */
+static int mkv_lacing_xiph(ffstr *data, uint *lace, uint n)
+{
+	for (uint i = 0;  i != n;  i++) {
+		int r = ogg_pktlen(data->ptr, data->len, lace);
+		if (r == 0)
+			return MKV_ELACING;
+		lace++;
+		ffstr_shift(data, r);
+	}
+	return 0;
+}
+
+/** Read fixed-size lacing. */
+static int mkv_lacing_fixed(ffstr *data, uint *lace, uint n)
+{
+	if (data->len % n)
+		return MKV_ELACING;
+	for (uint i = 0;  i != n;  i++) {
+		*lace++ = data->len / n;
+	}
+	return 0;
+}
+
 enum {
 	R_ELID1, R_ELSIZE1, R_ELSIZE, R_EL,
+	R_LACING,
 	R_NEXTCHUNK, R_SKIP, R_GATHER,
 };
 
@@ -381,6 +513,7 @@ void ffmkv_close(ffmkv *m)
 	ffarr_free(&m->buf);
 	ffstr_free(&m->info.asc);
 	ffstr_free(&m->codec_data);
+	ffarr_free(&m->lacing);
 }
 
 /** Convert audio time units to samples. */
@@ -665,10 +798,13 @@ int ffmkv_read(ffmkv *m)
 			if (sblk.trackno != (uint)m->audio_trkno)
 				break;
 
-			if (sblk.flags & 0x60)
-				return ERR(m, MKV_ELACING);
-
 			m->nsamples = mkv_units_samples(m, m->time_clust + sblk.time);
+
+			if (sblk.flags & 0x06) {
+				if (0 != (r = mkv_lacing(&m->gbuf, &m->lacing, sblk.flags & 0x06)))
+					return ERR(m, r);
+				m->state = R_LACING;
+			}
 
 			m->state = R_SKIP;
 			ffstr_set2(&m->out, &m->gbuf);
@@ -683,6 +819,18 @@ int ffmkv_read(ffmkv *m)
 
 		m->state = R_SKIP;
 		continue;
+	}
+
+	case R_LACING: {
+		if (m->lacing.off == m->lacing.len) {
+			m->state = R_SKIP;
+			ffstr_set2(&m->out, &m->gbuf);
+			return FFMKV_RDATA;
+		}
+		uint n = *ffarr_itemT(&m->lacing, m->lacing.off++, uint);
+		ffstr_set(&m->out, m->gbuf.ptr, n);
+		ffarr_shift(&m->gbuf, n);
+		return FFMKV_RDATA;
 	}
 
 	}

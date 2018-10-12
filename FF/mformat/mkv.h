@@ -70,6 +70,8 @@ typedef struct ffmkv {
 	int tag;
 	ffstr tagval;
 
+	ffarr4 lacing; //uint[].  Sizes of frames that are placed in a single block.
+
 	uint seg_off;
 	uint clust1_off;
 	ffstr data;
