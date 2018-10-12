@@ -41,6 +41,10 @@ static FFINL int ffdb_prepare(ffdb *db, ffdb_stmt **pstmt, const char *sql)
 #define ffdb_errstr(db)  sqlite3_errmsg(db)
 #define ffdb_close(db)  sqlite3_close(db)
 
+/** Execute a simple query.
+Return FFDB_OK on success. */
+#define ffdb_exec(db, sql)  sqlite3_exec(db, sql, NULL, NULL, NULL)
+
 /** Execute prepared statement.
 Return FFDB_ROW, SQLITE_DONE or error. */
 #define ffdb_next(stmt)  sqlite3_step(stmt)

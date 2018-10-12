@@ -86,3 +86,12 @@ FF_TESTSSL_O := $(FFOS_OBJ) $(FF_OBJ) \
 	$(FF_OBJ_DIR)/ssl.o
 fftest-ssl: $(FF_TESTSSL_O)
 	$(LD) $(FF_TESTSSL_O) $(LDFLAGS) -L$(FF3PT)-bin/$(OS)-$(ARCH) -lcrypto -lssl $(LD_LDL)  -o$@
+
+FF_TEST_SQLITE_O := $(FFOS_OBJ) $(FF_OBJ) \
+	$(FF_OBJ_DIR)/ffdbg.o \
+	$(FF_OBJ_DIR)/ffutf8.o \
+	$(FF_OBJ_DIR)/ffparse.o \
+	$(FF_OBJ_DIR)/fftest.o \
+	./sqlite.o
+fftest-sqlite: ff-obj $(FF_TEST_SQLITE_O)
+	$(LD) $(FF_TEST_SQLITE_O) $(LDFLAGS) -L$(FF3PT)-bin/$(OS)-$(ARCH) -lsqlite3-ff  -o$@
