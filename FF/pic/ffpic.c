@@ -152,7 +152,7 @@ int ffpic_convert(uint in_fmt, const void *src, uint out_fmt, void *dst, uint pi
 		for (i = 0;  i != pixels;  i++) {
 			in = src + i * 4;
 			o = dst + i * 3;
-			alpha = o[3];
+			alpha = in[3];
 			// apply alpha channel (black background)
 			o[0] = in[0] * alpha / 255;
 			o[1] = in[1] * alpha / 255;
