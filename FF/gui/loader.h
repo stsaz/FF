@@ -41,6 +41,7 @@ struct ffui_loader {
 	ffui_pos screen;
 	ffui_wnd *wnd;
 	int ir;
+	_ffui_ldr_icon_t ico_ctl;
 	union {
 		ffui_pos r;
 		struct {
@@ -48,7 +49,6 @@ struct ffui_loader {
 			uint iaccel :1;
 		} menuitem;
 		struct {
-			_ffui_ldr_icon_t ico;
 			uint show :1;
 		} tr;
 		ffui_font fnt;

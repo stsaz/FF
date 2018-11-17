@@ -661,10 +661,10 @@ static int tray_pmenu(ffparser_schem *ps, void *obj, const ffstr *val)
 static int tray_icon(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 {
 	ffui_loader *g = obj;
-	ffmem_zero(&g->tr.ico, sizeof(_ffui_ldr_icon_t));
-	g->tr.ico.ldr = g;
-	g->tr.ico.cx = g->tr.ico.cy = 16;
-	ffpars_setargs(ctx, &g->tr.ico, icon_args, FFCNT(icon_args));
+	ffmem_tzero(&g->ico_ctl);
+	g->ico_ctl.ldr = g;
+	g->ico_ctl.cx = g->ico_ctl.cy = 16;
+	ffpars_setargs(ctx, &g->ico_ctl, icon_args, FFCNT(icon_args));
 	return 0;
 }
 
@@ -682,8 +682,8 @@ static int tray_done(ffparser_schem *ps, void *obj)
 {
 	ffui_loader *g = obj;
 
-	if (g->tr.ico.icon.h != NULL)
-		ffui_tray_seticon(g->tray, &g->tr.ico.icon);
+	if (g->ico_ctl.icon.h != NULL)
+		ffui_tray_seticon(g->tray, &g->ico_ctl.icon);
 
 	if (g->tr.show && 0 != ffui_tray_show(g->tray, 1))
 		return FFPARS_ESYS;
@@ -699,6 +699,7 @@ static int new_tray(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 		return FFPARS_EBADVAL;
 
 	ffui_tray_create(g->tray, g->wnd);
+	ffmem_tzero(&g->ico_ctl);
 	ffpars_setargs(ctx, g, tray_args, FFCNT(tray_args));
 	return 0;
 }
@@ -829,9 +830,9 @@ static int label_action(ffparser_schem *ps, void *obj, const ffstr *val)
 static int image_icon(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 {
 	ffui_loader *g = obj;
-	ffmem_zero(&g->tr.ico, sizeof(_ffui_ldr_icon_t));
-	g->tr.ico.ldr = g;
-	ffpars_setargs(ctx, &g->tr.ico, icon_args, FFCNT(icon_args));
+	ffmem_tzero(&g->ico_ctl);
+	g->ico_ctl.ldr = g;
+	ffpars_setargs(ctx, &g->ico_ctl, icon_args, FFCNT(icon_args));
 	return 0;
 }
 
@@ -849,8 +850,8 @@ static int image_action(ffparser_schem *ps, void *obj, const ffstr *val)
 static int image_done(ffparser_schem *ps, void *obj)
 {
 	ffui_loader *g = obj;
-	if (g->tr.ico.icon.h != NULL)
-		ffui_img_set(g->actl.img, &g->tr.ico.icon);
+	if (g->ico_ctl.icon.h != NULL)
+		ffui_img_set(g->actl.img, &g->ico_ctl.icon);
 	return 0;
 }
 
@@ -865,8 +866,8 @@ static int ctl_tooltip(ffparser_schem *ps, void *obj, const ffstr *val)
 static int btn_done(ffparser_schem *ps, void *obj)
 {
 	ffui_loader *g = obj;
-	if (g->tr.ico.icon.h != NULL)
-		ffui_btn_seticon(g->btn, &g->tr.ico.icon);
+	if (g->ico_ctl.icon.h != NULL)
+		ffui_btn_seticon(g->btn, &g->ico_ctl.icon);
 	return 0;
 }
 
@@ -1013,6 +1014,7 @@ static int new_button(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 	if (0 != ffui_btn_create(g->ctl, g->wnd))
 		return FFPARS_ESYS;
 
+	ffmem_tzero(&g->ico_ctl);
 	ffpars_setargs(ctx, g, btn_args, FFCNT(btn_args));
 	return 0;
 }
