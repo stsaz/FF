@@ -396,7 +396,7 @@ static int FFTHDCALL tq_wr(void *param)
 	struct tq *t = param;
 	uint i = 0;
 	for (;;) {
-		if (FF_READONCE(&t->q))
+		if (FF_READONCE(t->q))
 			break;
 		int r = fftask_post(&t->tq, &t->tsk[i]);
 		i = ffint_cycleinc(i, 1000);
@@ -410,7 +410,7 @@ static void tq_func(void *param)
 	struct tq *t = param;
 	t->cnt++;
 	if (t->cnt == 10 * 1000000)
-		FF_WRITEONCE(&t->q, 1);
+		FF_WRITEONCE(t->q, 1);
 }
 
 int test_tq(void)
@@ -432,7 +432,7 @@ int test_tq(void)
 	th = ffthd_create(&tq_wr, t, 0);
 
 	for (;;) {
-		if (FF_READONCE(&t->q))
+		if (FF_READONCE(t->q))
 			break;
 		int r = fftask_run(&t->tq);
 		(void)r;

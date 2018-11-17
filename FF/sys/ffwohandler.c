@@ -115,7 +115,7 @@ void ffwoh_rm(ffwoh *oh, HANDLE h)
 static int FFTHDCALL _ffwoh_evt_handler(void *param)
 {
 	ffwoh *oh = param;
-	FF_WRITEONCE(&oh->tid, ffthd_curid());
+	FF_WRITEONCE(oh->tid, ffthd_curid());
 
 	for (;;) {
 		fflk_lock(&oh->lk);

@@ -274,7 +274,7 @@ uint fftask_run(fftaskmgr *mgr)
 
 	for (n = mgr->max_run;  n != 0;  n--) {
 
-		it = FF_READONCE(&mgr->tasks.first);
+		it = FF_READONCE(mgr->tasks.first);
 		if (it == sentl)
 			break; //list is empty
 
