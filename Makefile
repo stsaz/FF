@@ -36,7 +36,8 @@ include $(FF3PT)/makerules
 FF_TEST_HDR := $(wildcard $(FF)/test/*.h)
 
 FF_TEST_SRC := \
-	$(FF)/test/base.c $(FF)/test/conf.c $(FF)/test/http.c $(FF)/test/json.c $(FF)/test/str.c \
+	$(FF)/test/base.c $(FF)/test/base-sort.c $(FF)/test/str.c \
+	$(FF)/test/conf.c $(FF)/test/http.c $(FF)/test/json.c \
 	$(FF)/test/test.c $(FF)/test/time.c $(FF)/test/url.c $(FF)/test/cue.c $(FF)/test/sys.c \
 	$(FF)/test/arc.c \
 	$(FF)/test/tls.c \

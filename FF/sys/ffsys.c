@@ -9,6 +9,7 @@ Copyright (c) 2014 Simon Zolin
 #include <FF/sys/taskqueue.h>
 #include <FF/sys/dir.h>
 #include <FF/path.h>
+#include <FF/number.h>
 #include <FFOS/process.h>
 #include <FFOS/error.h>
 
@@ -312,7 +313,7 @@ int ffdir_make_path(char *fn, size_t off)
 	return r;
 }
 
-static int _ffdir_cmpfilename(FF_QSORT_PARAMS)
+static int _ffdir_cmpfilename(const void *a, const void *b, void *udata)
 {
 	char *n1 = *(char**)a, *n2 = *(char**)b;
 
@@ -449,7 +450,7 @@ int ffdir_expopen(ffdirexp *dex, char *pattern, uint flags)
 	}
 
 	if (!(flags & FFDIR_EXP_NOSORT)) {
-		ff_qsort(names.ptr, names.len, sizeof(char*), &_ffdir_cmpfilename, NULL);
+		ffsort(names.ptr, names.len, sizeof(char*), &_ffdir_cmpfilename, NULL);
 	}
 
 	dex->flags = flags;

@@ -245,3 +245,12 @@ FF_EXTN ssize_t ffint_binfind4(const uint *arr, size_t n, uint search);
 
 
 FF_EXTN void ffint_sort(uint *arr, size_t n, uint flags);
+
+/** Return 0: (a == b);  -1: (a < b);  1: (a > b). */
+typedef int (*ffsortcmp)(const void *a, const void *b, void *udata);
+
+/** Sort array elements.
+Uses merge-sort with insertion-sort.
+n: number of elements
+sz: size of 1 element */
+FF_EXTN void ffsort(void *data, size_t n, size_t sz, ffsortcmp cmp, void *udata);

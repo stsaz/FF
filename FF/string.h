@@ -755,28 +755,6 @@ Return enum FFSTR_VERCMP. */
 FF_EXTN int ffstr_vercmp(const ffstr *v1, const ffstr *v2);
 
 
-#if defined FF_LINUX_MAINLINE
-#define FF_QSORT_PARAMS  const void *a, const void *b, void *udata
-#define ff_qsort(ar, n, elsize, func, udata) \
-	qsort_r(ar, n, elsize, func, udata)
-
-#elif defined FF_BSD
-#define FF_QSORT_PARAMS  void *udata, const void *a, const void *b
-#define ff_qsort(ar, n, elsize, func, udata) \
-	qsort_r(ar, n, elsize, udata, func)
-
-#elif defined FF_MSVC
-#define FF_QSORT_PARAMS  void *udata, const void *a, const void *b
-#define ff_qsort(ar, n, elsize, func, udata) \
-	qsort_s(ar, n, elsize, func, udata)
-
-#else //gcc on windows:
-#define FF_QSORT_PARAMS  const void *a, const void *b
-#define ff_qsort(ar, n, elsize, func, udata) \
-	qsort(ar, n, elsize, func)
-#endif
-
-
 /** Shift value in every element. */
 static FFINL void ffarrp_shift(void **ar, size_t size, size_t by)
 {
