@@ -914,6 +914,41 @@ static const char str_sql[] = FFS_QUOTE(
 	or id = ?
 );
 
+static void test_replace()
+{
+	char buf[8];
+	size_t n;
+	x(FFSLEN("asdfasdf") == ffs_replacechar(FFSTR("asdfasdf"), buf, FFCNT(buf), 'a', 'z', &n));
+	x(n == 2);
+	x(0 == ffmemcmp(buf, "zsdfzsdf", n));
+
+	x(buf + 8 == ffmem_copycz(buf, "asdfasdf"));
+
+	ffstr d, s, f, r;
+	d.ptr = buf;
+	ffstr_setz(&s, "1234567");
+	ffstr_setz(&f, "234");
+	ffstr_setz(&r, "xx");
+	x(FFSLEN("1xx") == ffstr_replace(&d, &s, &f, &r, 0));
+	x(ffstr_eqz(&d, "1xx567"));
+
+	ffstr_setz(&s, "qwerty");
+	ffstr_setz(&f, "Rt");
+	ffstr_setz(&r, "XXX");
+	x(FFSLEN("qweXXX") == ffstr_replace(&d, &s, &f, &r, FFSTR_REPL_ICASE));
+	x(ffstr_eqz(&d, "qweXXXy"));
+
+	ffstr_setz(&s, "1234567");
+	ffstr_setz(&f, "234");
+	ffstr_setz(&r, "xx");
+	x(FFSLEN("1xx") == ffstr_replace(&d, &s, &f, &r, FFSTR_REPL_NOTAIL));
+	x(ffstr_eqz(&d, "1xx"));
+
+	ffstr_setz(&s, "1234567");
+	ffstr_setz(&f, "78");
+	x(0 == ffstr_replace(&d, &s, &f, &r, 0));
+}
+
 int test_str()
 {
 	FFTEST_FUNC;
@@ -943,16 +978,7 @@ int test_str()
 	test_escape();
 	test_chcase();
 	test_bufadd();
-
-	{
-		char buf[8];
-		size_t n;
-		x(FFSLEN("asdfasdf") == ffs_replacechar(FFSTR("asdfasdf"), buf, FFCNT(buf), 'a', 'z', &n));
-		x(n == 2);
-		x(0 == ffmemcmp(buf, "zsdfzsdf", n));
-
-		x(buf + 8 == ffmem_copycz(buf, "asdfasdf"));
-	}
+	test_replace();
 
 	x(ffchar_islow('a') && !ffchar_islow('A') && !ffchar_islow('\xff') && !ffchar_islow('-'));
 	x(ffchar_isname('A') && !ffchar_isname('\xff') && !ffchar_isname('-'));

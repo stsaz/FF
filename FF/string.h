@@ -505,6 +505,17 @@ On return '*n' contains the number of replacements made.
 Return the number of chars written. */
 FF_EXTN size_t ffs_replacechar(const char *src, size_t len, char *dst, size_t cap, int search, int replace, size_t *n);
 
+enum FFSTR_REPL_F {
+	FFSTR_REPL_ICASE = 1, // case-insensitive matching
+	FFSTR_REPL_NOTAIL = 2, // don't copy tail data after replacement
+};
+
+/** Replace text in 'src' and write output to 'dst'.
+'dst': points to an allocated buffer.  Min size: (src.len - search.len + replace.len).
+'flags': enum FFSTR_REPL_F
+Return the position after replacement;  0:no match ('dst' will be empty). */
+FF_EXTN ssize_t ffstr_replace(ffstr *dst, const ffstr *src, const ffstr *search, const ffstr *replace, uint flags);
+
 /** Lowercase/uppercase hex alphabet. */
 FF_EXTN const char ffhex[16];
 FF_EXTN const char ffHEX[16];

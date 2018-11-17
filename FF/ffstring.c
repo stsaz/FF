@@ -542,6 +542,32 @@ size_t ffs_replacechar(const char *src, size_t len, char *dst, size_t cap, int s
 	return dst - dsto;
 }
 
+ssize_t ffstr_replace(ffstr *dst, const ffstr *src, const ffstr *search, const ffstr *replace, uint flags)
+{
+	ssize_t r;
+
+	if (flags & FFSTR_REPL_ICASE)
+		r = ffstr_ifindstr(src, search);
+	else
+		r = ffstr_findstr(src, search);
+	if (r < 0) {
+		dst->len = 0;
+		return 0;
+	}
+
+	// dst = src... [-search] [+replace] ...src
+	char *p = ffmem_copy(dst->ptr, src->ptr, r);
+	p = ffmem_copy(p, replace->ptr, replace->len);
+	if (!(flags & FFSTR_REPL_NOTAIL)) {
+		size_t n = r + search->len;
+		p = ffmem_copy(p, src->ptr + n, src->len - n);
+	}
+	r += replace->len;
+
+	dst->len = p - dst->ptr;
+	return r;
+}
+
 const char ffhex[] = "0123456789abcdef";
 const char ffHEX[] = "0123456789ABCDEF";
 
