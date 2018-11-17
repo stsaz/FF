@@ -109,7 +109,7 @@ int ffjpeg_create(ffjpeg_cook *j, ffpic_info *info)
 	j->info.height = info->height;
 	j->info.format = info->format;
 	j->info.quality = 85;
-	j->info.bufcap = 8 * 1024;
+	j->info.bufcap = 16 * 1024; //must be larger than 8k (or libjpeg may return JERR_CANT_SUSPEND)
 	return 0;
 }
 
