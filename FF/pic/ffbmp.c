@@ -98,7 +98,8 @@ int ffbmp_read(ffbmp *b)
 
 		uint hdrsize = ffint_ltoh32(h->headersize);
 		b->state = R_SEEK;
-		b->linesize = b->info.width * bpp / 8;
+		b->linesize_o = b->info.width * bpp / 8;
+		b->linesize = ff_align_ceil2(b->linesize_o, 4);
 		b->dataoff = hdrsize;
 		return FFBMP_HDR;
 	}
@@ -110,7 +111,7 @@ int ffbmp_read(ffbmp *b)
 		return FFBMP_SEEK;
 
 	case R_DATA:
-		ffstr_set(&b->rgb, b->inbuf.ptr, b->linesize);
+		ffstr_set(&b->rgb, b->inbuf.ptr, b->linesize_o);
 
 		b->state = R_SEEK;
 		if (++b->line == b->info.height)

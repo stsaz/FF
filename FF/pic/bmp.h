@@ -22,13 +22,16 @@ enum FFBMP_E {
 
 
 typedef struct ffbmp {
+	//shared:
+	uint e;
+
 	uint state;
 	uint nxstate;
-	uint e;
 	ffstr data;
 	ffstr rgb;
 	ffarr inbuf;
 	uint linesize;
+	uint linesize_o;
 	uint line;
 	uint dataoff;
 	uint gather_size;
@@ -71,10 +74,12 @@ FF_EXTN int ffbmp_read(ffbmp *b);
 
 
 typedef struct ffbmp_cook {
+	//shared:
+	uint e;
+
 	uint state;
 	uint linesize;
 	uint linesize_o;
-	uint e;
 	ffstr data;
 	ffstr rgb;
 	ffarr buf;
