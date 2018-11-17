@@ -12,10 +12,10 @@ static int test_meth()
 {
 	x(FFHTTP_GET == ffhttp_findmethod(FFSTR("GET")));
 	x(FFHTTP_HEAD == ffhttp_findmethod(FFSTR("HEAD")));
-	x(FFHTTP_HEAD == ffhttp_findmethod(FFSTR("HEAD\0")));
+	x(FFHTTP_HEAD == ffhttp_findmethod(FFSTR("HEAD\0\0\0")));
 	x(FFHTTP_OPTIONS == ffhttp_findmethod(FFSTR("OPTIONS")));
 	x(FFHTTP_MUKN == ffhttp_findmethod(FFSTR("OPTIONS ")));
-	x(FFHTTP_MUKN == ffhttp_findmethod(FFSTR("")));
+	x(FFHTTP_MUKN == ffhttp_findmethod(FFSTR("\0\0\0")));
 	return 0;
 }
 

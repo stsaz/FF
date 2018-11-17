@@ -273,6 +273,14 @@ static FFINL void ffpars_schemfree(ffparser_schem *ps) {
 	ffstr_free(&ps->vals[0]);
 }
 
+/** Get context name ('conf' backend).
+Example:
+key "name" {...} */
+static inline ffstr* ffpars_ctxname(ffparser_schem *p)
+{
+	return &p->vals[0];
+}
+
 /** Get parser back-end (e.g. ffconf, ffjson). */
 #define ffpars_schem_backend(ps)  ((ps)->p)
 

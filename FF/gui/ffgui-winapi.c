@@ -360,17 +360,22 @@ static HWND create(enum FFUI_UID uid, const ffsyschar *text, HWND parent, const 
 		, parent, NULL, inst, param);
 }
 
-static int ctl_create(ffui_ctl *c, enum FFUI_UID uid, HWND parent)
+static int ctl_create2(ffui_ctl *c, enum FFUI_UID uid, HWND parent, uint style, uint exstyle)
 {
 	ffui_pos r = {0};
 	c->uid = uid;
 	if (0 == (c->h = create(uid, TEXT(""), parent, &r
-		, ctls[uid].style | WS_CHILD
-		, ctls[uid].exstyle | 0
+		, ctls[uid].style | WS_CHILD | style
+		, ctls[uid].exstyle | exstyle
 		, NULL)))
 		return 1;
 	ffui_setctl(c->h, c);
 	return 0;
+}
+
+static int ctl_create(ffui_ctl *c, enum FFUI_UID uid, HWND parent)
+{
+	return ctl_create2(c, uid, parent, 0, 0);
 }
 
 int ffui_ctl_destroy(void *_c)
@@ -713,6 +718,18 @@ int ffui_combx_create(ffui_ctl *c, ffui_wnd *parent)
 	return 0;
 }
 
+void ffui_combx_ins(ffui_combx *c, int idx, const char *txt, size_t len)
+{
+	ffsyschar *w, ws[255];
+	size_t n = FFCNT(ws) - 1;
+	if (NULL == (w = ffs_utow(ws, &n, txt, len)))
+		return;
+	w[n] = '\0';
+	ffui_combx_ins_q(c, idx, w);
+	if (w != ws)
+		ffmem_free(w);
+}
+
 int ffui_combx_textstr(ffui_ctl *c, uint idx, ffstr *dst)
 {
 	size_t len = ffui_ctl_send(c, CB_GETLBTEXTLEN, idx, 0);
@@ -835,11 +852,8 @@ int ffui_view_create(ffui_view *c, ffui_wnd *parent)
 	if (0 != ctl_create2((ffui_ctl*)c, FFUI_UID_LISTVIEW, parent->h, s, 0))
 		return 1;
 
-	{
 	int n = LVS_EX_FULLROWSELECT | LVS_EX_LABELTIP | LVS_EX_DOUBLEBUFFER | LVS_EX_HEADERDRAGDROP;
 	ListView_SetExtendedListViewStyleEx(c->h, n, n);
-	}
-
 	return 0;
 }
 
@@ -864,6 +878,7 @@ void ffui_viewcol_settext(ffui_viewcol *vc, const char *text, size_t len)
 
 void ffui_viewcol_setwidth(ffui_viewcol *vc, uint w)
 {
+	vc->col.mask |= LVCF_WIDTH;
 	vc->col.cx = dpi_scale(w);
 }
 
@@ -1412,8 +1427,8 @@ static FFINL void tray_nfy(ffui_wnd *wnd, ffui_trayicon *t, size_t l)
 static FFINL void paned_resize(ffui_paned *pn, ffui_wnd *wnd)
 {
 	RECT r;
-	ffui_pos cr[2];
-	uint i, x = 0, y = 0, cx, cy, f;
+	ffui_pos cr[FFCNT(pn->items)];
+	uint i, n, x = 0, y = 0, cx, cy, f;
 
 	GetClientRect(wnd->h, &r);
 
@@ -1422,14 +1437,14 @@ static FFINL void paned_resize(ffui_paned *pn, ffui_wnd *wnd)
 		r.bottom -= cr[0].cy;
 	}
 
-	for (i = 0;  i < 2;  i++) {
-		if (pn->items[i].it != NULL)
-			getpos_noscale(pn->items[i].it->h, &cr[i]);
-	}
-
-	for (i = 0;  i < 2;  i++) {
+	for (i = 0;  i != FFCNT(pn->items);  i++) {
 		if (pn->items[i].it == NULL)
-			continue;
+			break;
+		getpos_noscale(pn->items[i].it->h, &cr[i]);
+	}
+	n = i;
+
+	for (i = 0;  i != n;  i++) {
 		f = SWP_NOMOVE;
 
 		if (pn->items[i].cx)
@@ -1438,7 +1453,10 @@ static FFINL void paned_resize(ffui_paned *pn, ffui_wnd *wnd)
 			cx = cr[i].cx;
 
 		if (pn->items[i].x) {
-			x = r.right - cr[i].cx;
+			x = r.right;
+			for (uint k = i;  k != n;  k++) {
+				x -= cr[k].cx;
+			}
 			y = cr[i].y;
 			f = 0;
 		}
@@ -1448,8 +1466,12 @@ static FFINL void paned_resize(ffui_paned *pn, ffui_wnd *wnd)
 		else
 			cy = cr[i].cy;
 
-		if (i == 0 && pn->items[0].cx && pn->items[1].it != NULL)
-			cx = r.right -	cr[0].x - cr[1].cx;
+		if (i == 0 && pn->items[0].cx && n >= 2) {
+			cx = r.right -	cr[0].x;
+			for (uint k = 1;  k != n;  k++) {
+				cx -= cr[k].cx;
+			}
+		}
 
 		setpos_noscale(pn->items[i].it, x, y, cx, cy, f);
 	}
@@ -1847,7 +1869,7 @@ static FFINL void wnd_scroll(ffui_wnd *wnd, uint w, HWND h)
 	case SB_PAGERIGHT:
 		if (!ctl.trkbar->thumbtrk)
 			ctl.trkbar->thumbtrk = 1;
-		// break;
+		//fallthrough
 	case SB_THUMBPOSITION: //note: SB_ENDSCROLL isn't sent
 		if (ctl.trkbar->scrolling_id != 0)
 			wnd->on_action(wnd, ctl.trkbar->scrolling_id);
@@ -2002,16 +2024,25 @@ int ffui_wndproc(ffui_wnd *wnd, size_t *code, HWND h, uint msg, size_t w, size_t
 		}
 		break;
 
+	case WM_CTLCOLORBTN:
+	case WM_CTLCOLORLISTBOX:
+	case WM_CTLCOLORSCROLLBAR:
 	case WM_CTLCOLORSTATIC: {
 		union ffui_anyctl c;
 		c.ctl = ffui_getctl((HWND)l);
-		if (c.ctl == NULL)
-			break;
-		if (c.ctl->uid == FFUI_UID_LABEL && c.lbl->color != 0) {
-			HDC hdc = (HDC)w;
+		HDC hdc = (HDC)w;
+		HBRUSH br = wnd->bgcolor;
+		ffbool result = 0;
+		if (c.ctl != NULL && c.ctl->uid == FFUI_UID_LABEL && c.lbl->color != 0) {
 			SetTextColor(hdc, c.lbl->color);
+			result = 1;
+		}
+
+		if (result || br != NULL) {
 			SetBkMode(hdc, TRANSPARENT);
-			*code = COLOR_WINDOW;
+			if (br == NULL)
+				br = GetSysColorBrush(COLOR_BTNFACE);
+			*code = (size_t)br;
 			return 1;
 		}
 		break;

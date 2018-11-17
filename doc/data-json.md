@@ -1,5 +1,8 @@
 # JSON
 
+* JSON reader using scheme
+* JSON writer
+
 Include:
 
 	#include <FF/data/json.h>
@@ -83,6 +86,11 @@ Use the parsed data:
 	// obj.s contains "value"
 	// obj.i == 1234
 	ffstr_free(&obj.s); // this is needed if FFPARS_FCOPY is used
+
+Close the reader:
+
+	ffjson_parseclose(&json);
+	ffpars_schemfree(&ps);
 
 
 ## JSON writer

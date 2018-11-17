@@ -117,9 +117,9 @@ int ffwas_devnext(ffwas_dev *d, uint flags)
 	IPropertyStore *props = NULL;
 	size_t n;
 	PROPVARIANT name;
+	PropVariantInit(&name);
 
 	if (d->dcoll == NULL) {
-		PropVariantInit(&name);
 		if (0 != (r = CoCreateInstance(&CLSID_MMDeviceEnumerator_ff, NULL, CLSCTX_ALL
 			, &IID_IMMDeviceEnumerator_ff, (void**)&enu)))
 			goto fail;

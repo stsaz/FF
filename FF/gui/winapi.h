@@ -301,6 +301,7 @@ typedef struct ffui_ctl {
 #define ffui_send(h, msg, w, l)  SendMessage(h, msg, (size_t)(w), (size_t)(l))
 #define ffui_post(h, msg, w, l)  PostMessage(h, msg, (size_t)(w), (size_t)(l))
 #define ffui_ctl_send(c, msg, w, l)  ffui_send((c)->h, msg, w, l)
+#define ffui_ctl_post(c, msg, w, l)  ffui_post((c)->h, msg, w, l)
 
 enum FFUI_FPOS {
 	FFUI_FPOS_DPISCALE = 1,
@@ -324,12 +325,20 @@ FF_EXTN int ffui_settext(void *c, const char *text, size_t len);
 #define ffui_settextstr(c, str)  ffui_settext(c, (str)->ptr, (str)->len)
 #define ffui_cleartext(c)  ffui_settext_q((c)->h, TEXT(""))
 
+#define ffui_textlen(c)  ffui_send((c)->h, WM_GETTEXTLENGTH, 0, 0)
 #define ffui_text_q(h, buf, cap)  ffui_send(h, WM_GETTEXT, cap, buf)
 FF_EXTN int ffui_textstr(void *c, ffstr *dst);
 
 #define ffui_show(c, show)  ShowWindow((c)->h, (show) ? SW_SHOW : SW_HIDE)
 
 #define ffui_redraw(c, redraw)  ffui_ctl_send(c, WM_SETREDRAW, redraw, 0)
+
+/** Invalidate control */
+static inline void ffui_ctl_invalidate(void *ctl)
+{
+	ffui_ctl *c = (ffui_ctl*)ctl;
+	InvalidateRect(c->h, NULL, 1);
+}
 
 #define ffui_setfocus(c)  SetFocus((c)->h)
 
@@ -433,8 +442,9 @@ typedef struct ffui_combx {
 
 FF_EXTN int ffui_combx_create(ffui_ctl *c, ffui_wnd *parent);
 
-/** Insert an item */
-static FFINL void ffui_combx_ins_q(ffui_combx *c, const ffsyschar *txt, int idx)
+/** Insert an item
+idx: -1: insert to end */
+static FFINL void ffui_combx_ins_q(ffui_combx *c, int idx, const ffsyschar *txt)
 {
 	uint msg = CB_INSERTSTRING;
 	if (idx == -1) {
@@ -443,6 +453,9 @@ static FFINL void ffui_combx_ins_q(ffui_combx *c, const ffsyschar *txt, int idx)
 	}
 	ffui_ctl_send(c, msg, idx, txt);
 }
+
+FF_EXTN void ffui_combx_ins(ffui_combx *c, int idx, const char *txt, size_t len);
+#define ffui_combx_insz(c, idx, textz)  ffui_combx_ins(c, idx, textz, ffsz_len(textz))
 
 /** Remove item */
 #define ffui_combx_rm(c, idx)  ffui_ctl_send(c, CB_DELETESTRING, idx, 0)
@@ -657,6 +670,13 @@ static inline int ffui_menu_set_byid(ffui_menu *m, int id, ffui_menuitem *mi)
 	mi->cbSize = sizeof(MENUITEMINFO);
 	int r = !SetMenuItemInfo(m->h, id, 0, mi);
 	ffui_menu_itemreset(mi);
+	return r;
+}
+
+static inline int ffui_menu_get_byid(ffui_menu *m, int id, ffui_menuitem *mi)
+{
+	mi->cbSize = sizeof(MENUITEMINFO);
+	int r = !GetMenuItemInfo(m->h, id, 0, mi);
 	return r;
 }
 
@@ -940,8 +960,8 @@ typedef struct ffui_viewcol {
 
 static FFINL void ffui_viewcol_reset(ffui_viewcol *vc)
 {
-	vc->col.mask = LVCF_WIDTH;
-	vc->col.cx = 100;
+	ffmem_tzero(&vc->col);
+	vc->text[0] = '\0';
 }
 
 #define ffui_viewcol_settext_q(vc, sz) \
@@ -956,11 +976,23 @@ FF_EXTN void ffui_viewcol_setwidth(ffui_viewcol *vc, uint w);
 
 #define ffui_viewcol_width(vc)  ((vc)->col.cx)
 
+/**
+'a': HDF_LEFT HDF_RIGHT HDF_CENTER */
 #define ffui_viewcol_setalign(vc, a) \
 do { \
 	(vc)->col.mask |= LVCF_FMT; \
-	(vc)->col.fmt = (a); \
+	(vc)->col.fmt |= (a); \
 } while (0)
+
+/**
+'f': HDF_SORTUP HDF_SORTDOWN */
+#define ffui_viewcol_setsort(vc, f) \
+do { \
+	(vc)->col.mask |= LVCF_FMT; \
+	(vc)->col.fmt |= (f); \
+} while (0)
+
+#define ffui_viewcol_sort(vc)  ((vc)->col.fmt & (HDF_SORTUP | HDF_SORTDOWN))
 
 #define ffui_viewcol_setorder(vc, ord) \
 do { \
@@ -1070,6 +1102,7 @@ static inline void ffui_view_dispinfo_settext(LVITEM *it, const char *text, size
 #define ffui_view_setcount(v, n) \
 	ffui_ctl_send(v, LVM_SETITEMCOUNT, n, LVSICF_NOINVALIDATEALL | LVSICF_NOSCROLL)
 
+/** Redraw items in range. */
 #define ffui_view_redraw(v, first, last) \
 	ffui_ctl_send(v, LVM_REDRAWITEMS, first, last)
 
@@ -1132,6 +1165,8 @@ do { \
 
 #define ffui_view_groupid(it)  ((it)->item.iGroupId)
 
+/** Set user data for an item.
+Note: insertion is very slow for lists with >300 items. */
 #define ffui_view_setparam(it, param) \
 do { \
 	(it)->item.mask |= LVIF_PARAM; \
@@ -1190,6 +1225,8 @@ FF_EXTN int ffui_view_search(ffui_view *v, size_t by);
 #define ffui_view_unselall(v)  ffui_view_unsel(v, -1)
 FF_EXTN int ffui_view_sel_invert(ffui_view *v);
 
+/** Sort items by lParam (set by ffui_view_setparam()).
+'func': int __stdcall sort(LPARAM p1, LPARAM p2, LPARAM udata) */
 #define ffui_view_sort(v, func, udata)  ListView_SortItems((v)->h, func, udata)
 
 #define ffui_view_clr_text(v, val)  ffui_send((v)->h, LVM_SETTEXTCOLOR, 0, val)

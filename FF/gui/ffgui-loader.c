@@ -1119,6 +1119,11 @@ static int view_style(ffparser_schem *ps, void *obj, const ffstr *val)
 {
 	ffui_loader *g = obj;
 
+	if (((ffconf*)ffpars_schem_backend(ps))->type == FFCONF_TVAL) {
+		// reset to default
+		ListView_SetExtendedListViewStyleEx(g->ctl->h, LVS_EX_GRIDLINES | LVS_EX_CHECKBOXES, 0);
+	}
+
 	switch (ffszarr_ifindsorted(view_styles, FFCNT(view_styles), val->ptr, val->len)) {
 
 	case VIEW_STYLE_VISIBLE:
@@ -1363,7 +1368,7 @@ static int paned_child(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 	ffui_loader *g = obj;
 	void *ctl;
 
-	if (g->ir == 2)
+	if (g->ir == FFCNT(g->paned->items))
 		return FFPARS_EBIGVAL;
 
 	ctl = ldr_getctl(g, &ps->vals[0]);
@@ -1510,7 +1515,9 @@ static int wnd_bgcolor(ffparser_schem *ps, void *obj, const ffstr *val)
 	ffui_loader *g = obj;
 	uint clr;
 
-	if ((uint)-1 == (clr = ffpic_color(val->ptr, val->len)))
+	if (ffstr_eqz(val, "null"))
+		clr = GetSysColor(COLOR_BTNFACE);
+	else if ((uint)-1 == (clr = ffpic_color(val->ptr, val->len)))
 		return FFPARS_EBADVAL;
 	ffui_wnd_bgcolor(g->wnd, clr);
 	return 0;
@@ -1845,12 +1852,20 @@ void ffui_ldr_loadconf(ffui_loader *g, const char *fn)
 				ffpars_setargs(&ctx, g, editbox_args, FFCNT(editbox_args));
 				break;
 
+			case FFUI_UID_LABEL:
+				ffpars_setargs(&ctx, g, label_args, FFCNT(label_args));
+				break;
+
 			case FFUI_UID_COMBOBOX:
 				ffpars_setargs(&ctx, g, combx_args, FFCNT(combx_args));
 				break;
 
 			case FFUI_UID_TRACKBAR:
 				ffpars_setargs(&ctx, g, trkbar_args, FFCNT(trkbar_args));
+				break;
+
+			case FFUI_UID_LISTVIEW:
+				ffpars_setargs(&ctx, g, view_args, FFCNT(view_args));
 				break;
 
 			default:

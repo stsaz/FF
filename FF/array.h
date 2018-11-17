@@ -98,7 +98,8 @@ static FFINL size_t ffarr2_addf(ffarr2 *a, const void *src, size_t n, size_t els
 	T *ptr; \
 	size_t cap;
 
-/** Default char-array. */
+/** Default char-array.
+Can be safely casted to 'ffstr'. */
 typedef struct ffarr { FFARR(char) } ffarr;
 
 /** Char-array with offset field. */
@@ -230,7 +231,10 @@ static FFINL void* _ffarr_allocz(ffarr *ar, size_t len, size_t elsz)
 
 enum { FFARR_GROWQUARTER = 0x80000000 };
 
-/** Reserve more space for an array. */
+/** Reserve more space for an array.
+lowat: minimum number of elements to allocate
+ Add FFARR_GROWQUARTER to the value to grow at least by 1/4 of array size.
+*/
 FF_EXTN char *_ffarr_grow(ffarr *ar, size_t by, ssize_t lowat, size_t elsz);
 
 #define ffarr_growT(ar, by, lowat, T) \
@@ -351,6 +355,9 @@ static FFINL void _ffarr_rmswap(ffarr *ar, void *el, size_t elsz) {
 
 #define ffarr_rmswap(ar, el) \
 	_ffarr_rmswap((ffarr*)ar, (void*)el, sizeof(*(ar)->ptr))
+
+#define ffarr_rmswapT(ar, el, T) \
+	_ffarr_rmswap(ar, (void*)el, sizeof(T))
 
 /** Shift elements to the right.
 A[0]...  ( A[i]... )  A[i+n]... ->
@@ -626,7 +633,7 @@ static FFINL size_t ffstr_catfmt(ffstr3 *s, const char *fmt, ...) {
 static FFINL char* _ffsz_alfmt(const char *fmt, ...)
 {
 	size_t r;
-	ffarr a = {0};
+	ffarr a = {};
 	va_list args;
 	va_start(args, fmt);
 	r = ffstr_catfmtv(&a, fmt, args);

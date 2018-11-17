@@ -607,15 +607,16 @@ static const ffpars_arg * _ffjson_schem_argfind(ffpars_ctx *ctx, int type)
 
 // keep in sync with FFPARS_T
 static const byte parsTypes[] = {
-	FFJSON_TSTR
-	, FFJSON_TSTR
-	, FFJSON_TINT
-	, FFJSON_TINT
-	, FFJSON_TBOOL
-	, FFJSON_TOBJ
-	, FFJSON_TARR
-	, FFJSON_TSTR
-	, FFJSON_TINT
+	FFJSON_TSTR, // <-> FFPARS_TSTR
+	FFJSON_TSTR, // <-> FFPARS_TCHARPTR
+	FFJSON_TINT, // <-> FFPARS_TINT
+	FFJSON_TINT, // <-> FFPARS_TFLOAT
+	FFJSON_TBOOL, // <-> FFPARS_TBOOL
+	FFJSON_TOBJ, // <-> FFPARS_TOBJ
+	FFJSON_TARR, // <-> FFPARS_TARR
+	FFJSON_TSTR, // <-> FFPARS_TENUM
+	FFJSON_TINT, // <-> FFPARS_TSIZE
+	0, // <-> FFPARS_TANYTHING
 };
 
 /*
@@ -648,6 +649,7 @@ static int ffjson_schemval(ffparser_schem *ps, void *obj, void *dst)
 	}
 
 	t = ps->curarg->flags & FFPARS_FTYPEMASK;
+	FF_ASSERT(FFCNT(parsTypes) == FFPARS_TCLOSE - 1);
 	if (pt != parsTypes[t - FFPARS_TSTR]
 		&& t != FFPARS_TANYTHING
 		&& !(t == FFPARS_TSIZE && pt == FFJSON_TSTR))

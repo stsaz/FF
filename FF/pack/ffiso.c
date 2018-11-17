@@ -69,6 +69,7 @@ void ffiso_close(ffiso *c)
 	FFCHAIN_FOR(&c->files, it) {
 		ffiso_file *f = FF_GETPTR(ffiso_file, sib, it);
 		it = it->next;
+		ffstr_free(&f->name);
 		ffmem_free(f);
 	}
 	ffarr_free(&c->fn);
@@ -227,7 +228,7 @@ int ffiso_read(ffiso *c)
 		if (!(c->options & FFISO_NORR)) {
 			void *ent = c->d.ptr - r;
 			ffstr rr;
-			ffarr_setshift(&rr, ent, r, iso_ent_len((void*)ent));
+			ffarr_setshift(&rr, (char*)ent, r, iso_ent_len(ent));
 			iso_rr_parse(rr.ptr, rr.len, &c->curfile);
 		}
 
@@ -892,6 +893,8 @@ void ffiso_wfile(ffiso_cook *c, const ffiso_file *f)
 		c->err = FFISO_ESYS;
 		goto err;
 	}
+	if (!(f->attr & FFUNIX_FILE_DIR))
+		ffstr_free(&fn);
 	nf->attr = f->attr;
 	nf->mtime = f->mtime;
 	nf->size = f->size;

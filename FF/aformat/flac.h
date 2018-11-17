@@ -76,7 +76,7 @@ FF_EXTN void ffflac_seek(ffflac *f, uint64 sample);
 /** Set input data. */
 static FFINL void ffflac_input(ffflac *f, const void *d, size_t len)
 {
-	f->data = d;
+	f->data = (char*)d;
 	f->datalen = len;
 }
 

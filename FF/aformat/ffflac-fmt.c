@@ -296,7 +296,7 @@ uint flac_seektab_write(void *out, size_t cap, const ffpcm_seekpt *pts, size_t n
 
 	flac_sethdr(out, FLAC_TSEEKTABLE, 1, len);
 
-	skpt = (void*)(out + sizeof(struct flac_hdr));
+	skpt = (void*)((char*)out + sizeof(struct flac_hdr));
 	for (i = 0;  i != npts;  i++) {
 		const ffpcm_seekpt *sp = &pts[i];
 

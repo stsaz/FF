@@ -163,7 +163,7 @@ union pcmdata {
 static char** pcm_setni(void **ni, void *b, uint fmt, uint nch)
 {
 	for (uint i = 0;  i != nch;  i++) {
-		ni[i] = b + i * ffpcm_bits(fmt) / 8;
+		ni[i] = (char*)b + i * ffpcm_bits(fmt) / 8;
 	}
 	return (char**)ni;
 }

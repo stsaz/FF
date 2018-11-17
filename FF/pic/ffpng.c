@@ -133,8 +133,8 @@ int ffpng_write(ffpng_cook *p)
 
 		p->linesize = p->info.width * ffpic_bits(p->info.format) / 8;
 		p->state = W_DATA;
-		// break
 	}
+	//fallthrough
 
 	case W_DATA: {
 		if (p->rgb.len != p->linesize) {

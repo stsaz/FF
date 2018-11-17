@@ -94,6 +94,7 @@ do { \
 
 /** Return TRUE if the item is added into the list. */
 static FFINL ffbool fflist_exists(fflist *lst, fflist_item *it) {
+	(void)lst;
 	return it->next != NULL;
 }
 

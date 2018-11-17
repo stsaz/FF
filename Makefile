@@ -15,9 +15,10 @@ else
 FF_TEST_BIN := fftest
 endif
 
-FFOS_CFLAGS := $(CFLAGS)
-FF_CFLAGS := $(CFLAGS) -DFFHST_DEBUG
-CFLAGS += -Werror -Wall -DFF_NO_OBSOLETE -DFFHST_DEBUG \
+FFOS_CFLAGS := $(CFLAGS) -Werror
+FF_CFLAGS := $(CFLAGS) -DFFHST_DEBUG -Werror
+CFLAGS += -Werror -Wall -Wextra -Wno-unused-parameter -Wno-sign-compare \
+	-DFF_NO_OBSOLETE -DFFHST_DEBUG \
 	-I$(FF) -I$(FF3PT) -I$(FFOS)
 CXXFLAGS += -Werror -Wall \
 	-I$(FF) -I$(FF3PT) -I$(FFOS)
@@ -26,7 +27,8 @@ all: ff $(FF_TEST_BIN)
 
 clean:
 	rm -vf $(FF_TEST_BIN) \
-		$(FF_TEST_OBJ) $(FF_OBJ) $(FFOS_OBJ)
+		$(FF_TEST_OBJ) $(FF_OBJ) $(FF_OBJ_DIR)/ffdbg.o $(FF_OBJ_DIR)/fftest.o \
+		$(FFOS_OBJ) $(FFOS_SKT) $(FFOS_THD)
 
 include $(FF)/makerules
 include $(FF3PT)/makerules
@@ -42,8 +44,8 @@ FF_TEST_SRC := \
 	$(FF)/test/arc.c \
 	$(FF)/test/tls.c \
 	$(FF)/test/webskt.c \
-	$(FF)/test/hashtab.c
-# $(FF)/test/compat.cpp
+	$(FF)/test/hashtab.c \
+	$(FF)/test/compat.cpp
 FF_TEST_OBJ := $(addprefix ./, $(addsuffix .o, $(notdir $(basename $(FF_TEST_SRC)))))
 FF_TEST_OBJ += $(FF_OBJ_DIR)/sha1.o $(FF_OBJ_DIR)/base64.o
 

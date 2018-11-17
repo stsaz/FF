@@ -34,6 +34,7 @@ FF_EXTN void fftmrq_destroy(fftimer_queue *tq, fffd kq);
 
 /** Return TRUE if a timer is in the queue. */
 static FFINL ffbool fftmrq_active(fftimer_queue *tq, fftmrq_entry *t) {
+	(void)tq;
 	return (t->tnode.key != 0);
 }
 

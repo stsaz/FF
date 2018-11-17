@@ -291,7 +291,7 @@ int ffflac_encode(ffflac_enc *f)
 	int* dst[FLAC__MAX_CHANNELS];
 
 	for (uint i = 0;  i != f->info.channels;  i++) {
-		src[i] = f->pcm[i] + f->off_pcm * f->info.bits/8;
+		src[i] = (char*)f->pcm[i] + f->off_pcm * f->info.bits/8;
 		dst[i] = f->pcm32[i] + f->off_pcm32;
 	}
 

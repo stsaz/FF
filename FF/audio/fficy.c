@@ -91,7 +91,7 @@ int fficy_metaparse(fficymeta *p, const char *data, size_t *len)
 			d += FFSLEN("'");
 			p->val.ptr = (char*)d;
 			p->state = I_VAL;
-			//break;
+			//fallthrough
 
 		case I_VAL:
 			s = ffs_findc(d, end - d, '\'');

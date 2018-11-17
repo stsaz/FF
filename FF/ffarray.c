@@ -272,7 +272,7 @@ int ffbuf_gather(ffarr *buf, struct ffbuf_gather *d)
 			d->state = I_CHK_COPIED;
 			return FFBUF_READY;
 		}
-		// break
+		//fallthrough
 
 	case I_INPUTDATA:
 		ffarr_free(buf);

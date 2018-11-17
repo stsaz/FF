@@ -101,47 +101,72 @@ static int test_json_err()
 
 	ffjson_parseinit(&json);
 	x(FFPARS_EBADCHAR == ffjson_validate(&json, FFSTR("{,")));
+	ffjson_parseclose(&json);
+
 	ffjson_parseinit(&json);
 	x(FFPARS_EBADCHAR == ffjson_validate(&json, FFSTR("[123;")));
+	ffjson_parseclose(&json);
+
 	ffjson_parseinit(&json);
 	x(FFPARS_EBADCHAR == ffjson_validate(&json, FFSTR("\"val\n")));
+	ffjson_parseclose(&json);
+
 	ffjson_parseinit(&json);
 	x(FFPARS_EBADCHAR == ffjson_validate(&json, FFSTR("\"val\"1")));
+	ffjson_parseclose(&json);
 
 	ffjson_parseinit(&json);
 	x(FFPARS_EBADCHAR == ffjson_validate(&json, FFSTR("\"val\",")));
+	ffjson_parseclose(&json);
+
 	ffjson_parseinit(&json);
 	x(FFPARS_EBADCHAR == ffjson_validate(&json, FFSTR("\"val\"]")));
+	ffjson_parseclose(&json);
+
 	ffjson_parseinit(&json);
 	x(FFPARS_EBADCHAR == ffjson_validate(&json, FFSTR("123,")));
+	ffjson_parseclose(&json);
+
 	ffjson_parseinit(&json);
 	x(FFPARS_EBADCHAR == ffjson_validate(&json, FFSTR("123]")));
+	ffjson_parseclose(&json);
+
 	ffjson_parseinit(&json);
 	x(FFPARS_EBADCHAR == ffjson_validate(&json, FFSTR("[123],")));
+	ffjson_parseclose(&json);
+
 	ffjson_parseinit(&json);
 	x(FFPARS_EBADCHAR == ffjson_validate(&json, FFSTR("[123]]")));
+	ffjson_parseclose(&json);
 
 	ffjson_parseinit(&json);
 	x(FFPARS_EKVSEP == ffjson_validate(&json, FFSTR("{\"key\",")));
+	ffjson_parseclose(&json);
 
 	ffjson_parseinit(&json);
 	x(FFPARS_ENOVAL == ffjson_validate(&json, FFSTR("{\"key\":,")));
+	ffjson_parseclose(&json);
 
 	ffjson_parseinit(&json);
 	x(FFPARS_EBADVAL == ffjson_validate(&json, FFSTR("truE")));
+	ffjson_parseclose(&json);
 
 	ffjson_parseinit(&json);
 	x(FFPARS_VAL == ffjson_validate(&json, FFSTR("123456789123456789123456789123456789"))
 		&& json.type == FFJSON_TNUM);
+	ffjson_parseclose(&json);
 
 	ffjson_parseinit(&json);
 	x(FFPARS_EESC == ffjson_validate(&json, FFSTR("\"\\1\"")));
+	ffjson_parseclose(&json);
 
 	ffjson_parseinit(&json);
 	x(FFPARS_EBADBRACE == ffjson_validate(&json, FFSTR("[123}")));
+	ffjson_parseclose(&json);
 
 	ffjson_parseinit(&json);
 	x(FFPARS_EBADCMT == ffjson_validate(&json, FFSTR(" /z")));
+	ffjson_parseclose(&json);
 
 	return 0;
 }

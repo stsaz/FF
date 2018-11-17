@@ -98,7 +98,7 @@ int ffopus_decode(ffopus *o, const void *pkt, size_t len)
 	case R_TAGS:
 		if (len < 8 || memcmp(pkt, FFOPUS_TAGS_STR, 8))
 			return ERR(o, FFOPUS_ETAG);
-		o->vtag.data = pkt + 8,  o->vtag.datalen = len - 8;
+		o->vtag.data = (char*)pkt + 8,  o->vtag.datalen = len - 8;
 		o->state = R_TAG;
 		// break
 
@@ -178,6 +178,7 @@ int ffopus_create(ffopus_enc *o, const ffpcm *fmt, int bitrate)
 
 void ffopus_enc_close(ffopus_enc *o)
 {
+	ffvorbtag_destroy(&o->vtag);
 	ffarr_free(&o->buf);
 	ffarr_free(&o->bufpcm);
 	opus_encode_free(o->enc);

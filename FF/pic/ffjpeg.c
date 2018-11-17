@@ -138,7 +138,7 @@ int ffjpeg_write(ffjpeg_cook *j)
 
 		j->linesize = j->info.width * j->info.format / 8;
 		j->state = W_DATA;
-		// break
+		//fallthrough
 
 	case W_DATA:
 		if (j->rgb.len != j->linesize) {

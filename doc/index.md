@@ -14,5 +14,6 @@
 * Network
 	* HTTP reader - `net-http.md`
 	* TLS reader - `net-tls.md`
+	* URL functions - `net-url.md`
 
 * Graphical UI - `gui.md`

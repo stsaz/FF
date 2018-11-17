@@ -232,7 +232,7 @@ static int mkv_el_info(mkv_el *el, const mkv_bel *ctx, const void *data, uint le
 	if (r <= 0 || id > 0x1fffffff)
 		return -1;
 
-	r = mkv_varint(data + r, -2, &el->size);
+	r = mkv_varint((char*)data + r, -2, &el->size);
 	if (r <= 0)
 		return -1;
 

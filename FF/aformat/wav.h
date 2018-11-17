@@ -19,6 +19,8 @@ FF_EXTN uint ffwav_fmt(uint pcm_fmt);
 /** ffpcm -> WAVEFORMATEX */
 static FFINL void ffwav_makewfx(WAVEFORMATEX *wf, const ffpcm *f)
 {
+	if (f->format == FFPCM_24_4)
+		return;
 	wf->wFormatTag = ffwav_fmt(f->format);
 	wf->wBitsPerSample = ffpcm_bits(f->format);
 	wf->nSamplesPerSec = f->sample_rate;
@@ -67,7 +69,7 @@ typedef struct ffwav {
 	ffstr tagval;
 
 	size_t datalen;
-	const void *data;
+	const char *data;
 
 	size_t pcmlen;
 	void *pcm;

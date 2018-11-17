@@ -305,7 +305,15 @@ static const int64 ff_intmasks[9] = {
 
 ssize_t ffs_findarr(const void *ar, size_t n, uint elsz, const void *s, size_t len)
 {
-	if (len <= sizeof(int64)) {
+	if (len <= sizeof(int)) {
+		int imask = ff_intmasks[len];
+		int left = *(int*)s & imask;
+		for (size_t i = 0;  i != n;  i++) {
+			if (left == (*(int*)ar & imask) && ((byte*)ar)[len] == 0x00)
+				return i;
+			ar = (byte*)ar + elsz;
+		}
+	} else if (len <= sizeof(int64)) {
 		int64 left;
 		size_t i;
 		int64 imask;
@@ -1042,7 +1050,7 @@ uint ffs_tofloat(const char *s, size_t len, double *dst, int flags)
 			st = iInt;
 			if ((minus = (ch == '-')) || ch == '+')
 				break;
-			//break;
+			//fallthrough
 
 		case iInt:
 			if (ffchar_isdigit(ch)) {
@@ -1051,7 +1059,7 @@ uint ffs_tofloat(const char *s, size_t len, double *dst, int flags)
 				break;
 			}
 			//st = iDot;
-			//break;
+			//fallthrough
 
 			//case iDot:
 			if (ch == '.') {
@@ -1060,7 +1068,7 @@ uint ffs_tofloat(const char *s, size_t len, double *dst, int flags)
 			}
 			//st = iExpE;
 			//i--; //again
-			//break;
+			//fallthrough
 
 		case iFrac:
 			if (ffchar_isdigit(ch)) {
@@ -1070,7 +1078,7 @@ uint ffs_tofloat(const char *s, size_t len, double *dst, int flags)
 				break;
 			}
 			//st = iExpE;
-			//break;
+			//fallthrough
 
 			//case iExpE:
 			if (ffchar_lower(ch) != 'e')
@@ -1082,7 +1090,7 @@ uint ffs_tofloat(const char *s, size_t len, double *dst, int flags)
 			st = iExp;
 			if ((negexp = (ch == '-')) || ch == '+')
 				break;
-			//break;
+			//fallthrough
 
 		case iExp:
 			if (!ffchar_isdigit(ch))
@@ -1316,7 +1324,7 @@ format:
 
 		case 'D':
 			itoaFlags |= FFINT_SIGNED;
-			//break;
+			//fallthrough
 		case 'U':
 			num = va_arg(va, int64);
 			goto from_int;

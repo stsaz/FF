@@ -37,7 +37,7 @@ static const uint *const idxs[] = {
 int test_cue(void)
 {
 	ffcue cu;
-	ffcuep p;
+	ffcuep p = {};
 	ffcuetrk *trk;
 	char buf[4096];
 	ffstr s, s1;
@@ -51,6 +51,7 @@ int test_cue(void)
 
 	for (i = 0;  i != FFCNT(idxs);  i++) {
 		k = 0;
+		ffcue_close(&p);
 		ffmem_tzero(&p);
 		ffcue_init(&p);
 		ffmem_tzero(&cu);
@@ -82,5 +83,6 @@ int test_cue(void)
 		x(k == FFCNT(idx_prev));
 	}
 
+	ffcue_close(&p);
 	return 0;
 }

@@ -82,6 +82,7 @@ static int test_conf_parse(const char *testConfFile)
 	fffile_readall(&out, TESTDATADIR "/test-out.conf", -1);
 	x(ffstr_eq2(&buf, &out));
 	ffarr_free(&out);
+	ffarr_free(&buf);
 
 	ffconf_parseclose(&conf);
 	return 0;
@@ -96,7 +97,8 @@ int test_conf_schem(const char *testConfFile)
 	const char *p
 		, *pend;
 	size_t len;
-	const ffpars_ctx oinf = { &o, obj_schem, FFCNT(obj_schem) };
+	ffpars_ctx oinf = {};
+	ffpars_setargs(&oinf, &o, obj_schem, FFCNT(obj_schem));
 	char buf[1024];
 	size_t ibuf;
 
@@ -241,7 +243,8 @@ static const ffpars_arg cmd_args[] = {
 static int test_args_schem()
 {
 	Opts o;
-	const ffpars_ctx ctx = { &o, cmd_args, FFCNT(cmd_args), NULL };
+	ffpars_ctx ctx = {};
+	ffpars_setargs(&ctx, &o, cmd_args, FFCNT(cmd_args));
 	ffpsarg_parser p;
 	ffparser_schem ps;
 	int r = 0;
@@ -282,7 +285,8 @@ static int test_args_schem()
 static int test_args_err()
 {
 	Opts o;
-	ffpars_ctx ctx = { &o, cmd_args, FFCNT(cmd_args), NULL };
+	ffpars_ctx ctx = {};
+	ffpars_setargs(&ctx, &o, cmd_args, FFCNT(cmd_args));
 	ffpsarg_parser p;
 	ffparser_schem ps;
 	int r = 0;
@@ -478,6 +482,8 @@ static void test_conf_deferred()
 	x(ffstr_eqz((ffstr*)&defer.data, DEFERRED_DATA));
 	ffarr_free(&defer.data);
 	ffconf_ctxcopy_destroy(&defer.ctx);
+	ffconf_parseclose(&conf);
+	ffpars_schemfree(&ps);
 }
 
 int test_args()

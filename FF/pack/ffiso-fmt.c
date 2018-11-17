@@ -291,7 +291,7 @@ int iso_ent_write(void *buf, size_t cap, const struct ffiso_file *f, uint64 off,
 
 	// write RR extensions
 	if (rrlen != 0) {
-		char *p = buf + iso_ent_len(ent);
+		char *p = (char*)buf + iso_ent_len(ent);
 
 		if (flags & ENT_WRITE_RR_SP) {
 			p += iso_rr_write(p, "SP", sizeof(struct iso_rr_sp));
@@ -384,7 +384,7 @@ static uint iso_ent_name_write(char *dst, const ffstr *filename, uint attr)
 
 int iso_rr_parse(const void *p, size_t len, ffiso_file *f)
 {
-	const char *d = p, *end = p + len;
+	const char *d = p, *end = (char*)p + len;
 	uint dlen;
 	for (;;) {
 

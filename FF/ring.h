@@ -71,7 +71,7 @@ typedef struct ffringbuf {
 static FFINL void ffringbuf_init(ffringbuf *r, void *p, size_t cap)
 {
 	FF_ASSERT(0 == (cap & (cap - 1)));
-	r->data = p;
+	r->data = (char*)p;
 	r->cap = cap;
 	r->r = r->w = 0;
 	fflk_init(&r->lk);

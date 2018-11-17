@@ -274,7 +274,7 @@ int ffwav_decode(ffwav *w)
 		if (w->datalen == 0)
 			return FFWAV_RMORE;
 
-		if (((char*)w->data)[0] == '\0') {
+		if (w->data[0] == '\0') {
 			// skip padding byte
 			FFARR_SHIFT(w->data, w->datalen, 1);
 			w->off += 1;
@@ -489,7 +489,7 @@ int ffwav_write(ffwav_cook *w)
 	case W_HDR:
 	case W_HDRFIN: {
 		struct wav_chunk *ch;
-		void *p;
+		char *p;
 
 		if (NULL == ffarr_realloc(&w->buf, w->doff))
 			return ERR(w, WAV_ESYS);
@@ -497,14 +497,14 @@ int ffwav_write(ffwav_cook *w)
 		ffmemcpy(w->buf.ptr, "RIFF\0\0\0\0WAVE", 12);
 		p = w->buf.ptr + 12;
 
-		ch = p;
+		ch = (void*)p;
 		p += sizeof(struct wav_chunk);
 		ffmemcpy(ch->id, "fmt ", 4);
 		uint fmtsize = sizeof(struct wav_fmt);
 		ffint_htol32(ch->size, fmtsize);
 		p += wav_fmt_write(p, &w->fmt);
 
-		ch = p;
+		ch = (void*)p;
 		p += sizeof(struct wav_chunk);
 		ffmemcpy(ch->id, "data", 4);
 		ffint_htol32(ch->size, w->dsize);
@@ -514,7 +514,7 @@ int ffwav_write(ffwav_cook *w)
 			+ sizeof(struct wav_chunk) + fmtsize
 			+ sizeof(struct wav_chunk) + w->dsize);
 
-		w->data = w->buf.ptr,  w->datalen = (char*)p - w->buf.ptr;
+		w->data = w->buf.ptr,  w->datalen = p - w->buf.ptr;
 
 		if (w->state == W_HDRFIN) {
 			w->state = W_DONE;

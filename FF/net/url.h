@@ -129,6 +129,14 @@ typedef struct ffurlqs {
 @d: full and valid query string. */
 FF_EXTN int ffurlqs_parse(ffurlqs *p, const char *d, size_t *len);
 
+static inline int ffurlqs_parsestr(ffurlqs *p, ffstr *data)
+{
+	size_t n = data->len;
+	int r = ffurlqs_parse(p, data->ptr, &n);
+	ffstr_shift(data, n);
+	return r;
+}
+
 FF_EXTN void ffurlqs_parseinit(ffurlqs *p);
 
 static FFINL void ffurlqs_parseclose(ffurlqs *p)
@@ -154,6 +162,7 @@ typedef struct ffip_iter {
 	ffaddrinfo *ai;
 } ffip_iter;
 
+/** Set IP-list to a single address. */
 static FFINL void ffip_list_set(ffiplist *l, uint family, const void *ip)
 {
 	ffarr2 *a = (family == AF_INET) ? &l->ip4 : &l->ip6;
@@ -161,6 +170,7 @@ static FFINL void ffip_list_set(ffiplist *l, uint family, const void *ip)
 	a->ptr = (void*)ip;
 }
 
+/** Associate ffip_iter iterator with an IP-list and ffaddrinfo. */
 #define ffip_iter_set(a, iplist, ainfo) \
 do { \
 	(a)->idx = 0; \

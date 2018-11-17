@@ -340,7 +340,7 @@ ssize_t ffpulse_write(ffpulse_buf *snd, const void *data, size_t len, size_t dat
 		}
 
 		n = ffmin(len, n);
-		ffmemcpy(buf, data + dataoff, n);
+		ffmemcpy(buf, (char*)data + dataoff, n);
 		pa_stream_write(snd->stm, buf, n, NULL, 0, PA_SEEK_RELATIVE);
 		FFDBG_PRINTLN(10, "pa_stream_write():%L", n);
 		dataoff += n;

@@ -160,7 +160,7 @@ int ffalsa_devnext(ffalsa_dev *d, uint flags)
 		if (0 != (e = snd_ctl_card_info(d->sctl, d->scinfo)))
 			return e;
 		d->idev = -1;
-		// break
+		//fallthrough
 
 	case I_DEV:
 		d->st = I_CARD;
@@ -511,7 +511,7 @@ static int _ffalsa_hdlerr(ffalsa_buf *snd, int e)
 		}
 		if (e == 0)
 			return 0;
-	// break
+		//fallthrough
 
 	case -EPIPE:
 		if (0 > (e = snd_pcm_prepare(snd->pcm)))

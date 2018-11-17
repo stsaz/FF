@@ -3,9 +3,13 @@
 # FF := .
 FF_OBJ_DIR := ./ff-obj
 override FF_CFLAGS += \
-	-Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -Wno-implicit-fallthrough \
+	-Wall -Wextra -Wpointer-arith -Wno-unused-parameter \
 	-I$(FF) -I$(FF)-3pt -I$(FFOS)
+FF_CFLAGS_EX := -Wno-implicit-fallthrough
 
+ifeq ($(LD),clang)
+override FFOS_CFLAGS += -Wno-missing-field-initializers
+endif
 
 # FFOS
 FFOS_OBJ_DIR := $(FF_OBJ_DIR)
@@ -55,7 +59,7 @@ FF_DATA_SRC := $(wildcard $(FF)/FF/data/*.c)
 FF_DATA_OBJ := $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_DATA_SRC)))))
 FF_ALL_OBJ += $(FF_DATA_OBJ)
 $(FF_OBJ_DIR)/%.o: $(FF)/FF/data/%.c $(FF_HDR)
-	$(C) $(FF_CFLAGS)  $< -o$@
+	$(C) $(FF_CFLAGS) $(FF_CFLAGS_EX)  $< -o$@
 
 
 # pack
@@ -64,7 +68,7 @@ FF_PACK_SRC := $(wildcard $(FF)/FF/pack/*.c)
 FF_PACK_OBJ := $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_PACK_SRC)))))
 FF_ALL_OBJ += $(FF_PACK_OBJ)
 $(FF_OBJ_DIR)/%.o: $(FF)/FF/pack/%.c $(FF_HDR) $(FF_PACK_HDR)
-	$(C) $(FF_CFLAGS)  $< -o$@
+	$(C) $(FF_CFLAGS) $(FF_CFLAGS_EX)  $< -o$@
 
 
 # net
@@ -73,7 +77,7 @@ FF_NET_SRC := $(wildcard $(FF)/FF/net/*.c)
 FF_NET_OBJ := $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_NET_SRC)))))
 FF_ALL_OBJ += $(FF_NET_OBJ)
 $(FF_OBJ_DIR)/%.o: $(FF)/FF/net/%.c $(FF_HDR) $(FF_NET_HDR)
-	$(C) $(FF_CFLAGS)  $< -o$@
+	$(C) $(FF_CFLAGS) $(FF_CFLAGS_EX)  $< -o$@
 
 
 # audio
@@ -83,14 +87,15 @@ FF_AUDIO_HDR := $(wildcard $(FF)/FF/audio/*.h) \
 	$(wildcard $(FF)/FF/avformat/*.h)
 FF_AUDIO_SRC := $(wildcard $(FF)/FF/audio/*.c) \
 	$(wildcard $(FF)/FF/aformat/*.c) \
-	$(wildcard $(FF)/FF/avformat/*.c)
+	$(wildcard $(FF)/FF/avformat/*.c) \
+	$(wildcard $(FF)/FF/mformat/*.c)
 FF_ALL_OBJ += $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_AUDIO_SRC)))))
 $(FF_OBJ_DIR)/%.o: $(FF)/FF/audio/%.c $(FF_HDR) $(FF_AUDIO_HDR)
-	$(C) $(FF_CFLAGS)  $< -o$@
+	$(C) $(FF_CFLAGS) $(FF_CFLAGS_EX)  $< -o$@
 $(FF_OBJ_DIR)/%.o: $(FF)/FF/aformat/%.c $(FF_HDR) $(FF_AUDIO_HDR)
-	$(C) $(FF_CFLAGS)  $< -o$@
+	$(C) $(FF_CFLAGS) $(FF_CFLAGS_EX)  $< -o$@
 $(FF_OBJ_DIR)/%.o: $(FF)/FF/mformat/%.c $(FF_HDR) $(FF_AUDIO_HDR)
-	$(C) $(FF_CFLAGS)  $< -o$@
+	$(C) $(FF_CFLAGS) $(FF_CFLAGS_EX)  $< -o$@
 
 
 # adev
@@ -108,7 +113,7 @@ FF_MTAGS_SRC := $(wildcard $(FF)/FF/mtags/*.c)
 FF_MTAGS_OBJ := $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_MTAGS_SRC)))))
 FF_ALL_OBJ += $(FF_MTAGS_OBJ)
 $(FF_OBJ_DIR)/%.o: $(FF)/FF/mtags/%.c $(FF_HDR) $(FF_MTAGS_HDR)
-	$(C) $(FF_CFLAGS)  $< -o$@
+	$(C) $(FF_CFLAGS) $(FF_CFLAGS_EX)  $< -o$@
 
 
 # pic

@@ -59,7 +59,7 @@ int ffsoxr_create(ffsoxr *soxr, const ffpcmex *inpcm, const ffpcmex *outpcm)
 		return -1;
 	if (!outpcm->ileaved) {
 		ffstr s;
-		ffstr_set(&s, soxr->out + sizeof(void*) * outpcm->channels, soxr->outcap * ffpcm_bits(outpcm->format) / 8);
+		ffstr_set(&s, (char*)soxr->out + sizeof(void*) * outpcm->channels, soxr->outcap * ffpcm_bits(outpcm->format) / 8);
 		// soxr->outni = soxr->out;
 		ffarrp_setbuf(soxr->outni, outpcm->channels, s.ptr, s.len);
 	}
@@ -96,7 +96,7 @@ int ffsoxr_convert(ffsoxr *soxr)
 
 		else {
 			for (i = 0;  i != soxr->nchannels;  i++) {
-				inarr[i] = soxr->in[i] + soxr->inoff * soxr->isampsize / soxr->nchannels;
+				inarr[i] = (char*)soxr->in[i] + soxr->inoff * soxr->isampsize / soxr->nchannels;
 			}
 			in = inarr;
 		}

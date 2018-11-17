@@ -58,7 +58,7 @@ static int _ffs_regex_bracket(struct rx_s *r)
 	case '[':
 		if (r->st == RX_BRACKET_1)
 			break;
-		//break;
+		//fallthrough
 
 	case '|':
 	case '.':
@@ -73,6 +73,7 @@ static int _ffs_regex_bracket(struct rx_s *r)
 		case '-':
 			goto inv_regex; //missing a starting range character, e.g. "[-"
 		}
+		break;
 
 	case RX_BRACKET_2:
 	case RX_BRACKET:
@@ -80,10 +81,12 @@ static int _ffs_regex_bracket(struct rx_s *r)
 			r->st = RX_BRACKET_RANGE;
 			return 0;
 		}
+		break;
 
 	case RX_BRACKET_RANGE:
 		if (*r->rx == '-')
 			goto inv_regex; //two consecutive minus characters, e.g. "[a--"
+		break;
 
 	default:
 		break;
@@ -102,7 +105,7 @@ basic:
 			return 0;
 		}
 		r->st = RX_BRACKET;
-		//break;
+		//fallthrough
 
 	case RX_BRACKET:
 	case RX_BRACKET_RANGE:
@@ -219,7 +222,7 @@ basic:
 
 		case RX_NMATCH_1:
 			r.st = RX_NMATCH;
-			//break;
+			//fallthrough
 
 		case RX_NMATCH:
 			break;

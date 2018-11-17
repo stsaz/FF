@@ -116,11 +116,11 @@ err:
 
 #define CASE(a, b)  (((a) << 8) | (b))
 
-int ffpic_convert(uint in_fmt, const void *src, uint out_fmt, void *dst, uint pixels)
+int ffpic_convert(uint in_fmt, const void *_src, uint out_fmt, void *_dst, uint pixels)
 {
 	uint i;
-	const byte *in;
-	byte *o;
+	const byte *in, *src = _src;
+	byte *o, *dst = _dst;
 	uint alpha;
 
 	switch (CASE(in_fmt, out_fmt)) {

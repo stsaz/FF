@@ -62,7 +62,7 @@ typedef struct ffwvpack {
 	int tag;
 	ffstr tagval;
 
-	const void *data;
+	const char *data;
 	size_t datalen;
 	ffarr buf;
 	uint blksize; // size of the current block
