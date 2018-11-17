@@ -160,6 +160,19 @@ int ffpic_convert(uint in_fmt, const void *src, uint out_fmt, void *dst, uint pi
 		}
 		break;
 
+	case CASE(FFPIC_RGBA, FFPIC_BGR):
+	case CASE(FFPIC_BGRA, FFPIC_RGB):
+		for (i = 0;  i != pixels;  i++) {
+			in = src + i * 4;
+			o = dst + i * 3;
+			alpha = in[3];
+			// apply alpha channel (black background)
+			o[0] = in[2] * alpha / 255;
+			o[1] = in[1] * alpha / 255;
+			o[2] = in[0] * alpha / 255;
+		}
+		break;
+
 	default:
 		return -1;
 	}
