@@ -10,6 +10,7 @@ Copyright (c) 2017 Simon Zolin
 #include <FF/net/url.h>
 #include <FFOS/process.h>
 #include <FFOS/thread.h>
+#include <FFOS/sig.h>
 #include <FFOS/test.h>
 
 #define x FFTEST_BOOL
@@ -480,5 +481,31 @@ int test_path()
 		x(ffstr_eqcz(&fn, "file"));
 	}
 
+	return 0;
+}
+
+
+static void sig_handler(struct ffsig_info *inf)
+{
+	char buf[512];
+	size_t n;
+
+	n = ffs_fmt(buf, buf + sizeof(buf), "Signal:%xu  Address:0x%p  Flags:%xu\n"
+		, inf->sig, inf->addr, inf->flags);
+	fffile_write(ffstderr, buf, n);
+}
+
+int sig_thdfunc(void *param)
+{
+	ffsig_raise(FFSIG_SEGV);
+	return 0;
+}
+
+int test_sig(void)
+{
+	static const uint sigs_fault[] = { FFSIG_SEGV, FFSIG_STACK, FFSIG_ILL, FFSIG_FPE };
+	ffsig_subscribe(&sig_handler, sigs_fault, FFCNT(sigs_fault));
+	ffthd th = ffthd_create(&sig_thdfunc, NULL, 0);
+	ffthd_join(th, -1, NULL);
 	return 0;
 }
