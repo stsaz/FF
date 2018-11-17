@@ -105,7 +105,12 @@ In shared mode there's only one supported sample rate.  In exclusive mode a devi
 @flags: enum FFWAS_F.
 Return AUDCLNT_E* on error.
  AUDCLNT_E_UNSUPPORTED_FORMAT:
-  shared mode: 'fmt' is set to the format which is configured for the device. */
+  'fmt' is set to the format which the device supports.
+  If user calls ffwas_open() next time with this format,
+   the function is likely to succeed.
+  If user wants to call ffwas_open() next time with a different format or parameters,
+   he must call ffwas_close() first.
+*/
 FF_EXTN int ffwas_open(ffwasapi *w, const WCHAR *dev_id, ffpcm *fmt, uint bufsize_msec, uint flags);
 
 /**

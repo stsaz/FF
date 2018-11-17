@@ -24,7 +24,10 @@ IOCP posted event -> ffkev_call() -> real handler
 #include <FFOS/error.h>
 
 
+static int fmt_wfx2ff(const WAVEFORMATEXTENSIBLE *wf);
 static int _ffwas_getfmt_mix(IAudioClient *cl, ffpcm *fmt);
+static int _ffwas_getfmt_def(IAudioClient *cl, IMMDevice *dev, ffpcm *fmt);
+static int _ffwas_getfmt(IAudioClient *cl, IMMDevice *dev, ffpcm *fmt, WAVEFORMATEXTENSIBLE *wf, uint flags);
 
 
 static const char *const _ffwas_serr[] = {
@@ -184,6 +187,37 @@ static int _ffwas_getfmt_mix(IAudioClient *cl, ffpcm *fmt)
 	return 0;
 }
 
+/** Get format which is specified in OS as default. */
+static int _ffwas_getfmt_def(IAudioClient *cl, IMMDevice *dev, ffpcm *fmt)
+{
+	int rc = -1;
+	HRESULT r;
+	IPropertyStore* store = NULL;
+	PROPVARIANT prop;
+	PropVariantInit(&prop);
+
+	if (0 != (r = IMMDevice_OpenPropertyStore(dev, STGM_READ, &store)))
+		goto end;
+
+	if (0 != (r = IPropertyStore_GetValue(store, &PKEY_AudioEngine_DeviceFormat_ff, &prop)))
+		goto end;
+	const WAVEFORMATEXTENSIBLE *pwf = (void*)prop.blob.pBlobData;
+
+	int rr = fmt_wfx2ff(pwf);
+	if (rr < 0)
+		goto end;
+	fmt->format = rr;
+	fmt->sample_rate = pwf->Format.nSamplesPerSec;
+	fmt->channels = pwf->Format.nChannels;
+
+	rc = 0;
+
+end:
+	PropVariantClear(&prop);
+	IPropertyStore_Release(store);
+	return rc;
+}
+
 static const GUID wfx_guid = { 1, 0x0000, 0x0010, {0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71} };
 
 static FFINL void makewfxe(WAVEFORMATEXTENSIBLE *wf, const ffpcm *f)
@@ -246,6 +280,20 @@ static FFINL int fmt_wfx2ff(const WAVEFORMATEXTENSIBLE *wf)
 	return fmt;
 }
 
+/** For shared mode 'closed-match' pointer must be deallocated.
+Note: we use WF-extensible format, rather than WFEX format,
+ because in exclusive mode "Realtek High Definition Audio" driver
+ claims that it supports int24 WFEX format but plays noise because in fact it only supports int24-4.
+*/
+static int fmt_supported(IAudioClient *cl, uint mode, const ffpcm *fmt, WAVEFORMATEXTENSIBLE *wf, WAVEFORMATEX **owf)
+{
+	makewfxe(wf, fmt);
+	int r = IAudioClient_IsFormatSupported(cl, mode, (void*)wf, owf);
+	if (r == S_FALSE)
+		CoTaskMemFree(*owf);
+	return r;
+}
+
 static const ushort fmts[] = {
 	FFPCM_FLOAT,
 	FFPCM_32,
@@ -258,85 +306,97 @@ static const ushort fmts[] = {
 /** Find the supported format in exclusive mode.
 . Try input format
 . Try other known formats
-. Try format from AudioEngine_DeviceFormat property (also may not be supported).
-Return 0 if input format is supported;  >0 if new format is set;  <0 on error. */
-static FFINL int _ffwas_getfmt_excl(IAudioClient *cl, IMMDevice *dev, ffpcm *fmt, WAVEFORMATEXTENSIBLE *wf)
+. Try known formats with channels
+Return 0 if input format is supported;
+ >0 if new format is set;
+ <0 if none of the known formats is supported */
+static int _ffwas_getfmt(IAudioClient *cl, IMMDevice *dev, ffpcm *fmt, WAVEFORMATEXTENSIBLE *wf, uint flags)
 {
-	int rc = -1;
+	int rc = 1;
 	HRESULT r;
-	IPropertyStore* store = NULL;
-	PROPVARIANT prop;
 	ffpcm f;
+	WAVEFORMATEXTENSIBLE *owfx = NULL;
+	WAVEFORMATEX **owf = (flags & FFWAS_EXCL) ? NULL : (void*)&owfx;
+	uint mode = (flags & FFWAS_EXCL) ? AUDCLNT_SHAREMODE_EXCLUSIVE : AUDCLNT_SHAREMODE_SHARED;
 
-	makewfxe(wf, fmt);
-	if (0 == (r = IAudioClient_IsFormatSupported(cl, AUDCLNT_SHAREMODE_EXCLUSIVE, (void*)wf, NULL)))
+	if (0 == (r = fmt_supported(cl, mode, fmt, wf, owf)))
 		return 0;
 
 	f = *fmt;
 	for (uint i = 0;  i != FFCNT(fmts);  i++) {
-		f.channels = fmt->channels;
 		f.format = fmts[i];
-		makewfxe(wf, &f);
-		if (0 == (r = IAudioClient_IsFormatSupported(cl, AUDCLNT_SHAREMODE_EXCLUSIVE, (void*)wf, NULL)))
-			goto ok;
-
-		f.channels = (fmt->channels == 2) ? 1 : 2;
-		makewfxe(wf, &f);
-		if (0 == (r = IAudioClient_IsFormatSupported(cl, AUDCLNT_SHAREMODE_EXCLUSIVE, (void*)wf, NULL)))
-			goto ok;
-
-		continue;
-
-ok:
-		*fmt = f;
-		return 1;
+		if (0 == (r = fmt_supported(cl, mode, &f, wf, owf))) {
+			*fmt = f;
+			goto end;
+		}
 	}
 
-	if (0 != (r = IMMDevice_OpenPropertyStore(dev, STGM_READ, &store)))
-		goto end;
+	f.channels = (fmt->channels == 2) ? 1 : 2;
+	for (uint i = 0;  i != FFCNT(fmts);  i++) {
+		f.format = fmts[i];
+		if (0 == (r = fmt_supported(cl, mode, &f, wf, owf))) {
+			*fmt = f;
+			goto end;
+		}
+	}
 
-	if (0 != (r = IPropertyStore_GetValue(store, &PKEY_AudioEngine_DeviceFormat_ff, &prop)))
-		goto end;
-	const WAVEFORMATEXTENSIBLE *pwf = (void*)prop.blob.pBlobData;
-
-	if (0 != (r = IAudioClient_IsFormatSupported(cl, AUDCLNT_SHAREMODE_EXCLUSIVE, (void*)pwf, NULL)))
-		goto end;
-
-	int rr = fmt_wfx2ff(pwf);
-	if (rr < 0)
-		goto end;
-	fmt->format = rr;
-	fmt->sample_rate = pwf->Format.nSamplesPerSec;
-	fmt->channels = pwf->Format.nChannels;
-	rc = 1;
+	return -1;
 
 end:
-	PropVariantClear(&prop);
-	IPropertyStore_Release(store);
 	return rc;
 }
 
+/* Opening a WASAPI device algorithm:
+
+. Get device enumerator
+. Get device (default or specified by ID)
+. Get a general client interface
+. Find a (probably) supported format
+ * input format is supported:
+ * new format is set:
+  . Go on
+ * no format is supported:
+  . Get mix format (shared mode)
+  . Get OS default format (exclusive mode)
+. Open device via a general audio object
+ * Success (but new format is set):
+  . Fail with AUDCLNT_E_UNSUPPORTED_FORMAT
+ * AUDCLNT_E_UNSUPPORTED_FORMAT (shared mode):
+  . Get mix format
+  . Try again (once)
+ * AUDCLNT_E_UNSUPPORTED_FORMAT (exclusive mode):
+  . Get OS default format
+  . Try again (once)
+ * E_POINTER (shared mode):
+  . Convert WF-extensible -> WFEX
+  . Try again (once)
+ * AUDCLNT_E_BUFFER_SIZE_NOT_ALIGNED (exclusive mode):
+  . Set aligned buffer size
+  . Try again (once)
+. Get a specific (render/capture) audio object
+*/
 int ffwas_open(ffwasapi *w, const WCHAR *id, ffpcm *fmt, uint bufsize, uint flags)
 {
 	HRESULT r;
+	int newfmt = 0;
 	IMMDeviceEnumerator *enu = NULL;
 	IMMDevice *dev = NULL;
 	WAVEFORMATEXTENSIBLE wf;
-	unsigned balign = 0;
+	ffbool balign = 0, e_pointer = 0, find_fmt = 1;
 	REFERENCE_TIME dur;
 
 	FF_ASSERT((flags & (FFWAS_DEV_RENDER | FFWAS_DEV_CAPTURE)) != (FFWAS_DEV_RENDER | FFWAS_DEV_CAPTURE));
 
-	w->capture = !!(flags & FFWAS_DEV_CAPTURE) || !!(flags & FFWAS_LOOPBACK);
-	w->excl = !!(flags & FFWAS_EXCL);
-	w->autostart = !!(flags & FFWAS_AUTOSTART);
 	uint aflags = (flags & FFWAS_LOOPBACK) ? AUDCLNT_STREAMFLAGS_LOOPBACK : 0;
 	aflags |= ((flags & (FFWAS_EXCL | FFWAS_LOOPBACK)) == FFWAS_EXCL) ? AUDCLNT_STREAMFLAGS_EVENTCALLBACK : 0;
 	uint mode = (flags & FFWAS_EXCL) ? AUDCLNT_SHAREMODE_EXCLUSIVE : AUDCLNT_SHAREMODE_SHARED;
 
-	w->frsize = ffpcm_size(fmt->format, fmt->channels);
-	if (!w->excl)
-		makewfxe(&wf, fmt);
+	if (w->cli != NULL)
+		goto phase2;
+
+	w->capture = !!(flags & FFWAS_DEV_CAPTURE) || !!(flags & FFWAS_LOOPBACK);
+	w->excl = !!(flags & FFWAS_EXCL);
+	w->autostart = !!(flags & FFWAS_AUTOSTART);
 
 	dur = 10 * 1000 * bufsize;
 	if (w->excl)
@@ -357,28 +417,59 @@ int ffwas_open(ffwasapi *w, const WCHAR *id, ffpcm *fmt, uint bufsize, uint flag
 		if (0 != (r = IMMDevice_Activate(dev, &IID_IAudioClient_ff, CLSCTX_ALL, NULL, (void**)&w->cli)))
 			goto fail;
 
-		if (w->excl && !balign) {
-			/* Note: WASAPI can accept the format which in fact it doesn't support.
-			For example, it opens IAudioClient in int24 successfully but plays noise because in fact it only supports int24-4.
-			So we find the supported format before even trying to open device. */
-			r = _ffwas_getfmt_excl(w->cli, dev, fmt, &wf);
-			if (r != 0) {
-				r = AUDCLNT_E_UNSUPPORTED_FORMAT;
-				goto fail;
+		if (find_fmt) {
+			find_fmt = 0;
+			newfmt = _ffwas_getfmt(w->cli, dev, fmt, &wf, flags);
+			if (newfmt < 0) {
+				if (!w->excl) {
+					if (0 != _ffwas_getfmt_mix(w->cli, fmt))
+						goto fail;
+				} else {
+					if (0 != _ffwas_getfmt_def(w->cli, dev, fmt))
+						goto fail;
+				}
 			}
 		}
 
 		r = IAudioClient_Initialize(w->cli, mode, aflags, dur, dur, (void*)&wf, NULL);
-
-		if (r == 0)
+		if (r == 0) {
+			if (newfmt != 0) {
+				r = AUDCLNT_E_UNSUPPORTED_FORMAT;
+				goto done;
+			}
 			break;
+		}
 
 		switch (r) {
-		case AUDCLNT_E_UNSUPPORTED_FORMAT:
-			if (!w->excl) {
-				_ffwas_getfmt_mix(w->cli, fmt);
+		case E_POINTER:
+			if (e_pointer || w->excl)
+				goto fail;
+			e_pointer = 1;
+
+			if (fmt->format == FFPCM_24_4) {
+				newfmt = -1;
+				if (0 != _ffwas_getfmt_mix(w->cli, fmt))
+					goto fail;
 			}
-			goto fail;
+
+			ffwav_makewfx((void*)&wf, fmt);
+			break;
+
+		case AUDCLNT_E_UNSUPPORTED_FORMAT:
+			if (newfmt < 0)
+				goto fail; // even the default format isn't supported
+
+			// the format approved by IAudioClient_IsFormatSupported() isn't actually supported
+			newfmt = -1;
+			if (!w->excl) {
+				if (0 != _ffwas_getfmt_mix(w->cli, fmt))
+					goto fail;
+			} else {
+				if (0 != _ffwas_getfmt_def(w->cli, dev, fmt))
+					goto fail;
+			}
+			makewfxe(&wf, fmt);
+			break;
 
 		case AUDCLNT_E_BUFFER_SIZE_NOT_ALIGNED:
 			if (balign)
@@ -400,6 +491,7 @@ int ffwas_open(ffwasapi *w, const WCHAR *id, ffpcm *fmt, uint bufsize, uint flag
 		w->cli = NULL;
 	}
 
+phase2:
 	if (aflags & AUDCLNT_STREAMFLAGS_EVENTCALLBACK) {
 		if (NULL == (w->evt = CreateEvent(NULL, 0, 0, NULL))) {
 			r = fferr_last();
@@ -416,6 +508,7 @@ int ffwas_open(ffwasapi *w, const WCHAR *id, ffpcm *fmt, uint bufsize, uint flag
 	if (0 != (r = IAudioClient_GetService(w->cli, cli_guids[w->capture], (void**)&w->rend)))
 		goto fail;
 
+	w->frsize = ffpcm_size(fmt->format, fmt->channels);
 	r = 0;
 
 	goto done;
