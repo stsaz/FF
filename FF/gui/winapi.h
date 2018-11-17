@@ -1282,6 +1282,7 @@ FF_EXTN char* ffui_tree_text(ffui_view *t, void *item);
 struct ffui_wnd {
 	FFUI_CTL;
 	HFONT font;
+	HBRUSH bgcolor;
 	uint top :1 //quit message loop if the window is closed
 		, hide_on_close :1 //window doesn't get destroyed when it's closed
 		, manual_close :1 //don't automatically close window on X button press
@@ -1333,6 +1334,14 @@ static FFINL void ffui_wnd_seticon(ffui_wnd *w, const ffui_icon *big_ico, const 
 {
 	ffui_ctl_send(w, WM_SETICON, ICON_SMALL, small_ico->h);
 	ffui_ctl_send(w, WM_SETICON, ICON_BIG, big_ico->h);
+}
+
+/** Set background color. */
+static inline void ffui_wnd_bgcolor(ffui_wnd *w, uint color)
+{
+	if (w->bgcolor != NULL)
+		DeleteObject(w->bgcolor);
+	w->bgcolor = CreateSolidBrush(color);
 }
 
 FF_EXTN void ffui_wnd_opacity(ffui_wnd *w, uint percent);

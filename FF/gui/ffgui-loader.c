@@ -289,6 +289,7 @@ static int wnd_icon(ffparser_schem *ps, void *obj, ffpars_ctx *ctx);
 static int wnd_opacity(ffparser_schem *ps, void *obj, const int64 *val);
 static int wnd_borderstick(ffparser_schem *ps, void *obj, const int64 *val);
 static int wnd_style(ffparser_schem *ps, void *obj, const ffstr *val);
+static int wnd_bgcolor(ffparser_schem *ps, void *obj, const ffstr *val);
 static int wnd_onclose(ffparser_schem *ps, void *obj, const ffstr *val);
 static int wnd_parent(ffparser_schem *ps, void *obj, const ffstr *val);
 static int wnd_done(ffparser_schem *ps, void *obj);
@@ -302,6 +303,7 @@ static const ffpars_arg wnd_args[] = {
 	{ "style",	FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&wnd_style) },
 	{ "parent",	FFPARS_TSTR, FFPARS_DST(&wnd_parent) },
 	{ "font",	FFPARS_TOBJ, FFPARS_DST(&label_font) },
+	{ "bgcolor",	FFPARS_TSTR, FFPARS_DST(&wnd_bgcolor) },
 	{ "onclose",	FFPARS_TSTR, FFPARS_DST(&wnd_onclose) },
 
 	{ "mainmenu",	FFPARS_TOBJ | FFPARS_FOBJ1, FFPARS_DST(&new_mmenu) },
@@ -1498,6 +1500,17 @@ static int wnd_style(ffparser_schem *ps, void *obj, const ffstr *val)
 
 	else
 		return FFPARS_EBADVAL;
+	return 0;
+}
+
+static int wnd_bgcolor(ffparser_schem *ps, void *obj, const ffstr *val)
+{
+	ffui_loader *g = obj;
+	uint clr;
+
+	if ((uint)-1 == (clr = ffpic_color(val->ptr, val->len)))
+		return FFPARS_EBADVAL;
+	ffui_wnd_bgcolor(g->wnd, clr);
 	return 0;
 }
 

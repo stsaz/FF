@@ -1489,6 +1489,9 @@ int ffui_wnd_destroy(ffui_wnd *w)
 	if (w->trayicon != NULL)
 		ffui_tray_show(w->trayicon, 0);
 
+	if (w->bgcolor != NULL)
+		DeleteObject(w->bgcolor);
+
 	ffui_wnd_ghotkey_unreg(w);
 
 	if (w->acceltbl != NULL)
@@ -1971,6 +1974,17 @@ int ffui_wndproc(ffui_wnd *wnd, size_t *code, HWND h, uint msg, size_t w, size_t
 	case WM_PAINT:
 		if (wnd->on_paint != NULL)
 			wnd->on_paint(wnd);
+		break;
+
+	case WM_ERASEBKGND:
+		if (wnd->bgcolor != NULL) {
+			HDC hdc = (HDC)w;
+			RECT rect;
+			GetClientRect(h, &rect);
+			FillRect(hdc, &rect, wnd->bgcolor);
+			*code = 1;
+			return 1;
+		}
 		break;
 
 	case WM_CTLCOLORSTATIC: {

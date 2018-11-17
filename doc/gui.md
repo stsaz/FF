@@ -61,6 +61,7 @@ Scheme:
 		borderstick INTEGER
 
 		style list:[popup visible]
+		bgcolor COLOR
 
 		# Parent window
 		parent NAME
