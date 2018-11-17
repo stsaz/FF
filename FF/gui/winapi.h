@@ -900,14 +900,19 @@ typedef struct ffui_view {
 	int edit_id; // "text" contains the text edited by user
 	int check_id; //checkbox has been (un)checked
 
+	/** Owner-data callback.  User must fill in "dispinfo_item" object.
+	Must be set before ffui_view_create(). */
+	int dispinfo_id;
+
 	union {
 	int idx;
 	int col;
 	char *text;
+	LVITEM *dispinfo_item;
 	};
 } ffui_view;
 
-FF_EXTN int ffui_view_create(ffui_ctl *c, ffui_wnd *parent);
+FF_EXTN int ffui_view_create(ffui_view *c, ffui_wnd *parent);
 
 #define ffui_view_settheme(v)  SetWindowTheme((v)->h, L"Explorer", NULL)
 
@@ -1048,6 +1053,16 @@ static FFINL void ffui_view_setgrp(ffui_view *v, int i, ffui_viewgrp *vg)
 static FFINL void ffui_view_grp(ffui_view *v, int i, ffui_viewgrp *vg)
 {
 	ffui_send(v->h, LVM_GETGROUPINFO, i, &vg->grp);
+}
+
+
+/** Set text on a 'dispinfo_item' object. */
+static inline void ffui_view_dispinfo_settext(LVITEM *it, const char *text, size_t len)
+{
+	if (!(it->mask & LVIF_TEXT) || it->cchTextMax == 0)
+		return;
+	uint n = ff_utow(it->pszText, it->cchTextMax - 1, text, len, 0);
+	it->pszText[n] = '\0';
 }
 
 

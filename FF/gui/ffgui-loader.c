@@ -1309,7 +1309,7 @@ static int new_listview(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 	if (g->ctl == NULL)
 		return FFPARS_EBADVAL;
 
-	if (0 != ffui_view_create(g->ctl, g->wnd))
+	if (0 != ffui_view_create(g->vi, g->wnd))
 		return FFPARS_ESYS;
 
 	ffpars_setargs(ctx, g, view_args, FFCNT(view_args));

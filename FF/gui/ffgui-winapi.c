@@ -829,9 +829,10 @@ void ffui_tab_settext(ffui_tabitem *it, const char *txt, size_t len)
 }
 
 
-int ffui_view_create(ffui_ctl *c, ffui_wnd *parent)
+int ffui_view_create(ffui_view *c, ffui_wnd *parent)
 {
-	if (0 != ctl_create(c, FFUI_UID_LISTVIEW, parent->h))
+	uint s = (c->dispinfo_id != 0) ? LVS_OWNERDATA : 0;
+	if (0 != ctl_create2((ffui_ctl*)c, FFUI_UID_LISTVIEW, parent->h, s, 0))
 		return 1;
 
 	{
@@ -1770,6 +1771,20 @@ static FFINL void wnd_nfy(ffui_wnd *wnd, NMHDR *n, size_t *code)
 			wnd->on_action(wnd, ctl.view->edit_id);
 			ffmem_free0(ctl.view->text);
 		}
+		}
+		break;
+
+	case LVN_GETDISPINFO:
+		if (ctl.ctl->uid == FFUI_UID_LISTVIEW) {
+			NMLVDISPINFO *di = (NMLVDISPINFO*)n;
+			FFDBG_PRINTLN(10, "LVN_GETDISPINFO: mask:%xu  item:%L, subitem:%L"
+				, (int)di->item.mask, (size_t)di->item.iItem, (size_t)di->item.iSubItem);
+			ctl.view->dispinfo_item = &di->item;
+			if ((di->item.mask & LVIF_TEXT) && di->item.cchTextMax != 0)
+				di->item.pszText[0] = '\0';
+			wnd->on_action(wnd, ctl.view->dispinfo_id);
+			*code = 1;
+			return;
 		}
 		break;
 
