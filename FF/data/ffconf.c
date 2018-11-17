@@ -473,10 +473,22 @@ static ssize_t ffs_escape_conf_str(char *dst, size_t cap, const char *data, size
 	return dst - dsto;
 }
 
-enum { W_FIRST, W_NEXT, W_ERR };
+enum { W_FIRST, W_KCTX, W_KEY, W_VAL, W_ERR };
 
 /** Write into c->buf (dont't allocate).
-Return # of written bytes;  0 on error;  <0 if need more space. */
+Return # of written bytes;  0 on error;  <0 if need more space.
+
+Transitions:
+'W_FIRST' can transition to any.
+'+LF' means that a new line is added.
+FFCONF_TKEYCTX (W_KCTX, W_KEY+LF, W_VAL+LF) -> W_KCTX
+FFCONF_TKEY (W_KCTX, W_KEY+LF, W_VAL+LF) -> W_KEY
+FFCONF_TVAL (W_KEY, W_VAL) -> W_VAL
+FFCONF_TOBJ+OPEN (W_KEY, W_VAL) -> W_FIRST
+FFCONF_TOBJ+CLOSE (W_KEY+LF, W_VAL+LF) -> W_FIRST
+FFCONF_TCOMMENTSHARP (W_KEY+LF, W_VAL+LF) -> W_FIRST
+FFCONF_FIN (W_KEY+LF, W_VAL+LF)
+*/
 static ssize_t _ffconf_write(ffconfw *c, const void *data, ssize_t len, uint flags)
 {
 	char *dst = ffarr_end(&c->buf), *end = ffarr_edge(&c->buf);
@@ -487,31 +499,51 @@ static ssize_t _ffconf_write(ffconfw *c, const void *data, ssize_t len, uint fla
 	uint t = flags & 0xff;
 	ffconfw bkp = *c;
 
-	if (c->state == W_ERR)
-		return 0;
-
 	if (len == FFCONF_STRZ)
 		len = ffsz_len(data);
 	ffstr_set(&d, data, len);
 
 	switch (t) {
 
+	case FFCONF_TKEYCTX:
 	case FFCONF_TKEY:
 		FF_ASSERT(len > 0);
 		if (len == 0) {
-			c->state = W_ERR;
+			c->state = W_ERR; // empty key
 			return 0;
 		}
-		if (c->state != W_FIRST)
+
+		switch (c->state) {
+		case W_KCTX:
+			break;
+		case W_KEY:
+		case W_VAL:
 			dst = ffs_copyc(dst, end, '\n');
-		if (pretty_lev != 0)
+			//fallthrough
+		case W_FIRST:
 			dst += ffs_fmt(dst, end, "%*c", (size_t)pretty_lev, '\t');
-		r = FFSLEN("\n") + pretty_lev;
+			break;
+		default:
+			c->state = W_ERR; // invalid state
+			return 0;
+		}
+
+		r = FFSLEN("\n.") + pretty_lev;
 		text = 1;
-		c->state = W_NEXT;
+		c->state = (t == FFCONF_TKEYCTX) ? W_KCTX : W_KEY;
 		break;
 
 	case FFCONF_TVAL:
+		switch (c->state) {
+		case W_FIRST:
+		case W_KEY:
+		case W_VAL:
+			break;
+		default:
+			c->state = W_ERR; // invalid state
+			return 0;
+		}
+
 		dst = ffs_copyc(dst, end, ' ');
 		r = FFSLEN(" ");
 		if (len == FFCONF_INT64) {
@@ -519,32 +551,61 @@ static ssize_t _ffconf_write(ffconfw *c, const void *data, ssize_t len, uint fla
 			r += FFINT_MAXCHARS;
 		} else
 			text = 1;
+		c->state = W_VAL;
 		break;
 
 	case FFCONF_TOBJ:
+		switch (c->state) {
+		case W_FIRST:
+			break;
+		case W_KEY:
+		case W_VAL:
+			if (len == FFCONF_CLOSE)
+				dst = ffs_copyc(dst, end, '\n');
+			break;
+		default:
+			c->state = W_ERR; // invalid state
+			return 0;
+		}
+
 		if (len == FFCONF_OPEN) {
 			dst = ffs_copyc(dst, end, ' ');
 			dst = ffs_copyc(dst, end, '{');
-			c->level++;
-		} else if (len == FFCONF_CLOSE) {
 			dst = ffs_copyc(dst, end, '\n');
+			c->level++;
+			r = FFSLEN(" {\n");
+
+		} else if (len == FFCONF_CLOSE) {
 			if (pretty_lev > 1)
 				dst += ffs_fmt(dst, end, "%*c", (size_t)pretty_lev - 1, '\t');
 			dst = ffs_copyc(dst, end, '}');
+			dst = ffs_copyc(dst, end, '\n');
 			FF_ASSERT(c->level != 0);
 			c->level--;
+			r = FFSLEN("\n") + pretty_lev + FFSLEN("}\n");
 		}
-		r = pretty_lev + FFSLEN(" {");
+		c->state = W_FIRST;
 		break;
 
 	case FFCONF_TCOMMENTSHARP:
-		FF_ASSERT(len >= 0);
-		if (c->state != W_FIRST)
+		switch (c->state) {
+		case W_FIRST:
+			break;
+		case W_KEY:
+		case W_VAL:
 			dst = ffs_copyc(dst, end, '\n');
+			break;
+		default:
+			c->state = W_ERR; // invalid state
+			return 0;
+		}
+
+		FF_ASSERT(len >= 0);
 		dst += ffs_fmt(dst, end, "%*c# ", (size_t)pretty_lev, '\t');
 		dst = ffs_copy(dst, end, d.ptr, d.len);
-		r = pretty_lev + FFSLEN("\n# ") + d.len;
-		c->state = W_NEXT;
+		dst = ffs_copyc(dst, end, '\n');
+		r = pretty_lev + FFSLEN("\n# ") + d.len + FFSLEN("\n");
+		c->state = W_FIRST;
 		break;
 
 	case FFCONF_FIN:
@@ -552,8 +613,19 @@ static ssize_t _ffconf_write(ffconfw *c, const void *data, ssize_t len, uint fla
 			c->state = W_ERR;
 			return 0;
 		}
-		dst = ffs_copyc(dst, end, '\n');
-		r = FFSLEN("\n");
+
+		switch (c->state) {
+		case W_FIRST:
+			return 1; //we don't write anything, but must not return 0
+		case W_KEY:
+		case W_VAL:
+			dst = ffs_copyc(dst, end, '\n');
+			break;
+		default:
+			c->state = W_ERR; // invalid state
+			return 0;
+		}
+
 		c->state = W_FIRST;
 		break;
 
@@ -584,6 +656,8 @@ static ssize_t _ffconf_write(ffconfw *c, const void *data, ssize_t len, uint fla
 			dst = ffs_copy(dst, end, d.ptr, d.len);
 			r += d.len;
 		}
+		if (t == FFCONF_TKEYCTX)
+			dst = ffs_copyc(dst, end, '.');
 	}
 
 	if (dst == ffarr_edge(&c->buf)) {
@@ -843,8 +917,6 @@ int ffconf_ctx_copy(ffconf_ctxcopy *cc, const ffconf *conf)
 	case FFCONF_TOBJ:
 		val.len = (conf->ret == FFPARS_OPEN) ? FFCONF_OPEN : FFCONF_CLOSE;
 		break;
-	case FFCONF_TKEYCTX:
-		return -1;
 	case FFCONF_TVALNEXT:
 		t = FFCONF_TVAL;
 		//fallthrough

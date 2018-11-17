@@ -345,10 +345,11 @@ ctx param {\n\
 	\"k-2\" \"v-2\"\n\
 	k2 {\n\
 		k3\n\
+		k4.ksub val\n\
 	}\n\
 }\n"
 
-static void test_conf_write(void)
+void test_conf_write(void)
 {
 	FFTEST_FUNC;
 	ffconfw cw;
@@ -372,6 +373,9 @@ static void test_conf_write(void)
 		ffconf_write(&cw, "k2", FFCONF_STRZ, FFCONF_TKEY);
 		ffconf_write(&cw, NULL, FFCONF_OPEN, FFCONF_TOBJ);
 			ffconf_write(&cw, "k3", FFCONF_STRZ, FFCONF_TKEY);
+			ffconf_write(&cw, "k4", FFCONF_STRZ, FFCONF_TKEYCTX);
+			ffconf_write(&cw, "ksub", FFCONF_STRZ, FFCONF_TKEY);
+			ffconf_write(&cw, "val", FFCONF_STRZ, FFCONF_TVAL);
 		ffconf_write(&cw, NULL, FFCONF_CLOSE, FFCONF_TOBJ);
 
 	ffconf_write(&cw, NULL, FFCONF_CLOSE, FFCONF_TOBJ);
@@ -388,7 +392,6 @@ int test_conf()
 {
 	FFTEST_FUNC;
 
-	test_conf_write();
 	test_conf_parse(TESTDATADIR "/schem.conf");
 	test_conf_schem(TESTDATADIR "/schem.conf");
 	return 0;
