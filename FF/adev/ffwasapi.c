@@ -24,7 +24,7 @@ IOCP posted event -> ffkev_call() -> real handler
 #include <FFOS/error.h>
 
 
-static void _ffwas_getfmt(ffwasapi *w, ffpcm *fmt);
+static int _ffwas_getfmt_mix(IAudioClient *cl, ffpcm *fmt);
 
 
 static const char *const _ffwas_serr[] = {
@@ -172,15 +172,16 @@ void ffwas_devdestroy(ffwas_dev *d)
 	FF_SAFECLOSE(d->dcoll, NULL, IMMDeviceCollection_Release);
 }
 
-static FFINL void _ffwas_getfmt(ffwasapi *w, ffpcm *fmt)
+static int _ffwas_getfmt_mix(IAudioClient *cl, ffpcm *fmt)
 {
 	HRESULT r;
 	WAVEFORMATEX *wf = NULL;
-	if (0 != (r = IAudioClient_GetMixFormat(w->cli, &wf)))
-		return;
+	if (0 != (r = IAudioClient_GetMixFormat(cl, &wf)))
+		return r;
 	fmt->sample_rate = wf->nSamplesPerSec;
 	fmt->channels = wf->nChannels;
 	CoTaskMemFree(wf);
+	return 0;
 }
 
 static const GUID wfx_guid = { 1, 0x0000, 0x0010, {0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71} };
@@ -317,7 +318,6 @@ end:
 
 int ffwas_open(ffwasapi *w, const WCHAR *id, ffpcm *fmt, uint bufsize, uint flags)
 {
-	uint aflags;
 	HRESULT r;
 	IMMDeviceEnumerator *enu = NULL;
 	IMMDevice *dev = NULL;
@@ -330,6 +330,9 @@ int ffwas_open(ffwasapi *w, const WCHAR *id, ffpcm *fmt, uint bufsize, uint flag
 	w->capture = !!(flags & FFWAS_DEV_CAPTURE) || !!(flags & FFWAS_LOOPBACK);
 	w->excl = !!(flags & FFWAS_EXCL);
 	w->autostart = !!(flags & FFWAS_AUTOSTART);
+	uint aflags = (flags & FFWAS_LOOPBACK) ? AUDCLNT_STREAMFLAGS_LOOPBACK : 0;
+	aflags |= ((flags & (FFWAS_EXCL | FFWAS_LOOPBACK)) == FFWAS_EXCL) ? AUDCLNT_STREAMFLAGS_EVENTCALLBACK : 0;
+	uint mode = (flags & FFWAS_EXCL) ? AUDCLNT_SHAREMODE_EXCLUSIVE : AUDCLNT_SHAREMODE_SHARED;
 
 	w->frsize = ffpcm_size(fmt->format, fmt->channels);
 	if (!w->excl)
@@ -365,34 +368,36 @@ int ffwas_open(ffwasapi *w, const WCHAR *id, ffpcm *fmt, uint bufsize, uint flag
 			}
 		}
 
-		aflags = (flags & FFWAS_LOOPBACK) ? AUDCLNT_STREAMFLAGS_LOOPBACK : 0;
-		aflags |= ((flags & (FFWAS_EXCL | FFWAS_LOOPBACK)) == FFWAS_EXCL) ? AUDCLNT_STREAMFLAGS_EVENTCALLBACK : 0;
-		uint mode = (flags & FFWAS_EXCL) ? AUDCLNT_SHAREMODE_EXCLUSIVE : AUDCLNT_SHAREMODE_SHARED;
 		r = IAudioClient_Initialize(w->cli, mode, aflags, dur, dur, (void*)&wf, NULL);
 
 		if (r == 0)
 			break;
 
-		else if (r == AUDCLNT_E_UNSUPPORTED_FORMAT && !w->excl) {
-			_ffwas_getfmt(w, fmt);
+		switch (r) {
+		case AUDCLNT_E_UNSUPPORTED_FORMAT:
+			if (!w->excl) {
+				_ffwas_getfmt_mix(w->cli, fmt);
+			}
 			goto fail;
 
-		} else if (r == AUDCLNT_E_BUFFER_SIZE_NOT_ALIGNED) {
+		case AUDCLNT_E_BUFFER_SIZE_NOT_ALIGNED:
 			if (balign)
 				goto fail;
 
 			if (0 != (r = IAudioClient_GetBufferSize(w->cli, &w->bufsize)))
 				goto fail;
-			IAudioClient_Release(w->cli);
-			w->cli = NULL;
 
 			//get an aligned buffer size
 			dur = (REFERENCE_TIME)((10000.0 * 1000 / fmt->sample_rate * w->bufsize) + 0.5);
 			balign = 1;
-			continue;
+			break;
 
-		} else
+		default:
 			goto fail;
+		}
+
+		IAudioClient_Release(w->cli);
+		w->cli = NULL;
 	}
 
 	if (aflags & AUDCLNT_STREAMFLAGS_EVENTCALLBACK) {
