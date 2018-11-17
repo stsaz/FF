@@ -155,7 +155,7 @@ int ffurl_parse(ffurl *url, const char *s, size_t len)
 				break;
 			}
 			else if (ch == '/' || ch == '.') {
-				if (!url->complex && s[i - 1] == '/')
+				if (!url->complex && i != 0 && s[i - 1] == '/')
 					url->complex = 1; //handle "//" and "/./", "/." and "/../", "/.."
 			}
 			else if (ffchar_isansiwhite(ch) || ch == '#') {
