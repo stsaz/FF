@@ -116,9 +116,11 @@ int test_rbt(void)
 	for (i = (NUM / 2) * LNUM;  i != (NUM / 2 + OFF) * LNUM;  i++) {
 		ffrbt_rm(&tr, &ar[i]);
 	}
-	fftree_node *nod2, *next;
-	FFTREE_WALKSAFE(&tr, nod2, next) {
+	ffrbt_node *nod2, *next;
+	FFTREE_FOR(&tr, nod2) {
+		next = ffrbt_successor(&tr, nod2);
 		ffrbt_rm(&tr, (void*)nod2);
+		nod2 = next;
 	}
 	x(tr.len == 0);
 
@@ -126,11 +128,8 @@ int test_rbt(void)
 	return 0;
 }
 
-static int rbtl_rm(ffrbtl_node *nod, void *udata)
+static void rbtl_free(void *p)
 {
-	ffrbtree *tr = udata;
-	ffrbtl_rm(tr, nod);
-	return 0;
 }
 
 int test_rbtlist()
@@ -206,7 +205,7 @@ int test_rbtlist()
 	for (i = (NUM / 2) * LNUM;  i != (NUM / 2 + OFF) * LNUM;  i++) {
 		ffrbtl_rm(&tr, &ar[i]);
 	}
-	ffrbtl_enumsafe(&tr, (fftree_on_item_t)&rbtl_rm, &tr, 0);
+	ffrbtl_freeall(&tr, &rbtl_free, 0);
 	x(tr.len == 0);
 
 	ffmem_free(ar);

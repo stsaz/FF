@@ -53,21 +53,14 @@ FF_EXTN fftree_node * fftree_successor(fftree_node *it, void *sentl);
 			; (nod) != (void*)&(tr)->sentl \
 			; (nod) = fftree_successor((nod), &(tr)->sentl))
 
-/** Traverse a tree safely. */
-#define FFTREE_WALKSAFE(tr, nod, next) \
-	if ((tr)->root != &(tr)->sentl) \
-		for (nod = fftree_min((fftree_node*)(tr)->root, &(tr)->sentl) \
-			; nod != (void*)&(tr)->sentl && ((next = fftree_successor(nod, &(tr)->sentl)) || 1) \
-			; nod = next)
-
-/** Call func() for every item in rbtree. */
-#define FFRBT_ENUMSAFE(tree, func, struct_name, member_name) \
-do { \
-	fftree_node *nod, *next; \
-	FFTREE_WALKSAFE(tree, nod, next) { \
-		func(FF_GETPTR(struct_name, member_name, nod)); \
-	} \
-} while (0)
+/** Get the minimum node and loop white it's valid.
+User must update the node pointer manually. */
+#define FFTREE_FOR(tr, nod) \
+	for ((nod) = ((tr)->root != &(tr)->sentl) \
+			? (void*)fftree_min((fftree_node*)(tr)->root, &(tr)->sentl) \
+			: &(tr)->sentl \
+		; (nod) != &(tr)->sentl \
+		; )
 
 
 /** Red-black tree node. */
@@ -108,6 +101,12 @@ do { \
 /** Remove node. */
 FF_EXTN void ffrbt_rm(ffrbtree *tr, ffrbt_node *nod);
 
+/** Find successor of a node. */
+static inline ffrbt_node* ffrbt_successor(ffrbtree *tr, ffrbt_node *nod)
+{
+	return (ffrbt_node*)fftree_successor((fftree_node*)nod, &tr->sentl);
+}
+
 /** Find node in red-black tree. */
 static FFINL ffrbt_node * ffrbt_find(ffrbtree *tr, ffrbtkey key, ffrbt_node **parent) {
 	ffrbt_node *root = tr->root;
@@ -116,6 +115,12 @@ static FFINL ffrbt_node * ffrbt_find(ffrbtree *tr, ffrbtkey key, ffrbt_node **pa
 		*parent = root;
 	return nod;
 }
+
+typedef void (*ffrbt_free_t)(void*);
+
+/** Call a user's destroy/free function for each node.
+off: offset of a ffrbt_node in user's structure. */
+FF_EXTN void ffrbt_freeall(ffrbtree *tr, ffrbt_free_t func, size_t off);
 
 /** Print contents of all nodes. */
 FF_EXTN void ffrbt_print(ffrbtree *tr);
@@ -153,8 +158,6 @@ static FFINL void ffrbtl_move(ffrbtree *tr, ffrbtl_node *k) {
 	ffrbtl_insert(tr, k);
 }
 
-typedef int (*fftree_on_item_t)(void *obj, void *udata);
-
-/** Call on_item() safely for every node in tree and all of its list items in chain.
-If on_item() returns non-zero, break the loop and return. */
-FF_EXTN int ffrbtl_enumsafe(ffrbtree *tr, fftree_on_item_t on_item, void *udata, uint off);
+/** Call a user's destroy/free function for each node (including list siblings).
+off: offset of a ffrbtl_node in user's structure. */
+FF_EXTN void ffrbtl_freeall(ffrbtree *tr, ffrbt_free_t func, size_t off);

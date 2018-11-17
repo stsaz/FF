@@ -348,8 +348,7 @@ void ffiso_wclose(ffiso_cook *c)
 	}
 	ffarr_free(&c->dirs_jlt);
 
-	FFRBT_ENUMSAFE(&c->dirnames, ffmem_free, struct dir_node, nod);
-
+	ffrbt_freeall(&c->dirnames, ffmem_free, FFOFF(struct dir_node, nod));
 	ffarr_free(&c->buf);
 }
 

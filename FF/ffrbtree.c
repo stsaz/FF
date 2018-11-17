@@ -339,6 +339,18 @@ done:
 	tr->root = root;
 }
 
+void ffrbt_freeall(ffrbtree *tr, void(*func)(void*), size_t off)
+{
+	ffrbt_node *n, *next;
+	FFTREE_FOR(tr, n) {
+		next = ffrbt_successor(tr, n);
+		ffrbt_rm(tr, n);
+		void *p = FF_PTR(n, -(ssize_t)off);
+		func(p);
+		n = next;
+	}
+}
+
 void ffrbt_print(ffrbtree *tr)
 {
 	fftree_node *node;
@@ -419,27 +431,25 @@ void ffrbtl_rm(ffrbtree *tr, ffrbtl_node *k)
 	tr->len--;
 }
 
-int ffrbtl_enumsafe(ffrbtree *tr, fftree_on_item_t on_item, void *udata, uint off)
+void ffrbtl_freeall(ffrbtree *tr, ffrbt_free_t func, size_t off)
 {
-	int rc;
-	fftree_node *nod, *next;
-	fflist_item *nextli, *li;
+	ffrbt_node *n, *next;
+	ffrbtl_node *nl;
+	fflist_item *li;
 
-	FFTREE_WALKSAFE(tr, nod, next) {
-
-		for (li = ((ffrbtl_node*)nod)->sib.next;  li != &((ffrbtl_node*)nod)->sib; ) {
-
-			nextli = li->next;
-			rc = on_item((byte*)ffrbtl_nodebylist(li) - off, udata);
-			if (rc != 0)
-				return rc;
-			li = nextli;
+	FFTREE_FOR(tr, n) {
+		nl = (void*)n;
+		FFCHAIN_FOR(&nl->sib, li) {
+			void *n2 = FF_PTR(ffrbtl_nodebylist(li), -(ssize_t)off);
+			li = li->next;
+			FF_ASSERT(tr->len != 0);
+			tr->len--;
+			func(n2);
 		}
-
-		rc = on_item((byte*)nod - off, udata);
-		if (rc != 0)
-			return rc;
+		next = ffrbt_successor(tr, n);
+		ffrbt_rm(tr, n);
+		void *p = FF_PTR(n, -(ssize_t)off);
+		func(p);
+		n = next;
 	}
-
-	return 0;
 }
