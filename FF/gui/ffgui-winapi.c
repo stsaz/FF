@@ -39,7 +39,7 @@ static void tray_nfy(ffui_wnd *wnd, ffui_trayicon *t, size_t l);
 
 static void wnd_bordstick(uint stick, WINDOWPOS *ws);
 static void wnd_cmd(ffui_wnd *wnd, uint w, HWND h);
-static void wnd_nfy(ffui_wnd *wnd, NMHDR *n, size_t *code);
+static int wnd_nfy(ffui_wnd *wnd, NMHDR *n, size_t *code);
 static void wnd_scroll(ffui_wnd *wnd, uint w, HWND h);
 static void wnd_onaction(ffui_wnd *wnd, int id);
 static LRESULT __stdcall wnd_proc(HWND h, uint msg, WPARAM w, LPARAM l);
@@ -1750,7 +1750,7 @@ static FFINL void wnd_cmd(ffui_wnd *wnd, uint w, HWND h)
 		wnd->on_action(wnd, id);
 }
 
-static FFINL void wnd_nfy(ffui_wnd *wnd, NMHDR *n, size_t *code)
+static FFINL int wnd_nfy(ffui_wnd *wnd, NMHDR *n, size_t *code)
 {
 	uint id = 0;
 	union ffui_anyctl ctl;
@@ -1759,7 +1759,7 @@ static FFINL void wnd_nfy(ffui_wnd *wnd, NMHDR *n, size_t *code)
 		, (void*)n->hwndFrom, (size_t)n->code);
 
 	if (NULL == (ctl.ctl = ffui_getctl(n->hwndFrom)))
-		return;
+		return 0;
 
 	switch (n->code) {
 	case LVN_ITEMACTIVATE:
@@ -1797,7 +1797,8 @@ static FFINL void wnd_nfy(ffui_wnd *wnd, NMHDR *n, size_t *code)
 		break;
 
 	case LVN_GETDISPINFO:
-		if (ctl.ctl->uid == FFUI_UID_LISTVIEW) {
+		if (ctl.ctl->uid == FFUI_UID_LISTVIEW
+			&& ctl.view->dispinfo_id != 0) {
 			NMLVDISPINFO *di = (NMLVDISPINFO*)n;
 			FFDBG_PRINTLN(10, "LVN_GETDISPINFO: mask:%xu  item:%L, subitem:%L"
 				, (int)di->item.mask, (size_t)di->item.iItem, (size_t)di->item.iSubItem);
@@ -1806,7 +1807,7 @@ static FFINL void wnd_nfy(ffui_wnd *wnd, NMHDR *n, size_t *code)
 				di->item.pszText[0] = '\0';
 			wnd->on_action(wnd, ctl.view->dispinfo_id);
 			*code = 1;
-			return;
+			return 1;
 		}
 		break;
 
@@ -1837,21 +1838,18 @@ static FFINL void wnd_nfy(ffui_wnd *wnd, NMHDR *n, size_t *code)
 			wnd->on_action(wnd, ctl.tab->changing_sel_id);
 			*code = ctl.tab->changing_sel_keep;
 			ctl.tab->changing_sel_keep = 0;
-			return;
+			return 1;
 		}
 		break;
 
 	case TCN_SELCHANGE:
 		id = ctl.tab->chsel_id;
 		break;
-
-
-	default:
-		return;
 	}
 
 	if (id != 0)
 		wnd->on_action(wnd, id);
+	return 0;
 }
 
 static FFINL void wnd_scroll(ffui_wnd *wnd, uint w, HWND h)
@@ -1915,7 +1913,8 @@ int ffui_wndproc(ffui_wnd *wnd, size_t *code, HWND h, uint msg, size_t w, size_t
 
 	case WM_NOTIFY:
 		*code = 0;
-		wnd_nfy(wnd, (NMHDR*)l, code);
+		if (0 != wnd_nfy(wnd, (NMHDR*)l, code))
+			return *code;
 		if (*code != 0)
 			return 1;
 		break;
