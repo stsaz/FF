@@ -3,7 +3,7 @@ Copyright (c) 2016 Simon Zolin
 */
 
 /*
-HDR (ROW#HEIGHT..ROW#1(BGR#1..BGR#WIDTH))
+FILEHDR (HDRV3 | HDRV4) (ROW#HEIGHT..ROW#1(BGR#1..BGR#WIDTH [PADDING:1..3]))
 */
 
 #pragma once
@@ -80,6 +80,7 @@ typedef struct ffbmp_cook {
 	uint state;
 	uint linesize;
 	uint linesize_o;
+	uint dataoff;
 	ffstr data;
 	ffstr rgb;
 	ffarr buf;
