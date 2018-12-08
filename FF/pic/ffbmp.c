@@ -45,8 +45,11 @@ struct bmp_hdr4 {
 
 
 static const char* const errs[] = {
-	"unsupported format",
-	"incomplete input line",
+	"unsupported format", //FFBMP_EFMT
+	"incomplete input line", //FFBMP_ELINE
+	"invalid format", //FFBMP_EINV
+	"unsupported compression method", //FFBMP_ECOMP
+	"unsupported ver.4 header", //FFBMP_EHDR4
 };
 
 const char* ffbmp_errstr(void *_b)
@@ -63,12 +66,17 @@ const char* ffbmp_errstr(void *_b)
 	(b)->e = (r),  FFBMP_ERR
 
 
-enum { R_GATHER, R_HDR, R_SEEK, R_DATA, R_DONE };
+enum { R_GATHER, R_HDR, R_HDR4, R_SEEK, R_DATA, R_DONE };
+
+static void GATHER(ffbmp *b, uint nxstate, size_t len)
+{
+	b->state = R_GATHER,  b->nxstate = nxstate;
+	b->gather_size = len;
+}
 
 void ffbmp_open(ffbmp *b)
 {
-	b->state = R_GATHER,  b->nxstate = R_HDR;
-	b->gather_size = sizeof(struct bmp_hdr);
+	GATHER(b, R_HDR, sizeof(struct bmp_hdr));
 }
 
 void ffbmp_close(ffbmp *b)
@@ -79,6 +87,44 @@ void ffbmp_close(ffbmp *b)
 void ffbmp_region(const ffbmp_pos *pos)
 {
 
+}
+
+/** Read header. */
+static int bmp_hdr_read(ffbmp *b, const void *data)
+{
+	const struct bmp_hdr *h = (void*)data;
+	if (!!memcmp(h->bm, "BM", 2))
+		return ERR(b, FFBMP_EINV);
+	b->dataoff = ffint_ltoh32(h->headersize);
+	if (b->dataoff < sizeof(struct bmp_hdr))
+		return ERR(b, FFBMP_EFMT);
+	b->info.width = ffint_ltoh32(h->width);
+	b->info.height = ffint_ltoh32(h->height);
+	uint bpp = ffint_ltoh16(h->bpp);
+	b->linesize_o = b->info.width * bpp / 8;
+	b->linesize = ff_align_ceil2(b->linesize_o, 4);
+	uint comp = ffint_ltoh32(h->compression);
+
+	switch (bpp) {
+	case 24:
+		if (comp != COMP_NONE)
+			return ERR(b, FFBMP_ECOMP);
+		b->info.format = FFPIC_BGR;
+		break;
+	case 32:
+		if (comp != COMP_BITFIELDS)
+			return ERR(b, FFBMP_ECOMP);
+		if (b->dataoff < sizeof(struct bmp_hdr) + sizeof(struct bmp_hdr4))
+			return ERR(b, FFBMP_EFMT);
+		b->info.format = FFPIC_ABGR;
+		GATHER(b, R_HDR4, sizeof(struct bmp_hdr4));
+		return FFBMP_MORE;
+	default:
+		return ERR(b, FFBMP_EFMT);
+	}
+
+	b->state = R_SEEK;
+	return FFBMP_HDR;
 }
 
 int ffbmp_read(ffbmp *b)
@@ -101,30 +147,27 @@ int ffbmp_read(ffbmp *b)
 		b->state = b->nxstate;
 		continue;
 
-	case R_HDR: {
-		const struct bmp_hdr *h = (void*)b->inbuf.ptr;
-		if (!!memcmp(h->bm, "BM", 2))
-			return ERR(b, FFBMP_EFMT);
-		b->info.width = ffint_ltoh32(h->width);
-		b->info.height = ffint_ltoh32(h->height);
+	case R_HDR:
+		r = bmp_hdr_read(b, b->inbuf.ptr);
+		if (r == FFBMP_MORE)
+			continue;
+		return r;
 
-		uint bpp = ffint_ltoh16(h->bpp);
-		if (bpp != 24 && bpp != 32)
-			return ERR(b, FFBMP_EFMT);
-		b->info.format = bpp | _FFPIC_BGR;
-
-		uint hdrsize = ffint_ltoh32(h->headersize);
+	case R_HDR4: {
+		const struct bmp_hdr4 *h4 = (void*)b->inbuf.ptr;
+		if (0x000000ff != ffint_ntoh32(h4->mask_rgba)
+			|| 0x0000ff00 != ffint_ntoh32(h4->mask_rgba + 4)
+			|| 0x00ff0000 != ffint_ntoh32(h4->mask_rgba + 8)
+			|| 0xff000000 != ffint_ntoh32(h4->mask_rgba + 12)
+			|| !!memcmp(h4->cstype, "BGRs", 4))
+			return ERR(b, FFBMP_EHDR4);
 		b->state = R_SEEK;
-		b->linesize_o = b->info.width * bpp / 8;
-		b->linesize = ff_align_ceil2(b->linesize_o, 4);
-		b->dataoff = hdrsize;
 		return FFBMP_HDR;
 	}
 
 	case R_SEEK:
 		b->seekoff = b->dataoff + (b->info.height - b->line - 1) * b->linesize;
-		b->state = R_GATHER,  b->nxstate = R_DATA;
-		b->gather_size = b->linesize;
+		GATHER(b, R_DATA, b->linesize);
 		return FFBMP_SEEK;
 
 	case R_DATA:
