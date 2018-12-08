@@ -9,7 +9,7 @@ Copyright (c) 2013 Simon Zolin
 
 
 /** Fast CRC32 implementation using 8k table. */
-FF_EXTN uint crc32(const byte *buf, size_t size, uint crc);
+FF_EXTN uint crc32(const void *buf, size_t size, uint crc);
 
 
 static FFINL uint ffcrc32_start() {

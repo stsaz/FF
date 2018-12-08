@@ -814,12 +814,11 @@ uint ffs_toint(const char *src, size_t len, void *dst, int flags)
 			uint b = ffchar_tonum(src[i]);
 			if (b >= 8)
 				break;
-			r = r * 8 + b;
+			if (digits == FFSLEN("1777777777777777777777"))
+				goto fail;
 			digits++;
+			r = r * 8 + b;
 		}
-
-		if (digits > FFSLEN("1777777777777777777777"))
-			goto fail;
 
 	} else if (!(flags & FFS_INTHEX)) {
 		//dec
@@ -827,25 +826,23 @@ uint ffs_toint(const char *src, size_t len, void *dst, int flags)
 			byte b = src[i] - '0';
 			if (b >= 10)
 				break;
-			r = r * 10 + b;
+			if (digits == FFSLEN("18446744073709551615"))
+				goto fail;
 			digits++;
+			r = r * 10 + b;
 		}
-
-		if (digits > FFSLEN("18446744073709551615"))
-			goto fail;
 	}
 	else {
 		//hex
 		for (; i < len; ++i) {
 			int b = ffchar_tohex(src[i]);
-			if (b == -1)
+			if (b < 0)
 				break;
-			r = (r << 4) | b;
+			if (digits == FFSLEN("1234567812345678"))
+				goto fail;
 			digits++;
+			r = (r << 4) | b;
 		}
-
-		if (digits > FFSLEN("1234567812345678"))
-			goto fail;
 	}
 
 	if (digits == 0)

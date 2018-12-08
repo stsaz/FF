@@ -629,6 +629,17 @@ static FFINL size_t ffstr_catfmt(ffstr3 *s, const char *fmt, ...) {
 	return r;
 }
 
+static inline size_t ffstr_fmt(ffstr3 *s, const char *fmt, ...)
+{
+	size_t r;
+	va_list args;
+	va_start(args, fmt);
+	s->len = 0;
+	r = ffstr_catfmtv(s, fmt, args);
+	va_end(args);
+	return r;
+}
+
 /** Formatted output to a newly allocated NULL-terminated string. */
 static FFINL char* _ffsz_alfmt(const char *fmt, ...)
 {

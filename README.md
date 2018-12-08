@@ -54,6 +54,7 @@ FEATURES
 	* SSL (libssl, libcrypto) - `FF/net/ssl.h`
 	* TLS reader - `FF/net/tls.h`
 	* WebSocket reader/writer - `FF/net/websocket.h`
+	* Intel DPDK wrapper - `FF/net/dpdk.h`
 
 * Data - `FF/data/`
 	* JSON reader/writer  - `FF/data/json.h`

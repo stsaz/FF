@@ -918,7 +918,7 @@ typedef struct ffui_view {
 	int dblclick_id;
 	int colclick_id; //"col" is set to column #
 	int edit_id; // "text" contains the text edited by user
-	int check_id; //checkbox has been (un)checked
+	int check_id; //checkbox has been (un)checked.  "idx" is the item index.
 
 	/** Owner-data callback.  User must fill in "dispinfo_item" object.
 	Must be set before ffui_view_create(). */
@@ -1100,6 +1100,8 @@ static FFINL void ffui_view_grp(ffui_view *v, int i, ffui_viewgrp *vg)
 #define ffui_view_nitems(v)  ListView_GetItemCount((v)->h)
 #define ffui_view_setcount(v, n) \
 	ffui_ctl_send(v, LVM_SETITEMCOUNT, n, LVSICF_NOINVALIDATEALL | LVSICF_NOSCROLL)
+#define ffui_view_setcount_redraw(v, n) \
+	ffui_ctl_send(v, LVM_SETITEMCOUNT, n, 0)
 
 /** Redraw items in range. */
 #define ffui_view_redraw(v, first, last) \

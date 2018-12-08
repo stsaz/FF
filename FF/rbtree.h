@@ -140,8 +140,26 @@ typedef struct ffrbtl_node {
 /** Get RBT node by the pointer to its list item. */
 #define ffrbtl_nodebylist(item)  FF_GETPTR(ffrbtl_node, sib, item)
 
+/** Walk through sibling nodes.
+The last node in row points to the first one - break the loop after this. */
+#define FFRBTL_FOR_SIB(node, iter) \
+for (iter = node \
+	; iter != NULL \
+	; ({ \
+		iter = ffrbtl_nodebylist(iter->sib.next); \
+		if (iter == node) \
+			iter = NULL; \
+		}) \
+	)
+
 /** Insert a new node or list-item. */
 FF_EXTN void ffrbtl_insert(ffrbtree *tr, ffrbtl_node *k);
+
+static inline void ffrbtl_insert_withhash(ffrbtree *tr, ffrbtl_node *n, ffrbtkey hash)
+{
+	n->key = hash;
+	ffrbtl_insert(tr, n);
+}
 
 #define ffrbtl_insert3(tr, nod, parent) \
 do { \

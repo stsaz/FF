@@ -303,6 +303,9 @@ static int _ffmpg_streaminfo(ffmpgr *m, const char *p, uint datalen, const char 
 			m->total_samples -= ffmin(n, m->total_samples);
 			m->delay = m->lame.enc_delay + DEC_DELAY + 1;
 		}
+		FFDBG_PRINTLN(5, "Xing frames:%u  total_samples:%U  LAME total_samples:%U  enc_delay:%u  enc_padding:%u"
+			, m->xing.frames, m->xing.frames * ffmpg_hdr_frame_samples(h)
+			, m->total_samples, m->lame.enc_delay, m->lame.enc_padding);
 		return 1;
 	}
 
