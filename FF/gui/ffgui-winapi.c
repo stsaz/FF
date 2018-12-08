@@ -852,6 +852,9 @@ int ffui_view_create(ffui_view *c, ffui_wnd *parent)
 	if (0 != ctl_create2((ffui_ctl*)c, FFUI_UID_LISTVIEW, parent->h, s, 0))
 		return 1;
 
+	if (c->dispinfo_id != 0)
+		ListView_SetCallbackMask(c->h, LVIS_STATEIMAGEMASK);
+
 	int n = LVS_EX_FULLROWSELECT | LVS_EX_LABELTIP | LVS_EX_DOUBLEBUFFER | LVS_EX_HEADERDRAGDROP;
 	ListView_SetExtendedListViewStyleEx(c->h, n, n);
 	return 0;
@@ -975,7 +978,7 @@ int ffui_view_sel_invert(ffui_view *v)
 	return cnt;
 }
 
-int ffui_view_hittest(ffui_view *v, const ffui_point *pt, int *subitem)
+int ffui_view_hittest2(ffui_view *v, const ffui_point *pt, int *subitem, uint *flags)
 {
 	LVHITTESTINFO ht;
 	ffui_point cpt = *pt;
@@ -984,17 +987,19 @@ int ffui_view_hittest(ffui_view *v, const ffui_point *pt, int *subitem)
 
 	ht.pt.x = cpt.x;
 	ht.pt.y = cpt.y;
-	ht.flags = LVHT_ONITEM;
+	ht.flags = *flags;
 	ht.iItem = -1;
 	ht.iSubItem = -1;
 #if FF_WIN >= 0x0600
 	ht.iGroup = -1;
 #endif
-	ffui_ctl_send(v, LVM_SUBITEMHITTEST, -1, &ht);
-	if (!(ht.flags & LVHT_ONITEM))
+	if (0 > (int)ffui_ctl_send(v, LVM_SUBITEMHITTEST, -1, &ht))
+		return -1;
+	if (!(ht.flags & *flags))
 		return -1;
 	if (subitem != NULL)
 		*subitem = ht.iSubItem;
+	*flags = ht.flags;
 	return ht.iItem;
 }
 
@@ -1811,9 +1816,36 @@ static FFINL int wnd_nfy(ffui_wnd *wnd, NMHDR *n, size_t *code)
 		}
 		break;
 
+	case LVN_KEYDOWN:
+		if (ctl.ctl->uid == FFUI_UID_LISTVIEW) {
+			if (ctl.view->dispinfo_id != 0 && ctl.view->check_id != 0) {
+				NMLVKEYDOWN *kd = (void*)n;
+				FFDBG_PRINTLN(10, "LVN_KEYDOWN: vkey:%xu  flags:%xu"
+					, (int)kd->wVKey, (int)kd->flags);
+				if (kd->wVKey == VK_SPACE) {
+					ctl.view->idx = ffui_view_focused(ctl.view);
+					id = ctl.view->check_id;
+				}
+			}
+		}
+		break;
+
 	case NM_CLICK:
 		if (ctl.ctl->uid == FFUI_UID_LISTVIEW) {
 			id = ctl.view->lclick_id;
+
+			if (ctl.view->dispinfo_id != 0 && ctl.view->check_id != 0) {
+				ffui_point pt;
+				ffui_cur_pos(&pt);
+				uint f = LVHT_ONITEMSTATEICON;
+				int i = ffui_view_hittest2(ctl.view, &pt, NULL, &f);
+				FFDBG_PRINTLN(10, "NM_CLICK: i:%xu  f:%xu"
+					, i, f);
+				if (i != -1) {
+					ctl.view->idx = i;
+					id = ctl.view->check_id;
+				}
+			}
 		}
 		break;
 

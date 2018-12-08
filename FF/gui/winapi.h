@@ -936,8 +936,17 @@ FF_EXTN int ffui_view_create(ffui_view *c, ffui_wnd *parent);
 
 #define ffui_view_settheme(v)  SetWindowTheme((v)->h, L"Explorer", NULL)
 
-/** Get index of the item by screen coordinates. */
-FF_EXTN int ffui_view_hittest(ffui_view *v, const ffui_point *pt, int *subitem);
+/** Get index of the item by screen coordinates.
+subitem: optional
+flags: LVHT_*
+Return item index or -1 on error. */
+FF_EXTN int ffui_view_hittest2(ffui_view *v, const ffui_point *pt, int *subitem, uint *flags);
+
+static inline int ffui_view_hittest(ffui_view *v, const ffui_point *pt, int *subitem)
+{
+	uint f = LVHT_ONITEM;
+	return ffui_view_hittest2(v, pt, subitem, &f);
+}
 
 /** Get top visible item index. */
 #define ffui_view_topindex(v)  ffui_ctl_send(v, LVM_GETTOPINDEX, 0, 0)
@@ -1085,16 +1094,6 @@ static FFINL void ffui_view_setgrp(ffui_view *v, int i, ffui_viewgrp *vg)
 static FFINL void ffui_view_grp(ffui_view *v, int i, ffui_viewgrp *vg)
 {
 	ffui_send(v->h, LVM_GETGROUPINFO, i, &vg->grp);
-}
-
-
-/** Set text on a 'dispinfo_item' object. */
-static inline void ffui_view_dispinfo_settext(LVITEM *it, const char *text, size_t len)
-{
-	if (!(it->mask & LVIF_TEXT) || it->cchTextMax == 0)
-		return;
-	uint n = ff_utow(it->pszText, it->cchTextMax - 1, text, len, 0);
-	it->pszText[n] = '\0';
 }
 
 
@@ -1251,6 +1250,24 @@ FF_EXTN int ffui_view_edit_hittest(ffui_view *v, uint sub);
 FF_EXTN void ffui_view_edit_set(ffui_view *v, uint i, uint sub);
 
 #define ffui_view_seticonlist(v, il)  ListView_SetImageList((v)->h, (il)->h, LVSIL_SMALL)
+
+
+/** Set text on a 'dispinfo_item' object. */
+static inline void ffui_view_dispinfo_settext(LVITEM *it, const char *text, size_t len)
+{
+	if (!(it->mask & LVIF_TEXT) || it->cchTextMax == 0)
+		return;
+	uint n = ff_utow(it->pszText, it->cchTextMax - 1, text, len, 0);
+	it->pszText[n] = '\0';
+}
+
+/** Check/uncheck a 'dispinfo_item' object. */
+static inline void ffui_view_dispinfo_check(LVITEM *it, int checked)
+{
+	it->stateMask |= LVIS_STATEIMAGEMASK;
+	it->state &= ~LVIS_STATEIMAGEMASK;
+	it->state |= (checked) ? _FFUI_VIEW_CHECKED : _FFUI_VIEW_UNCHECKED;
+}
 
 
 // TREEVIEW
