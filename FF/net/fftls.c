@@ -119,7 +119,7 @@ static int tls_rec_read(fftls *t, ffstr *data, uint *version, ffstr *body)
 		return -FFTLS_EVERSION;
 
 	uint n = ffint_ntoh16(rec->len);
-	if (n > data->len)
+	if (sizeof(struct rec) + n > data->len)
 		return 0;
 
 	ffstr_shift(data, sizeof(struct rec) + n);
