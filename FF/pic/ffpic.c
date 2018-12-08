@@ -13,6 +13,8 @@ const char* ffpic_fmtstr(uint fmt)
 		return "BGR";
 	case FFPIC_BGRA:
 		return "BGRA";
+	case FFPIC_ABGR:
+		return "ABGR";
 	case FFPIC_RGB:
 		return "RGB";
 	case FFPIC_RGBA:
@@ -135,6 +137,15 @@ int ffpic_convert(uint in_fmt, const void *_src, uint out_fmt, void *_dst, uint 
 		}
 		break;
 
+	case CASE(FFPIC_ABGR, FFPIC_RGBA):
+	case CASE(FFPIC_RGBA, FFPIC_ABGR):
+		for (i = 0;  i != pixels;  i++) {
+			in = src + i * 4;
+			o = dst + i * 4;
+			*(uint*)o = ffint_bswap32(*(uint*)in);
+		}
+		break;
+
 	case CASE(FFPIC_RGBA, FFPIC_BGRA):
 	case CASE(FFPIC_BGRA, FFPIC_RGBA):
 		for (i = 0;  i != pixels;  i++) {
@@ -144,6 +155,41 @@ int ffpic_convert(uint in_fmt, const void *_src, uint out_fmt, void *_dst, uint 
 			o[1] = in[1];
 			o[2] = in[0];
 			o[3] = in[3];
+		}
+		break;
+
+	case CASE(FFPIC_BGRA, FFPIC_ABGR):
+		for (i = 0;  i != pixels;  i++) {
+			in = src + i * 4;
+			o = dst + i * 4;
+			o[0] = in[3];
+			o[1] = in[0];
+			o[2] = in[1];
+			o[3] = in[2];
+		}
+		break;
+
+	case CASE(FFPIC_ABGR, FFPIC_BGR):
+		for (i = 0;  i != pixels;  i++) {
+			in = src + i * 4;
+			o = dst + i * 3;
+			alpha = in[0];
+			// apply alpha channel (black background)
+			o[0] = in[1] * alpha / 255;
+			o[1] = in[2] * alpha / 255;
+			o[2] = in[3] * alpha / 255;
+		}
+		break;
+
+	case CASE(FFPIC_ABGR, FFPIC_RGB):
+		for (i = 0;  i != pixels;  i++) {
+			in = src + i * 4;
+			o = dst + i * 3;
+			alpha = in[0];
+			// apply alpha channel (black background)
+			o[0] = in[3] * alpha / 255;
+			o[1] = in[2] * alpha / 255;
+			o[2] = in[1] * alpha / 255;
 		}
 		break;
 
