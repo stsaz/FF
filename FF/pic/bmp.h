@@ -88,6 +88,7 @@ typedef struct ffbmp_cook {
 	uint64 seekoff;
 
 	ffpic_info info;
+	uint input_reverse :1; //input lines order is HEIGHT..1, as in .bmp
 } ffbmp_cook;
 
 /**

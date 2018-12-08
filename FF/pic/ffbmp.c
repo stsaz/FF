@@ -219,6 +219,8 @@ int ffbmp_write(ffbmp_cook *b)
 
 	case W_SEEK:
 		b->state = W_DATA;
+		if (b->input_reverse)
+			continue;
 		b->seekoff = b->dataoff + (b->info.height - b->line - 1) * b->linesize;
 		return FFBMP_SEEK;
 
