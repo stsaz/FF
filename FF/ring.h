@@ -20,7 +20,8 @@ Overlapped:  [E2 (w). . (r)E1]
 struct ffring {
 	void **d;
 	size_t cap;
-	ffatomic r, w;
+	ffatomic whead, wtail;
+	ffatomic r;
 };
 typedef struct ffring ffring;
 
@@ -33,9 +34,20 @@ static FFINL void ffring_destroy(ffring *r)
 	ffmem_alignfree(r->d);
 }
 
+FF_EXTN int _ffring_write(ffring *r, void *p, uint single);
+
 /** Add element to ring buffer.
 Return 0 on success;  <0 if full. */
-FF_EXTN int ffring_write(ffring *r, void *p);
+static inline int ffring_write(ffring *r, void *p)
+{
+	return _ffring_write(r, p, 0);
+}
+
+/** Exclusive-access writer (single producer). */
+static inline int ffring_write_excl(ffring *r, void *p)
+{
+	return _ffring_write(r, p, 1);
+}
 
 /** Read element from ring buffer.
 Return 0 on success;  <0 if empty. */
@@ -44,18 +56,18 @@ FF_EXTN int ffring_read(ffring *r, void **p);
 /** Get the number of filled elements. */
 static FFINL size_t ffring_unread(ffring *r)
 {
-	return (ffatom_get(&r->w) - ffatom_get(&r->r)) & (r->cap - 1);
+	return (ffatom_get(&r->wtail) - ffatom_get(&r->r)) & (r->cap - 1);
 }
 
 static FFINL int ffring_full(ffring *r)
 {
-	size_t wnew = ffint_increset2(ffatom_get(&r->w), r->cap);
+	size_t wnew = ffint_increset2(ffatom_get(&r->wtail), r->cap);
 	return (wnew == ffatom_get(&r->r));
 }
 
 static FFINL int ffring_empty(ffring *r)
 {
-	return (ffatom_get(&r->r) == ffatom_get(&r->w));
+	return (ffatom_get(&r->r) == ffatom_get(&r->wtail));
 }
 
 

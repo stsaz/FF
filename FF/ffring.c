@@ -14,21 +14,39 @@ int ffring_create(ffring *r, size_t size, uint align)
 	return 0;
 }
 
-int ffring_write(ffring *r, void *p)
+/*
+. Try to reserve the space for the data to add.
+  If another writer has reserved this space before us, we try again.
+. Write new data
+. Wait for the previous writers to finish their job
+. Finalize: update writer-tail pointer
+*/
+int _ffring_write(ffring *r, void *p, uint single)
 {
-	size_t ww, wnew;
+	size_t head_old, head_new;
 
 	for (;;) {
-		ww = ffatom_get(&r->w);
-		wnew = ffint_increset2(ww, r->cap);
-		if (wnew == ffatom_get(&r->r))
+		head_old = ffatom_get(&r->whead);
+		head_new = ffint_increset2(head_old, r->cap);
+		if (head_new == ffatom_get(&r->r))
 			return -1;
-		r->d[ww] = p;
-		ffatom_fence_rel(); // the element is complete when reader sees it
-		if (ffatom_cmpset(&r->w, ww, wnew))
+		if (single)
+			break;
+		if (ffatom_cmpset(&r->whead, head_old, head_new))
 			break;
 		// other writer has added another element
 	}
+
+	r->d[head_old] = p;
+
+	if (!single) {
+		while (ffatom_get(&r->wtail) != head_old) {
+			ffcpu_pause();
+		}
+	}
+
+	ffatom_fence_rel(); // the element is complete when reader sees it
+	ffatom_set(&r->wtail, head_new);
 	return 0;
 }
 
@@ -39,7 +57,7 @@ int ffring_read(ffring *r, void **p)
 
 	for (;;) {
 		rr = ffatom_get(&r->r);
-		if (rr == ffatom_get(&r->w))
+		if (rr == ffatom_get(&r->wtail))
 			return -1;
 		ffatom_fence_acq(); // if we see an unread element, it's complete
 		rc = r->d[rr];
