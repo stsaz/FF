@@ -79,6 +79,13 @@ FF_EXTN ffstr ffurl_get(const ffurl *url, const char *base, int comp);
 Return address family;  0 if not an IP address;  -1 on error */
 FF_EXTN int ffurl_parse_ip(ffurl *u, const char *base, ffip6 *dst);
 
+FF_EXTN int ffip_parse(const char *ip, size_t len, ffip6 *dst);
+
+/** Prepare a complete URL: "scheme://host[:port]/[path][querystr]"
+'path' will be normalized but %XX-escaping won't be done.
+If host is IPv6 address and port != 0, then host must be enclosed in "[]". */
+FF_EXTN int ffurl_joinstr(ffstr *dst, const ffstr *scheme, const ffstr *host, uint port, const ffstr *path, const ffstr *querystr);
+
 
 enum FFURI_DECODE {
 	FFURI_DEC_NORM_PATH = 0x10, // normalize path: merge dots & slashes, force strict bounds

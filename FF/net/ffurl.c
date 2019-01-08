@@ -300,6 +300,52 @@ int ffurl_parse_ip(ffurl *u, const char *base, ffip6 *dst)
 	return 0;
 }
 
+int ffip_parse(const char *ip, size_t len, ffip6 *dst)
+{
+	if (0 == ffip4_parse((void*)dst, ip, len))
+		return AF_INET;
+	if (0 == ffip6_parse((void*)dst, ip, len))
+		return AF_INET6;
+	return 0;
+}
+
+int ffurl_joinstr(ffstr *dst, const ffstr *scheme, const ffstr *host, uint port, const ffstr *path, const ffstr *querystr)
+{
+	if (scheme->len == 0 || host->len == 0
+		|| (path->len != 0 && path->ptr[0] != '/'))
+		return 0;
+
+	ffarr a = {};
+	if (NULL == ffarr_alloc(&a, scheme->len + FFSLEN("://:12345/?") + host->len + path->len + querystr->len))
+		return 0;
+	char *p = a.ptr;
+	const char *end = ffarr_edge(&a);
+
+	p += ffs_lower(p, end, scheme->ptr, scheme->len);
+	p = ffs_copy(p, end, "://", 3);
+
+	p += ffs_lower(p, end, host->ptr, host->len);
+
+	if (port != 0) {
+		FF_ASSERT(0 == (port & ~0xffff));
+		p = ffs_copy(p, end, ":", 1);
+		p += ffs_fromint(port & 0xffff, p, end - p, 0);
+	}
+
+	if (path->len == 0)
+		p = ffs_copy(p, end, "/", 1);
+	else
+		p += ffpath_norm(p, end - p, path->ptr, path->len, FFPATH_MERGEDOTS | FFPATH_NOWINDOWS | FFPATH_FORCESLASH);
+
+	if (querystr->len != 0) {
+		p = ffs_copy(p, end, "?", 1);
+		p = ffs_copy(p, end, querystr->ptr, querystr->len);
+	}
+
+	FF_ASSERT(a.cap >= (size_t)(p - a.ptr));
+	ffstr_set(dst, a.ptr, p - a.ptr);
+	return dst->len;
+}
 
 size_t ffuri_decode(char *dst, size_t dstcap, const char *d, size_t len, uint flags)
 {
