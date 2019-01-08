@@ -871,6 +871,12 @@ int ffconf_schemrun(ffparser_schem *ps)
 			if (r != 0)
 				return r;
 
+		} else if (c->type == FFCONF_TKEYCTX && t == FFPARS_TOBJ) {
+
+			c->ret = FFPARS_OPEN;
+			r = _ffpars_schemrun(ps, FFPARS_OPEN);
+			return r;
+
 		} else {
 			if (t != FFPARS_TOBJ && t != FFPARS_TARR)
 				ps->flags |= FFPARS_SCHAVKEY;
