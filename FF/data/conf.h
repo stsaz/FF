@@ -102,6 +102,7 @@ enum FFCONF_WRITE {
 	FFCONF_PRETTY = 0x0100,
 	FFCONF_GROW = 0x0200, // auto-grow ffconfw.buf
 	FFCONF_ASIS = 0x0400, // don't escape, don't use quotes
+	FFCONF_CRLF = 0x0800, // use CRLF
 };
 
 enum FFCONF_LEN {
@@ -138,6 +139,10 @@ static FFINL size_t ffconf_writestr(ffconfw *c, const ffstr *data, uint flags)
 static FFINL size_t ffconf_writez(ffconfw *c, const char *data, uint flags)
 {
 	return ffconf_write(c, data, FFCONF_STRZ, flags);
+}
+static inline size_t ffconf_writeln(ffconfw *c, const ffstr *data, uint flags)
+{
+	return ffconf_writestr(c, data, FFCONF_TKEY | FFCONF_ASIS | flags);
 }
 static FFINL size_t ffconf_writeint(ffconfw *c, int64 data, uint intflags, uint flags)
 {
