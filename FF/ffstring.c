@@ -1646,6 +1646,8 @@ size_t ffstr_nextval(const char *buf, size_t len, ffstr *dst, int spl)
 	ffstr_setcz(&spc, " ");
 	if (f & FFS_NV_TABS)
 		ffstr_setcz(&spc, "\t ");
+	if (f & FFS_NV_CR)
+		ffstr_setcz(&spc, " \t\r");
 
 	if (f & FFS_NV_WORDS)
 		sspl = spc;

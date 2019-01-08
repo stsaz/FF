@@ -407,8 +407,8 @@ int ffconf_parse(ffconf *p, const char *data, size_t *len)
 	p->nextst = nextst;
 	*len = data - datao;
 	p->ret = (char)r;
-	FFDBG_PRINTLN(FFDBG_PARSE | 10, "line:%u  r:%d  val:%S  level:%u"
-		, p->line, r, &p->val, p->ctxs.len);
+	FFDBG_PRINTLN(FFDBG_PARSE | 10, "line:%u  r:%d  type:%d  val:%S  level:%u"
+		, p->line, r, p->type, &p->val, p->ctxs.len);
 	return r;
 }
 

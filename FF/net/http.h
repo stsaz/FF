@@ -13,6 +13,19 @@ Response:
 	[(NAME:VALUE CRLF)...]
 	CRLF
 	[BODY]
+
+HTTP/1.1:
+ . requires "Host" header field in request
+ . assumes "Connection: keep-alive" by default
+ . supports "Transfer-Encoding: chunked"
+
+Example HTTP request via HTTP proxy:
+	GET http://HOST/ HTTP/1.1
+	Host: HOST
+
+Example HTTPS request via HTTP proxy:
+	CONNECT HOST:443 HTTP/1.1
+	Host: HOST:443
 */
 
 #pragma once
@@ -521,6 +534,18 @@ static FFINL void ffhttp_cookdestroy(ffhttp_cook *c)
 
 static FFINL void ffhttp_cookreset(ffhttp_cook *c) {
 	ffhttp_cookinit(c, c->buf.ptr, c->buf.cap);
+}
+
+/** Check whether HTTP method is correct. */
+static inline ffbool ffhttp_check_method(const char *method, size_t len)
+{
+	if (len == 0)
+		return 0;
+	for (size_t i = 0;  i != len;  i++) {
+		if (!ffchar_isup(method[i]))
+			return 0;
+	}
+	return 1;
 }
 
 /** Add request line. */

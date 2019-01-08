@@ -170,7 +170,7 @@ done:
 
 void ffwas_devdestroy(ffwas_dev *d)
 {
-	ffmem_safefree(d->name);
+	ffmem_free0(d->name);
 	FF_SAFECLOSE(d->id, NULL, CoTaskMemFree);
 	FF_SAFECLOSE(d->dcoll, NULL, IMMDeviceCollection_Release);
 }

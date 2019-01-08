@@ -75,6 +75,26 @@ enum FFURL_COMP {
 /** Get a component of the URL. */
 FF_EXTN ffstr ffurl_get(const ffurl *url, const char *base, int comp);
 
+/** Check whether URL component exists. */
+static inline ffbool ffurl_has(const ffurl *url, int comp)
+{
+	switch ((enum FFURL_COMP)comp) {
+	case FFURL_HOST:
+	case FFURL_FULLHOST:
+		return url->hostlen != 0;
+	case FFURL_SCHEME:
+		return url->offhost != 0;
+	case FFURL_PORT:
+		return url->portlen != 0;
+	case FFURL_PATH:
+	case FFURL_PATHQS:
+		return url->pathlen != 0;
+	case FFURL_QS:
+		return url->querystr;
+	}
+	return 0;
+}
+
 /**
 Return address family;  0 if not an IP address;  -1 on error */
 FF_EXTN int ffurl_parse_ip(ffurl *u, const char *base, ffip6 *dst);

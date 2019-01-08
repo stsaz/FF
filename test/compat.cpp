@@ -22,11 +22,11 @@ Copyright (c) 2018 Simon Zolin
 #include <FFOS/timer.h>
 #include <FFOS/types.h>
 
-#ifdef FF_LINUX
+#if defined FF_LINUX && 0
 #include <FF/adev/alsa.h>
 #include <FF/adev/pulse.h>
 
-#elif defined FF_BSD
+#elif defined FF_BSD && 0
 #include <FF/adev/oss.h>
 
 #elif defined FF_WIN

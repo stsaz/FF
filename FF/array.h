@@ -586,6 +586,7 @@ enum FFSTR_NEXTVAL {
 	FFS_NV_REVERSE = 0x400, // reverse search
 	FFS_NV_TABS = 0x0800, // treat whitespace as spaces and tabs
 	FFS_NV_WORDS = 0x1000, // ignore 'spl' char;  instead, split by whitespace
+	FFS_NV_CR = 0x2000, // treat spaces, tabs, CR as whitespace
 };
 
 /** Get the next value from input string like "val1, val2, ...".

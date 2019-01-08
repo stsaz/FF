@@ -8,10 +8,6 @@ Copyright (c) 2016 Simon Zolin
 
 
 enum {
-	AAC_MAXFRAMESAMPS = 2048,
-};
-
-enum {
 	AAC_ESYS = -1,
 };
 
@@ -34,7 +30,7 @@ int ffaac_open(ffaac *a, uint channels, const char *conf, size_t len)
 	a->fmt.format = FFPCM_16;
 	a->fmt.sample_rate = a->contr_samprate;
 	a->fmt.channels = channels;
-	if (NULL == (a->pcmbuf = ffmem_alloc(AAC_MAXFRAMESAMPS * ffpcm_size(FFPCM_16, ffmax(channels, 2)))))
+	if (NULL == (a->pcmbuf = ffmem_alloc(AAC_MAXFRAMESAMPLES * ffpcm_size(FFPCM_16, AAC_MAXCHANNELS))))
 		return a->err = AAC_ESYS,  FFAAC_RERR;
 	a->seek_sample = a->enc_delay;
 	a->rate_mul = 1;
