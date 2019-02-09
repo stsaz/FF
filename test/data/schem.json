@@ -11,7 +11,10 @@
 
 ,"obj":{
 	"int":1234
-	,"obj":null
+	,"objnull":null
+	,"inull":null
+	,"bnull":null
+	,"snull":null
 }
 
 ,"arr":[

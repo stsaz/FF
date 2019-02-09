@@ -10,6 +10,11 @@ Copyright (c) 2013 Simon Zolin
 typedef struct obj_s obj_s;
 
 struct obj_s {
+	ffstr snull;
+	int inull;
+	byte bnull;
+	byte have_objnull;
+
 	ffstr s;
 	int64 size;
 	int64 i;
@@ -35,6 +40,7 @@ struct obj_s {
 	ffstr o1val;
 };
 
+static int new_objnull(ffparser_schem *ps, void *obj, ffpars_ctx *ctx);
 static int newObj(ffparser_schem *ps, void *obj, ffpars_ctx *ctx);
 static int any(ffparser_schem *ps, void *obj, const ffstr *val)
 {
@@ -104,6 +110,13 @@ static int glob_setctx(ffparser_schem *ps, void *obj, ffpars_ctx *ctx);
 static const ffpars_arg glob_ctx = { NULL, FFPARS_TOBJ, FFPARS_DST(&glob_setctx) };
 
 static const ffpars_arg obj_schem[] = {
+#ifdef TEST_JSON_SCHEME
+	{ "objnull", FFPARS_TOBJ | FFPARS_FNULL | FFPARS_FMULTI, FFPARS_DST(&new_objnull) },
+	{ "snull", FFPARS_TSTR | FFPARS_FNULL, FFPARS_DSTOFF(obj_s, snull) },
+	{ "inull", FFPARS_TINT | FFPARS_FNULL, FFPARS_DSTOFF(obj_s, inull) },
+	{ "bnull", FFPARS_TBOOL8 | FFPARS_FNULL, FFPARS_DSTOFF(obj_s, bnull) },
+#endif
+
 	{ "str", FFPARS_TSTR | FFPARS_FCOPY | FFPARS_FNOTEMPTY, FFPARS_DSTOFF(obj_s, s) }
 	, { "size", FFPARS_TSIZE | FFPARS_F64BIT, FFPARS_DSTOFF(obj_s, size) }
 	, { "int", FFPARS_TINT | FFPARS_FNOTZERO | FFPARS_FREQUIRED
@@ -130,16 +143,32 @@ static int glob_setctx(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 	return 0;
 }
 
-int newObj(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
+static int new_objnull(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 {
 	obj_s *o = obj;
-	obj_s *subobj = (void*)-1;
-	if (ctx != NULL) {
-		subobj = ffmem_tcalloc1(obj_s);
-		if (subobj == NULL)
-			return FFPARS_ESYS;
-		ffpars_setargs(ctx, subobj, obj_schem, FFCNT(obj_schem));
+	if (ctx == NULL)
+		o->have_objnull = 1;
+	return 0;
+}
+
+int newObj(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
+{
+	(void)new_objnull;
+
+	obj_s *o = obj;
+	obj_s *subobj;
+	subobj = ffmem_tcalloc1(obj_s);
+	if (subobj == NULL)
+		return FFPARS_ESYS;
+	ffpars_setargs(ctx, subobj, obj_schem, FFCNT(obj_schem));
+#ifdef TEST_JSON_SCHEME
+	if (o->iobj == 0) {
+		subobj->have_objnull = 0;
+		subobj->inull = 1;
+		subobj->bnull = 1;
+		subobj->snull.len = 1;
 	}
+#endif
 	o->o[o->iobj++] = subobj;
 	return 0;
 }
@@ -173,7 +202,6 @@ static int objChk(const obj_s *o)
 	x(o->en == enB);
 
 	x(o->o[0]->i == 1234);
-	//x(o->o[0]->o[0] == (void*)-1);
 	x(o->o[0]->objCloseOk == 1);
 
 	x(ffstr_eqcz(&o->ar[0], "11"));

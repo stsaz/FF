@@ -635,6 +635,8 @@ static int ffjson_schemval(ffparser_schem *ps, void *obj, void *dst)
 			return FFPARS_EARRTYPE; //handler for this data type isn't defined in context of the array
 	}
 
+	t = ps->curarg->flags & FFPARS_FTYPEMASK;
+
 	if (pt == FFJSON_TNULL) {
 		if (!(ps->curarg->flags & FFPARS_FNULL))
 			return FFPARS_EVALNULL;
@@ -645,10 +647,13 @@ static int ffjson_schemval(ffparser_schem *ps, void *obj, void *dst)
 				return er;
 		}
 
-		return -1;
+		if (t == FFPARS_TOBJ)
+			return -1;
+		else if (t == FFPARS_TSTR)
+			c->val.len = 0;
+		return 0;
 	}
 
-	t = ps->curarg->flags & FFPARS_FTYPEMASK;
 	FF_ASSERT(FFCNT(parsTypes) == FFPARS_TCLOSE - 1);
 	if (pt != parsTypes[t - FFPARS_TSTR]
 		&& t != FFPARS_TANYTHING
@@ -676,6 +681,9 @@ int ffjson_schemrun(ffparser_schem *ps)
 	const ffstr *val = &c->val;
 	uint f;
 	int r;
+
+	FFDBG_PRINTLN(10 | FFDBG_PARSE, "ret:%d  val:%S  bufcap:%L  intval:%U  line:%u  depth:%u  psflags:%xu"
+		, (int)c->ret, &c->val, c->buf.cap, (int64)c->intval, c->line, c->ctxs.len, (int)ps->flags);
 
 	if (c->ret >= 0)
 		return c->ret;

@@ -6,6 +6,7 @@ Copyright (c) 2013 Simon Zolin
 #include <FFOS/file.h>
 #include <FFOS/process.h>
 #include <FF/data/json.h>
+#define TEST_JSON_SCHEME
 #include "schem.h"
 #include "all.h"
 
@@ -199,8 +200,9 @@ int test_json_schem(const char *testJsonFile)
 		len = jsend - js;
 		rc = ffjson_parse(ps.p, js, &len);
 		rc = ffjson_schemrun(&ps);
-		if (!x(rc <= 0)) {
+		if (rc > 0) {
 			printf("error (%d) %s\n", rc, ffpars_errstr(rc));
+			x(0);
 			break;
 		}
 		js += len;
@@ -209,7 +211,10 @@ int test_json_schem(const char *testJsonFile)
 	x(0 == (rc = ffjson_schemfin(&ps)));
 
 	objChk(&o);
-	x(o.o[0]->o[0] == (void*)-1);
+	x(o.o[0]->have_objnull);
+	x(o.o[0]->inull == 0);
+	x(o.o[0]->bnull == 0);
+	x(o.o[0]->snull.len == 0);
 	x(o.arrCloseOk == 1);
 
 	ffstr_free(&o.s);

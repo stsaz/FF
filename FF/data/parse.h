@@ -111,7 +111,12 @@ enum FFPARS_F {
 	FFPARS_FWITHKEY = 0x40000,
 
 //ffjson only:
-	/** Allow null value, e.g. "key": null */
+	/** Allow null value, e.g. "key": null.
+	For FFPARS_DST() handler the "val" parameter is NULL.
+	For FFPARS_DSTOFF() targets the value is set to:
+	 "" (FFPARS_TSTR)
+	 0 (FFPARS_TINT)
+	 false (FFPARS_TBOOL). */
 	FFPARS_FNULL = 0x10000,
 
 //ffpsarg only:
