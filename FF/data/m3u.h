@@ -18,6 +18,7 @@ enum FFM3U_T {
 	FFM3U_DUR,
 	FFM3U_ARTIST,
 	FFM3U_TITLE,
+	FFM3U_EXT,
 };
 
 typedef struct ffm3u {

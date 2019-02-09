@@ -52,9 +52,14 @@ int ffm3u_parse(ffm3u *p, ffstr *data)
 		continue;
 
 	case M3U_EXTINF: {
-		if (!ffs_imatchz(s.ptr, s.len, "#EXTINF:")) {
+		if (!ffs_match(s.ptr, s.len, "#", 1)) {
 			p->state = M3U_URL;
 			continue;
+		}
+		if (!ffs_imatchz(s.ptr, s.len, "#EXTINF:")) {
+			p->val = s;
+			p->state = M3U_LINE;
+			return FFM3U_EXT;
 		}
 		ffstr_shift(&s, FFSLEN("#EXTINF:"));
 
