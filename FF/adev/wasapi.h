@@ -68,6 +68,7 @@ typedef struct ffwasapi {
 	HANDLE evt;
 	ffsnd_handler handler;
 	void *udata;
+	const char *errfunc; /** Contains the function name that has previously returned with an error. */
 
 	unsigned excl :1 //exclusive mode
 		, capture :1

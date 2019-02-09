@@ -443,30 +443,43 @@ int ffwas_open(ffwasapi *w, const WCHAR *id, ffpcm *fmt, uint bufsize, uint flag
 		dur /= 2;
 
 	if (0 != (r = CoCreateInstance(&CLSID_MMDeviceEnumerator_ff, NULL, CLSCTX_ALL
-		, &IID_IMMDeviceEnumerator_ff, (void**)&enu)))
+		, &IID_IMMDeviceEnumerator_ff, (void**)&enu))) {
+		w->errfunc = "CoCreateInstance";
 		goto fail;
+	}
 
-	if (id == NULL)
-		r = IMMDeviceEnumerator_GetDefaultAudioEndpoint(enu, (flags & FFWAS_DEV_RENDER) ? eRender : eCapture, eConsole, &dev);
-	else
-		r = IMMDeviceEnumerator_GetDevice(enu, id, &dev);
-	if (r != 0)
-		goto fail;
+	if (id == NULL) {
+		if (0 != (r = IMMDeviceEnumerator_GetDefaultAudioEndpoint(enu, (flags & FFWAS_DEV_RENDER) ? eRender : eCapture, eConsole, &dev))) {
+			w->errfunc = "IMMDeviceEnumerator_GetDefaultAudioEndpoint";
+			goto fail;
+		}
+	} else {
+		if (0 != (r = IMMDeviceEnumerator_GetDevice(enu, id, &dev))) {
+			w->errfunc = "IMMDeviceEnumerator_GetDevice";
+			goto fail;
+		}
+	}
 
 	for (;;) {
-		if (0 != (r = IMMDevice_Activate(dev, &IID_IAudioClient_ff, CLSCTX_ALL, NULL, (void**)&w->cli)))
+		if (0 != (r = IMMDevice_Activate(dev, &IID_IAudioClient_ff, CLSCTX_ALL, NULL, (void**)&w->cli))) {
+			w->errfunc = "IMMDevice_Activate";
 			goto fail;
+		}
 
 		if (find_fmt) {
 			find_fmt = 0;
 			newfmt = _ffwas_getfmt(w->cli, dev, fmt, &wf, flags);
 			if (newfmt < 0) {
 				if (!w->excl) {
-					if (0 != (r = _ffwas_getfmt_mix(w->cli, fmt)))
+					if (0 != (r = _ffwas_getfmt_mix(w->cli, fmt))) {
+						w->errfunc = "IAudioClient_GetMixFormat";
 						goto fail;
+					}
 				} else {
-					if (0 != (r = _ffwas_getfmt_def(w->cli, dev, fmt)))
+					if (0 != (r = _ffwas_getfmt_def(w->cli, dev, fmt))) {
+						w->errfunc = "_ffwas_getfmt_def";
 						goto fail;
+					}
 				}
 			}
 		}
@@ -480,6 +493,7 @@ int ffwas_open(ffwasapi *w, const WCHAR *id, ffpcm *fmt, uint bufsize, uint flag
 			break;
 		}
 
+		w->errfunc = "IAudioClient_Initialize";
 		switch (r) {
 		case E_POINTER:
 			if (e_pointer || w->excl)
@@ -535,20 +549,28 @@ phase2:
 	if (aflags & AUDCLNT_STREAMFLAGS_EVENTCALLBACK) {
 		if (NULL == (w->evt = CreateEvent(NULL, 0, 0, NULL))) {
 			r = fferr_last();
+			w->errfunc = "CreateEvent";
 			goto fail;
 		}
-		if (0 != (r = IAudioClient_SetEventHandle(w->cli, w->evt)))
+		if (0 != (r = IAudioClient_SetEventHandle(w->cli, w->evt))) {
+			w->errfunc = "IAudioClient_SetEventHandle";
 			goto fail;
+		}
 		fflk_init(&w->lk);
 	}
 
-	if (0 != (r = IAudioClient_GetBufferSize(w->cli, &w->bufsize)))
+	if (0 != (r = IAudioClient_GetBufferSize(w->cli, &w->bufsize))) {
+		w->errfunc = "IAudioClient_GetBufferSize";
 		goto fail;
+	}
 
-	if (0 != (r = IAudioClient_GetService(w->cli, cli_guids[w->capture], (void**)&w->rend)))
+	if (0 != (r = IAudioClient_GetService(w->cli, cli_guids[w->capture], (void**)&w->rend))) {
+		w->errfunc = "IAudioClient_GetService";
 		goto fail;
+	}
 
 	w->frsize = ffpcm_size(fmt->format, fmt->channels);
+	w->errfunc = NULL;
 	r = 0;
 
 	goto done;
