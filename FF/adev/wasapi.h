@@ -21,14 +21,17 @@ FF_EXTN void ffwas_uninit(void);
 typedef struct ffwas_dev {
 	IMMDeviceCollection *dcoll;
 	uint idx;
+	WCHAR *def_id;
 
 	WCHAR *id;
 	char *name;
+	uint default_device :1;
 } ffwas_dev;
 
 enum FFWAS_DEV {
 	FFWAS_DEV_RENDER = 1
 	, FFWAS_DEV_CAPTURE = 2
+	, FFWAS_DEV_GETDEFAULT = 4 /** Set 'default_device' flag for the default device. */
 };
 
 static FFINL void ffwas_devinit(ffwas_dev *dev)

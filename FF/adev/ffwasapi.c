@@ -107,8 +107,6 @@ static const PROPERTYKEY PKEY_Device_FriendlyName = {{0xa45c254e, 0xdf1c, 0x4efd
 
 static const PROPERTYKEY PKEY_AudioEngine_DeviceFormat_ff = {{0xf19f064d, 0x082c, 0x4e27, {0xbc,0x73,0x68,0x82,0xa1,0xbb,0x8e,0x4c}}, 0};
 
-static const byte _ffwas_devenum_const[] = { 0xff, eRender, eCapture };
-
 int ffwas_devnext(ffwas_dev *d, uint flags)
 {
 	HRESULT r;
@@ -124,8 +122,16 @@ int ffwas_devnext(ffwas_dev *d, uint flags)
 			, &IID_IMMDeviceEnumerator_ff, (void**)&enu)))
 			goto fail;
 
-		if (0 != (r = IMMDeviceEnumerator_EnumAudioEndpoints(enu, _ffwas_devenum_const[flags], DEVICE_STATE_ACTIVE, &d->dcoll)))
+		if (0 != (r = IMMDeviceEnumerator_EnumAudioEndpoints(enu, (flags & FFWAS_DEV_RENDER) ? eRender : eCapture, DEVICE_STATE_ACTIVE, &d->dcoll)))
 			goto fail;
+
+		if (flags & FFWAS_DEV_GETDEFAULT) {
+			if (0 == IMMDeviceEnumerator_GetDefaultAudioEndpoint(enu, (flags & FFWAS_DEV_RENDER) ? eRender : eCapture, eConsole, &dev)) {
+				IMMDevice_GetId(dev, &d->def_id);
+				IMMDevice_Release(dev);
+			}
+			dev = NULL;
+		}
 	}
 
 	if (0 != (r = IMMDeviceCollection_Item(d->dcoll, d->idx++, &dev))) {
@@ -141,6 +147,9 @@ int ffwas_devnext(ffwas_dev *d, uint flags)
 
 	if (0 != (r = IMMDevice_GetId(dev, &d->id)))
 		goto fail;
+
+	if (d->def_id != NULL)
+		d->default_device = !ffq_cmpz(d->id, d->def_id);
 
 	n = ff_wtou(NULL, 0, name.pwszVal, (size_t)-1, 0);
 	d->name = ffmem_alloc(n + 1);
@@ -171,6 +180,7 @@ done:
 void ffwas_devdestroy(ffwas_dev *d)
 {
 	ffmem_free0(d->name);
+	FF_SAFECLOSE(d->def_id, NULL, CoTaskMemFree);
 	FF_SAFECLOSE(d->id, NULL, CoTaskMemFree);
 	FF_SAFECLOSE(d->dcoll, NULL, IMMDeviceCollection_Release);
 }
