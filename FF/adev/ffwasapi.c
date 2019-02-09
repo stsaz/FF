@@ -219,7 +219,6 @@ static int _ffwas_getfmt_mix(IAudioClient *cl, ffpcm *fmt)
 /** Get format which is specified in OS as default. */
 static int _ffwas_getfmt_def(IAudioClient *cl, IMMDevice *dev, ffpcm *fmt)
 {
-	int rc = -1;
 	HRESULT r;
 	IPropertyStore* store = NULL;
 	PROPVARIANT prop;
@@ -233,18 +232,20 @@ static int _ffwas_getfmt_def(IAudioClient *cl, IMMDevice *dev, ffpcm *fmt)
 	const WAVEFORMATEXTENSIBLE *pwf = (void*)prop.blob.pBlobData;
 
 	int rr = fmt_wfx2ff(pwf);
-	if (rr < 0)
+	if (rr < 0) {
+		r = AUDCLNT_E_UNSUPPORTED_FORMAT;
 		goto end;
+	}
 	fmt->format = rr;
 	fmt->sample_rate = pwf->Format.nSamplesPerSec;
 	fmt->channels = pwf->Format.nChannels;
 
-	rc = 0;
+	r = 0;
 
 end:
 	PropVariantClear(&prop);
 	IPropertyStore_Release(store);
-	return rc;
+	return r;
 }
 
 static const GUID wfx_guid = { 1, 0x0000, 0x0010, {0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71} };
@@ -451,10 +452,10 @@ int ffwas_open(ffwasapi *w, const WCHAR *id, ffpcm *fmt, uint bufsize, uint flag
 			newfmt = _ffwas_getfmt(w->cli, dev, fmt, &wf, flags);
 			if (newfmt < 0) {
 				if (!w->excl) {
-					if (0 != _ffwas_getfmt_mix(w->cli, fmt))
+					if (0 != (r = _ffwas_getfmt_mix(w->cli, fmt)))
 						goto fail;
 				} else {
-					if (0 != _ffwas_getfmt_def(w->cli, dev, fmt))
+					if (0 != (r = _ffwas_getfmt_def(w->cli, dev, fmt)))
 						goto fail;
 				}
 			}
