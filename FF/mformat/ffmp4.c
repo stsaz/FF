@@ -342,6 +342,13 @@ static int mp4_meta_closed(ffmp4 *m)
 		ffmemcpy(m->boxes[++m->ictx].name, "stsc", 4);
 		return -r;
 	}
+
+	uint stts_cnt = ffint_ntoh32(m->stts.ptr);
+	if (stts_cnt <= 2) {
+		const struct seekpt *pt = (void*)m->sktab.ptr;
+		m->frame_samples = pt[1].audio_pos;
+	}
+
 	ffstr_free(&m->stts);
 	ffstr_free(&m->stsc);
 

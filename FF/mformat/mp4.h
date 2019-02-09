@@ -59,6 +59,7 @@ typedef struct ffmp4 {
 	uint64 total_samples;
 	uint enc_delay;
 	uint end_padding;
+	uint frame_samples; // number of samples per frame (if constant). 0:variable
 	ffpcm fmt;
 	byte codec; //enum FFMP4_CODEC
 
