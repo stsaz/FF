@@ -50,6 +50,7 @@ FEATURES
 	* IPv4/IPv6 address conversion functions - `FF/net/url.h`
 	* Ethernet, IP, ARP, ICMP, TCP, UDP packets - `FF/net/proto.h`
 	* HTTP - `FF/net/http.h`
+	* HTTP client interface - `FF/net/http-client.h`
 	* DNS - `FF/net/dns.h`
 	* SSL (libssl, libcrypto) - `FF/net/ssl.h`
 	* TLS reader - `FF/net/tls.h`
