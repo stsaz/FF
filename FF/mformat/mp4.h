@@ -86,7 +86,9 @@ enum FFMP4_R {
 	FFMP4_RMORE,
 	FFMP4_RDONE,
 
-	FFMP4_RHDR, // ALAC: ffmp4.out contains magic cookie data
+	/** AAC, ALAC: ffmp4.out contains magic cookie data */
+	FFMP4_RHDR,
+
 	FFMP4_RTAG,
 	FFMP4_RMETAFIN,
 };

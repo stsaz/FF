@@ -22,6 +22,9 @@ FF_EXTN const uint ffcharmask_nowhite[8];
 /** All printable */
 FF_EXTN const uint ffcharmask_printable[8];
 
+/** All printable plus \t \r \n */
+FF_EXTN const uint ffcharmask_printable_tabcrlf[8];
+
 /** All except '\\' \a \b \f \n \r \t \v */
 FF_EXTN const uint ffcharmask_nobslash_esc[8];
 

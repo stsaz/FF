@@ -126,7 +126,7 @@ static const ffpars_arg obj_schem[] = {
 	, { "bit1", FFPARS_TBOOL | FFPARS_SETBIT(0), FFPARS_DSTOFF(obj_s, bits) }
 	, { "bit2", FFPARS_TBOOL | FFPARS_SETBIT(1), FFPARS_DSTOFF(obj_s, bits) }
 	, { "enum", FFPARS_TENUM | FFPARS_F8BIT, FFPARS_DST(&enumConf) }
-	, { "obj", FFPARS_TOBJ | FFPARS_FNULL | FFPARS_FMULTI, FFPARS_DST(&newObj) }
+	, { "obj", FFPARS_TOBJ | FFPARS_FMULTI, FFPARS_DST(&newObj) }
 	, { "arr", FFPARS_TARR, FFPARS_DST(&newArr) }
 	, { "any", FFPARS_TANYTHING, FFPARS_DST(&any2) }
 

@@ -622,6 +622,21 @@ const uint ffcharmask_printable[] = {
 	0xffffffff
 };
 
+const uint ffcharmask_printable_tabcrlf[] = {
+	            // .... .... .... ....  ..r. .nt. .... ....
+	0x00002600, // 0000 0000 0000 0000  0010 0110 0000 0000
+	            // ?>=< ;:98 7654 3210  /.-, +*)( '&%$ #"!
+	0xffffffff, // 1111 1111 1111 1111  1111 1111 1111 1111
+	            // _^]\ [ZYX WVUT SRQP  ONML KJIH GFED CBA@
+	0xffffffff, // 1111 1111 1111 1111  1111 1111 1111 1111
+	            //  ~}| {zyx wvut srqp  onml kjih gfed cba`
+	0x7fffffff, // 0111 1111 1111 1111  1111 1111 1111 1111
+	0xffffffff,
+	0xffffffff,
+	0xffffffff,
+	0xffffffff
+};
+
 const uint ffcharmask_nobslash_esc[] = {
 	            // .... .... .... ....  ..rf vntb a... ....
 	0xffffc07f, // 1111 1111 1111 1111  1100 0000 0111 1111

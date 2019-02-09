@@ -41,6 +41,8 @@ static FFINL void ffm3u_close(ffm3u *m)
 Return enum FFM3U_T;  <0 on error (enum FFPARS_E). */
 FF_EXTN int ffm3u_parse(ffm3u *m, ffstr *data);
 
+#define ffm3u_value(m)  ((m)->val)
+
 
 enum FFM3U_OPT {
 	FFM3U_CRLF,
