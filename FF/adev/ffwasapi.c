@@ -175,6 +175,35 @@ void ffwas_devdestroy(ffwas_dev *d)
 	FF_SAFECLOSE(d->dcoll, NULL, IMMDeviceCollection_Release);
 }
 
+int ffwas_dev_deffmt(ffwas_dev *dev, ffpcm *format)
+{
+	int r;
+	IMMDeviceEnumerator *enu = NULL;
+	IMMDevice *mmdev = NULL;
+	IAudioClient *cli = NULL;
+	if (0 != (r = CoCreateInstance(&CLSID_MMDeviceEnumerator_ff, NULL, CLSCTX_ALL
+		, &IID_IMMDeviceEnumerator_ff, (void**)&enu)))
+		goto fail;
+	if (0 != (r = IMMDeviceEnumerator_GetDevice(enu, dev->id, &mmdev)))
+		goto fail;
+	if (0 != (r = IMMDevice_Activate(mmdev, &IID_IAudioClient_ff, CLSCTX_ALL, NULL, (void**)&cli)))
+		goto fail;
+	if (0 != (r = _ffwas_getfmt_mix(cli, format)))
+		goto fail;
+	format->format = FFPCM_FLOAT;
+	r = 0;
+
+fail:
+	FF_SAFECLOSE(cli, NULL, IAudioClient_Release);
+	if (mmdev != NULL)
+		IMMDevice_Release(mmdev);
+	if (enu != NULL)
+		IMMDeviceEnumerator_Release(enu);
+	return r;
+}
+
+/**
+Format isn't set because it's always float32. */
 static int _ffwas_getfmt_mix(IAudioClient *cl, ffpcm *fmt)
 {
 	HRESULT r;

@@ -42,6 +42,9 @@ Return 1 if no more devices. */
 FF_EXTN int ffwas_devnext(ffwas_dev *dev, uint flags);
 FF_EXTN void ffwas_devdestroy(ffwas_dev *dev);
 
+/** Get default format (for shared mode). */
+FF_EXTN int ffwas_dev_deffmt(ffwas_dev *dev, ffpcm *format);
+
 
 typedef void (*ffsnd_handler)(void *udata);
 
