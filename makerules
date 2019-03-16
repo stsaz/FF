@@ -138,7 +138,8 @@ $(FF_OBJ_DIR)/%.o: $(FF)/FF/db/%.c $(FF_HDR) $(FF_DB_HDR)
 FF_GUI_HDR := $(wildcard $(FF)/FF/gui/*.h)
 FF_GUI_OBJ := \
 	$(FF_OBJ_DIR)/ffgui-loader.o \
-	$(FF_OBJ_DIR)/ffgui-winapi.o
+	$(FF_OBJ_DIR)/ffgui-winapi.o \
+	$(FF_OBJ_DIR)/ffgui-winapi-ev.o
 FF_ALL_OBJ += $(FF_GUI_OBJ)
 $(FF_OBJ_DIR)/%.o: $(FF)/FF/gui/%.c $(FF_HDR) $(FF_GUI_HDR)
 	$(C) $(FF_CFLAGS)  $< -o$@

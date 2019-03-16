@@ -43,6 +43,9 @@ typedef struct ffui_wnd ffui_wnd;
 FF_EXTN int ffui_init(void);
 FF_EXTN void ffui_uninit(void);
 
+FF_EXTN int _ffui_dpi;
+FF_EXTN RECT _ffui_screen_area;
+
 
 // HOTKEYS
 typedef uint ffui_hotkey;
@@ -1385,6 +1388,10 @@ struct ffui_wnd {
 FF_EXTN int ffui_wnd_initstyle(void);
 
 FF_EXTN void ffui_wnd_setpopup(ffui_wnd *w);
+
+enum {
+	FFUI_WM_USER_TRAY = WM_USER + 1000
+};
 
 FF_EXTN int ffui_wndproc(ffui_wnd *wnd, size_t *code, HWND h, uint msg, size_t w, size_t l);
 
