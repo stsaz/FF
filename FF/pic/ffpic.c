@@ -227,3 +227,16 @@ int ffpic_convert(uint in_fmt, const void *_src, uint out_fmt, void *_dst, uint 
 }
 
 #undef CASE
+
+
+int ffpic_cut(uint fmt, const void *src, size_t len, uint off, uint size, ffstr *out)
+{
+	uint px = ffpic_bits(fmt) / 8;
+	uint w = len / px;
+	if ((len % px) != 0
+		|| off > w || size > w || off + size > w)
+		return -1;
+
+	ffstr_set(out, (char*)src + off * px, size * px);
+	return 0;
+}

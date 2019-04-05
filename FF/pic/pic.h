@@ -5,6 +5,7 @@ Copyright (c) 2016 Simon Zolin
 #pragma once
 
 #include <FFOS/types.h>
+#include <FF/array.h>
 
 
 enum FFPIC_FMT {
@@ -39,3 +40,7 @@ FF_EXTN uint ffpic_color3(const char *s, size_t len, const uint *clrs);
 
 /** Convert pixels. */
 FF_EXTN int ffpic_convert(uint in_fmt, const void *in, uint out_fmt, void *out, uint pixels);
+
+/** Cut pixels from image line.
+... (off) DATA (size) ... */
+FF_EXTN int ffpic_cut(uint fmt, const void *src, size_t len, uint off, uint size, ffstr *out);
