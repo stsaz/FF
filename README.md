@@ -52,6 +52,7 @@ FEATURES
 	* HTTP - `FF/net/http.h`
 	* HTTP client interface - `FF/net/http-client.h`
 	* DNS - `FF/net/dns.h`
+	* Asynchronous DNS resolver - `FF/net/dns-client.h`
 	* SSL (libssl, libcrypto) - `FF/net/ssl.h`
 	* TLS reader - `FF/net/tls.h`
 	* WebSocket reader/writer - `FF/net/websocket.h`

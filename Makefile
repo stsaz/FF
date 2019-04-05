@@ -45,6 +45,7 @@ FF_TEST_SRC := \
 	$(FF)/test/tls.c \
 	$(FF)/test/webskt.c \
 	$(FF)/test/hashtab.c \
+	$(FF)/test/dns-client.c \
 	$(FF)/test/compat.cpp
 FF_TEST_OBJ := $(addprefix ./, $(addsuffix .o, $(notdir $(basename $(FF_TEST_SRC)))))
 FF_TEST_OBJ += $(FF_OBJ_DIR)/sha1.o $(FF_OBJ_DIR)/base64.o
@@ -68,6 +69,7 @@ FF_TEST_O := $(FFOS_OBJ) $(FF_OBJ) \
 	$(FF_OBJ_DIR)/ffutf8.o \
 	$(FF_OBJ_DIR)/ffcue.o \
 	$(FF_OBJ_DIR)/ffxml.o \
+	$(FF_OBJ_DIR)/ffdns-client.o \
 	$(FF_OBJ_DIR)/ffsendfile.o \
 	$(FF_OBJ_DIR)/ffiso.o $(FF_OBJ_DIR)/ffiso-fmt.o \
 	$(FF_OBJ_DIR)/fftls.o \
