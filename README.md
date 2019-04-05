@@ -85,6 +85,7 @@ FEATURES
 * GUI - `FF/gui/`
 	* GUI loader - `FF/gui/loader.h`
 	* Windows API GUI - `FF/gui/winapi.h`
+	* GTK+ GUI - `FF/gui-gtk/gtk.h`
 
 * Database - `FF/db/`
 	* SQLite (libsqlite) - `FF/db/sqlite.h`
