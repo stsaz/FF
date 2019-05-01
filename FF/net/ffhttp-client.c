@@ -147,7 +147,7 @@ static void log_empty(void *udata, uint level, const char *fmt, ...)
 {
 }
 
-static void timer(fftmrq_entry *tmr, uint value_ms)
+static void timer_empty(fftmrq_entry *tmr, uint value_ms)
 {
 }
 
@@ -161,6 +161,8 @@ void* ffhttpcl_request(const char *method, const char *url, uint flags)
 	c->sk = FF_BADSKT;
 	ffhttp_respinit(&c->resp);
 	ffhttp_cookinit(&c->hdrs, NULL, 0);
+	c->conf.log = &log_empty;
+	c->conf.timer = &timer_empty;
 
 	if (0 != httpcl_prep_url(c, url))
 		goto done;
@@ -178,8 +180,6 @@ void* ffhttpcl_request(const char *method, const char *url, uint flags)
 	c->flags = flags;
 
 	c->conf.kq = FF_BADFD;
-	c->conf.log = &log_empty;
-	c->conf.timer = &timer;
 	c->conf.nbuffers = 2;
 	c->conf.buffer_size = 16 * 1024;
 	c->conf.connect_timeout = 1500;
