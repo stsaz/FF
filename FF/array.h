@@ -654,6 +654,14 @@ static FFINL char* _ffsz_alfmt(const char *fmt, ...)
 		ffarr_free(&a);
 	return a.ptr;
 }
+static inline char* ffsz_alfmtv(const char *fmt, va_list args)
+{
+	ffarr a = {};
+	if ((0 == ffstr_catfmtv(&a, fmt, args) && a.len != 0)
+		|| 0 == ffarr_append(&a, "", 1))
+		ffarr_free(&a);
+	return a.ptr;
+}
 #define ffsz_alfmt(fmt, ...) _ffsz_alfmt(fmt "%Z", __VA_ARGS__)
 
 /** Formatted output into a file.
