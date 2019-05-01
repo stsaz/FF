@@ -150,6 +150,15 @@ static FFINL size_t ffconf_writeint(ffconfw *c, int64 data, uint intflags, uint 
 	uint n = ffs_fromint(data, buf, sizeof(buf), intflags);
 	return ffconf_write(c, buf, n, flags);
 }
+static inline size_t ffconf_writebool(ffconfw *c, int val, uint flags)
+{
+	ffstr s;
+	if (val)
+		ffstr_setz(&s, "true");
+	else
+		ffstr_setz(&s, "false");
+	return ffconf_write(c, s.ptr, s.len, flags);
+}
 
 #define ffconf_writefin(c) \
 	ffconf_write(c, NULL, 0, FFCONF_FIN)
