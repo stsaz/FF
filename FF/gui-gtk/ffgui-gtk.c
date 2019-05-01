@@ -9,7 +9,13 @@ Copyright (c) 2019 Simon Zolin
 // MENU
 // BUTTON
 // LABEL
+// EDITBOX
+// TRACKBAR
+// TAB
 // LISTVIEW
+// STATUSBAR
+// TRAYICON
+// DIALOG
 // WINDOW
 // MESSAGE LOOP
 
@@ -42,10 +48,9 @@ static void _ffui_btn_clicked(GtkWidget *widget, gpointer udata)
 
 int ffui_btn_create(ffui_btn *b, ffui_wnd *parent)
 {
-	b->h = gtk_button_new_with_label("");
+	b->h = gtk_button_new();
 	b->wnd = parent;
 	g_signal_connect(b->h, "clicked", G_CALLBACK(&_ffui_btn_clicked), b);
-	gtk_box_pack_start(GTK_BOX(parent->vbox), b->h, /*expand=*/0, /*fill=*/0, /*padding=*/0);
 	return 0;
 }
 
@@ -55,7 +60,16 @@ int ffui_lbl_create(ffui_label *l, ffui_wnd *parent)
 {
 	l->h = gtk_label_new("");
 	l->wnd = parent;
-	gtk_box_pack_start(GTK_BOX(parent->vbox), l->h, /*expand=*/0, /*fill=*/0, /*padding=*/0);
+	return 0;
+}
+
+
+// EDITBOX
+int ffui_edit_create(ffui_edit *e, ffui_wnd *parent)
+{
+	e->h = gtk_entry_new();
+	e->wnd = parent;
+	gtk_box_pack_start(GTK_BOX(parent->vbox), e->h, /*expand=*/0, /*fill=*/0, /*padding=*/0);
 	return 0;
 }
 
@@ -64,7 +78,8 @@ int ffui_lbl_create(ffui_label *l, ffui_wnd *parent)
 static void _ffui_trk_value_changed(GtkWidget *widget, gpointer udata)
 {
 	ffui_trkbar *t = udata;
-	t->wnd->on_action(t->wnd, t->scroll_id);
+	if (t->scroll_id != 0)
+		t->wnd->on_action(t->wnd, t->scroll_id);
 }
 
 int ffui_trk_create(ffui_trkbar *t, ffui_wnd *parent)
@@ -72,23 +87,49 @@ int ffui_trk_create(ffui_trkbar *t, ffui_wnd *parent)
 	t->h = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0, 100, 1);
 	gtk_scale_set_draw_value(GTK_SCALE(t->h), 0);
 	t->wnd = parent;
-	gtk_box_pack_start(GTK_BOX(parent->vbox), t->h, /*expand=*/0, /*fill=*/0, /*padding=*/0);
 	g_signal_connect(t->h, "value-changed", G_CALLBACK(&_ffui_trk_value_changed), t);
 	return 0;
 }
 
 void ffui_trk_setrange(ffui_trkbar *t, uint max)
 {
-	sig_disable(t->h, &_ffui_trk_value_changed, t);
+	g_signal_handlers_block_by_func(t->h, G_CALLBACK(&_ffui_trk_value_changed), t);
 	gtk_range_set_range(GTK_RANGE((t)->h), 0, max);
-	g_signal_connect(t->h, "value-changed", G_CALLBACK(&_ffui_trk_value_changed), t);
+	g_signal_handlers_unblock_by_func(t->h, G_CALLBACK(&_ffui_trk_value_changed), t);
 }
 
 void ffui_trk_set(ffui_trkbar *t, uint val)
 {
-	sig_disable(t->h, &_ffui_trk_value_changed, t);
+	g_signal_handlers_block_by_func(t->h, G_CALLBACK(&_ffui_trk_value_changed), t);
 	gtk_range_set_value(GTK_RANGE(t->h), val);
-	g_signal_connect(t->h, "value-changed", G_CALLBACK(&_ffui_trk_value_changed), t);
+	g_signal_handlers_unblock_by_func(t->h, G_CALLBACK(&_ffui_trk_value_changed), t);
+}
+
+
+// TAB
+static void _ffui_tab_switch_page(GtkNotebook *notebook, GtkWidget *page, guint page_num, gpointer udata)
+{
+	ffui_tab *t = udata;
+	t->changed_index = page_num;
+	t->wnd->on_action(t->wnd, t->change_id);
+}
+
+int ffui_tab_create(ffui_tab *t, ffui_wnd *parent)
+{
+	if (NULL == (t->h = gtk_notebook_new()))
+		return -1;
+	t->wnd = parent;
+	gtk_box_pack_start(GTK_BOX(parent->vbox), t->h, /*expand=*/0, /*fill=*/0, /*padding=*/0);
+	g_signal_connect(t->h, "switch-page", G_CALLBACK(&_ffui_tab_switch_page), t);
+	return 0;
+}
+
+void ffui_tab_ins(ffui_tab *t, int idx, const char *textz)
+{
+	GtkWidget *label = gtk_label_new(textz);
+	GtkWidget *child = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+	gtk_notebook_insert_page(GTK_NOTEBOOK(t->h), child, label, idx);
+	gtk_widget_show_all(t->h);
 }
 
 
@@ -179,6 +220,22 @@ static void view_prepare(ffui_view *v)
 	g_object_unref(v->store);
 }
 
+ffarr4* ffui_view_getsel(ffui_view *v)
+{
+	void *tvsel = gtk_tree_view_get_selection(GTK_TREE_VIEW(v->h));
+	GList *rows = gtk_tree_selection_get_selected_rows(tvsel, NULL);
+	uint n = gtk_tree_selection_count_selected_rows(tvsel);
+	ffarr4 *a = ffmem_new(ffarr4);
+	ffarr_allocT((ffarr*)a, n, uint);
+	for (GList *l = rows;  l != NULL;  l = l->next) {
+		GtkTreePath *path = l->data;
+		int *ii = gtk_tree_path_get_indices(path);
+		*ffarr_pushT((ffarr*)a, uint) = ii[0];
+	}
+	g_list_free_full(rows, (GDestroyNotify)gtk_tree_path_free);
+	return a;
+}
+
 void ffui_view_dragdrop(ffui_view *v, uint action_id)
 {
 	if (v->store == NULL)
@@ -228,6 +285,79 @@ void ffui_view_rm(ffui_view *v, ffui_viewitem *it)
 }
 
 
+// STATUSBAR
+
+int ffui_stbar_create(ffui_ctl *sb, ffui_wnd *parent)
+{
+	sb->h = gtk_statusbar_new();
+	gtk_box_pack_end(GTK_BOX(parent->vbox), sb->h, /*expand=*/0, /*fill=*/0, /*padding=*/0);
+	return 0;
+}
+
+
+// TRAYICON
+static void _ffui_tray_activate(GtkWidget *mi, gpointer udata)
+{
+	ffui_trayicon *t = udata;
+	t->wnd->on_action(t->wnd, t->lclick_id);
+}
+
+int ffui_tray_create(ffui_trayicon *t, ffui_wnd *wnd)
+{
+	t->h = (void*)gtk_status_icon_new();
+	t->wnd = wnd;
+	g_signal_connect(t->h, "activate", G_CALLBACK(&_ffui_tray_activate), t);
+	ffui_tray_show(t, 0);
+	return 0;
+}
+
+
+// DIALOG
+char* ffui_dlg_open(ffui_dialog *d, ffui_wnd *parent)
+{
+	ffmem_free0(d->name);
+	GtkWidget *dlg;
+	dlg = gtk_file_chooser_dialog_new(d->title, parent->h, GTK_FILE_CHOOSER_ACTION_OPEN
+		, "_Cancel", GTK_RESPONSE_CANCEL
+		, "_Open", GTK_RESPONSE_ACCEPT
+		, NULL);
+
+	int r = gtk_dialog_run(GTK_DIALOG(dlg));
+	if (r == GTK_RESPONSE_ACCEPT) {
+		GtkFileChooser *chooser = GTK_FILE_CHOOSER(dlg);
+		d->name = gtk_file_chooser_get_filename(chooser);
+	}
+
+	gtk_widget_destroy(dlg);
+	return d->name;
+}
+
+char* ffui_dlg_save(ffui_dialog *d, ffui_wnd *parent, const char *fn, size_t fnlen)
+{
+	ffmem_free0(d->name);
+	GtkWidget *dlg;
+	dlg = gtk_file_chooser_dialog_new(d->title, parent->h, GTK_FILE_CHOOSER_ACTION_SAVE
+		, "_Cancel", GTK_RESPONSE_CANCEL
+		, "_Save", GTK_RESPONSE_ACCEPT
+		, NULL);
+	GtkFileChooser *chooser = GTK_FILE_CHOOSER(dlg);
+
+	gtk_file_chooser_set_do_overwrite_confirmation(chooser, TRUE);
+
+	char *sz = ffsz_alcopy(fn, fnlen);
+	// gtk_file_chooser_set_filename (chooser, sz);
+	gtk_file_chooser_set_current_name(chooser, sz);
+
+	int r = gtk_dialog_run(GTK_DIALOG(dlg));
+	if (r == GTK_RESPONSE_ACCEPT) {
+		d->name = gtk_file_chooser_get_filename(chooser);
+	}
+
+	gtk_widget_destroy(dlg);
+	return d->name;
+}
+
+
 // WINDOW
 static void _ffui_wnd_onclose(void *a, void *b, gpointer udata)
 {
@@ -241,10 +371,132 @@ static void _ffui_wnd_onclose(void *a, void *b, gpointer udata)
 
 int ffui_wnd_create(ffui_wnd *w)
 {
+	w->uid = FFUI_UID_WINDOW;
 	w->h = (void*)gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	w->vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
 	gtk_container_add(GTK_CONTAINER(w->h), w->vbox);
 	g_signal_connect(w->h, "delete-event", G_CALLBACK(&_ffui_wnd_onclose), w);
+	return 0;
+}
+
+static const ushort _ffui_ikeys[] = {
+	GDK_KEY_BackSpace,
+	GDK_KEY_Break,
+	GDK_KEY_Delete,
+	GDK_KEY_Down,
+	GDK_KEY_End,
+	GDK_KEY_Return,
+	GDK_KEY_Escape,
+	GDK_KEY_F1,
+	GDK_KEY_F10,
+	GDK_KEY_F11,
+	GDK_KEY_F12,
+	GDK_KEY_F2,
+	GDK_KEY_F3,
+	GDK_KEY_F4,
+	GDK_KEY_F5,
+	GDK_KEY_F6,
+	GDK_KEY_F7,
+	GDK_KEY_F8,
+	GDK_KEY_F9,
+	GDK_KEY_Home,
+	GDK_KEY_Insert,
+	GDK_KEY_Left,
+	GDK_KEY_Right,
+	GDK_KEY_space,
+	GDK_KEY_Tab,
+	GDK_KEY_Up,
+};
+
+static const char *const _ffui_keystr[] = {
+	"backspace",
+	"break",
+	"delete",
+	"down",
+	"end",
+	"enter",
+	"escape",
+	"f1",
+	"f10",
+	"f11",
+	"f12",
+	"f2",
+	"f3",
+	"f4",
+	"f5",
+	"f6",
+	"f7",
+	"f8",
+	"f9",
+	"home",
+	"insert",
+	"left",
+	"right",
+	"space",
+	"tab",
+	"up",
+};
+
+ffui_hotkey ffui_hotkey_parse(const char *s, size_t len)
+{
+	int r = 0, f;
+	const char *end = s + len;
+	ffstr v;
+	enum {
+		fctrl = GDK_CONTROL_MASK << 16,
+		fshift = GDK_SHIFT_MASK << 16,
+		falt = GDK_MOD1_MASK << 16,
+	};
+
+	if (s == end)
+		goto fail;
+
+	while (s != end) {
+		s += ffstr_nextval(s, end - s, &v, '+');
+
+		if (ffstr_ieqcz(&v, "ctrl"))
+			f = fctrl;
+		else if (ffstr_ieqcz(&v, "alt"))
+			f = falt;
+		else if (ffstr_ieqcz(&v, "shift"))
+			f = fshift;
+		else {
+			if (s != end)
+				goto fail; //the 2nd key is an error
+			break;
+		}
+
+		if (r & f)
+			goto fail;
+		r |= f;
+	}
+
+	if (v.len == 1 && (ffchar_isletter(v.ptr[0]) || ffchar_isdigit(v.ptr[0])))
+		r |= v.ptr[0];
+
+	else {
+		ssize_t ikey = ffszarr_ifindsorted(_ffui_keystr, FFCNT(_ffui_keystr), v.ptr, v.len);
+		if (ikey == -1)
+			goto fail; //unknown key
+		r |= _ffui_ikeys[ikey];
+	}
+
+	return r;
+
+fail:
+	return 0;
+}
+
+int ffui_wnd_hotkeys(ffui_wnd *w, const ffui_wnd_hotkey *hotkeys, size_t n)
+{
+	GtkAccelGroup *ag = gtk_accel_group_new();
+	gtk_window_add_accel_group(GTK_WINDOW(w->h), ag);
+
+	for (uint i = 0;  i != n;  i++) {
+		gtk_widget_add_accelerator(hotkeys[i].h, "activate", ag
+			, ffui_hotkey_key(hotkeys[i].hk), ffui_hotkey_mod(hotkeys[i].hk), GTK_ACCEL_VISIBLE);
+	}
+
 	return 0;
 }
 
@@ -307,6 +559,7 @@ static gboolean _ffui_send_handler(gpointer data)
 {
 	struct cmd_send *c = data;
 	switch ((enum FFUI_MSG)c->id) {
+
 	case FFUI_QUITLOOP:
 		ffui_quitloop();
 		break;
@@ -316,17 +569,30 @@ static gboolean _ffui_send_handler(gpointer data)
 	case FFUI_WND_SETTEXT:
 		ffui_wnd_settextz((ffui_wnd*)c->ctl, c->udata);
 		break;
+
 	case FFUI_VIEW_RM:
 		ffui_view_rm((ffui_view*)c->ctl, c->udata);
 		break;
 	case FFUI_VIEW_CLEAR:
 		ffui_view_clear((ffui_view*)c->ctl);
 		break;
+	case FFUI_VIEW_GETSEL:
+		c->udata = ffui_view_getsel((ffui_view*)c->ctl);
+		break;
+
 	case FFUI_TRK_SETRANGE:
 		ffui_trk_setrange((ffui_trkbar*)c->ctl, (size_t)c->udata);
 		break;
 	case FFUI_TRK_SET:
 		ffui_trk_set((ffui_trkbar*)c->ctl, (size_t)c->udata);
+		break;
+
+	case FFUI_TAB_INS:
+		ffui_tab_append((ffui_tab*)c->ctl, c->udata);
+		break;
+
+	case FFUI_STBAR_SETTEXT:
+		ffui_stbar_settextz((ffui_ctl*)c->ctl, c->udata);
 		break;
 	}
 
@@ -352,7 +618,7 @@ static int post_locked(gboolean (*func)(gpointer), void *udata)
 	return r;
 }
 
-void ffui_send(void *ctl, uint id, void *udata)
+size_t ffui_send(void *ctl, uint id, void *udata)
 {
 	FFDBG_PRINTLN(10, "ctl:%p  udata:%p  id:%xu", ctl, udata, id);
 	struct cmd_send c;
@@ -362,8 +628,11 @@ void ffui_send(void *ctl, uint id, void *udata)
 	c.ref = 1;
 	ffatom_fence_rel();
 
-	if (0 != post_locked(&_ffui_send_handler, &c))
+	if (0 != post_locked(&_ffui_send_handler, &c)) {
 		ffatom_waitchange(&c.ref, 1);
+		return (size_t)c.udata;
+	}
+	return 0;
 }
 
 void ffui_post(void *ctl, uint id, void *udata)

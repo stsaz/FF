@@ -116,8 +116,15 @@ static void* ldr_getctl(ffui_loader *g, const ffstr *name)
 // MENU ITEM
 // MENU
 // LABEL
+// BUTTON
+// EDITBOX
+// TRACKBAR
+// TAB
 // VIEW COL
 // VIEW
+// STATUSBAR
+// TRAYICON
+// DIALOG
 // WINDOW
 
 // ICON
@@ -157,6 +164,23 @@ static int mi_action(ffparser_schem *ps, void *obj, const ffstr *val)
 	return 0;
 }
 
+static int mi_hotkey(ffparser_schem *ps, void *obj, const ffstr *val)
+{
+	ffui_loader *g = obj;
+	ffui_wnd_hotkey *a;
+	uint hk;
+
+	if (NULL == (a = ffarr_pushgrowT(&g->accels, 4, ffui_wnd_hotkey)))
+		return FFPARS_ESYS;
+
+	if (0 == (hk = ffui_hotkey_parse(val->ptr, val->len)))
+		return FFPARS_EBADVAL;
+
+	a->hk = hk;
+	a->h = g->mi;
+	return 0;
+}
+
 static int mi_done(ffparser_schem *ps, void *obj)
 {
 	ffui_loader *g = obj;
@@ -167,6 +191,7 @@ static int mi_done(ffparser_schem *ps, void *obj)
 static const ffpars_arg mi_args[] = {
 	{ "submenu",	FFPARS_TSTR, FFPARS_DST(&mi_submenu) },
 	{ "action",	FFPARS_TSTR, FFPARS_DST(&mi_action) },
+	{ "hotkey",	FFPARS_TSTR, FFPARS_DST(&mi_hotkey) },
 	{ NULL,	FFPARS_TCLOSE, FFPARS_DST(&mi_done) },
 };
 
@@ -223,15 +248,40 @@ static int mmenu_new(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 
 
 // LABEL
+static int lbl_style(ffparser_schem *ps, void *obj, const ffstr *val)
+{
+	ffui_loader *g = obj;
+	if (ffstr_eqcz(val, "horizontal"))
+		g->f_horiz = 1;
+	else
+		return FFPARS_EBADVAL;
+	return 0;
+}
 static int lbl_text(ffparser_schem *ps, void *obj, const ffstr *val)
 {
 	ffui_loader *g = obj;
-	ffui_lbl_settextstr((ffui_label*)g->ctl, val);
+	ffui_lbl_settextstr(g->lbl, val);
 	return 0;
 }
-
+static int lbl_done(ffparser_schem *ps, void *obj)
+{
+	ffui_loader *g = obj;
+	if (g->f_horiz) {
+		if (g->hbox == NULL) {
+			g->hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+			gtk_box_pack_start(GTK_BOX(g->wnd->vbox), g->hbox, /*expand=*/0, /*fill=*/0, /*padding=*/0);
+		}
+		gtk_box_pack_start(GTK_BOX(g->hbox), g->lbl->h, /*expand=*/0, /*fill=*/0, /*padding=*/0);
+	} else {
+		g->hbox = NULL;
+		gtk_box_pack_start(GTK_BOX(g->wnd->vbox), g->lbl->h, /*expand=*/0, /*fill=*/0, /*padding=*/0);
+	}
+	return 0;
+}
 static const ffpars_arg lbl_args[] = {
+	{ "style",	FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&lbl_style) },
 	{ "text",	FFPARS_TSTR, FFPARS_DST(&lbl_text) },
+	{ NULL,	FFPARS_TCLOSE, FFPARS_DST(&lbl_done) },
 };
 
 static int lbl_new(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
@@ -246,6 +296,110 @@ static int lbl_new(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 		return FFPARS_ESYS;
 
 	ffpars_setargs(ctx, g, lbl_args, FFCNT(lbl_args));
+	g->flags = 0;
+	return 0;
+}
+
+
+// BUTTON
+static int btn_text(ffparser_schem *ps, void *obj, const ffstr *val)
+{
+	ffui_loader *g = obj;
+	ffui_btn_settextstr(g->btn, val);
+	return 0;
+}
+static int btn_style(ffparser_schem *ps, void *obj, const ffstr *val)
+{
+	ffui_loader *g = obj;
+	if (ffstr_eqcz(val, "horizontal"))
+		g->f_horiz = 1;
+	else
+		return FFPARS_EBADVAL;
+	return 0;
+}
+static int btn_action(ffparser_schem *ps, void *obj, const ffstr *val)
+{
+	ffui_loader *g = obj;
+	int id = g->getcmd(g->udata, val);
+	if (id == 0)
+		return FFPARS_EBADVAL;
+
+	g->btn->action_id = id;
+	return 0;
+}
+static int btn_icon(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
+{
+	ffui_loader *g = obj;
+	ffmem_tzero(&g->ico_ctl);
+	ffpars_setargs(ctx, &g->ico_ctl, icon_args, FFCNT(icon_args));
+	return 0;
+}
+static int btn_done(ffparser_schem *ps, void *obj)
+{
+	ffui_loader *g = obj;
+	if (g->f_horiz) {
+		if (g->hbox == NULL) {
+			g->hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+			gtk_box_pack_start(GTK_BOX(g->wnd->vbox), g->hbox, /*expand=*/0, /*fill=*/0, /*padding=*/0);
+		}
+		gtk_box_pack_start(GTK_BOX(g->hbox), g->btn->h, /*expand=*/0, /*fill=*/0, /*padding=*/0);
+	} else {
+		g->hbox = NULL;
+		gtk_box_pack_start(GTK_BOX(g->wnd->vbox), g->btn->h, /*expand=*/0, /*fill=*/0, /*padding=*/0);
+	}
+
+	if (g->ico_ctl.fn != NULL) {
+		ffui_icon ico;
+		char *sz = ffsz_alfmt("%S/%s", &g->path, g->ico_ctl.fn);
+		ffui_icon_load(&ico, sz);
+		ffmem_free(sz);
+		ffui_btn_seticon(g->btn, &ico);
+		ffmem_free(g->ico_ctl.fn);
+		ffmem_tzero(&g->ico_ctl);
+	}
+	return 0;
+}
+static const ffpars_arg btn_args[] = {
+	{ "style",	FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&btn_style) },
+	{ "action",	FFPARS_TSTR, FFPARS_DST(&btn_action) },
+	{ "text",	FFPARS_TSTR, FFPARS_DST(&btn_text) },
+	{ "icon",	FFPARS_TOBJ, FFPARS_DST(&btn_icon) },
+	{ NULL,	FFPARS_TCLOSE, FFPARS_DST(&btn_done) },
+};
+
+static int btn_new(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
+{
+	ffui_loader *g = obj;
+
+	g->ctl = ldr_getctl(g, &ps->vals[0]);
+	if (g->ctl == NULL)
+		return FFPARS_EBADVAL;
+
+	if (0 != ffui_btn_create(g->btn, g->wnd))
+		return FFPARS_ESYS;
+
+	ffpars_setargs(ctx, g, btn_args, FFCNT(btn_args));
+	g->flags = 0;
+	return 0;
+}
+
+
+// EDITBOX
+static const ffpars_arg edit_args[] = {
+};
+
+static int edit_new(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
+{
+	ffui_loader *g = obj;
+
+	g->ctl = ldr_getctl(g, &ps->vals[0]);
+	if (g->ctl == NULL)
+		return FFPARS_EBADVAL;
+
+	if (0 != ffui_edit_create(g->edit, g->wnd))
+		return FFPARS_ESYS;
+
+	ffpars_setargs(ctx, g, edit_args, FFCNT(edit_args));
 	return 0;
 }
 
@@ -257,7 +411,15 @@ static int trkbar_range(ffparser_schem *ps, void *obj, const int64 *val)
 	ffui_trk_setrange(g->trkbar, *val);
 	return 0;
 }
-
+static int trkbar_style(ffparser_schem *ps, void *obj, const ffstr *val)
+{
+	ffui_loader *g = obj;
+	if (ffstr_eqcz(val, "horizontal"))
+		g->f_horiz = 1;
+	else
+		return FFPARS_EBADVAL;
+	return 0;
+}
 static int trkbar_onscroll(ffparser_schem *ps, void *obj, const ffstr *val)
 {
 	ffui_loader *g = obj;
@@ -265,10 +427,26 @@ static int trkbar_onscroll(ffparser_schem *ps, void *obj, const ffstr *val)
 		return FFPARS_EBADVAL;
 	return 0;
 }
-
+static int trkbar_done(ffparser_schem *ps, void *obj)
+{
+	ffui_loader *g = obj;
+	if (g->f_horiz) {
+		if (g->hbox == NULL) {
+			g->hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+			gtk_box_pack_start(GTK_BOX(g->wnd->vbox), g->hbox, /*expand=*/0, /*fill=*/0, /*padding=*/0);
+		}
+		gtk_box_pack_start(GTK_BOX(g->hbox), g->trkbar->h, /*expand=*/1, /*fill=*/1, /*padding=*/0);
+	} else {
+		g->hbox = NULL;
+		gtk_box_pack_start(GTK_BOX(g->wnd->vbox), g->trkbar->h, /*expand=*/0, /*fill=*/0, /*padding=*/0);
+	}
+	return 0;
+}
 static const ffpars_arg trkbar_args[] = {
+	{ "style",	FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&trkbar_style) },
 	{ "range",	FFPARS_TINT, FFPARS_DST(&trkbar_range) },
 	{ "onscroll",	FFPARS_TSTR, FFPARS_DST(&trkbar_onscroll) },
+	{ NULL,	FFPARS_TCLOSE, FFPARS_DST(&trkbar_done) },
 };
 
 static int trkbar_new(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
@@ -280,6 +458,34 @@ static int trkbar_new(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 	if (0 != ffui_trk_create(g->trkbar, g->wnd))
 		return FFPARS_ESYS;
 	ffpars_setargs(ctx, g, trkbar_args, FFCNT(trkbar_args));
+	g->flags = 0;
+	return 0;
+}
+
+
+// TAB
+static int tab_onchange(ffparser_schem *ps, void *obj, const ffstr *val)
+{
+	ffui_loader *g = obj;
+	int id = g->getcmd(g->udata, val);
+	if (id == 0)
+		return FFPARS_EBADVAL;
+
+	g->tab->change_id = id;
+	return 0;
+}
+static const ffpars_arg tab_args[] = {
+	{ "onchange",	FFPARS_TSTR, FFPARS_DST(&tab_onchange) },
+};
+static int tab_new(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
+{
+	ffui_loader *g = obj;
+	if (NULL == (g->tab = ldr_getctl(g, &ps->vals[0])))
+		return FFPARS_EBADVAL;
+
+	if (0 != ffui_tab_create(g->tab, g->wnd))
+		return FFPARS_ESYS;
+	ffpars_setargs(ctx, g, tab_args, FFCNT(tab_args));
 	return 0;
 }
 
@@ -380,6 +586,65 @@ static int view_new(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 	return 0;
 }
 
+
+// STATUSBAR
+
+static int stbar_new(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
+{
+	ffui_loader *g = obj;
+
+	g->ctl = ldr_getctl(g, &ps->vals[0]);
+	if (g->ctl == NULL)
+		return FFPARS_EBADVAL;
+
+	if (0 != ffui_stbar_create(g->ctl, g->wnd))
+		return FFPARS_ESYS;
+
+	ffpars_setargs(ctx, g, NULL, 0);
+	return 0;
+}
+
+
+// TRAYICON
+static int tray_lclick(ffparser_schem *ps, void *obj, const ffstr *val)
+{
+	ffui_loader *g = obj;
+	int id = g->getcmd(g->udata, val);
+	if (id == 0)
+		return FFPARS_EBADVAL;
+	g->trayicon->lclick_id = id;
+	return 0;
+}
+static const ffpars_arg tray_args[] = {
+	{ "lclick",	FFPARS_TSTR, FFPARS_DST(&tray_lclick) },
+};
+static int tray_new(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
+{
+	ffui_loader *g = obj;
+
+	if (NULL == (g->trayicon = ldr_getctl(g, &ps->vals[0])))
+		return FFPARS_EBADVAL;
+
+	ffui_tray_create(g->trayicon, g->wnd);
+	ffpars_setargs(ctx, g, tray_args, FFCNT(tray_args));
+	return 0;
+}
+
+
+// DIALOG
+static const ffpars_arg dlg_args[] = {
+};
+static int dlg_new(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
+{
+	ffui_loader *g = obj;
+	if (NULL == (g->dlg = g->getctl(g->udata, &ps->vals[0])))
+		return FFPARS_EBADVAL;
+	ffui_dlg_init(g->dlg);
+	ffpars_setargs(ctx, g, dlg_args, FFCNT(dlg_args));
+	return 0;
+}
+
+
 // WINDOW
 static int wnd_title(ffparser_schem *ps, void *obj, const ffstr *val)
 {
@@ -404,7 +669,7 @@ static int wnd_position(ffparser_schem *ps, void *obj, const int64 *v)
 static int wnd_icon(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 {
 	ffui_loader *g = obj;
-	ffmem_zero(&g->ico, sizeof(_ffui_ldr_icon));
+	ffmem_tzero(&g->ico);
 	ffpars_setargs(ctx, &g->ico, icon_args, FFCNT(icon_args));
 	return 0;
 }
@@ -418,7 +683,17 @@ static int wnd_done(ffparser_schem *ps, void *obj)
 		ffui_icon_load(&ico, sz);
 		ffmem_free(sz);
 		ffui_wnd_seticon(g->wnd, &ico);
+		// ffmem_free(g->ico.fn);
+		// ffmem_tzero(&g->ico);
 	}
+
+	if (g->accels.len != 0) {
+		int r = ffui_wnd_hotkeys(g->wnd, (ffui_wnd_hotkey*)g->accels.ptr, g->accels.len);
+		g->accels.len = 0;
+		if (r != 0)
+			return FFPARS_ESYS;
+	}
+
 	return 0;
 }
 
@@ -428,9 +703,14 @@ static const ffpars_arg wnd_args[] = {
 	{ "icon",	FFPARS_TOBJ, FFPARS_DST(&wnd_icon) },
 
 	{ "mainmenu",	FFPARS_TOBJ | FFPARS_FOBJ1, FFPARS_DST(&mmenu_new) },
+	{ "button",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&btn_new) },
 	{ "label",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&lbl_new) },
+	{ "editbox",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&edit_new) },
 	{ "trackbar",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&trkbar_new) },
+	{ "tab",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&tab_new) },
 	{ "listview",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&view_new) },
+	{ "statusbar",	FFPARS_TOBJ | FFPARS_FOBJ1, FFPARS_DST(&stbar_new) },
+	{ "trayicon",	FFPARS_TOBJ | FFPARS_FOBJ1, FFPARS_DST(&tray_new) },
 	{ NULL,	FFPARS_TCLOSE, FFPARS_DST(&wnd_done) },
 };
 
@@ -456,6 +736,7 @@ static int wnd_new(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 static const ffpars_arg top_args[] = {
 	{ "window",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&wnd_new) },
 	{ "menu",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&menu_new) },
+	{ "dialog",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&dlg_new) },
 };
 
 void ffui_ldr_init2(ffui_loader *g, ffui_ldr_getctl_t getctl, ffui_ldr_getcmd_t getcmd, void *udata)
@@ -465,4 +746,156 @@ void ffui_ldr_init2(ffui_loader *g, ffui_ldr_getctl_t getctl, ffui_ldr_getcmd_t 
 	g->getcmd = getcmd;
 	g->udata = udata;
 	ffpars_setargs(&g->ctx, g, top_args, FFCNT(top_args));
+}
+
+
+void ffui_ldrw_fin(ffui_loaderw *ldr)
+{
+	ffconf_wdestroy(&ldr->confw);
+}
+
+void ffui_ldr_setv(ffui_loaderw *ldr, const char *const *names, size_t nn, uint flags)
+{
+	char buf[128];
+	size_t n;
+	uint i, f, set;
+	ffui_ctl *c;
+	ffstr settname, ctlname, val;
+	ffarr s = {0};
+
+	ldr->confw.flags |= FFCONF_GROW;
+
+	for (i = 0;  i != nn;  i++) {
+		ffstr_setz(&settname, names[i]);
+		ffs_rsplit2by(settname.ptr, settname.len, '.', &ctlname, &val);
+
+		if (NULL == (c = ldr->getctl(ldr->udata, &ctlname)))
+			continue;
+
+		set = 0;
+		f = 0;
+		switch (c->uid) {
+
+		case FFUI_UID_WINDOW:
+			if (ffstr_eqcz(&val, "position")) {
+				ffui_pos pos;
+				ffui_wnd_pos((ffui_wnd*)c, &pos);
+				n = ffs_fmt(buf, buf + sizeof(buf), "%d %d %u %u"
+					, pos.x, pos.y, pos.cx, pos.cy);
+				ffstr_set(&s, buf, n);
+				set = 1;
+			}
+			break;
+
+		default:
+			continue;
+		}
+
+		if (!set)
+			continue;
+
+		ffui_ldr_set(ldr, settname.ptr, s.ptr, s.len, f);
+		ffarr_free(&s);
+	}
+}
+
+void ffui_ldr_set(ffui_loaderw *ldr, const char *name, const char *val, size_t len, uint flags)
+{
+	ldr->confw.flags |= FFCONF_GROW;
+	ffconf_writez(&ldr->confw, name, FFCONF_TKEY | FFCONF_ASIS);
+	if (flags & FFUI_LDR_FSTR) {
+		ffconf_write(&ldr->confw, val, len, FFCONF_TVAL);
+	} else
+		ffconf_write(&ldr->confw, val, len, FFCONF_TVAL | FFCONF_ASIS);
+}
+
+int ffui_ldr_write(ffui_loaderw *ldr, const char *fn)
+{
+	ffstr buf;
+	if (!ldr->fin) {
+		ldr->fin = 1;
+		ffconf_writefin(&ldr->confw);
+	}
+	ffconf_output(&ldr->confw, &buf);
+	return fffile_writeall(fn, buf.ptr, buf.len, 0);
+}
+
+void ffui_ldr_loadconf(ffui_loader *g, const char *fn)
+{
+	ffstr3 buf = {0};
+	ffstr s, line, name, val;
+	fffd f = FF_BADFD;
+
+	if (FF_BADFD == (f = fffile_open(fn, O_RDONLY)))
+		goto done;
+
+	if (NULL == ffarr_alloc(&buf, fffile_size(f)))
+		goto done;
+
+	fffile_read(f, buf.ptr, buf.cap);
+	ffstr_set(&s, buf.ptr, buf.cap);
+
+	while (s.len != 0) {
+		size_t n = ffstr_nextval(s.ptr, s.len, &line, '\n');
+		ffstr_shift(&s, n);
+
+		if (line.len == 0)
+			continue;
+
+		ffstr_set(&name, line.ptr, 0);
+		ffstr_null(&val);
+		while (line.len != 0) {
+			const char *pos = ffs_findof(line.ptr, line.len, ". ", 2);
+			if (pos == ffarr_end(&line))
+				break;
+			if (*pos == ' ') {
+				val = line;
+				break;
+			}
+			name.len = pos - name.ptr;
+			ffstr_shift(&line, pos + 1 - line.ptr);
+		}
+		if (name.len == 0 || val.len == 0)
+			continue;
+
+		g->ctl = g->getctl(g->udata, &name);
+		if (g->ctl != NULL) {
+			ffconf p;
+			ffparser_schem ps;
+			ffpars_ctx ctx = {0};
+
+			switch (g->ctl->uid) {
+			case FFUI_UID_WINDOW:
+				g->wnd = (void*)g->ctl;
+				ffpars_setargs(&ctx, g, wnd_args, FFCNT(wnd_args));
+				break;
+
+			default:
+				continue;
+			}
+			ffconf_scheminit(&ps, &p, &ctx);
+
+			ffbool lf = 0;
+			while (val.len != 0) {
+				n = val.len;
+				int r = ffconf_parse(&p, val.ptr, &n);
+				ffstr_shift(&val, n);
+				r = ffconf_schemrun(&ps);
+				if (ffpars_iserr(r))
+					break;
+				if (r == FFPARS_MORE && !lf) {
+					ffstr_setcz(&val, "\n");
+					lf = 1;
+				}
+			}
+
+			ffconf_schemfin(&ps);
+			ffconf_parseclose(&p);
+			ffpars_schemfree(&ps);
+		}
+	}
+
+done:
+	FF_SAFECLOSE(f, FF_BADFD, fffile_close);
+	ffarr_free(&buf);
 }

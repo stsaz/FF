@@ -24,10 +24,15 @@ static inline void ffui_init()
 // MENU
 // BUTTON
 // LABEL
+// EDITBOX
 // TRACKBAR
+// TAB
 // LISTVIEW COLUMN
 // LISTVIEW ITEM
 // LISTVIEW
+// STATUSBAR
+// TRAYICON
+// DIALOG
 // WINDOW
 // MESSAGE LOOP
 
@@ -49,13 +54,25 @@ static inline int ffui_icon_load(ffui_icon *ico, const char *filename)
 	return (ico->ico == NULL);
 }
 
+static inline int ffui_icon_loadimg(ffui_icon *ico, const char *filename, uint cx, uint cy, uint flags)
+{
+	ico->ico = gdk_pixbuf_new_from_file_at_scale(filename, cx, cy, 0, NULL);
+	return (ico->ico == NULL);
+}
+
+
 
 // CONTROL
+
+enum FFUI_UID {
+	FFUI_UID_WINDOW = 1,
+};
 
 typedef struct ffui_wnd ffui_wnd;
 
 #define _FFUI_CTL_MEMBERS \
 	GtkWidget *h; \
+	enum FFUI_UID uid; \
 	ffui_wnd *wnd;
 
 typedef struct ffui_ctl {
@@ -71,6 +88,9 @@ static inline void ffui_show(void *c, uint show)
 }
 
 #define ffui_ctl_destroy(c)  gtk_widget_destroy(((ffui_ctl*)c)->h)
+
+#define ffui_setposrect(ctl, r) \
+	gtk_widget_set_size_request((ctl)->h, (r)->cx, (r)->cy)
 
 
 // MENU
@@ -114,6 +134,23 @@ typedef struct ffui_btn {
 } ffui_btn;
 
 FF_EXTN int ffui_btn_create(ffui_btn *b, ffui_wnd *parent);
+static inline void ffui_btn_settextz(ffui_btn *b, const char *textz)
+{
+	gtk_button_set_label(GTK_BUTTON(b->h), textz);
+}
+static inline void ffui_btn_settextstr(ffui_btn *b, const ffstr *text)
+{
+	char *sz = ffsz_alcopystr(text);
+	gtk_button_set_label(GTK_BUTTON(b->h), sz);
+	ffmem_free(sz);
+}
+
+static inline void ffui_btn_seticon(ffui_btn *b, ffui_icon *ico)
+{
+	GtkWidget *img = gtk_image_new();
+	gtk_image_set_from_pixbuf(GTK_IMAGE(img), ico->ico);
+	gtk_button_set_image(GTK_BUTTON(b->h), img);
+}
 
 
 // LABEL
@@ -133,6 +170,23 @@ static inline void ffui_lbl_settext(ffui_label *l, const char *text, size_t len)
 #define ffui_lbl_settextstr(l, str)  ffui_lbl_settext(l, str->ptr, str->len)
 
 
+// EDITBOX
+typedef struct ffui_edit {
+	_FFUI_CTL_MEMBERS
+} ffui_edit;
+
+FF_EXTN int ffui_edit_create(ffui_edit *e, ffui_wnd *parent);
+
+static inline void ffui_edit_textstr(ffui_edit *e, ffstr *s)
+{
+	const gchar *sz = gtk_entry_get_text(GTK_ENTRY(e->h));
+	ffstr_alcopyz(s, sz);
+}
+
+#define ffui_edit_sel(e, start, end) \
+	gtk_editable_select_region(GTK_EDITABLE((e)->h), start, end);
+
+
 // TRACKBAR
 typedef struct ffui_trkbar {
 	_FFUI_CTL_MEMBERS
@@ -146,6 +200,27 @@ FF_EXTN void ffui_trk_setrange(ffui_trkbar *t, uint max);
 FF_EXTN void ffui_trk_set(ffui_trkbar *t, uint val);
 
 #define ffui_trk_val(t)  gtk_range_get_value(GTK_RANGE((t)->h))
+
+
+// TAB
+typedef struct ffui_tab {
+	_FFUI_CTL_MEMBERS
+	uint change_id;
+	uint changed_index;
+} ffui_tab;
+
+FF_EXTN int ffui_tab_create(ffui_tab *t, ffui_wnd *parent);
+
+FF_EXTN void ffui_tab_ins(ffui_tab *t, int idx, const char *textz);
+
+#define ffui_tab_append(t, textz)  ffui_tab_ins(t, -1, textz)
+
+#define ffui_tab_del(t, idx)  gtk_notebook_remove_page(GTK_NOTEBOOK((t)->h), idx)
+
+#define ffui_tab_count(t)  gtk_notebook_get_n_pages(GTK_NOTEBOOK((t)->h))
+
+#define ffui_tab_active(t)  gtk_notebook_get_current_page(GTK_NOTEBOOK((t)->h))
+#define ffui_tab_setactive(t, idx)  gtk_notebook_set_current_page(GTK_NOTEBOOK((t)->h), idx)
 
 
 // LISTVIEW COLUMN
@@ -225,6 +300,25 @@ FF_EXTN void ffui_view_style(ffui_view *v, uint flags, uint set);
 #define ffui_view_clear(v)  gtk_list_store_clear(GTK_LIST_STORE((v)->store))
 
 #define ffui_view_selall(v)  gtk_tree_selection_select_all(gtk_tree_view_get_selection(GTK_TREE_VIEW((v)->h)))
+#define ffui_view_unselall(v)  gtk_tree_selection_unselect_all(gtk_tree_view_get_selection(GTK_TREE_VIEW((v)->h)))
+
+/** Get array of selected items.
+Return ffarr4* (uint[]).  Free with ffui_view_sel_free(). */
+FF_EXTN ffarr4* ffui_view_getsel(ffui_view *v);
+
+static inline void ffui_view_sel_free(ffarr4 *sel)
+{
+	ffarr_free(sel);
+	ffmem_free(sel);
+}
+
+/** Get next selected item. */
+static inline int ffui_view_selnext(ffui_view *v, ffarr4 *sel)
+{
+	if (sel->off == sel->len)
+		return -1;
+	return *ffarr_itemT(sel, sel->off++, uint);
+}
 
 FF_EXTN void ffui_view_dragdrop(ffui_view *v, uint action_id);
 
@@ -245,9 +339,66 @@ FF_EXTN void ffui_view_set(ffui_view *v, int sub, ffui_viewitem *it);
 FF_EXTN void ffui_view_rm(ffui_view *v, ffui_viewitem *it);
 
 
+// STATUSBAR
+
+FF_EXTN int ffui_stbar_create(ffui_ctl *sb, ffui_wnd *parent);
+
+static inline void ffui_stbar_settextz(ffui_ctl *sb, const char *text)
+{
+	gtk_statusbar_push(GTK_STATUSBAR(sb->h), gtk_statusbar_get_context_id(GTK_STATUSBAR(sb->h), "a"), text);
+}
+
+
+// TRAYICON
+typedef struct ffui_trayicon {
+	_FFUI_CTL_MEMBERS
+	uint lclick_id;
+} ffui_trayicon;
+
+FF_EXTN int ffui_tray_create(ffui_trayicon *t, ffui_wnd *wnd);
+
+#define ffui_tray_hasicon(t) \
+	(0 != gtk_status_icon_get_size(GTK_STATUS_ICON((t)->h)))
+
+static inline void ffui_tray_seticon(ffui_trayicon *t, ffui_icon *ico)
+{
+	gtk_status_icon_set_from_pixbuf(GTK_STATUS_ICON(t->h), ico->ico);
+}
+
+#define ffui_tray_show(t, show)  gtk_status_icon_set_visible(GTK_STATUS_ICON((t)->h), show)
+
+
+// DIALOG
+
+typedef struct ffui_dialog {
+	char *title;
+	char *name;
+} ffui_dialog;
+
+static inline void ffui_dlg_init(ffui_dialog *d)
+{
+}
+
+static inline void ffui_dlg_destroy(ffui_dialog *d)
+{
+	ffmem_free(d->title);
+	g_free(d->name);
+}
+
+static inline void ffui_dlg_titlez(ffui_dialog *d, const char *sz)
+{
+	d->title = ffsz_alcopyz(sz);
+}
+
+FF_EXTN char* ffui_dlg_open(ffui_dialog *d, ffui_wnd *parent);
+
+FF_EXTN char* ffui_dlg_save(ffui_dialog *d, ffui_wnd *parent, const char *fn, size_t fnlen);
+
+
 // WINDOW
 struct ffui_wnd {
 	GtkWindow *h;
+	enum FFUI_UID uid;
 	GtkWidget *vbox;
 
 	void (*on_create)(ffui_wnd *wnd);
@@ -275,6 +426,23 @@ static inline void ffui_wnd_setmenu(ffui_wnd *w, ffui_menu *m)
 	gtk_box_pack_start(GTK_BOX(w->vbox), m->h, /*expand=*/0, /*fill=*/0, /*padding=*/0);
 }
 
+typedef uint ffui_hotkey;
+
+#define ffui_hotkey_mod(hk)  ((hk) >> 16)
+#define ffui_hotkey_key(hk)  ((hk) & 0xffff)
+
+/** Parse hotkey string, e.g. "Ctrl+Alt+Shift+Q".
+Return: low-word: char key or vkey, hi-word: control flags;  0 on error. */
+FF_EXTN ffui_hotkey ffui_hotkey_parse(const char *s, size_t len);
+
+typedef struct ffui_wnd_hotkey {
+	ffui_hotkey hk;
+	GtkWidget *h;
+} ffui_wnd_hotkey;
+
+/** Set hotkey table. */
+FF_EXTN int ffui_wnd_hotkeys(ffui_wnd *w, const ffui_wnd_hotkey *hotkeys, size_t n);
+
 #define ffui_wnd_settextz(w, text)  gtk_window_set_title((w)->h, text)
 static inline void ffui_wnd_settextstr(ffui_wnd *w, const ffstr *str)
 {
@@ -285,8 +453,20 @@ static inline void ffui_wnd_settextstr(ffui_wnd *w, const ffstr *str)
 
 #define ffui_wnd_seticon(w, icon)  gtk_window_set_icon((w)->h, (icon)->ico)
 
+static inline void ffui_wnd_pos(ffui_wnd *w, ffui_pos *pos)
+{
+	int x, y, ww, h;
+	gtk_window_get_position(w->h, &x, &y);
+	gtk_window_get_size(w->h, &ww, &h);
+	pos->x = x;
+	pos->y = y;
+	pos->cx = ww;
+	pos->cy = h;
+}
+
 static inline void ffui_wnd_setplacement(ffui_wnd *w, uint showcmd, const ffui_pos *pos)
 {
+	gtk_window_move(w->h, pos->x, pos->y);
 	gtk_window_set_default_size(w->h, pos->cx, pos->cy);
 }
 
@@ -312,22 +492,32 @@ enum FFUI_MSG {
 	FFUI_WND_SETTEXT,
 	FFUI_VIEW_RM,
 	FFUI_VIEW_CLEAR,
+	FFUI_VIEW_GETSEL,
 	FFUI_TRK_SETRANGE,
 	FFUI_TRK_SET,
+	FFUI_TAB_INS,
+	FFUI_STBAR_SETTEXT,
 };
 
 /**
 id: enum FFUI_MSG */
 FF_EXTN void ffui_post(void *ctl, uint id, void *udata);
-FF_EXTN void ffui_send(void *ctl, uint id, void *udata);
+FF_EXTN size_t ffui_send(void *ctl, uint id, void *udata);
 
 #define ffui_post_quitloop()  ffui_post(NULL, FFUI_QUITLOOP, NULL)
 #define ffui_send_lbl_settext(ctl, sz)  ffui_send(ctl, FFUI_LBL_SETTEXT, sz)
 #define ffui_send_wnd_settext(ctl, sz)  ffui_send(ctl, FFUI_WND_SETTEXT, sz)
 #define ffui_send_view_rm(ctl, it)  ffui_send(ctl, FFUI_VIEW_RM, it)
 #define ffui_post_view_clear(ctl)  ffui_send(ctl, FFUI_VIEW_CLEAR, NULL)
+
+/** See ffui_view_getsel().
+Return ffarr4* (uint[]) */
+#define ffui_send_view_getsel(v)  ffui_send(v, FFUI_VIEW_GETSEL, NULL)
 #define ffui_post_trk_setrange(ctl, range)  ffui_post(ctl, FFUI_TRK_SETRANGE, (void*)(size_t)range)
 #define ffui_post_trk_set(ctl, val)  ffui_post(ctl, FFUI_TRK_SET, (void*)(size_t)val)
+#define ffui_send_tab_ins(ctl, textz)  ffui_send(ctl, FFUI_TAB_INS, textz)
+
+#define ffui_send_stbar_settextz(sb, sz)  ffui_send(sb, FFUI_STBAR_SETTEXT, sz)
 
 
 typedef void* (*ffui_ldr_getctl_t)(void *udata, const ffstr *name);
@@ -346,22 +536,37 @@ typedef struct ffui_loader {
 	void *udata;
 	ffpars_ctx ctx;
 	ffstr path;
+	ffarr accels; //ffui_wnd_hotkey[]
 
 	_ffui_ldr_icon ico;
+	_ffui_ldr_icon ico_ctl;
 	ffui_pos r;
 	ffui_wnd *wnd;
 	ffui_viewcol vicol;
 	ffui_menu *menu;
 	void *mi;
+	GtkWidget *hbox;
 	union {
 		ffui_ctl *ctl;
 		ffui_label *lbl;
+		ffui_btn *btn;
+		ffui_edit *edit;
 		ffui_trkbar *trkbar;
+		ffui_tab *tab;
 		ffui_view *vi;
+		ffui_trayicon *trayicon;
+		ffui_dialog *dlg;
 	};
 
 	char *errstr;
 	char *wndname;
+
+	union {
+	uint flags;
+	struct {
+		uint f_horiz :1;
+	};
+	};
 } ffui_loader;
 
 /** Initialize GUI loader.
@@ -373,6 +578,9 @@ FF_EXTN void ffui_ldr_init2(ffui_loader *g, ffui_ldr_getctl_t getctl, ffui_ldr_g
 
 static inline void ffui_ldr_fin(ffui_loader *g)
 {
+	ffmem_free(g->ico_ctl.fn);
+	ffmem_free(g->ico.fn);
+	ffarr_free(&g->accels);
 	ffmem_safefree(g->errstr);
 	ffmem_safefree0(g->wndname);
 }
@@ -381,6 +589,8 @@ static inline void ffui_ldr_fin(ffui_loader *g)
 
 /** Load GUI from file. */
 FF_EXTN int ffui_ldr_loadfile(ffui_loader *g, const char *fn);
+
+FF_EXTN void ffui_ldr_loadconf(ffui_loader *g, const char *fn);
 
 
 typedef struct ffui_ldr_ctl ffui_ldr_ctl;
@@ -401,3 +611,26 @@ struct ffui_ldr_ctl {
 /** Find control by its name in structured hierarchy.
 @name: e.g. "window.control" */
 FF_EXTN void* ffui_ldr_findctl(const ffui_ldr_ctl *ctx, void *ctl, const ffstr *name);
+
+
+#include <FF/data/conf.h>
+
+typedef struct ffui_loaderw {
+	ffui_ldr_getctl_t getctl;
+	void *udata;
+
+	ffconfw confw;
+	uint fin :1;
+} ffui_loaderw;
+
+FF_EXTN void ffui_ldrw_fin(ffui_loaderw *ldr);
+
+FF_EXTN void ffui_ldr_setv(ffui_loaderw *ldr, const char *const *names, size_t n, uint flags);
+
+enum FFUI_LDR_F {
+	FFUI_LDR_FSTR = 1,
+};
+
+FF_EXTN void ffui_ldr_set(ffui_loaderw *ldr, const char *name, const char *val, size_t len, uint flags);
+
+FF_EXTN int ffui_ldr_write(ffui_loaderw *ldr, const char *fn);
