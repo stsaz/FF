@@ -287,22 +287,24 @@ int ffflac_encode(ffflac_enc *f)
 		return FFFLAC_RMORE;
 	}
 
-	const void* src[FLAC__MAX_CHANNELS];
-	int* dst[FLAC__MAX_CHANNELS];
+	if (samples != 0) {
+		const void* src[FLAC__MAX_CHANNELS];
+		int* dst[FLAC__MAX_CHANNELS];
 
-	for (uint i = 0;  i != f->info.channels;  i++) {
-		src[i] = (char*)f->pcm[i] + f->off_pcm * f->info.bits/8;
-		dst[i] = f->pcm32[i] + f->off_pcm32;
-	}
+		for (uint i = 0;  i != f->info.channels;  i++) {
+			src[i] = (char*)f->pcm[i] + f->off_pcm * f->info.bits/8;
+			dst[i] = f->pcm32[i] + f->off_pcm32;
+		}
 
-	if (0 != (r = pcm_to32(dst, src, f->info.bits, f->info.channels, samples)))
-		return ERR(f, FLAC_EFMT);
+		if (0 != (r = pcm_to32(dst, src, f->info.bits, f->info.channels, samples)))
+			return ERR(f, FLAC_EFMT);
 
-	f->off_pcm += samples;
-	f->off_pcm32 += samples;
-	if (!(f->off_pcm32 == f->cap_pcm32 || f->fin)) {
-		f->off_pcm = 0;
-		return FFFLAC_RMORE;
+		f->off_pcm += samples;
+		f->off_pcm32 += samples;
+		if (!(f->off_pcm32 == f->cap_pcm32 || f->fin)) {
+			f->off_pcm = 0;
+			return FFFLAC_RMORE;
+		}
 	}
 
 	samples = f->off_pcm32;
