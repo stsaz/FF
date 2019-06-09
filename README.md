@@ -41,6 +41,7 @@ FEATURES
 	* user task queue - `FF/sys/taskqueue.h`
 	* timer queue - `FF/sys/timer-queue.h`
 	* file mapping - `FF/sys/filemap.h`
+	* file reader - `FF/sys/fileread.hh`
 	* send file - `FF/sys/sendfile.h`
 	* Windows registry functions - `FF/sys/wreg.h`
 	* Windows object handler - `FF/sys/wohandler.h`
