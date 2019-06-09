@@ -551,4 +551,21 @@ err:
 		ffarr_free(&buf);
 	return NULL;
 }
+
+int fflang_info(uint flags)
+{
+	if (flags != FFLANG_FLANG)
+		return -1;
+
+	const char *val;
+	ffstr name;
+	ffstr_setz(&name, "LANG");
+	if (NULL == (val = ffszarr_findkeyz((const char*const*)environ, name.ptr, name.len)))
+		return FFLANG_ENG;
+
+	if (ffsz_eq(val, "ru_RU.utf8"))
+		return FFLANG_RUS;
+	return FFLANG_ENG;
+}
+
 #endif
