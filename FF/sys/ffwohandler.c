@@ -118,9 +118,7 @@ static int FFTHDCALL _ffwoh_evt_handler(void *param)
 	FF_WRITEONCE(oh->tid, ffthd_curid());
 
 	for (;;) {
-		fflk_lock(&oh->lk);
 		uint count = oh->count; //oh->count may be incremented
-		fflk_unlock(&oh->lk);
 		DWORD i = WaitForMultipleObjects(count, oh->hdls, 0, INFINITE);
 
 		if (i >= WAIT_OBJECT_0 + count) {
