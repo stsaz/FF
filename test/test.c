@@ -155,6 +155,7 @@ extern int test_bits(void);
 extern int test_sig(void);
 extern void test_conf_write(void);
 extern void test_dns_client(void);
+extern int test_cache(void);
 
 struct test_s {
 	const char *nm;
@@ -170,6 +171,7 @@ static const struct test_s _fftests[] = {
 	, F(json), F(conf), F(conf_write), F(args), F(cue),
 	F(iso),
 	F(dns_client),
+	F(cache),
 };
 #undef F
 

@@ -65,6 +65,7 @@ FEATURES
 	* deserialization of structured data using a predefined scheme  - `FF/data/parse.h`
 	* UTF-8 decode/encode  - `FF/data/utf8.h`
 	* CRC32 - `FF/crc.h`
+	* Cache - `FF/cache.h`
 
 * Compression - `FF/pack/`
 	* deflate (libz) - `FF/pack/gz.h`
