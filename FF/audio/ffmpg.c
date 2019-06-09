@@ -46,10 +46,12 @@ int ffmpg_decode(ffmpg *m)
 	if (!m->fin && m->input.len == 0)
 		return FFMPG_RMORE;
 
+	FF_ASSERT(m->input.len == 0 || m->input.len >= sizeof(ffmpg_hdr));
 	r = mpg123_decode(m->m123, m->input.ptr, m->input.len, (byte**)&m->pcmi);
 	m->input.len = 0;
 	if (r == 0) {
-		m->delay_dec += ffmpg_hdr_frame_samples((void*)m->input.ptr);
+		if (m->input.len != 0)
+			m->delay_dec += ffmpg_hdr_frame_samples((void*)m->input.ptr);
 		return FFMPG_RMORE;
 
 	} else if (r < 0) {
