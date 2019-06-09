@@ -66,6 +66,17 @@ int ffs_icmp(const char *s1, const char *s2, size_t len)
 	return 0;
 }
 
+ssize_t ffs_cmpn(const char *s1, const char *s2, size_t len)
+{
+	for (size_t i = 0;  i != len;  i++) {
+		int c1 = s1[i], c2 = s2[i];
+		if (c1 != c2)
+			return (c1 < c2) ? -(ssize_t)i - 1 : (ssize_t)i + 1;
+	}
+
+	return 0; //s1 == s2
+}
+
 ssize_t ffs_cmpz(const char *s1, size_t len, const char *sz2)
 {
 	size_t i;

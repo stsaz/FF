@@ -92,6 +92,9 @@ FF_EXTN const char* ffpath_splitname(const char *fullname, size_t len, ffstr *na
 
 FF_EXTN const char* ffpath_split3(const char *fullname, size_t len, ffstr *path, ffstr *name, ffstr *ext);
 
+/** Get the next file path part. */
+FF_EXTN ffstr ffpath_next(ffstr *path);
+
 enum FFPATH_CASE {
 	FFPATH_CASE_DEF,
 	FFPATH_CASE_SENS,
@@ -103,3 +106,6 @@ Note: backslash ('\\') isn't supported.
 @flags: enum FFPATH_CASE
 Return 0 if equal;  <0 if p1 < p2;  >0 otherwise. */
 FF_EXTN int ffpath_cmp(const ffstr *p1, const ffstr *p2, uint flags);
+
+/** Get max. shared parent directory (without the last slash). */
+FF_EXTN int ffpath_parent(const ffstr *p1, const ffstr *p2, ffstr *dir);

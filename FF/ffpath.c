@@ -245,6 +245,14 @@ const char* ffpath_split3(const char *fullname, size_t len, ffstr *path, ffstr *
 	return slash;
 }
 
+ffstr ffpath_next(ffstr *path)
+{
+	ffstr r;
+	const char *sl = ffs_findof(path->ptr, path->len, "/\\", 2);
+	ffs_split2(path->ptr, path->len, sl, &r, path);
+	return r;
+}
+
 /*
 /a < /b
 /a < /a/b
@@ -285,4 +293,24 @@ int ffpath_cmp(const ffstr *p1, const ffstr *p2, uint flags)
 	}
 
 	return p1->len - p2->len;
+}
+
+int ffpath_parent(const ffstr *p1, const ffstr *p2, ffstr *dir)
+{
+	size_t n = ffmin(p1->len, p2->len);
+	ssize_t i = ffs_cmpn(p1->ptr, p2->ptr, n);
+	if (i == 0) {
+		ffstr_set(dir, p1->ptr, n);
+		return 0;
+	}
+	if (i < 0)
+		i = -i;
+	i--;
+
+	const char *sl = ffpath_rfindslash(p1->ptr, i);
+	if (sl == p1->ptr + i)
+		return -1;
+
+	ffstr_set(dir, p1->ptr, sl - p1->ptr);
+	return 0;
 }

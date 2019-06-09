@@ -138,6 +138,7 @@ Return the mismatch byte position:
  . -n-1 if s1 < sz2. */
 FF_EXTN ssize_t ffs_cmpz(const char *s1, size_t len, const char *sz2);
 FF_EXTN ssize_t ffs_icmpz(const char *s1, size_t len, const char *sz2);
+FF_EXTN ssize_t ffs_cmpn(const char *s1, const char *s2, size_t len);
 
 
 /** Return TRUE if 'n' characters are equal in both strings.
