@@ -284,6 +284,66 @@ void ffui_view_rm(ffui_view *v, ffui_viewitem *it)
 		gtk_list_store_remove(GTK_LIST_STORE(v->store), &iter);
 }
 
+void ffui_view_setdata(ffui_view *v, uint first, int delta)
+{
+	FF_ASSERT(v->dispinfo_id != 0);
+	uint cols = ffui_view_ncols(v);
+	if (cols == 0)
+		return;
+
+	uint rows = ffui_view_nitems(v);
+	int n = first + delta;
+	if (delta == 0)
+		n++; // redraw the item
+
+	FFDBG_PRINTLN(10, "first:%u  delta:%d  rows:%u", first, delta, rows);
+
+	if (first > rows)
+		return;
+
+	char buf[1024];
+	ffui_viewitem it = {};
+	for (uint i = first;  (int)i < n;  i++) {
+
+		v->disp.idx = i;
+
+		ffstr_set(&v->disp.text, buf, sizeof(buf) - 1);
+		buf[0] = '\0';
+		v->disp.sub = 0;
+		v->wnd->on_action(v->wnd, v->dispinfo_id);
+
+		ffui_view_setindex(&it, i);
+		buf[v->disp.text.len] = '\0';
+		ffui_view_settextz(&it, buf);
+		if (i >= rows)
+			ffui_view_ins(v, -1, &it);
+		else
+			ffui_view_set(v, 0, &it);
+		// FFDBG_PRINTLN(0, "idx:%u  text:%s", i, buf);
+
+		for (uint c = 1;  c != cols;  c++) {
+			ffstr_set(&v->disp.text, buf, sizeof(buf) - 1);
+			buf[0] = '\0';
+			v->disp.sub = c;
+			v->wnd->on_action(v->wnd, v->dispinfo_id);
+
+			ffui_view_setindex(&it, i);
+			buf[v->disp.text.len] = '\0';
+			ffui_view_settextz(&it, buf);
+			ffui_view_set(v, c, &it);
+			// FFDBG_PRINTLN(0, "idx:%u  text:%s", i, buf);
+		}
+	}
+
+	int i = first;
+	while (i > (int)n) {
+		ffui_view_setindex(&it, i);
+		ffui_view_rm(v, &it);
+		// FFDBG_PRINTLN(0, "removed idx:%u", i);
+		i--;
+	}
+}
+
 
 // STATUSBAR
 
@@ -579,6 +639,12 @@ static gboolean _ffui_send_handler(gpointer data)
 	case FFUI_VIEW_GETSEL:
 		c->udata = ffui_view_getsel((ffui_view*)c->ctl);
 		break;
+	case FFUI_VIEW_SETDATA: {
+		uint first = (size_t)c->udata >> 16;
+		uint delta = (ssize_t)c->udata & 0xffff;
+		ffui_view_setdata((ffui_view*)c->ctl, first, (short)delta);
+		break;
+	}
 
 	case FFUI_TRK_SETRANGE:
 		ffui_trk_setrange((ffui_trkbar*)c->ctl, (size_t)c->udata);

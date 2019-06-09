@@ -241,6 +241,10 @@ static inline void ffui_viewcol_settext(ffui_viewcol *vc, const char *text, size
 
 FF_EXTN void ffui_view_inscol(ffui_view *v, int pos, ffui_viewcol *vc);
 
+/** Get the number of columns. */
+#define ffui_view_ncols(v) \
+	gtk_tree_model_get_n_columns(GTK_TREE_MODEL((v)->store))
+
 
 // LISTVIEW ITEM
 typedef struct ffui_viewitem {
@@ -274,16 +278,24 @@ static inline void ffui_view_settext(ffui_viewitem *it, const char *text, size_t
 
 
 // LISTVIEW
+struct ffui_view_disp {
+	uint idx;
+	uint sub;
+	ffstr text;
+};
+
 struct ffui_view {
 	_FFUI_CTL_MEMBERS
 	GtkTreeModel *store;
 	GtkCellRenderer *rend;
 	uint dblclick_id;
 	uint dropfile_id;
+	uint dispinfo_id;
 
 	union {
 	GtkTreePath *path;
 	ffstr drop_data;
+	struct ffui_view_disp disp;
 	};
 };
 
@@ -296,6 +308,8 @@ enum FFUI_VIEW_STYLE {
 FF_EXTN void ffui_view_style(ffui_view *v, uint flags, uint set);
 
 #define ffui_view_nitems(v)  gtk_tree_model_iter_n_children((void*)(v)->store, NULL)
+
+FF_EXTN void ffui_view_setdata(ffui_view *v, uint first, int delta);
 
 #define ffui_view_clear(v)  gtk_list_store_clear(GTK_LIST_STORE((v)->store))
 
@@ -493,6 +507,7 @@ enum FFUI_MSG {
 	FFUI_VIEW_RM,
 	FFUI_VIEW_CLEAR,
 	FFUI_VIEW_GETSEL,
+	FFUI_VIEW_SETDATA,
 	FFUI_TRK_SETRANGE,
 	FFUI_TRK_SET,
 	FFUI_TAB_INS,
@@ -513,6 +528,11 @@ FF_EXTN size_t ffui_send(void *ctl, uint id, void *udata);
 /** See ffui_view_getsel().
 Return ffarr4* (uint[]) */
 #define ffui_send_view_getsel(v)  ffui_send(v, FFUI_VIEW_GETSEL, NULL)
+static inline void ffui_send_view_setdata(ffui_view *v, uint first, int delta)
+{
+	size_t p = ((first & 0xffff) << 16) | (delta & 0xffff);
+	ffui_send(v, FFUI_VIEW_SETDATA, (void*)p);
+}
 #define ffui_post_trk_setrange(ctl, range)  ffui_post(ctl, FFUI_TRK_SETRANGE, (void*)(size_t)range)
 #define ffui_post_trk_set(ctl, val)  ffui_post(ctl, FFUI_TRK_SET, (void*)(size_t)val)
 #define ffui_send_tab_ins(ctl, textz)  ffui_send(ctl, FFUI_TAB_INS, textz)
