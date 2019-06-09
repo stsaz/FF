@@ -268,7 +268,7 @@ FF_EXTN ssize_t ffszarr_ifindsorted(const char *const *ar, size_t n, const char 
 
 /** Find entry that matches expression "KEY=VAL".
 Return pointer to VAL;  NULL if not found. */
-FF_EXTN char* ffszarr_findkey(const char *const *ar, size_t n, const char *key, size_t key_len);
+FF_EXTN char* ffszarr_findkeyz(const char *const *arz, const char *key, size_t key_len);
 
 /** Count entries in array with the last entry =NULL. */
 FF_EXTN size_t ffszarr_countz(const char *const *arz);

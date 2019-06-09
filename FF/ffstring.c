@@ -395,7 +395,7 @@ ssize_t ffszarr_ifindsorted(const char *const *ar, size_t n, const char *search,
 	return -1;
 }
 
-char* ffszarr_findkey(const char *const *ar, size_t n, const char *key, size_t keylen)
+char* ffszarr_findkeyz(const char *const *ar, const char *key, size_t keylen)
 {
 	for (uint i = 0;  ar[i] != NULL;  i++) {
 		if (ffsz_match(ar[i], key, keylen)

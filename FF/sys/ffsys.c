@@ -529,7 +529,7 @@ char* ffenv_expand(ffenv *env, char *dst, size_t cap, const char *src)
 		src += n;
 
 		if (r == FFSVAR_S) {
-			if (NULL != (sv.val.ptr = ffszarr_findkey((const char*const*)env->ptr, env->n, sv.val.ptr, sv.val.len)))
+			if (NULL != (sv.val.ptr = ffszarr_findkeyz((const char*const*)env->ptr, sv.val.ptr, sv.val.len)))
 				sv.val.len = ffsz_len(sv.val.ptr);
 			else
 				sv.val.len = 0;
