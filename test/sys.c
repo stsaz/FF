@@ -52,7 +52,7 @@ int test_fmap()
 
 	FFTEST_FUNC;
 
-	fd = fffile_open(fn, O_CREAT | O_TRUNC | O_RDWR);
+	fd = fffile_open(fn, FFO_CREATE | FFO_TRUNC | FFO_RDWR);
 	x(fd != FF_BADFD);
 
 	ffs_fill(buf, buf + FFCNT(buf), ' ', FFCNT(buf));

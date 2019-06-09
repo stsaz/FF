@@ -79,7 +79,7 @@ enum FFDNS_T {
 	, FFDNS_AAAA = 28
 	, FFDNS_NS = 2
 	, FFDNS_CNAME = 5
-	, FFDNS_PTR = 12
+	, FFDNS_PTR = 12 // for ip=1.2.3.4 ques.name = 4.3.2.1.in-addr.arpa
 	, FFDNS_OPT = 41 //EDNS
 };
 
@@ -90,6 +90,7 @@ enum FFDNS_CL {
 
 /** Question. */
 typedef struct ffdns_ques {
+	//char name[]
 	byte type[2];
 	byte clas[2];
 } ffdns_ques;
@@ -100,6 +101,7 @@ typedef struct ffdns_ans {
 	byte clas[2];
 	byte ttl[4]; //31-bit value
 	byte len[2];
+	//char name[]
 } ffdns_ans; //10 bytes
 
 typedef struct ffdns_opt {

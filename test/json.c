@@ -263,7 +263,7 @@ int test_json_generat(const char *fn)
 
 	ffjson_cookinit(&j, buf, sizeof(buf));
 
-	f = fffile_open(fn, O_CREAT | O_TRUNC | O_WRONLY);
+	f = fffile_open(fn, FFO_CREATE | FFO_TRUNC | FFO_WRONLY);
 	if (!x(f != FF_BADFD))
 		return 0;
 
