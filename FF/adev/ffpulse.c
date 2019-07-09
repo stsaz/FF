@@ -56,7 +56,7 @@ const char* ffpulse_errstr(int e)
 	return pa_strerror(e);
 }
 
-int ffpulse_init(fffd kq)
+int ffpulse_init(fffd kq, const char *appname)
 {
 	int r, n, st;
 	pa_mainloop_api *mlapi;
@@ -74,7 +74,7 @@ int ffpulse_init(fffd kq)
 		goto end;
 	}
 	mlapi = pa_mainloop_get_api(p->ml);
-	if (NULL == (p->ctx = pa_context_new_with_proplist(mlapi, "ff", NULL))) {
+	if (NULL == (p->ctx = pa_context_new_with_proplist(mlapi, appname, NULL))) {
 		r = -E_pa_context_new_with_proplist;
 		goto end;
 	}
@@ -195,7 +195,8 @@ int ffpulse_devnext(ffpulse_dev *d, uint flags)
 static void stm_on_write(pa_stream *s, size_t nbytes, void *udata)
 {
 	ffpulse_buf *snd = udata;
-	FFDBG_PRINTLN(10, "n:%L", nbytes);
+	FFDBG_PRINTLN(10, "n:%L  cb:%u  cbw:%u  draining:%u"
+		, nbytes, snd->callback, snd->callback_wait, snd->draining);
 	if (snd->callback_wait) {
 		snd->callback_wait = 0;
 		snd->handler(snd->udata);
@@ -331,7 +332,6 @@ ssize_t ffpulse_write(ffpulse_buf *snd, const void *data, size_t len, size_t dat
 
 	while (len != 0) {
 		n = pa_stream_writable_size(snd->stm);
-		pa_stream_begin_write(snd->stm, &buf, &n);
 
 		if (n == 0) {
 			if (snd->autostart && 0 != (r = ffpulse_start(snd)))
@@ -339,6 +339,7 @@ ssize_t ffpulse_write(ffpulse_buf *snd, const void *data, size_t len, size_t dat
 			break;
 		}
 
+		pa_stream_begin_write(snd->stm, &buf, &n);
 		n = ffmin(len, n);
 		ffmemcpy(buf, (char*)data + dataoff, n);
 		pa_stream_write(snd->stm, buf, n, NULL, 0, PA_SEEK_RELATIVE);
@@ -356,7 +357,8 @@ err:
 
 int ffpulse_async(ffpulse_buf *snd, uint enable)
 {
-	FFDBG_PRINTLN(10, "", 0);
+	FFDBG_PRINTLN(10, "enable:%u  cb:%u  cbw:%u  draining:%u"
+		, enable, snd->callback, snd->callback_wait, snd->draining);
 
 	if (!enable) {
 		snd->callback_wait = snd->callback = 0;
@@ -365,7 +367,8 @@ int ffpulse_async(ffpulse_buf *snd, uint enable)
 
 	if (snd->callback) {
 		snd->callback = 0;
-		snd->handler(snd->udata);
+		if (!(enable & FFPULSE_CHECK))
+			snd->handler(snd->udata);
 		return 1;
 	}
 
@@ -430,6 +433,8 @@ int ffpulse_drain(ffpulse_buf *snd)
 
 	if (snd->draining)
 		return 0;
+
+	FFDBG_PRINTLN(10, "pa_stream_drain()", 0);
 	pa_operation *op = pa_stream_drain(snd->stm, &stm_on_op, snd);
 	pa_operation_unref(op);
 	snd->draining = 1;

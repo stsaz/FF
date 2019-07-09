@@ -226,6 +226,21 @@ void ffui_view_inscol(ffui_view *v, int pos, ffui_viewcol *vc)
 	ffui_viewcol_reset(vc);
 }
 
+void ffui_view_setcol(ffui_view *v, int pos, ffui_viewcol *vc)
+{
+	GtkTreeViewColumn *col = gtk_tree_view_get_column(GTK_TREE_VIEW(v->h), pos);
+	if (vc->text != NULL)
+		gtk_tree_view_column_set_title(col, vc->text);
+	if (vc->width != 0)
+		gtk_tree_view_column_set_fixed_width(col, vc->width);
+}
+
+void ffui_view_col(ffui_view *v, int pos, ffui_viewcol *vc)
+{
+	GtkTreeViewColumn *col = gtk_tree_view_get_column(GTK_TREE_VIEW(v->h), pos);
+	vc->width = gtk_tree_view_column_get_width(col);
+}
+
 static void view_prepare(ffui_view *v)
 {
 	uint ncol = gtk_tree_view_get_n_columns(GTK_TREE_VIEW(v->h));

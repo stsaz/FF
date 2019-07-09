@@ -108,6 +108,7 @@ static void* ldr_getctl(ffui_loader *g, const ffstr *name)
 	ffstr s;
 	s.ptr = buf;
 	s.len = ffs_fmt(buf, end, "%s.%S", g->wndname, name);
+	FFDBG_PRINTLN(10, "%S", &s);
 	return g->getctl(g->udata, &s);
 }
 

@@ -242,8 +242,11 @@ static inline void ffui_viewcol_settext(ffui_viewcol *vc, const char *text, size
 }
 
 #define ffui_viewcol_setwidth(vc, w)  (vc)->width = (w)
+#define ffui_viewcol_width(vc)  ((vc)->width)
 
 FF_EXTN void ffui_view_inscol(ffui_view *v, int pos, ffui_viewcol *vc);
+FF_EXTN void ffui_view_setcol(ffui_view *v, int pos, ffui_viewcol *vc);
+FF_EXTN void ffui_view_col(ffui_view *v, int pos, ffui_viewcol *vc);
 
 /** Get the number of columns. */
 #define ffui_view_ncols(v) \

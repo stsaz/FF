@@ -14,7 +14,7 @@ Copyright (c) 2017 Simon Zolin
 Note: libpulse's code calls _exit() when it fails to allocate a memory buffer (/src/pulse/xmalloc.c). */
 FF_EXTN const char* ffpulse_errstr(int e);
 
-FF_EXTN int ffpulse_init(fffd kq);
+FF_EXTN int ffpulse_init(fffd kq, const char *appname);
 FF_EXTN void ffpulse_uninit();
 
 
@@ -72,8 +72,15 @@ FF_EXTN size_t ffpulse_filled(ffpulse_buf *snd);
 @dataoff: input data offset (in bytes). */
 FF_EXTN ssize_t ffpulse_write(ffpulse_buf *snd, const void *data, size_t len, size_t dataoff);
 
-/** Allow user handler function to be called. */
-FF_EXTN int ffpulse_async(ffpulse_buf *snd, uint enable);
+enum FFPULSE_ASYNC {
+	FFPULSE_READY = 1, // user is ready to receive an asynchronous event
+	FFPULSE_CHECK = 2, // don't call user handler function
+};
+
+/** Allow user handler function to be called.
+flags: enum FFPULSE_ASYNC
+Return 1 if user handler function is called. */
+FF_EXTN int ffpulse_async(ffpulse_buf *snd, uint flags);
 
 FF_EXTN int ffpulse_start(ffpulse_buf *snd);
 FF_EXTN int ffpulse_stop(ffpulse_buf *snd);

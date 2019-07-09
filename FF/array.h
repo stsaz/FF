@@ -32,6 +32,19 @@ typedef struct ffarr2 {
 	void *ptr;
 } ffarr2;
 
+#define FFARR2_WALK(a, it) \
+	FFARR_WALKN((a)->ptr, (a)->len, it, sizeof(*(a)->ptr))
+
+#define FFARR2_RWALK(ar, it) \
+	for (it = ffarr2_last(ar);  it - (ar)->ptr >= 0;  it--)
+
+/** Set data pointer and length. */
+#define ffarr2_set(a, data, n) \
+do { \
+	(a)->ptr = data; \
+	(a)->len = n; \
+} while(0)
+
 static FFINL void* ffarr2_alloc(ffarr2 *a, size_t n, size_t elsz)
 {
 	a->len = 0;
@@ -76,6 +89,10 @@ do { \
 	ffarr2_free(a); \
 } while (0)
 
+#define ffarr2_last(a)  (&(a)->ptr[(a)->len - 1])
+
+#define ffarr2_push(a)  (&(a)->ptr[(a)->len++])
+
 /** Append data to an array. */
 static FFINL size_t ffarr2_addf(ffarr2 *a, const void *src, size_t n, size_t elsz)
 {
@@ -88,6 +105,14 @@ static FFINL size_t ffarr2_addf(ffarr2 *a, const void *src, size_t n, size_t els
 #define ffarr2_add(a, cap, src, n, elsz) \
 	ffarr2_addf(a, src, ffmin(n, (cap) - (a)->len), elsz)
 
+/** Remove 1 element and shift other elements to the left.
+A[0]...  ( A[i] )  A[i+1]...
+*/
+#define ffarr2_rm_shift(a, i) \
+do { \
+	memmove(&(a)->ptr[i], &(a)->ptr[i + 1], ((a)->len - (i + 1)) * sizeof(*(a)->ptr)); \
+	(a)->len--; \
+} while (0)
 
 #define ffarr_zero(a)  ffmem_zero((a)->ptr, (a)->len)
 
