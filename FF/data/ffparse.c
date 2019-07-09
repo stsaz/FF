@@ -571,17 +571,18 @@ int ffpars_setctx(ffparser_schem *ps, void *o, const ffpars_arg *args, uint narg
 	return 0;
 }
 
-static const ffpars_arg empty_args[1];
-
 void ffpars_ctx_skip(ffpars_ctx *ctx)
 {
-	ffpars_setargs(ctx, NULL, empty_args, FFCNT(empty_args));
+	ffpars_setargs(ctx, (void*)-1, (void*)-1, 0);
 }
 
 int _ffpars_skipctx(ffparser_schem *ps, int ret)
 {
-	if (ps->ctxs.len != 0 && ffarr_back(&ps->ctxs).args == empty_args) {
-		ffpars_ctx *ctx;
+	if (ps->ctxs.len == 0)
+		return 0;
+
+	ffpars_ctx *ctx = &ffarr_back(&ps->ctxs);
+	if (ctx->obj == (void*)-1 && ctx->args == (void*)-1) {
 
 		switch (ret) {
 		case FFPARS_OPEN:
