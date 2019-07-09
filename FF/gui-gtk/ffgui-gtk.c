@@ -3,6 +3,7 @@ Copyright (c) 2019 Simon Zolin
 */
 
 #include <FF/gui-gtk/gtk.h>
+#include <FF/net/url.h>
 #include <FFOS/atomic.h>
 
 
@@ -149,10 +150,19 @@ static void _ffui_view_drag_data_received(GtkWidget *wgt, GdkDragContext *contex
 	gint len;
 	const void *ptr = gtk_selection_data_get_data_with_length(seldata, &len);
 	FFDBG_PRINTLN(10, "seldata:[%u] %*s", len, (size_t)len, ptr);
+
+	char *s = ffmem_alloc(len + 1);
+	if (s == NULL)
+		return;
+	size_t n = ffuri_decode(s, len, ptr, len, 0);
+	s[n] = '\0';
+
 	ffui_view *v = userdata;
-	ffstr_set(&v->drop_data, ptr, len);
+	ffstr_set(&v->drop_data, s, n);
 	v->wnd->on_action(v->wnd, v->dropfile_id);
 	ffstr_null(&v->drop_data);
+
+	ffmem_free(s);
 }
 
 int ffui_view_create(ffui_view *v, ffui_wnd *parent)
