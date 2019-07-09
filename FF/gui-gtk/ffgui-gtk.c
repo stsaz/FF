@@ -28,8 +28,12 @@ Copyright (c) 2019 Simon Zolin
 // MENU
 static void _ffui_menu_activate(GtkWidget *mi, gpointer udata)
 {
-	GtkWidget *parent_menu = gtk_widget_get_parent(mi);
-	ffui_wnd *wnd = g_object_get_data(G_OBJECT(parent_menu), "ffdata");
+	GtkWidget *parent_menu = mi;
+	ffui_wnd *wnd = NULL;
+	while (wnd == NULL) {
+		parent_menu = gtk_widget_get_parent(parent_menu);
+		wnd = g_object_get_data(G_OBJECT(parent_menu), "ffdata");
+	}
 	uint id = (size_t)udata;
 	wnd->on_action(wnd, id);
 }
@@ -468,6 +472,7 @@ int ffui_wnd_create(ffui_wnd *w)
 	w->h = (void*)gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	w->vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
 	gtk_container_add(GTK_CONTAINER(w->h), w->vbox);
+	g_object_set_data(G_OBJECT(w->h), "ffdata", w);
 	g_signal_connect(w->h, "delete-event", G_CALLBACK(&_ffui_wnd_onclose), w);
 	return 0;
 }
