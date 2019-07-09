@@ -121,25 +121,26 @@ enum MKV_TRKTYPE {
 };
 
 // MKV_CODEC_ID:
-#define MKV_A_MPEG  "A_MPEG"
-#define MKV_A_ALAC  "A_ALAC"
-#define MKV_A_AAC  "A_AAC"
-#define MKV_A_VORBIS  "A_VORBIS"
-#define MKV_A_PCM  "A_PCM/INT/LIT"
+static const char* const codecstr[] = {
+	"A_AAC",
+	"A_ALAC",
+	"A_MPEG",
+	"A_VORBIS",
+	"A_AC3",
+	"A_PCM/INT/LIT",
+};
 
 /** Translate codec name to ID. */
 static int mkv_codec(const ffstr *name)
 {
-	int r = 0;
+	int r;
+	r = ffs_findarrz(codecstr, FFCNT(codecstr), name->ptr, name->len);
+	if (r >= 0)
+		return r + 1;
 
-	if (ffstr_eqcz(name, MKV_A_ALAC))
-		r = FFMKV_AUDIO_ALAC;
-	else if (ffstr_eqcz(name, MKV_A_VORBIS))
-		r = FFMKV_AUDIO_VORBIS;
-
-	else if (ffstr_match(name, MKV_A_AAC, FFSLEN(MKV_A_AAC)))
+	if (ffstr_match(name, "A_AAC", FFSLEN("A_AAC")))
 		r = FFMKV_AUDIO_AAC;
-	else if (ffstr_match(name, MKV_A_MPEG, FFSLEN(MKV_A_MPEG)))
+	else if (ffstr_match(name, "A_MPEG", FFSLEN("A_MPEG")))
 		r = FFMKV_AUDIO_MPEG;
 
 	return r;
@@ -769,8 +770,12 @@ int ffmkv_read(ffmkv *m)
 			break;
 
 		case T_CODEC_ID:
-			if (0 != (r = mkv_codec(&m->gbuf)))
-				m->info.format = r;
+			FFDBG_PRINTLN(10, "codec: %S", &m->gbuf);
+			if (0 != (r = mkv_codec(&m->gbuf))) {
+
+				if (m->info.format == 0 && r >= FFMKV_AUDIO_AAC && r <= _FFMKV_A_LAST)
+					m->info.format = r;
+			}
 			break;
 
 		case T_CODEC_PRIV:
