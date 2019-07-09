@@ -862,6 +862,11 @@ void ffui_viewcol_settext(ffui_viewcol *vc, const char *text, size_t len)
 	ffui_viewcol_settext_q(vc, vc->text);
 }
 
+uint ffui_viewcol_width(ffui_viewcol *vc)
+{
+	return dpi_descale(vc->col.cx);
+}
+
 void ffui_viewcol_setwidth(ffui_viewcol *vc, uint w)
 {
 	vc->col.mask |= LVCF_WIDTH;

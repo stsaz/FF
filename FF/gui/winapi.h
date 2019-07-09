@@ -984,9 +984,8 @@ do { \
 
 FF_EXTN void ffui_viewcol_settext(ffui_viewcol *vc, const char *text, size_t len);
 
+FF_EXTN uint ffui_viewcol_width(ffui_viewcol *vc);
 FF_EXTN void ffui_viewcol_setwidth(ffui_viewcol *vc, uint w);
-
-#define ffui_viewcol_width(vc)  ((vc)->col.cx)
 
 /**
 'a': HDF_LEFT HDF_RIGHT HDF_CENTER */
