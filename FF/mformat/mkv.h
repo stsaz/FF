@@ -34,6 +34,13 @@ enum FFMKV_CODEC {
 	FFMKV_A_AC3,
 	FFMKV_A_PCM,
 	_FFMKV_A_LAST = FFMKV_A_PCM,
+
+	FFMKV_V_AVC,
+	FFMKV_V_HEVC,
+	_FFMKV_V_LAST = FFMKV_V_HEVC,
+
+	FFMKV_S_UTF8,
+	FFMKV_S_ASS,
 };
 
 typedef struct ffmkv {
@@ -65,6 +72,9 @@ typedef struct ffmkv {
 		ffstr asc;
 		int num;
 		int type;
+
+		uint vcodec; //enum FFMKV_CODEC
+		uint width, height;
 	} info;
 	int audio_trkno;
 	uint64 nsamples;

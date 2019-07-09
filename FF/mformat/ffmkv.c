@@ -128,6 +128,12 @@ static const char* const codecstr[] = {
 	"A_VORBIS",
 	"A_AC3",
 	"A_PCM/INT/LIT",
+
+	"V_MPEG4/ISO/AVC",
+	"V_MPEGH/ISO/HEVC",
+
+	"S_TEXT/UTF8",
+	"S_TEXT/ASS",
 };
 
 /** Translate codec name to ID. */
@@ -165,6 +171,10 @@ enum MKV_ELID {
 	T_TRKTYPE, //enum MKV_TRKTYPE
 	T_CODEC_ID, //MKV_CODEC_ID
 	T_CODEC_PRIV,
+
+	T_V_WIDTH,
+	T_V_HEIGHT,
+
 	T_A_RATE,
 	T_A_CHANNELS,
 	T_A_BITS,
@@ -264,6 +274,9 @@ Segment (0x18538067)
    TrackType (0x83)
    CodecID (0x86)
    CodecPrivate (0x63a2)
+   Video (0xe0)
+    PixelWidth (0xb0)
+    PixelHeight (0xba)
    Audio (0xe1)
     SamplingFrequency (0xb5)
     Channels (0x9f)
@@ -285,6 +298,7 @@ static const mkv_bel mkv_ctx_segment[];
 static const mkv_bel mkv_ctx_info[];
 static const mkv_bel mkv_ctx_tracks[];
 static const mkv_bel mkv_ctx_trackentry[];
+static const mkv_bel mkv_ctx_trackentry_video[];
 static const mkv_bel mkv_ctx_trackentry_audio[];
 static const mkv_bel mkv_ctx_tags[];
 static const mkv_bel mkv_ctx_tag[];
@@ -321,7 +335,12 @@ static const mkv_bel mkv_ctx_trackentry[] = {
 	{ 0x83, T_TRKTYPE | F_INT, NULL },
 	{ 0x86, T_CODEC_ID | F_WHOLE, NULL },
 	{ 0x63a2, T_CODEC_PRIV | F_WHOLE, NULL },
+	{ 0xe0, T_TAG, mkv_ctx_trackentry_video },
 	{ 0xe1, F_LAST, mkv_ctx_trackentry_audio },
+};
+static const mkv_bel mkv_ctx_trackentry_video[] = {
+	{ 0xb0, T_V_WIDTH | F_INT, NULL },
+	{ 0xba, T_V_HEIGHT | F_INT | F_LAST, NULL },
 };
 static const mkv_bel mkv_ctx_trackentry_audio[] = {
 	{ 0xb5, T_A_RATE | F_FLT, NULL },
@@ -775,6 +794,9 @@ int ffmkv_read(ffmkv *m)
 
 				if (m->info.format == 0 && r >= FFMKV_AUDIO_AAC && r <= _FFMKV_A_LAST)
 					m->info.format = r;
+
+				if (m->info.vcodec == 0 && r > _FFMKV_A_LAST && r <= _FFMKV_V_LAST)
+					m->info.vcodec = r;
 			}
 			break;
 
@@ -782,6 +804,14 @@ int ffmkv_read(ffmkv *m)
 			ffstr_free(&m->codec_data);
 			if (NULL == ffstr_dup(&m->codec_data, m->gbuf.ptr, m->gbuf.len))
 				return ERR(m, MKV_ESYS);
+			break;
+
+		case T_V_WIDTH:
+			m->info.width = val4;
+			break;
+
+		case T_V_HEIGHT:
+			m->info.height = val4;
 			break;
 
 		case T_A_RATE:
