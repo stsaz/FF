@@ -552,6 +552,12 @@ err:
 	return NULL;
 }
 
+static const char locstr[][2] = {
+	"en",
+	"de",
+	"ru",
+};
+
 int fflang_info(uint flags)
 {
 	if (flags != FFLANG_FLANG)
@@ -561,11 +567,20 @@ int fflang_info(uint flags)
 	ffstr name;
 	ffstr_setz(&name, "LANG");
 	if (NULL == (val = ffszarr_findkeyz((const char*const*)environ, name.ptr, name.len)))
-		return FFLANG_ENG;
+		return FFLANG_NONE;
+	// "lang_COUNTRY.utf8"
 
-	if (ffsz_eq(val, "ru_RU.utf8"))
-		return FFLANG_RUS;
-	return FFLANG_ENG;
+	ffstr v;
+	ffstr_setz(&v, val);
+	if (v.len != FFSLEN("xx_XX.utf8")
+		|| val[2] != '_'
+		|| !memcmp(val + 4, ".utf8", 5))
+		return FFLANG_NONE;
+
+	int i = ffcharr_findsorted(locstr, FFCNT(locstr), sizeof(*locstr), val, 2);
+	if (i != -1)
+		return i + 1;
+	return FFLANG_NONE;
 }
 
 #endif
