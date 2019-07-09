@@ -419,6 +419,7 @@ int ffpulse_clear(ffpulse_buf *snd)
 	pa_operation *op = pa_stream_flush(snd->stm, &stm_on_op, snd);
 	op_wait(op);
 	pa_operation_unref(op);
+	snd->draining = 0;
 	return 0;
 }
 
