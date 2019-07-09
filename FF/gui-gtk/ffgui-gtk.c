@@ -375,21 +375,39 @@ int ffui_tray_create(ffui_trayicon *t, ffui_wnd *wnd)
 // DIALOG
 char* ffui_dlg_open(ffui_dialog *d, ffui_wnd *parent)
 {
-	ffmem_free0(d->name);
+	g_free(d->name);  d->name = NULL;
+
 	GtkWidget *dlg;
 	dlg = gtk_file_chooser_dialog_new(d->title, parent->h, GTK_FILE_CHOOSER_ACTION_OPEN
 		, "_Cancel", GTK_RESPONSE_CANCEL
 		, "_Open", GTK_RESPONSE_ACCEPT
 		, NULL);
+	GtkFileChooser *chooser = GTK_FILE_CHOOSER(dlg);
+
+	if (d->multisel)
+		gtk_file_chooser_set_select_multiple(chooser, 1);
 
 	int r = gtk_dialog_run(GTK_DIALOG(dlg));
 	if (r == GTK_RESPONSE_ACCEPT) {
-		GtkFileChooser *chooser = GTK_FILE_CHOOSER(dlg);
-		d->name = gtk_file_chooser_get_filename(chooser);
+		if (d->multisel)
+			d->curname = d->names = gtk_file_chooser_get_filenames(chooser);
+		else
+			d->name = gtk_file_chooser_get_filename(chooser);
 	}
 
 	gtk_widget_destroy(dlg);
+	if (d->names != NULL)
+		return ffui_dlg_nextname(d);
 	return d->name;
+}
+
+char* ffui_dlg_nextname(ffui_dialog *d)
+{
+	if (d->curname == NULL)
+		return NULL;
+	char *name = d->curname->data;
+	d->curname = d->curname->next;
+	return name;
 }
 
 char* ffui_dlg_save(ffui_dialog *d, ffui_wnd *parent, const char *fn, size_t fnlen)

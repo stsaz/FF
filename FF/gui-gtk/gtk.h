@@ -387,6 +387,9 @@ static inline void ffui_tray_seticon(ffui_trayicon *t, ffui_icon *ico)
 typedef struct ffui_dialog {
 	char *title;
 	char *name;
+	GSList *names;
+	GSList *curname;
+	uint multisel :1;
 } ffui_dialog;
 
 static inline void ffui_dlg_init(ffui_dialog *d)
@@ -395,14 +398,20 @@ static inline void ffui_dlg_init(ffui_dialog *d)
 
 static inline void ffui_dlg_destroy(ffui_dialog *d)
 {
-	ffmem_free(d->title);
-	g_free(d->name);
+	g_slist_free_full(d->names, g_free);  d->names = NULL;
+	ffmem_free0(d->title);
+	g_free(d->name); d->name = NULL;
 }
 
 static inline void ffui_dlg_titlez(ffui_dialog *d, const char *sz)
 {
 	d->title = ffsz_alcopyz(sz);
 }
+
+#define ffui_dlg_multisel(d, val)  ((d)->multisel = (val))
+
+/** Get the next file name (for a dialog with multiselect). */
+FF_EXTN char* ffui_dlg_nextname(ffui_dialog *d);
 
 FF_EXTN char* ffui_dlg_open(ffui_dialog *d, ffui_wnd *parent);
 
