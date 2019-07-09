@@ -363,7 +363,7 @@ size_t ffuri_decode(char *dst, size_t dstcap, const char *d, size_t len, uint fl
 		case iUri:
 			if (ch == '%')
 				idx = iQuoted1;
-			else if (ffchar_isansiwhite(ch) || ch == '#')
+			else if ((flags & FFURI_DEC_HTTPREQ) && (ffchar_isansiwhite(ch) || ch == '#'))
 				goto fail;
 			else
 				dst[idst++] = ch;

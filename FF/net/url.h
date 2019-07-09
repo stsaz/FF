@@ -109,6 +109,7 @@ FF_EXTN int ffurl_joinstr(ffstr *dst, const ffstr *scheme, const ffstr *host, ui
 
 enum FFURI_DECODE {
 	FFURI_DEC_NORM_PATH = 0x10, // normalize path: merge dots & slashes, force strict bounds
+	FFURI_DEC_HTTPREQ = 0x20, // validate data in HTTP request: disallow any whitespace and '#'
 };
 
 /** Decode %xx in URI.
