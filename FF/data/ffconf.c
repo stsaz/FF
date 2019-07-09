@@ -11,6 +11,7 @@ enum FFCONF_SCF {
 	FFPARS_SCCTX_ANY = 2,
 	FFPARS_SCCTX = 4,
 	SCF_RESETCTX = 8,
+	SCF_RESETCTX_VAL = 0x10,
 };
 
 static int hdlEsc(ffconf *p, int *st, int ch);
@@ -785,12 +786,8 @@ static int ffconf_schemval(ffparser_schem *ps)
 		r = ffpars_arg_process(ps->curarg, &v, ffarr_back(&ps->ctxs).obj, ps);
 	}
 
-	if (ps->flags & SCF_RESETCTX) {
-		//clear context after the whole line "ctx1.key value" is processed
-		ps->ctxs.len = 1;
-		ps->curarg = NULL;
-		ps->flags &= ~SCF_RESETCTX;
-	}
+	if (ps->flags & SCF_RESETCTX)
+		ps->flags |= SCF_RESETCTX_VAL;
 
 	return r;
 }
@@ -802,6 +799,14 @@ int ffconf_schemrun(ffparser_schem *ps)
 	ffpars_ctx *ctx = &ffarr_back(&ps->ctxs);
 	uint f;
 	int r;
+
+	if ((ps->flags & SCF_RESETCTX_VAL) && c->ret != FFPARS_VAL) {
+		//clear context after the whole line "ctx1.key value..." is processed
+		ps->ctxs.len = 1;
+		ps->curarg = NULL;
+		ps->flags &= ~(SCF_RESETCTX | SCF_RESETCTX_VAL);
+		return ffconf_schemrun(ps);
+	}
 
 	if (c->ret >= 0)
 		return c->ret;
