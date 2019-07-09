@@ -39,6 +39,12 @@ void ffui_menu_setcmd(void *mi, uint id)
 	g_signal_connect(mi, "activate", G_CALLBACK(&_ffui_menu_activate), (void*)(size_t)id);
 }
 
+void ffui_menu_setsubmenu(void *mi, ffui_menu *sub, ffui_wnd *wnd)
+{
+	gtk_menu_item_set_submenu(mi, sub->h);
+	g_object_set_data(G_OBJECT(sub->h), "ffdata", wnd);
+}
+
 
 // BUTTON
 static void _ffui_btn_clicked(GtkWidget *widget, gpointer udata)
@@ -70,7 +76,6 @@ int ffui_edit_create(ffui_edit *e, ffui_wnd *parent)
 {
 	e->h = gtk_entry_new();
 	e->wnd = parent;
-	gtk_box_pack_start(GTK_BOX(parent->vbox), e->h, /*expand=*/0, /*fill=*/0, /*padding=*/0);
 	return 0;
 }
 

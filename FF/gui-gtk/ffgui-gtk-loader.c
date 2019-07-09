@@ -385,7 +385,25 @@ static int btn_new(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 
 
 // EDITBOX
+static int edit_done(ffparser_schem *ps, void *obj)
+{
+	ffui_loader *g = obj;
+	if (g->f_horiz) {
+		if (g->hbox == NULL) {
+			g->hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+			gtk_box_pack_start(GTK_BOX(g->wnd->vbox), g->hbox, /*expand=*/1, /*fill=*/0, /*padding=*/0);
+		}
+		gtk_box_pack_start(GTK_BOX(g->hbox), g->edit->h, /*expand=*/1, /*fill=*/1, /*padding=*/0);
+	} else {
+		g->hbox = NULL;
+		gtk_box_pack_start(GTK_BOX(g->wnd->vbox), g->edit->h, /*expand=*/0, /*fill=*/0, /*padding=*/0);
+	}
+
+	return 0;
+}
 static const ffpars_arg edit_args[] = {
+	{ "style",	FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&btn_style) },
+	{ NULL,	FFPARS_TCLOSE, FFPARS_DST(&edit_done) },
 };
 
 static int edit_new(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
@@ -400,6 +418,7 @@ static int edit_new(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 		return FFPARS_ESYS;
 
 	ffpars_setargs(ctx, g, edit_args, FFCNT(edit_args));
+	g->flags = 0;
 	return 0;
 }
 

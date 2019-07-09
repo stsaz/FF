@@ -113,11 +113,7 @@ static inline int ffui_menu_create(ffui_menu *m)
 #define ffui_menu_new(text)  gtk_menu_item_new_with_mnemonic(text)
 #define ffui_menu_newsep()  gtk_separator_menu_item_new()
 
-static inline void ffui_menu_setsubmenu(void *mi, ffui_menu *sub, ffui_wnd *wnd)
-{
-	gtk_menu_item_set_submenu(mi, sub->h);
-	g_object_set_data(G_OBJECT(sub->h), "ffdata", wnd);
-}
+FF_EXTN void ffui_menu_setsubmenu(void *mi, ffui_menu *sub, ffui_wnd *wnd);
 
 FF_EXTN void ffui_menu_setcmd(void *mi, uint id);
 
@@ -176,6 +172,14 @@ typedef struct ffui_edit {
 } ffui_edit;
 
 FF_EXTN int ffui_edit_create(ffui_edit *e, ffui_wnd *parent);
+
+#define ffui_edit_settextz(e, text)  gtk_entry_set_text(GTK_ENTRY((e)->h), text)
+static inline void ffui_edit_settext(ffui_edit *e, const char *text, size_t len)
+{
+	char *sz = ffsz_alcopy(text, len);
+	ffui_edit_settextz(e, sz);
+	ffmem_free(sz);
+}
 
 static inline void ffui_edit_textstr(ffui_edit *e, ffstr *s)
 {
@@ -311,7 +315,11 @@ FF_EXTN void ffui_view_style(ffui_view *v, uint flags, uint set);
 
 FF_EXTN void ffui_view_setdata(ffui_view *v, uint first, int delta);
 
-#define ffui_view_clear(v)  gtk_list_store_clear(GTK_LIST_STORE((v)->store))
+static inline void ffui_view_clear(ffui_view *v)
+{
+	if (v->store != NULL)
+		gtk_list_store_clear(GTK_LIST_STORE(v->store));
+}
 
 #define ffui_view_selall(v)  gtk_tree_selection_select_all(gtk_tree_view_get_selection(GTK_TREE_VIEW((v)->h)))
 #define ffui_view_unselall(v)  gtk_tree_selection_unselect_all(gtk_tree_view_get_selection(GTK_TREE_VIEW((v)->h)))
