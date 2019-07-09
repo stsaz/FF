@@ -73,6 +73,7 @@ enum BOX {
 	BOX_STCO,
 	BOX_CO64,
 	BOX_STSD_ALAC,
+	BOX_STSD_AVC1,
 	BOX_STSD_MP4A,
 	BOX_ALAC,
 	BOX_ESDS,
@@ -146,6 +147,11 @@ struct mp4_esds {
 };
 int mp4_esds(const char *data, uint len, struct mp4_esds *esds);
 int mp4_esds_write(char *dst, const struct mp4_esds *esds);
+
+struct mp4_video {
+	uint width, height;
+};
+int mp4_avc1(const char *data, uint len, struct mp4_video *vi);
 
 struct seekpt {
 	uint64 audio_pos;

@@ -62,6 +62,10 @@ typedef struct ffmp4 {
 	uint frame_samples; // number of samples per frame (if constant). 0:variable
 	ffpcm fmt;
 	byte codec; //enum FFMP4_CODEC
+	struct {
+		byte codec; //enum FFMP4_CODEC
+		uint width, height;
+	} video;
 
 	uint tag; //enum FFMP4_TAG
 	ffstr tagval;
@@ -76,6 +80,8 @@ enum FFMP4_CODEC {
 	FFMP4_ALAC = 1,
 	FFMP4_AAC,
 	FFMP4_MPEG1,
+
+	FFMP4_V_AVC1,
 };
 
 enum FFMP4_R {

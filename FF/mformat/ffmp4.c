@@ -80,7 +80,8 @@ static uint64 mp4_data(const uint64 *chunks, const struct seekpt *sk, uint isamp
 
 
 static const char* const codecs[] = {
-	"unknown codec", "ALAC", "AAC", "MPEG-1"
+	"unknown codec", "ALAC", "AAC", "MPEG-1",
+	"H.264",
 };
 
 const char* ffmp4_codec(int codec)
@@ -217,6 +218,17 @@ static int mp4_box_process(ffmp4 *m, const ffstr *data)
 	case BOX_STSD_MP4A:
 		mp4_asamp(sbox.ptr, &m->fmt);
 		break;
+
+	case BOX_STSD_AVC1: {
+		struct mp4_video v;
+		r = mp4_avc1(sbox.ptr, sbox.len, &v);
+		if (r < 0)
+			return ERR(m, -r);
+		m->video.codec = FFMP4_V_AVC1;
+		m->video.width = v.width;
+		m->video.height = v.height;
+		break;
+	}
 
 	case BOX_ALAC:
 		if (m->codec_conf.len != 0)

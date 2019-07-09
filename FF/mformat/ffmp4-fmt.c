@@ -319,6 +319,26 @@ int mp4_esds_write(char *dst, const struct mp4_esds *esds)
 }
 
 
+struct avc1 {
+	byte reserved1[6];
+	byte data_reference_index[2];
+	byte reserved2[16];
+	byte width[2];
+	byte height[2];
+	byte reserved3[14];
+	byte unused[4];
+	byte reserved4[4];
+};
+int mp4_avc1(const char *data, uint len, struct mp4_video *vi)
+{
+	const struct avc1 *a = (void*)data;
+	FF_ASSERT(len >= sizeof(struct avc1));
+	vi->width = ffint_ntoh16(a->width);
+	vi->height = ffint_ntoh16(a->height);
+	return 0;
+}
+
+
 struct stts_ent {
 	byte sample_cnt[4];
 	byte sample_delta[4];
@@ -799,6 +819,7 @@ moov
        esds
       alac
        alac
+      avc1
      stts
      stsc
      stsz
@@ -878,6 +899,7 @@ static const struct bbox mp4_ctx_stbl[] = {
 };
 static const struct bbox mp4_ctx_stsd[] = {
 	{"alac", BOX_STSD_ALAC | MINSIZE(sizeof(struct asamp)), mp4_ctx_alac},
+	{"avc1", BOX_STSD_AVC1 | F_WHOLE | MINSIZE(sizeof(struct avc1)), NULL},
 	{"mp4a", BOX_STSD_MP4A | MINSIZE(sizeof(struct asamp)) | F_LAST, mp4_ctx_mp4a},
 };
 static const struct bbox mp4_ctx_alac[] = {
