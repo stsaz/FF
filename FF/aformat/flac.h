@@ -7,6 +7,10 @@ fLaC (HDR STREAMINFO) [HDR BLOCK]... (FRAME_HDR SUBFRAME... FRAME_FOOTER)...
 
 ffflac_cook:
 fLaC INFO VORBIS_CMT [PADDING] [PICTURE] [SEEKTABLE] (FRAME)...
+
+
+FLAC in OGG:
+OGG_PKT(HDR fLaC INFO) OGG_PKT(VORBIS_CMT) [OGG_PKT(HDR BLOCK)]... OGG_PKT(FRAME)...
 */
 
 #pragma once
@@ -161,3 +165,31 @@ static FFINL uint64 ffflac_wsize(ffflac_cook *f)
 {
 	return f->hdrlen + f->total_samples * f->info.bits / 8 * f->info.channels * 73 / 100;
 }
+
+
+typedef struct ffflac_ogg {
+	uint st;
+	int err;
+	uint meta_type;
+	ffflac_info info;
+	ffpcm fmt;
+	ffstr in, out;
+} ffflac_ogg;
+
+FF_EXTN const char* ffflac_ogg_errstr(ffflac_ogg *f);
+
+FF_EXTN int ffflac_ogg_open(ffflac_ogg *f);
+FF_EXTN void ffflac_ogg_close(ffflac_ogg *f);
+
+/** Set input data. */
+static inline void ffflac_ogg_input(ffflac_ogg *f, const void *d, size_t len)
+{
+	ffstr_set(&f->in, d, len);
+}
+
+/**
+Return enum FFFLAC_R. */
+FF_EXTN int ffflac_ogg_read(ffflac_ogg *f);
+
+/** Get output data (FLAC frame). */
+#define ffflac_ogg_output(f)  ((f)->out)

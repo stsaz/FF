@@ -98,7 +98,8 @@ FEATURES
 
 * Audio container - `FF/aformat/`
 	* .aac (read) - `FF/aformat/aac-adts.h`
-	* .flac (write) - `FF/aformat/flac.h`
+	* .flac (read/write) - `FF/aformat/flac.h`
+	* FLAC/.ogg (read) - `FF/aformat/flac.h`
 	* .mp3 (read/write) - `FF/aformat/mp3.h`
 	* .mpc (read) - `FF/aformat/mpc.h`
 	* .wav (read/write) - `FF/aformat/wav.h`
