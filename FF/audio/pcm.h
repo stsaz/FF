@@ -5,6 +5,7 @@ Copyright (c) 2015 Simon Zolin
 #pragma once
 
 #include <FFOS/types.h>
+#include <FF/string.h>
 #include <FF/number.h>
 
 #include <math.h>
@@ -48,6 +49,11 @@ do { \
 	(dst)->channels = (src)->channels; \
 	(dst)->sample_rate = (src)->sample_rate; \
 } while (0)
+
+static inline ffbool ffpcmex_eq(const ffpcmex *a, const ffpcmex *b)
+{
+	return !!ffmemcmp(a, b, sizeof(*a));
+}
 
 enum {
 	FFPCM_CHMASK = 0x0f,

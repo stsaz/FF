@@ -32,6 +32,11 @@ uint fflist_curshift(fflist_cursor *cur, uint cmd, void *sentl)
 		if (c->prev != sentl) {
 			*cur = c->prev;
 			r = FFLIST_CUR_PREV;
+
+		} else if ((cmd & FFLIST_CUR_BOUNCE) && c->next != sentl) {
+			*cur = c->next;
+			r = FFLIST_CUR_NEXT;
+
 		} else
 			r = FFLIST_CUR_NOPREV;
 

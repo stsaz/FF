@@ -125,6 +125,7 @@ FEATURES
 	* WASAPI playback/capture - `FF/adev/wasapi.h`
 	* ALSA playback/capture - `FF/adev/alsa.h`
 	* Pulse Audio playback - `FF/adev/pulse.h`
+	* CoreAudio playback/capture - `FF/adev/coreaudio.h`
 	* OSS playback - `FF/adev/oss.h`
 
 * Audio - `FF/audio/`

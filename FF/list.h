@@ -149,6 +149,9 @@ enum FFLIST_CUR {
 	, FFLIST_CUR_SAMEIFBOUNCE = 0x200 //stay at the same position if a bounce occurs
 
 	//return codes:
+	// FFLIST_CUR_SAME
+	// FFLIST_CUR_NEXT
+	// FFLIST_CUR_PREV
 	, FFLIST_CUR_NONEXT = 3
 	, FFLIST_CUR_NOPREV = 4
 };

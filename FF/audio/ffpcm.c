@@ -51,6 +51,8 @@ int ffpcm_fmt(const char *sfmt, size_t len)
 static const char pcm_channelstr[][7] = {
 	"1",
 	"2",
+	"5.1",
+	"7.1",
 	"left",
 	"mono",
 	"right",
@@ -59,6 +61,8 @@ static const char pcm_channelstr[][7] = {
 static const byte pcm_channels[] = {
 	1,
 	2,
+	6,
+	8,
 	0x10 | 1,
 	1,
 	0x20 | 1,
@@ -74,8 +78,10 @@ int ffpcm_channels(const char *s, size_t len)
 }
 
 
-static const char *const _ffpcm_channelstr[3] = {
-	"mono", "stereo", "multi-channel"
+static const char *const _ffpcm_channelstr[] = {
+	"mono", "stereo",
+	"3-channel", "4-channel", "5-channel",
+	"5.1", "6.1", "7.1"
 };
 
 const char* ffpcm_channelstr(uint channels)

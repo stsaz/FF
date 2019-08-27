@@ -121,6 +121,8 @@ fffileread* fffileread_create(const char *fn, fffileread_conf *conf)
 		return NULL;
 	f->fd = FF_BADFD;
 	f->async_off = (uint64)-1;
+	f->conf.udata = conf->udata;
+	f->conf.log = conf->log;
 
 	if (0 != bufs_create(f, conf))
 		goto err;
@@ -139,7 +141,7 @@ fffileread* fffileread_create(const char *fn, fffileread_conf *conf)
 		}
 #endif
 
-		fr_log(f, 0, "%s: %s", fffile_open_S, fn);
+		fr_log(f, 0, "%s", fffile_open_S);
 		goto err;
 	}
 
