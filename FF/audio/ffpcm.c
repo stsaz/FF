@@ -204,91 +204,251 @@ void ffpcm_mix(const ffpcmex *pcm, void *stm1, const void *stm2, size_t samples)
 	}
 }
 
-/* L,R -> L+R */
-static int _ffpcm_mono_mix(void *out, const ffpcmex *inpcm, const void *in, size_t samples)
+enum CHAN_MASK {
+	CHAN_FL = 1,
+	CHAN_FR = 2,
+	CHAN_FC = 4,
+	CHAN_LFE = 8,
+	CHAN_BL = 0x10,
+	CHAN_BR = 0x20,
+	CHAN_SL = 0x40,
+	CHAN_SR = 0x80,
+};
+
+/** Return channel mask by channels number. */
+static uint chan_mask(uint channels)
 {
+	uint m;
+	switch (channels) {
+	case 1:
+		m = CHAN_FC; break;
+	case 2:
+		m = CHAN_FL | CHAN_FR; break;
+	case 6:
+		m = CHAN_FL | CHAN_FR | CHAN_FC | CHAN_LFE | CHAN_BL | CHAN_BR; break;
+	case 8:
+		m = CHAN_FL | CHAN_FR | CHAN_FC | CHAN_LFE | CHAN_BL | CHAN_BR | CHAN_SL | CHAN_SR; break;
+	default:
+		return -1;
+	}
+	return m;
+}
+
+/** Set gain level for all used channels. */
+static int chan_fill_gain_levels(double level[8][8], uint imask, uint omask)
+{
+	enum {
+		FL,
+		FR,
+		FC,
+		LFE,
+		BL,
+		BR,
+		SL,
+		SR,
+	};
+
+	const double sqrt1_2 = 0.70710678118654752440; // =1/sqrt(2)
+
+	uint equal = imask & omask;
+	for (uint c = 0;  c != 8;  c++) {
+		if (equal & FF_BIT32(c))
+			level[c][c] = 1;
+	}
+
+	uint unused = imask & ~omask;
+
+	if (unused & CHAN_FL) {
+
+		if (omask & CHAN_FC) {
+			// front stereo -> front center
+			level[FC][FL] = sqrt1_2;
+			level[FC][FR] = sqrt1_2;
+
+		} else
+			return -1;
+	}
+
+	if (unused & CHAN_FC) {
+
+		if (omask & CHAN_FL) {
+			// front center -> front stereo
+			level[FL][FC] = sqrt1_2;
+			level[FR][FC] = sqrt1_2;
+
+		} else
+			return -1;
+	}
+
+	if (unused & CHAN_LFE) {
+	}
+
+	if (unused & CHAN_BL) {
+
+		if (omask & CHAN_FL) {
+			// back stereo -> front stereo
+			level[FL][BL] = sqrt1_2;
+			level[FR][BR] = sqrt1_2;
+
+		} else if (omask & CHAN_FC) {
+			// back stereo -> front center
+			level[FC][BL] = sqrt1_2*sqrt1_2;
+			level[FC][BR] = sqrt1_2*sqrt1_2;
+
+		} else
+			return -1;
+	}
+
+	if (unused & CHAN_SL) {
+
+		if (omask & CHAN_FL) {
+			// side stereo -> front stereo
+			level[FL][SL] = sqrt1_2;
+			level[FR][SR] = sqrt1_2;
+
+		} else if (omask & CHAN_FC) {
+			// side stereo -> front center
+			level[FC][SL] = sqrt1_2*sqrt1_2;
+			level[FC][SR] = sqrt1_2*sqrt1_2;
+
+		} else
+			return -1;
+	}
+
+	// now gain level can be >1.0, so we normalize it
+	for (uint oc = 0;  oc != 8;  oc++) {
+		if (!ffbit_test32(&omask, oc))
+			continue;
+
+		double sum = 0;
+		for (uint ic = 0;  ic != 8;  ic++) {
+			sum += level[oc][ic];
+		}
+		if (sum != 0) {
+			for (uint ic = 0;  ic != 8;  ic++) {
+				level[oc][ic] /= sum;
+			}
+		}
+
+		FFDBG_PRINTLN(10, "channel #%u: %F %F %F %F %F %F %F %F"
+			, oc
+			, level[oc][0], level[oc][1], level[oc][2], level[oc][3]
+			, level[oc][4], level[oc][5], level[oc][6], level[oc][7]);
+	}
+
+	return 0;
+}
+
+/** Mix (upmix, downmix) channels.
+ochan: Output channels number
+odata: Output data; float, interleaved
+
+Supported layouts:
+1: FC
+2: FL+FR
+5.1: FL+FR+FC+LFE+BL+BR
+7.1: FL+FR+FC+LFE+BL+BR+SL+SR
+
+Examples:
+
+5.1 -> 1:
+	FC = FL*0.7 + FR*0.7 + FC*1 + BL*0.5 + BR*0.5
+
+5.1 -> 2:
+	FL = FL*1 + FC*0.7 + BL*0.7
+	FR = FR*1 + FC*0.7 + BR*0.7
+*/
+static int chan_mix(uint ochan, void *odata, const ffpcmex *inpcm, const void *idata, size_t samples)
+{
+	union pcmdata in, out;
+	double level[8][8] = {}; // gain level [OUT] <- [IN]
+	void *ini[8];
+	uint istep, ostep; // intervals between samples of the same channel
+	uint ic, oc, ocstm; // channel counters
+	uint imask, omask; // channel masks
 	size_t i;
-	uint ich, nch = inpcm->channels, step = 1;
-	union pcmdata to, from;
-	void *ni[8];
-	from.b = (void*)in;
-	to.sh = out;
 
+	imask = chan_mask(inpcm->channels);
+	omask = chan_mask(ochan);
+	if (imask == 0 || omask == 0)
+		return -1;
+
+	if (0 != chan_fill_gain_levels(level, imask, omask))
+		return -1;
+
+	if (samples == 0)
+		return 0;
+
+	// set non-interleaved input array
+	istep = 1;
 	if (inpcm->ileaved) {
-		from.pb = pcm_setni(ni, from.b, inpcm->format, nch);
-		step = nch;
+		pcm_setni(ini, (void*)idata, inpcm->format, inpcm->channels);
+		in.pb = (void*)ini;
+		istep = inpcm->channels;
 	}
 
+	// set interleaved output array
+	out.f = odata;
+	ostep = ochan;
+
+	ocstm = 0;
 	switch (inpcm->format) {
+	case FFPCM_16:
+		for (oc = 0;  oc != 8;  oc++) {
 
-	case FFPCM_8: {
-		int sum = 0;
-		for (i = 0;  i != samples;  i++) {
-			for (ich = 0;  ich != nch;  ich++) {
-				sum += from.pb[ich][i * step];
+			if (!ffbit_test32(&omask, oc))
+				continue;
+
+			for (i = 0;  i != samples;  i++) {
+				double sum = 0;
+				for (ic = 0;  ic != inpcm->channels;  ic++) {
+					sum += _ffpcm_16le_flt(in.psh[ic][i * istep]) * level[oc][ic];
+				}
+				out.f[ocstm + i * ostep] = _ffpcm_limf(sum);
 			}
 
-			int n = sum % (int)nch;
-			to.b[i] = ffint_lim8(sum / (int)nch + n);
-			sum = -n;
+			if (++ocstm == ochan)
+				break;
 		}
 		break;
-	}
 
-	case FFPCM_16: {
-		int sum = 0;
-		for (i = 0;  i != samples;  i++) {
-			for (ich = 0;  ich != nch;  ich++) {
-				sum += from.psh[ich][i * step];
+	case FFPCM_32:
+		for (oc = 0;  oc != 8;  oc++) {
+
+			if (!ffbit_test32(&omask, oc))
+				continue;
+
+			for (i = 0;  i != samples;  i++) {
+				double sum = 0;
+				for (ic = 0;  ic != inpcm->channels;  ic++) {
+					sum += _ffpcm_32_flt(in.pin[ic][i * istep]) * level[oc][ic];
+				}
+				out.f[ocstm + i * ostep] = _ffpcm_limf(sum);
 			}
 
-			int n = sum % (int)nch;
-			to.sh[i] = ffint_lim16(sum / (int)nch + n);
-			sum = -n;
+			if (++ocstm == ochan)
+				break;
 		}
 		break;
-	}
 
-	case FFPCM_24: {
-		int sum = 0;
-		for (i = 0;  i != samples;  i++) {
-			for (ich = 0;  ich != nch;  ich++) {
-				sum += (int)ffint_ltoh24s(&from.pb[ich][i * step * 3]);
+	case FFPCM_FLOAT:
+		for (oc = 0;  oc != 8;  oc++) {
+
+			if (!ffbit_test32(&omask, oc))
+				continue;
+
+			for (i = 0;  i != samples;  i++) {
+				double sum = 0;
+				for (ic = 0;  ic != inpcm->channels;  ic++) {
+					sum += in.pf[ic][i * istep] * level[oc][ic];
+				}
+				out.f[ocstm + i * ostep] = _ffpcm_limf(sum);
 			}
 
-			int n = sum % (int)nch;
-			ffint_htol24(&to.b[i * 3], ffint_lim24(sum / (int)nch + n));
-			sum = -n;
+			if (++ocstm == ochan)
+				break;
 		}
 		break;
-	}
-
-	case FFPCM_32: {
-		int64 sum = 0;
-		for (i = 0;  i != samples;  i++) {
-			for (ich = 0;  ich != nch;  ich++) {
-				sum += from.pin[ich][i * step];
-			}
-
-			int n = sum % (int)nch;
-			to.in[i] = ffint_lim32(sum / (int)nch + n);
-			sum = -n;
-		}
-		break;
-	}
-
-	case FFPCM_FLOAT: {
-		double sum;
-		for (i = 0;  i != samples;  i++) {
-			sum = 0;
-			for (ich = 0;  ich != nch;  ich++) {
-				sum += from.pf[ich][i * step];
-			}
-
-			to.f[i] = sum * (1.0 / nch);
-		}
-		break;
-	}
 
 	default:
 		return -1;
@@ -302,9 +462,9 @@ static int _ffpcm_mono_mix(void *out, const ffpcmex *inpcm, const void *in, size
 
 /*
 If channels don't match, do channel conversion:
- . downmix to mono: use all input channels data.  Requires additional memory buffer.
- . mono: take data for 1 channel only, skip other channels
- . expand from mono: copy the input channel's data to each output channel
+ . upmix/downmix: mix appropriate channels with each other.  Requires additional memory buffer.
+ . mono: copy data for 1 channel only, skip other channels
+
 If format and "interleaved" flags match for both input and output, just copy the data.
 Otherwise, process each channel and sample in a loop.
 
@@ -319,8 +479,11 @@ int ffpcm_convert(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm, const 
 	int r = -1;
 	void *ini[8], *oni[8];
 	uint istep = 1, ostep = 1;
+	uint ifmt;
 
 	from.sh = (void*)in;
+	ifmt = inpcm->format;
+
 	to.sh = out;
 
 	if (inpcm->channels > 8 || (outpcm->channels & FFPCM_CHMASK) > 8)
@@ -333,54 +496,55 @@ int ffpcm_convert(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm, const 
 
 		nch = outpcm->channels & FFPCM_CHMASK;
 
-		if (nch == 1) {
-			if ((outpcm->channels & ~FFPCM_CHMASK) == 0) {
-				if (NULL == (tmpptr = ffmem_alloc(samples * ffpcm_bits(inpcm->format)/8)))
-					goto done;
+		if (nch == 1 && (outpcm->channels & ~FFPCM_CHMASK) != 0) {
+			uint ch = ((outpcm->channels & ~FFPCM_CHMASK) >> 4) - 1;
+			if (ch > 1)
+				goto done;
 
-				if (0 != _ffpcm_mono_mix(tmpptr, inpcm, in, samples))
-					goto done;
-				from.psh = (short**)&tmpptr;
-
-			} else if (!inpcm->ileaved) {
-				uint ch = ((outpcm->channels & ~FFPCM_CHMASK) >> 4) - 1;
+			if (!inpcm->ileaved) {
 				from.psh = from.psh + ch;
 
 			} else {
-				uint ch = ((outpcm->channels & ~FFPCM_CHMASK) >> 4) - 1;
 				ini[0] = from.b + ch * ffpcm_bits(inpcm->format) / 8;
 				from.pb = (void*)ini;
 				istep = inpcm->channels;
-			}
-
-			in_ileaved = 0;
-
-		} else if (inpcm->channels == 1) {
-			if (in_ileaved) {
-				for (uint i = 0;  i != nch;  i++) {
-					ini[i] = from.b;
-				}
-				from.pb = (void*)ini;
 				in_ileaved = 0;
-			} else if (samples != 0) {
-				for (uint i = 0;  i != nch;  i++) {
-					ini[i] = from.pb[0];
-				}
-				from.pb = (void*)ini;
 			}
+
+		} else if ((outpcm->channels & ~FFPCM_CHMASK) == 0) {
+			if (NULL == (tmpptr = ffmem_alloc(samples * nch * sizeof(float))))
+				goto done;
+
+			if (0 != chan_mix(nch, tmpptr, inpcm, in, samples))
+				goto done;
+
+			if (outpcm->ileaved) {
+				from.b = tmpptr;
+				in_ileaved = 1;
+
+			} else {
+				pcm_setni(ini, tmpptr, FFPCM_FLOAT, nch);
+				from.pb = (void*)ini;
+				istep = nch;
+				in_ileaved = 0;
+			}
+			ifmt = FFPCM_FLOAT;
 
 		} else
 			goto done; // this channel conversion is not supported
 	}
 
-	if (inpcm->format == outpcm->format && istep == 1) {
+	if (ifmt == outpcm->format && istep == 1) {
+		// input & output formats are the same, try to copy data directly
 
 		if (in_ileaved != outpcm->ileaved && nch == 1) {
 			if (samples == 0)
 			{}
-			else if (!in_ileaved)
+			else if (!in_ileaved) {
+				// non-interleaved input mono -> interleaved input mono
 				from.b = from.pb[0];
-			else {
+			} else {
+				// interleaved input mono -> non-interleaved input mono
 				ini[0] = from.b;
 				from.pb = (void*)ini;
 			}
@@ -390,11 +554,13 @@ int ffpcm_convert(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm, const 
 		if (in_ileaved == outpcm->ileaved) {
 			if (samples == 0)
 				;
-			else if (in_ileaved == 1)
-				ffmemcpy(to.b, from.b, samples * ffpcm_size(inpcm->format, nch));
-			else {
+			else if (in_ileaved) {
+				// interleaved input -> interleaved output
+				ffmemcpy(to.b, from.b, samples * ffpcm_size(ifmt, nch));
+			} else {
+				// non-interleaved input -> non-interleaved output
 				for (ich = 0;  ich != nch;  ich++) {
-					ffmemcpy(to.pb[ich], from.pb[ich], samples * ffpcm_bits(inpcm->format)/8);
+					ffmemcpy(to.pb[ich], from.pb[ich], samples * ffpcm_bits(ifmt)/8);
 				}
 			}
 			r = 0;
@@ -412,7 +578,7 @@ int ffpcm_convert(const ffpcmex *outpcm, void *out, const ffpcmex *inpcm, const 
 		ostep = nch;
 	}
 
-	switch (CASE(inpcm->format, outpcm->format)) {
+	switch (CASE(ifmt, outpcm->format)) {
 
 // int8
 	case CASE(FFPCM_8, FFPCM_8):
