@@ -605,6 +605,18 @@ FF_EXTN ssize_t ffstr_findarr(const ffstr *ar, size_t n, const char *search, siz
 
 FF_EXTN ssize_t ffstr_ifindarr(const ffstr *ar, size_t n, const char *search, size_t search_len);
 
+static inline void ffstr_skip(ffstr *s, int skip_char)
+{
+	char *p = ffs_skip(s->ptr, s->len, skip_char);
+	s->len = s->ptr + s->len - p;
+	s->ptr = p;
+}
+
+static inline void ffstr_rskip(ffstr *s, int skip_char)
+{
+	s->len = ffs_rskip(s->ptr, s->len, skip_char) - s->ptr;
+}
+
 enum FFSTR_NEXTVAL {
 	FFSTR_NV_DBLQUOT = 0x100, // val1 "val2 with space" val3
 	FFS_NV_KEEPWHITE = 0x200, // don't trim whitespace

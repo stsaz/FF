@@ -27,14 +27,14 @@ static int _ffmpg_frame2(ffmpgr *m, ffarr *buf);
 
 
 static const char *const _ffmpg_errs[] = {
-	"PCM format error",
-	"ID3v1 tag data error",
-	"ID3v2 tag data error",
-	"ID3v2 tag error",
-	"APE tag error",
-	"seek sample is too large",
-	"can't find a valid MPEG frame",
-	"unrecognized data before frame header",
+	"PCM format error", //FFMPG_EFMT
+	"ID3v1 tag data error", //FFMPG_EID31DATA
+	"ID3v2 tag data error", //FFMPG_EID32DATA
+	"ID3v2 tag error", //FFMPG_EID32
+	"APE tag error", //FFMPG_EAPETAG
+	"seek sample is too large", //FFMPG_ESEEK
+	"can't find a valid MPEG frame", //FFMPG_ENOFRAME
+	"unrecognized data before frame header", //FFMPG_ESYNC
 };
 
 static const char* _ffmpg_errstr(int e)
