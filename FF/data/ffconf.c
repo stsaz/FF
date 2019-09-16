@@ -624,6 +624,7 @@ static ssize_t _ffconf_write(ffconfw *c, const void *data, ssize_t len, uint fla
 		case W_KEY:
 		case W_VAL:
 			dst = ffs_copyz(dst, end, crlf[have_CR]);
+			r += FFSLEN("\r\n");
 			break;
 		default:
 			c->state = W_ERR; // invalid state
