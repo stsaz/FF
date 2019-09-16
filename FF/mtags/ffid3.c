@@ -56,6 +56,7 @@ int ffid31_parse(ffid31ex *id31ex, const char *data, size_t len)
 		if (id31->title[0] != '\0') {
 			*state = I_ARTIST;
 			ffstr_setnz(val, id31->title, sizeof(id31->title));
+			ffstr_rskip(val, ' ');
 			id31ex->field = FFMMTAG_TITLE;
 			break;
 		}
@@ -64,6 +65,7 @@ int ffid31_parse(ffid31ex *id31ex, const char *data, size_t len)
 	case I_ARTIST:
 		if (id31->artist[0] != '\0') {
 			ffstr_setnz(val, id31->artist, sizeof(id31->artist));
+			ffstr_rskip(val, ' ');
 			*state = I_ALBUM;
 			id31ex->field = FFMMTAG_ARTIST;
 			break;
@@ -73,6 +75,7 @@ int ffid31_parse(ffid31ex *id31ex, const char *data, size_t len)
 	case I_ALBUM:
 		if (id31->album[0] != '\0') {
 			ffstr_setnz(val, id31->album, sizeof(id31->album));
+			ffstr_rskip(val, ' ');
 			*state = I_YEAR;
 			id31ex->field = FFMMTAG_ALBUM;
 			break;
@@ -82,6 +85,7 @@ int ffid31_parse(ffid31ex *id31ex, const char *data, size_t len)
 	case I_YEAR:
 		if (id31->year[0] != '\0') {
 			ffstr_setnz(val, id31->year, sizeof(id31->year));
+			ffstr_rskip(val, ' ');
 			*state = I_COMMENT;
 			id31ex->field = FFMMTAG_DATE;
 			break;
@@ -92,6 +96,7 @@ int ffid31_parse(ffid31ex *id31ex, const char *data, size_t len)
 		if (id31->comment[0] != '\0') {
 			n = (id31->comment30[28] != '\0') ? sizeof(id31->comment30) : sizeof(id31->comment);
 			ffstr_setnz(val, id31->comment, n);
+			ffstr_rskip(val, ' ');
 			*state = (id31->comment30[28] != '\0') ? I_DONE : I_TRK;
 			id31ex->field = FFMMTAG_COMMENT;
 			break;
