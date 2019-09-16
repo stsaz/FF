@@ -387,6 +387,7 @@ static int chan_mix(uint ochan, void *odata, const ffpcmex *inpcm, const void *i
 
 	// set non-interleaved input array
 	istep = 1;
+	in.pb = (void*)idata;
 	if (inpcm->ileaved) {
 		pcm_setni(ini, (void*)idata, inpcm->format, inpcm->channels);
 		in.pb = (void*)ini;
@@ -407,8 +408,12 @@ static int chan_mix(uint ochan, void *odata, const ffpcmex *inpcm, const void *i
 
 			for (i = 0;  i != samples;  i++) {
 				double sum = 0;
-				for (ic = 0;  ic != inpcm->channels;  ic++) {
-					sum += _ffpcm_16le_flt(in.psh[ic][i * istep]) * level[oc][ic];
+				uint icstm = 0;
+				for (ic = 0;  ic != 8;  ic++) {
+					if (!ffbit_test32(&imask, ic))
+						continue;
+					sum += _ffpcm_16le_flt(in.psh[icstm][i * istep]) * level[oc][ic];
+					icstm++;
 				}
 				out.f[ocstm + i * ostep] = _ffpcm_limf(sum);
 			}
@@ -426,8 +431,12 @@ static int chan_mix(uint ochan, void *odata, const ffpcmex *inpcm, const void *i
 
 			for (i = 0;  i != samples;  i++) {
 				double sum = 0;
-				for (ic = 0;  ic != inpcm->channels;  ic++) {
-					sum += _ffpcm_32_flt(in.pin[ic][i * istep]) * level[oc][ic];
+				uint icstm = 0;
+				for (ic = 0;  ic != 8;  ic++) {
+					if (!ffbit_test32(&imask, ic))
+						continue;
+					sum += _ffpcm_32_flt(in.pin[icstm][i * istep]) * level[oc][ic];
+					icstm++;
 				}
 				out.f[ocstm + i * ostep] = _ffpcm_limf(sum);
 			}
@@ -445,8 +454,12 @@ static int chan_mix(uint ochan, void *odata, const ffpcmex *inpcm, const void *i
 
 			for (i = 0;  i != samples;  i++) {
 				double sum = 0;
-				for (ic = 0;  ic != inpcm->channels;  ic++) {
-					sum += in.pf[ic][i * istep] * level[oc][ic];
+				uint icstm = 0;
+				for (ic = 0;  ic != 8;  ic++) {
+					if (!ffbit_test32(&imask, ic))
+						continue;
+					sum += in.pf[icstm][i * istep] * level[oc][ic];
+					icstm++;
 				}
 				out.f[ocstm + i * ostep] = _ffpcm_limf(sum);
 			}
