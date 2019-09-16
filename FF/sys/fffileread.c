@@ -173,6 +173,7 @@ void fffileread_unref(fffileread *f)
 int fffileread_getdata(fffileread *f, ffstr *dst, uint64 off, uint flags)
 {
 	int r, cachehit = 0;
+	uint ibuf;
 	struct buf *b;
 	uint64 next;
 
@@ -212,6 +213,9 @@ int fffileread_getdata(fffileread *f, ffstr *dst, uint64 off, uint flags)
 	FF_ASSERT(b != NULL);
 
 done:
+	ibuf = b - (struct buf*)f->bufs.ptr;
+	f->locked = ibuf;
+
 	next = b->offset + b->len;
 	if ((flags & FFFILEREAD_FREADAHEAD)
 		&& ((flags & FFFILEREAD_FBACKWARD) || next != f->eof) // don't read past eof
@@ -222,12 +226,12 @@ done:
 
 		if (NULL == bufs_find(f, next)
 			&& f->state != FI_ASYNC) {
+			if (f->wbuf == f->locked)
+				f->wbuf = ffint_cycleinc(f->wbuf, f->conf.nbufs);
 			fr_read_off(f, next);
 		}
 	}
 
-	uint ibuf = b - (struct buf*)f->bufs.ptr;
-	f->locked = ibuf;
 	fr_log(f, 1, "returning buf#%u  off:%Uk  cache-hit:%u"
 		, ibuf, b->offset / 1024, cachehit);
 
