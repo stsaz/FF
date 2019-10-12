@@ -47,6 +47,7 @@ FF_TEST_SRC := \
 	$(FF)/test/hashtab.c \
 	$(FF)/test/dns-client.c \
 	$(FF)/test/cache.c \
+	$(FF)/test/xml.c \
 	$(FF)/test/compat.cpp
 FF_TEST_OBJ := $(addprefix ./, $(addsuffix .o, $(notdir $(basename $(FF_TEST_SRC)))))
 FF_TEST_OBJ += $(FF_OBJ_DIR)/sha1.o $(FF_OBJ_DIR)/base64.o

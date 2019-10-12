@@ -61,6 +61,7 @@ FEATURES
 
 * Data - `FF/data/`
 	* JSON reader/writer  - `FF/data/json.h`
+	* XML reader  - `FF/data/xml.h`
 	* configuration file reader/writer  - `FF/data/conf.h`
 	* command-line arguments parser  - `FF/data/psarg.h`
 	* deserialization of structured data using a predefined scheme  - `FF/data/parse.h`

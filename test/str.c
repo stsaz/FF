@@ -593,20 +593,6 @@ static int test_bufadd()
 	return 0;
 }
 
-static int test_xml(void)
-{
-	char buf[64];
-	ffstr s;
-	FFTEST_FUNC;
-
-	s.ptr = buf;
-	x(FFSLEN("hello&lt;&gt;&amp;&quot;hi") == ffxml_escape(NULL, 0, FFSTR("hello<>&\"hi")));
-	s.len = ffxml_escape(buf, FFCNT(buf), FFSTR("hello<>&\"hi"));
-	x(ffstr_eqcz(&s, "hello&lt;&gt;&amp;&quot;hi"));
-
-	return 0;
-}
-
 static int test_bstr(void)
 {
 	ffstr s = {0}, d = {0};
@@ -985,7 +971,6 @@ int test_str()
 	x(ffchar_isansiwhite(' ') && ffchar_isansiwhite('\xff') && !ffchar_isansiwhite('-'));
 	x(10 == ffchar_sizesfx('k') && 10 * 4 == ffchar_sizesfx('t'));
 
-	test_xml();
 	test_bstr();
 	test_wildcard();
 	test_utf();
