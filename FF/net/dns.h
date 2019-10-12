@@ -2,6 +2,17 @@
 Copyright (c) 2013 Simon Zolin
 */
 
+/*
+HDR
+QUESTION(NAME TYPE CLASS)
+[ANSWER(NAME TYPE CLASS TTL LENGTH DATA)]...
+[NS]...
+[ADD]...
+
+NAME:
+ (LENGTH SUBNAME)... 0x00
+*/
+
 #pragma once
 
 #include <FF/number.h>

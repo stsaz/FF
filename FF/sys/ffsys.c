@@ -111,7 +111,7 @@ int fffile_writeall(const char *fn, const char *d, size_t len, uint flags)
 	if (flags == 0)
 		flags = FFO_CREATE | FFO_TRUNC;
 
-	if (FF_BADFD == (f = fffile_open(fn, flags | O_WRONLY)))
+	if (FF_BADFD == (f = fffile_open(fn, flags | FFO_WRONLY)))
 		goto done;
 
 	if (len != (size_t)fffile_write(f, d, len))
@@ -552,9 +552,11 @@ err:
 	return NULL;
 }
 
+//! keep sorted
 static const char locstr[][2] = {
-	"en",
 	"de",
+	"en",
+	"fr",
 	"ru",
 };
 
