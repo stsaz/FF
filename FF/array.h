@@ -507,30 +507,6 @@ static FFINL ffbool ffstr_ieq(const ffstr *s1, const char *s2, size_t n) {
 /** Compare ffstr object and constant NULL-terminated string.  Case-insensitive. */
 #define ffstr_ieqcz(s, constsz)  ffstr_ieq(s, constsz, FFSLEN(constsz))
 
-/** Return TRUE if n characters are equal in both strings. */
-static FFINL ffbool ffstr_match(const ffstr *s1, const char *s2, size_t n) {
-	return s1->len >= n
-		&& 0 == ffmemcmp(s1->ptr, s2, n);
-}
-
-static FFINL ffbool ffstr_imatch(const ffstr *s1, const char *s2, size_t n) {
-	return s1->len >= n
-		&& 0 == ffs_icmp(s1->ptr, s2, n);
-}
-
-#define ffstr_matchcz(s, csz)  ffstr_match(s, csz, FFSLEN(csz))
-#define ffstr_imatchcz(s, csz)  ffstr_imatch(s, csz, FFSLEN(csz))
-#define ffstr_matchz(s, sz)  ffstr_match(s, sz, ffsz_len(sz))
-#define ffstr_matchstr(s, s2)  ffstr_match(s, (s2)->ptr, (s2)->len)
-
-static FFINL ffbool ffstr_irmatch(const ffstr *s, const char *s2, size_t len)
-{
-	return s->len >= len
-		&& 0 == ffs_icmpz(s->ptr + s->len - len, len, s2);
-}
-
-#define ffstr_irmatchz(s, sz)  ffstr_irmatch(s, sz, ffsz_len(sz))
-
 
 #define ffstr_alloc(s, cap)  ffarr2_alloc((ffarr2*)s, cap, sizeof(char))
 
@@ -577,33 +553,6 @@ static FFINL void ffqstr_set(ffqstr *s, const ffsyschar *d, size_t len) {
 #define ffqstr_free(s)  ffstr_free((ffstr*)(s))
 
 #endif
-
-/** Find substring.
-Return -1 if not found. */
-static FFINL ssize_t ffstr_find(const ffstr *s, const char *search, size_t search_len) {
-	const char *r = ffs_finds(s->ptr, s->len, search, search_len);
-	if (r == s->ptr + s->len)
-		return -1;
-	return r - s->ptr;
-}
-
-static FFINL ssize_t ffstr_ifind(const ffstr *s, const char *search, size_t search_len) {
-	const char *r = ffs_ifinds(s->ptr, s->len, search, search_len);
-	if (r == s->ptr + s->len)
-		return -1;
-	return r - s->ptr;
-}
-
-#define ffstr_findstr(s, search)  ffstr_find(s, (search)->ptr, (search)->len)
-#define ffstr_findz(s, search)  ffstr_find(s, search, ffsz_len(search))
-#define ffstr_ifindstr(s, search)  ffstr_ifind(s, (search)->ptr, (search)->len)
-
-/** Find string in an array of strings.
-Return array index.
-Return -1 if not found. */
-FF_EXTN ssize_t ffstr_findarr(const ffstr *ar, size_t n, const char *search, size_t search_len);
-
-FF_EXTN ssize_t ffstr_ifindarr(const ffstr *ar, size_t n, const char *search, size_t search_len);
 
 static inline void ffstr_skip(ffstr *s, int skip_char)
 {
