@@ -58,6 +58,10 @@ FF_EXTN size_t ffpath_makefn(char *dst, size_t dstcap, const char *src, size_t l
 
 FF_EXTN size_t ffpath_makefn_full(char *dst, size_t dstcap, const char *src, size_t len, uint flags);
 
+/** Make filename: [out_dir/] [in_dir/] in_name .out_ext
+idir: the path is converted to relative and normalized */
+FF_EXTN int ffpath_makefn_out(ffarr *fn, const ffstr *idir, const ffstr *iname, const ffstr *odir, const ffstr *oext);
+
 #if defined FF_UNIX
 #define ffpath_findslash(path, len)  ffs_find(path, len, '/')
 

@@ -171,6 +171,27 @@ size_t ffpath_makefn_full(char *dst, size_t dstcap, const char *src, size_t len,
 	return k;
 }
 
+int ffpath_makefn_out(ffarr *fn, const ffstr *idir, const ffstr *iname, const ffstr *odir, const ffstr *oext)
+{
+	fn->len = 0;
+	if (NULL == ffarr_realloc(fn, odir->len + FFSLEN("/") + idir->len + FFSLEN("/") + iname->len + FFSLEN(".") + oext->len + 1))
+		return -1;
+
+	if (odir->len != 0) {
+		ffarr_append(fn, odir->ptr, odir->len);
+		ffarr_append(fn, "/", 1);
+	}
+
+	if (idir->len != 0) {
+		fn->len += ffpath_norm(ffarr_end(fn), ffarr_unused(fn), idir->ptr, idir->len, FFPATH_TOREL | FFPATH_MERGEDOTS);
+		ffarr_append(fn, "/", 1);
+	}
+
+	ffstr_catfmt(fn, "%S.%S%Z", iname, oext);
+	fn->len--;
+	return 0;
+}
+
 size_t ffpath_nslash(const char *path, size_t len)
 {
 	const char *end = path + len;
