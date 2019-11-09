@@ -431,7 +431,7 @@ static void iso_files_setoffsets(ffarr *dirs, uint64 off)
 	struct ffiso_file *f;
 	FFARR_WALKT(dirs, d, struct dir) {
 		FFARR_WALKT(&d->files, f, struct ffiso_file) {
-			if (!(f->attr & FFUNIX_FILE_DIR)) {
+			if (!ffiso_file_isdir(f)) {
 				f->off = off;
 				off += ff_align_ceil2(f->size, FFISO_SECT);
 			}
@@ -870,7 +870,7 @@ void ffiso_wfile(ffiso_cook *c, const ffiso_file *f)
 		goto err;
 	}
 
-	if (f->attr & FFUNIX_FILE_DIR) {
+	if (ffiso_file_isdir(f)) {
 		uint i = parent - (struct dir*)c->dirs.ptr;
 		if (NULL == (d = iso_dir_new(c, &fn))) {
 			c->err = FFISO_ESYS;
@@ -893,7 +893,7 @@ void ffiso_wfile(ffiso_cook *c, const ffiso_file *f)
 		c->err = FFISO_ESYS;
 		goto err;
 	}
-	if (!(f->attr & FFUNIX_FILE_DIR))
+	if (!ffiso_file_isdir(f))
 		ffstr_free(&fn);
 	nf->attr = f->attr;
 	nf->mtime = f->mtime;
@@ -916,7 +916,7 @@ static struct ffiso_file* iso_file_next(ffiso_cook *c)
 
 		for (uint k = c->ifile;  k != d[i].files.len;  k++) {
 
-			if (!(f[k].attr & FFUNIX_FILE_DIR)) {
+			if (!ffiso_file_isdir(&f[k])) {
 				c->idir = i;
 				c->ifile = k;
 				return &f[k];

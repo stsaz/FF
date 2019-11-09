@@ -210,6 +210,15 @@ int main(int argc, const char **argv)
 					FFTEST_TIMECALL(_fftests[i].func());
 					break;
 				}
+
+				if (ffsz_matchz(argv[iarg], _fftests[i].nm)
+					&& ffsz_eq(argv[iarg] + ffsz_len(_fftests[i].nm), "...")) {
+					// run all next tests
+					for (uint k = i;  k < FFCNT(_fftests);  k++) {
+						FFTEST_TIMECALL(_fftests[k].func());
+					}
+					break;
+				}
 			}
 		}
 	}

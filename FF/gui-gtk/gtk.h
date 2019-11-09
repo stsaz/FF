@@ -224,7 +224,8 @@ FF_EXTN void ffui_tab_ins(ffui_tab *t, int idx, const char *textz);
 #define ffui_tab_count(t)  gtk_notebook_get_n_pages(GTK_NOTEBOOK((t)->h))
 
 #define ffui_tab_active(t)  gtk_notebook_get_current_page(GTK_NOTEBOOK((t)->h))
-#define ffui_tab_setactive(t, idx)  gtk_notebook_set_current_page(GTK_NOTEBOOK((t)->h), idx)
+
+FF_EXTN void ffui_tab_setactive(ffui_tab *t, int idx);
 
 
 // LISTVIEW COLUMN

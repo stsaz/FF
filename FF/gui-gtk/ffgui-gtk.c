@@ -142,6 +142,13 @@ void ffui_tab_ins(ffui_tab *t, int idx, const char *textz)
 	gtk_widget_show_all(t->h);
 }
 
+void ffui_tab_setactive(ffui_tab *t, int idx)
+{
+	g_signal_handlers_block_by_func(t->h, G_CALLBACK(&_ffui_tab_switch_page), t);
+	gtk_notebook_set_current_page(GTK_NOTEBOOK(t->h), idx);
+	g_signal_handlers_unblock_by_func(t->h, G_CALLBACK(&_ffui_tab_switch_page), t);
+}
+
 
 // LISTVIEW
 static void _ffui_view_row_activated(void *a, GtkTreePath *path, void *c, gpointer udata)

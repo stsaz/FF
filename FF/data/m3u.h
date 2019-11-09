@@ -60,6 +60,8 @@ typedef struct ffm3u_cook {
 @type: enum FFM3U_T. */
 FF_EXTN int ffm3u_add(ffm3u_cook *m, uint type, const char *val, size_t len);
 
+#define ffm3u_out(m, dst)  ffstr_set2(dst, &(m)->buf)
+
 static FFINL void ffm3u_fin(ffm3u_cook *m)
 {
 	ffarr_free(&m->buf);

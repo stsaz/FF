@@ -228,7 +228,7 @@ int iso_ent_write(void *buf, size_t cap, const struct ffiso_file *f, uint64 off,
 	FF_ASSERT(f->name.len != 0);
 
 	reserved = 0;
-	if ((f->attr & FFUNIX_FILE_DIR)
+	if (ffiso_file_isdir(f)
 		&& f->name.len == 1
 		&& (f->name.ptr[0] == 0x00 || f->name.ptr[0] == 0x01))
 		reserved = 1;
@@ -276,7 +276,7 @@ int iso_ent_write(void *buf, size_t cap, const struct ffiso_file *f, uint64 off,
 	fftime_split(&dt, &f->mtime, FFTIME_TZLOCAL);
 	iso_date_write(&ent->date, &dt);
 
-	if (f->attr & FFUNIX_FILE_DIR)
+	if (ffiso_file_isdir(f))
 		ent->flags = ISO_FDIR;
 
 	// write filename
