@@ -36,7 +36,7 @@ rec
 
 
 static int tls_rec_read(fftls *t, ffstr *data, uint *version, ffstr *body);
-static int tls_hshake_read(fftls *t, ffstr *data);
+static int tls_hshake_read(fftls *t, ffstr *data, ffstr *body);
 static int tls_clihello_read(fftls *t, ffstr *data);
 static int tls_srvhello_read(fftls *t, ffstr *data);
 static int tlsexts_data(fftls *t, ffstr *data, ffstr *body);
@@ -146,7 +146,7 @@ struct hshake {
 
 /**
 Return enum hshake_type;  <=0 on error. */
-static int tls_hshake_read(fftls *t, ffstr *data)
+static int tls_hshake_read(fftls *t, ffstr *data, ffstr *body)
 {
 	if (sizeof(struct hshake) > data->len)
 		return 0;
@@ -156,6 +156,8 @@ static int tls_hshake_read(fftls *t, ffstr *data)
 	uint n = ffint_ntoh24(h->len);
 	if (n > data->len)
 		return 0;
+	ffstr_set(body, data->ptr, n);
+	ffstr_shift(data, n);
 
 	return h->type;
 }
@@ -448,7 +450,7 @@ int fftls_read(fftls *t)
 	switch (t->state) {
 
 	case R_REC:
-		r = tls_rec_read(t, &t->in, &t->version, &t->buf);
+		r = tls_rec_read(t, &t->in, &t->version, &t->rec);
 		if (r == 0)
 			return FFTLS_RMORE;
 		else if (r < 0)
@@ -464,7 +466,11 @@ int fftls_read(fftls *t)
 		break;
 
 	case R_HSHAKE:
-		r = tls_hshake_read(t, &t->buf);
+		if (t->rec.len == 0) {
+			t->state = R_REC;
+			return FFTLS_RDONE;
+		}
+		r = tls_hshake_read(t, &t->rec, &t->buf);
 		if (r <= 0)
 			return ERR(t, -r);
 		t->hshake_type = r;
@@ -483,15 +489,12 @@ int fftls_read(fftls *t)
 			break;
 
 		case HS_SERVER_KEY_EXCHANGE:
-			t->state = R_REC;
 			return FFTLS_RKEY_EXCH;
 
 		case HS_CERTIFICATE_REQUEST:
-			t->state = R_REC;
 			return FFTLS_RCERT_REQ;
 
 		case HS_SERVER_HELLO_DONE:
-			t->state = R_REC;
 			return FFTLS_RSERV_HELLO_DONE;
 
 		default:
@@ -525,8 +528,8 @@ int fftls_read(fftls *t)
 
 	case R_HEL_EXT:
 		if (t->buf.len == 0) {
-			t->state = R_REC;
-			return FFTLS_RDONE;
+			t->state = R_HSHAKE;
+			continue;
 		}
 
 		r = tlsext_read(t, &t->buf);
@@ -540,7 +543,7 @@ int fftls_read(fftls *t)
 		r = tls_certs_read(t, &t->buf, &t->cert);
 		if (r <= 0)
 			return FFTLS_RERR;
-		t->state = R_REC;
+		t->state = R_HSHAKE;
 		return FFTLS_RCERT;
 
 	}

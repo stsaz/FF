@@ -35,6 +35,7 @@ typedef struct fftls {
 
 	ffstr in; //unprocessed input data
 	ffstr buf; //data to be processed
+	ffstr rec; //data for the current record
 
 	// available after FFTLS_RCLIENT_HELLO, FFTLS_RSERVER_HELLO:
 	ffstr session_id; //session ID from C/S Hello
