@@ -2,7 +2,7 @@
 Copyright 2019 Simon Zolin. */
 
 #include <FF/sys/timer-queue.h>
-#include <FF/array.h>
+#include <FF/string.h>
 
 
 typedef struct ffcache ffcache;

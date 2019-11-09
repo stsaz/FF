@@ -2,7 +2,7 @@
 Copyright 2019 Simon Zolin
 */
 
-#include <FF/array.h>
+#include <FF/string.h>
 #include <FF/rbtree.h>
 #include <FF/list.h>
 #include <FF/sys/timer-queue.h>

@@ -5,7 +5,7 @@ Copyright (c) 2016 Simon Zolin
 #pragma once
 
 #include <FFOS/types.h>
-#include <FF/array.h>
+#include <FF/string.h>
 
 
 enum FFPIC_FMT {

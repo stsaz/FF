@@ -5,7 +5,7 @@ Copyright (c) 2016 Simon Zolin
 #pragma once
 
 #include <FF/audio/pcm.h>
-#include <FF/array.h>
+#include <FF/string.h>
 
 #include <fdk-aac/fdk-aac-ff.h>
 

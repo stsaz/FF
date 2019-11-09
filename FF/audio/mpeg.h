@@ -4,7 +4,7 @@ Copyright (c) 2013 Simon Zolin
 
 #pragma once
 
-#include <FF/array.h>
+#include <FF/string.h>
 #include <FF/aformat/mpeg-fmt.h>
 #include <FF/audio/pcm.h>
 

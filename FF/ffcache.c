@@ -5,6 +5,7 @@ Copyright 2019 Simon Zolin. */
 #include <FF/rbtree.h>
 #include <FF/list.h>
 #include <FF/crc.h>
+#include <FF/array.h>
 
 
 enum {

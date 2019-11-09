@@ -3,7 +3,7 @@ Copyright (c) 2017 Simon Zolin
 */
 
 #pragma once
-#include <FF/array.h>
+#include <FF/string.h>
 #include <FF/number.h>
 #include <FFOS/atomic.h>
 #include <FFOS/mem.h>

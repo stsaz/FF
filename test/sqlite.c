@@ -2,7 +2,7 @@
 Copyright 2018 Simon Zolin.
 */
 
-#include <FF/array.h>
+#include <FF/string.h>
 #include <FF/db/sqlite.h>
 #include <FFOS/test.h>
 

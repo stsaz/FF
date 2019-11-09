@@ -4,7 +4,7 @@ Copyright (c) 2018 Simon Zolin
 
 #pragma once
 
-#include <FF/array.h>
+#include <FF/string.h>
 
 
 enum FFTLS_E {

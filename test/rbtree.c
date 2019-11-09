@@ -4,6 +4,7 @@ Copyright (c) 2014 Simon Zolin
 
 #include <test/all.h>
 #include <FF/rbtree.h>
+#include <FFOS/mem.h>
 #include <FFOS/test.h>
 
 #define x FFTEST_BOOL

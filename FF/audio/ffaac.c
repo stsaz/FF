@@ -3,7 +3,6 @@ Copyright (c) 2016 Simon Zolin
 */
 
 #include <FF/audio/aac.h>
-#include <FF/array.h>
 #include <FFOS/error.h>
 
 

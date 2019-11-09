@@ -3,7 +3,7 @@ Copyright (c) 2014 Simon Zolin
 */
 
 #include <FFOS/test.h>
-#include <FF/array.h>
+#include <FF/string.h>
 #include <FF/time.h>
 #include <FF/sys/timer-queue.h>
 #include <test/all.h>

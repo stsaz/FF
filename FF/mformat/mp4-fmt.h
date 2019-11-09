@@ -4,7 +4,7 @@ Copyright (c) 2016 Simon Zolin
 
 #include <FF/audio/pcm.h>
 #include <FF/mtags/mmtag.h>
-#include <FF/array.h>
+#include <FF/string.h>
 
 
 enum MP4_E {

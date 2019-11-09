@@ -2,7 +2,7 @@
 Copyright (c) 2017 Simon Zolin
 */
 
-#include <FF/array.h>
+#include <FF/string.h>
 #include <FF/audio/pcm.h>
 #include <FF/mtags/apetag.h>
 

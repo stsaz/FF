@@ -3,7 +3,6 @@ Copyright (c) 2013 Simon Zolin
 */
 
 #include <FF/string.h>
-#include <FF/array.h>
 #include <FF/number.h>
 #include <FFOS/error.h>
 #include <math.h>

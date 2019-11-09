@@ -4,6 +4,7 @@ Copyright (c) 2019 Simon Zolin
 
 #include <FF/net/dns-client.h>
 #include <FF/net/dns.h>
+#include <FF/array.h>
 #include <FFOS/random.h>
 #include <FFOS/test.h>
 

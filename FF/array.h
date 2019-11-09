@@ -419,27 +419,6 @@ typedef ffarr ffstr3;
 
 #define FFSTR2(s)  (s).ptr, (s).len
 
-#define ffstr_set(s, d, len)  ffarr_set(s, (char*)(d), len)
-
-#define ffstr_set2(s, src)  ffarr_set(s, (src)->ptr, (src)->len)
-
-/** Set constant NULL-terminated string. */
-#define ffstr_setcz(s, csz)  ffarr_set(s, (char*)csz, FFSLEN(csz))
-
-/** Set NULL-terminated string. */
-#define ffstr_setz(s, sz)  ffarr_set(s, (char*)sz, ffsz_len(sz))
-
-#define ffstr_setnz(s, sz, maxlen)  ffarr_set(s, (char*)sz, ffsz_nlen(sz, maxlen))
-
-/** Set ffstr from ffiovec. */
-#define ffstr_setiovec(s, iov)  ffarr_set(s, (iov)->iov_base, (iov)->iov_len)
-
-#define ffstr_null(ar) \
-do { \
-	(ar)->ptr = NULL; \
-	(ar)->len = 0; \
-} while (0)
-
 static FFINL void ffstr_acq(ffstr *dst, ffstr *src) {
 	*dst = *src;
 	ffstr_null(src);
@@ -450,63 +429,6 @@ static FFINL void ffstr_acqstr3(ffstr *dst, ffstr3 *src) {
 	dst->len = src->len;
 	ffarr_null(src);
 }
-
-static FFINL int ffstr_popfront(ffstr *s)
-{
-	FF_ASSERT(s->len != 0);
-	s->len--;
-	return *(s->ptr++);
-}
-
-#define ffstr_shift  ffarr_shift
-
-/** Copy the contents of ffstr* into char* buffer. */
-#define ffs_copystr(dst, bufend, pstr)  ffs_copy(dst, bufend, (pstr)->ptr, (pstr)->len)
-
-/** Split string by a character.
-If split-character isn't found, the second string will be empty.
-@first, @second: optional
-@at: pointer within the range [s..s+len] or NULL.
-Return @at or NULL. */
-FF_EXTN const char* ffs_split2(const char *s, size_t len, const char *at, ffstr *first, ffstr *second);
-
-#define ffs_split2by(s, len, by, first, second) \
-	ffs_split2(s, len, ffs_find(s, len, by), first, second)
-
-#define ffs_rsplit2by(s, len, by, first, second) \
-	ffs_split2(s, len, ffs_rfind(s, len, by), first, second)
-
-
-#define ffstr_cmp2(s1, s2)  ffs_cmp4((s1)->ptr, (s1)->len, (s2)->ptr, (s2)->len)
-
-/** Compare ANSI strings.  Case-insensitive. */
-#define ffstr_icmp(str1, s2, len2)  ffs_icmp4((str1)->ptr, (str1)->len, s2, len2)
-#define ffstr_icmp2(s1, s2)  ffs_icmp4((s1)->ptr, (s1)->len, (s2)->ptr, (s2)->len)
-
-#define ffstr_eq(s, d, n) \
-	((s)->len == (n) && 0 == ffmemcmp((s)->ptr, d, n))
-
-/** Return TRUE if both strings are equal. */
-#define ffstr_eq2(s1, s2)  ffstr_eq(s1, (s2)->ptr, (s2)->len)
-
-static FFINL ffbool ffstr_ieq(const ffstr *s1, const char *s2, size_t n) {
-	return s1->len == n
-		&& 0 == ffs_icmp(s1->ptr, s2, n);
-}
-
-/** Return TRUE if both strings are equal. Case-insensitive */
-#define ffstr_ieq2(s1, s2)  ffstr_ieq(s1, (s2)->ptr, (s2)->len)
-
-/** Return TRUE if an array is equal to a NULL-terminated string. */
-#define ffstr_eqz(str1, sz2)  (0 == ffs_cmpz((str1)->ptr, (str1)->len, sz2))
-#define ffstr_ieqz(str1, sz2)  (0 == ffs_icmpz((str1)->ptr, (str1)->len, sz2))
-
-/** Compare ffstr object and constant NULL-terminated string. */
-#define ffstr_eqcz(s, constsz)  ffstr_eq(s, constsz, FFSLEN(constsz))
-
-/** Compare ffstr object and constant NULL-terminated string.  Case-insensitive. */
-#define ffstr_ieqcz(s, constsz)  ffstr_ieq(s, constsz, FFSLEN(constsz))
-
 
 #define ffstr_alloc(s, cap)  ffarr2_alloc((ffarr2*)s, cap, sizeof(char))
 
@@ -529,17 +451,12 @@ static FFINL char* ffstr_dup(ffstr *s, const char *d, size_t len) {
 
 
 #if defined FF_UNIX
-typedef ffstr ffqstr;
 typedef ffstr3 ffqstr3;
 #define ffqstr_set ffstr_set
 #define ffqstr_alloc ffstr_alloc
 #define ffqstr_free ffstr_free
 
 #elif defined FF_WIN
-typedef struct {
-	size_t len;
-	ffsyschar *ptr;
-} ffqstr;
 
 typedef struct { FFARR(ffsyschar) } ffqstr3;
 
@@ -553,48 +470,6 @@ static FFINL void ffqstr_set(ffqstr *s, const ffsyschar *d, size_t len) {
 #define ffqstr_free(s)  ffstr_free((ffstr*)(s))
 
 #endif
-
-static inline void ffstr_skip(ffstr *s, int skip_char)
-{
-	char *p = ffs_skip(s->ptr, s->len, skip_char);
-	s->len = s->ptr + s->len - p;
-	s->ptr = p;
-}
-
-static inline void ffstr_rskip(ffstr *s, int skip_char)
-{
-	s->len = ffs_rskip(s->ptr, s->len, skip_char) - s->ptr;
-}
-
-enum FFSTR_NEXTVAL {
-	FFSTR_NV_DBLQUOT = 0x100, // val1 "val2 with space" val3
-	FFS_NV_KEEPWHITE = 0x200, // don't trim whitespace
-	FFS_NV_REVERSE = 0x400, // reverse search
-	FFS_NV_TABS = 0x0800, // treat whitespace as spaces and tabs
-	FFS_NV_WORDS = 0x1000, // ignore 'spl' char;  instead, split by whitespace
-	FFS_NV_CR = 0x2000, // treat spaces, tabs, CR as whitespace
-};
-
-/** Get the next value from input string like "val1, val2, ...".
-Spaces on the edges are trimmed.
-@spl: split-character OR-ed with enum FFSTR_NEXTVAL.
-Return the number of processed bytes. */
-FF_EXTN size_t ffstr_nextval(const char *buf, size_t len, ffstr *dst, int spl);
-
-static FFINL size_t ffstr_nextval3(ffstr *src, ffstr *dst, int spl)
-{
-	size_t n = ffstr_nextval(src->ptr, src->len, dst, spl);
-	if (spl & FFS_NV_REVERSE)
-		src->len -= n;
-	else
-		ffstr_shift(src, n);
-	return n;
-}
-
-#define ffstr_toint(s, dst, flags) \
-	((s)->len != 0 && (s)->len == ffs_toint((s)->ptr, (s)->len, dst, flags))
-#define ffstr_tobool(s, dst, flags) \
-	((s)->len != 0 && (s)->len == ffs_tobool((s)->ptr, (s)->len, dst, flags))
 
 /** Trim data by absolute bounds.
 Return the number of bytes processed from the beginning. */
@@ -726,38 +601,6 @@ static FFINL void ffmblk_free(ffmblk *m)
 {
 	ffarr_free(&m->buf);
 	ffmem_free(m);
-}
-
-
-typedef struct ffbstr {
-	ushort len;
-	char data[0];
-} ffbstr;
-
-/** Add one more ffbstr into array.  Reallocate memory, if needed.
-If @data is set, copy it into a new ffbstr. */
-FF_EXTN ffbstr * ffbstr_push(ffstr *buf, const char *data, size_t len);
-
-/** Copy data into ffbstr. */
-static FFINL void ffbstr_copy(ffbstr *bs, const char *data, size_t len)
-{
-	bs->len = (ushort)len;
-	ffmemcpy(bs->data, data, len);
-}
-
-/** Get the next string from array.
-@off: set value to 0 before the first call.
-Return 0 if there is no more data. */
-static FFINL ffbstr* ffbstr_next(const char *buf, size_t len, size_t *off, ffstr *dst)
-{
-	ffbstr *bs = (ffbstr*)(buf + *off);
-	if (*off == len)
-		return NULL;
-
-	if (dst != NULL)
-		ffstr_set(dst, bs->data, bs->len);
-	*off += sizeof(ffbstr) + bs->len;
-	return bs;
 }
 
 

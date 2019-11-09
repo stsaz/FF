@@ -93,7 +93,7 @@ int ffwebskt_parse(ffwebskt *w)
 		n = ffmin64(w->gathlen - w->nbuf, w->in.len);
 		ffmemcpy(w->buf + w->nbuf, w->in.ptr, n);
 		w->nbuf += n;
-		ffarr_shift(&w->in, n);
+		ffstr_shift(&w->in, n);
 		if (w->nbuf != w->gathlen)
 			return FFWEBSKT_RMORE;
 		w->state = w->nxstate;
@@ -182,7 +182,7 @@ int ffwebskt_parse(ffwebskt *w)
 		} else {
 			ffstr_set(&w->out, w->in.ptr, nn);
 		}
-		ffarr_shift(&w->in, nn);
+		ffstr_shift(&w->in, nn);
 		w->datalen -= nn;
 		return FFWEBSKT_RDATA;
 	}
@@ -235,7 +235,7 @@ int ffwebskt_writenext(ffwebskt_cook *w)
 		size_t n = ffmin64(w->in.len, sizeof(w->buf));
 		ffmem_xor4(w->buf, w->in.ptr, n, w->mask);
 		w->out.ptr = w->buf,  w->out.len = n;
-		ffarr_shift(&w->in, n);
+		ffstr_shift(&w->in, n);
 		return FFWEBSKT_RDATA;
 	}
 

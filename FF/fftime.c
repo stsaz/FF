@@ -3,7 +3,7 @@ Copyright (c) 2013 Simon Zolin
 */
 
 #include <FF/time.h>
-#include <FF/array.h>
+#include <FF/string.h>
 #include <FFOS/error.h>
 
 

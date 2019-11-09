@@ -3,7 +3,6 @@ Copyright (c) 2018 Simon Zolin
 */
 
 #include <FF/pic/ico.h>
-#include <FF/array.h>
 #include <FF/number.h>
 #include <FF/pic/pic.h>
 

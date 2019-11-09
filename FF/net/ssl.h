@@ -4,7 +4,7 @@ Copyright (c) 2015 Simon Zolin
 
 #pragma once
 
-#include <FF/array.h>
+#include <FF/string.h>
 
 #ifdef FF_WIN
 #define OPENSSL_SYS_WIN32

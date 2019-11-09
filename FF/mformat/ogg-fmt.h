@@ -4,7 +4,7 @@ Copyright (c) 2016 Simon Zolin
 
 #pragma once
 
-#include <FF/array.h>
+#include <FF/string.h>
 
 
 enum OGG_F {

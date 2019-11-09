@@ -7,7 +7,7 @@ Copyright (c) 2015 Simon Zolin
 #include <FF/aformat/flac-fmt.h>
 #include <FF/mtags/vorbistag.h>
 #include <FF/audio/pcm.h>
-#include <FF/array.h>
+#include <FF/string.h>
 
 #include <flac/FLAC-ff.h>
 

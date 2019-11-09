@@ -30,7 +30,7 @@ msg(CLOSE)
 
 #pragma once
 
-#include <FF/array.h>
+#include <FF/string.h>
 
 
 enum FFWEBSKT_R {

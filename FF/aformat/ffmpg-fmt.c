@@ -3,7 +3,7 @@ Copyright (c) 2016 Simon Zolin
 */
 
 #include <FF/aformat/mpeg-fmt.h>
-#include <FF/array.h>
+#include <FF/string.h>
 #include <FF/number.h>
 
 
@@ -153,7 +153,7 @@ static int mpg_xing_off(const char *data)
 int ffmpg_xing_parse(struct ffmpg_info *xing, const char *data, size_t len)
 {
 	const char *dstart = data;
-	FFARR_SHIFT(data, len, mpg_xing_off(data));
+	FFS_SHIFT(data, len, mpg_xing_off(data));
 
 	if (len < 8 || !mpg_xing_valid(data))
 		return -1;

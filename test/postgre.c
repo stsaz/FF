@@ -11,7 +11,7 @@ Test with:
 psql -d mydb
 */
 
-#include <FF/array.h>
+#include <FF/string.h>
 #include <FF/db/postgre.h>
 #include <FFOS/test.h>
 

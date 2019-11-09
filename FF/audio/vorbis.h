@@ -10,7 +10,7 @@ OGG(VORB_INFO)  OGG(VORB_COMMENTS VORB_CODEBOOK)  OGG(PKT1 PKT2...)...
 
 #include <FF/audio/pcm.h>
 #include <FF/mtags/vorbistag.h>
-#include <FF/array.h>
+#include <FF/string.h>
 
 #include <vorbis/vorbis-ff.h>
 

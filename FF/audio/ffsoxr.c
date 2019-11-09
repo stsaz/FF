@@ -3,7 +3,6 @@ Copyright (c) 2015 Simon Zolin
 */
 
 #include <FF/audio/soxr.h>
-#include <FF/array.h>
 
 
 static const byte soxr_fmts[2][3] = {
