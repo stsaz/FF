@@ -44,7 +44,7 @@ FF_TEST_SRC := \
 	$(FF)/test/test.c $(FF)/test/time.c $(FF)/test/url.c $(FF)/test/cue.c $(FF)/test/sys.c \
 	$(FF)/test/ip.c \
 	$(FF)/test/path.c \
-	$(FF)/test/arc.c \
+	$(FF)/test/tar.c $(FF)/test/iso.c \
 	$(FF)/test/tls.c \
 	$(FF)/test/webskt.c \
 	$(FF)/test/hashtab.c \
@@ -77,6 +77,7 @@ FF_TEST_O := $(FFOS_OBJ) $(FF_OBJ) \
 	$(FF_OBJ_DIR)/ffdns-client.o \
 	$(FF_OBJ_DIR)/ffcache.o \
 	$(FF_OBJ_DIR)/ffsendfile.o \
+	$(FF_OBJ_DIR)/fftar.o \
 	$(FF_OBJ_DIR)/ffiso.o $(FF_OBJ_DIR)/ffiso-fmt.o \
 	$(FF_OBJ_DIR)/fftls.o \
 	$(FF_OBJ_DIR)/ffwebskt.o \

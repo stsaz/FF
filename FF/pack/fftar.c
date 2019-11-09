@@ -54,6 +54,7 @@ enum {
 static int tar_num64(const char *d, size_t len, uint64 *dst);
 static int tar_num(const char *d, size_t len, uint *dst);
 static uint tar_checksum(const char *d, size_t len);
+static const byte tar_ftype[];
 
 
 /** Parse octal number terminated with ' ' or '\0': "..000123.." */
@@ -115,7 +116,9 @@ int fftar_hdr_parse(fftar_file *f, char *filename, const char *buf)
 		f->name = filename;
 	}
 
-	if (h->typeflag == FFTAR_SLINK || h->typeflag == FFTAR_HLINK) {
+	int t = h->typeflag;
+	f->type = h->typeflag;
+	if (t == FFTAR_SLINK || t == FFTAR_HLINK) {
 		if (sizeof(h->linkname) == ffsz_nlen(h->linkname, sizeof(h->linkname)))
 			return FFTAR_ELONGNAME;
 		f->link_to = h->linkname;
@@ -127,18 +130,19 @@ int fftar_hdr_parse(fftar_file *f, char *filename, const char *buf)
 		|| 0 != tar_num64(h->size, sizeof(h->size), &f->size)
 		|| 0 != tar_num64(h->mtime, sizeof(h->mtime), &tt))
 		return FFTAR_EHDR;
+	if (t == FFTAR_DIR)
+		f->size = 0;
 	fftime_fromtime_t(&f->mtime, tt);
 
-	if (!((h->typeflag >= '0' && h->typeflag <= '7')
-		|| h->typeflag == FFTAR_FILE0
-		|| h->typeflag == FFTAR_EXTHDR || h->typeflag == FFTAR_NEXTHDR
-		|| h->typeflag == FFTAR_LONG)) {
-		FFDBG_PRINTLN(1, "%*s: file type: '%c'", (size_t)nlen, h->name, h->typeflag);
+	if (!((t >= '0' && t <= '6')
+		|| t == FFTAR_FILE0
+		|| t == FFTAR_EXTHDR || t == FFTAR_NEXTHDR
+		|| t == FFTAR_LONG)) {
+		FFDBG_PRINTLN(1, "%*s: file type: '%c'", (size_t)nlen, h->name, t);
 	}
 	f->mode &= 0777;
-	if (h->typeflag == FFTAR_DIR)
-		f->mode |= FFUNIX_FILE_DIR;
-	f->type = h->typeflag;
+	if (t >= '0' && t <= '6')
+		f->mode |= (uint)tar_ftype[t - '0'] << 12;
 
 	uint hchk, chk = tar_checksum((void*)h, TAR_BLOCK);
 	if (0 != tar_num(h->chksum, sizeof(h->chksum), &hchk)
@@ -165,35 +169,81 @@ int fftar_hdr_parse(fftar_file *f, char *filename, const char *buf)
 	return 0;
 }
 
-int fftar_hdr_write(const fftar_file *f, char *buf)
+int fftar_hdr_write(const fftar_file *f, ffarr *buf)
 {
-	tar_hdr *h = (void*)buf;
-	size_t namelen = ffsz_len(f->name);
-	uint addslash = 0;
+	int r;
+	size_t cap = 512;
+	buf->len = 0;
+	if (NULL == ffarr_realloc(buf, cap))
+		return FFTAR_ESYS;
+	ffmem_zero(buf->ptr, cap);
 
-	uint mode = f->mode;
-
-	h->typeflag = FFTAR_FILE;
-	if (f->mode & FFUNIX_FILE_DIR) {
-		h->typeflag = FFTAR_DIR;
-		if (!ffpath_slash(f->name[namelen - 1]))
-			addslash = 1;
+	uint t = f->mode & FFUNIX_FILE_TYPEMASK;
+	uint type = FFTAR_FILE;
+	for (uint i = 0;  i != 7;  i++) {
+		if (t == ((uint)tar_ftype[i] << 12)) {
+			type = FFTAR_FILE + i;
+			break;
+		}
 	}
 
-	if (namelen + addslash > sizeof(h->name))
-		return FFTAR_EBIG;
-	namelen = ffpath_norm(h->name, sizeof(h->name), f->name, namelen, FFPATH_MERGEDOTS | FFPATH_FORCESLASH | FFPATH_TOREL);
-	if (namelen == 0)
-		return FFTAR_EFNAME;
-	if (addslash)
-		h->name[namelen] = '/'; //add trailing slash
+	r = _fftar_hdr_write(f, ffarr_end(buf), type);
+	if (r != 0 && r != FFTAR_ELONGNAME)
+		return r;
+	buf->len += 512;
+	return r;
+}
+
+int _fftar_hdr_write(const fftar_file *f, char *buf, uint type)
+{
+	int rc = 0;
+	tar_hdr *h = (void*)buf;
+	ffbool dir = (f->mode & FFUNIX_FILE_TYPEMASK) == FFUNIX_FILE_DIR;
+
+	h->typeflag = type;
+	if (type >= '0' && type <= '6') {
+		size_t namelen = ffsz_len(f->name);
+		if (dir && ffpath_slash(f->name[namelen - 1]))
+			namelen--;
+
+		if (namelen + dir > sizeof(h->name)) {
+			// normalize path then trim its tail to the max. available space
+			ffarr fn = {};
+			if (NULL == ffarr_alloc(&fn, namelen))
+				return FFTAR_ESYS;
+			namelen = ffpath_norm(fn.ptr, fn.cap, f->name, namelen, FFPATH_MERGEDOTS | FFPATH_FORCESLASH | FFPATH_TOREL);
+			if (namelen == 0) {
+				ffarr_free(&fn);
+				return FFTAR_EFNAME;
+			}
+			char *end = ffs_copy(h->name, h->name + sizeof(h->name) - dir, fn.ptr, namelen);
+			if ((size_t)(end - h->name) != namelen)
+				rc = FFTAR_ELONGNAME;
+			namelen = end - h->name;
+			ffarr_free(&fn);
+
+		} else {
+			namelen = ffpath_norm(h->name, sizeof(h->name), f->name, namelen, FFPATH_MERGEDOTS | FFPATH_FORCESLASH | FFPATH_TOREL);
+			if (namelen == 0)
+				return FFTAR_EFNAME;
+		}
+
+		if (dir)
+			h->name[namelen] = '/';
+
+	} else {
+		ffs_copyz(h->name, h->name + sizeof(h->name), f->name);
+	}
 
 	uint e = 0;
-	e |= tar_writenum(mode & 0777, h->mode, sizeof(h->mode));
+	e |= tar_writenum(f->mode & 0777, h->mode, sizeof(h->mode));
 	e |= tar_writenum(f->uid, h->uid, sizeof(h->uid));
 	e |= tar_writenum(f->gid, h->gid, sizeof(h->gid));
 
-	e |= tar_writenum(f->size, h->size, sizeof(h->size));
+	if (dir)
+		tar_writenum(0, h->size, sizeof(h->size));
+	else
+		e |= tar_writenum(f->size, h->size, sizeof(h->size));
 
 	time_t t = fftime_to_time_t(&f->mtime);
 	e |= tar_writenum(t, h->mtime, sizeof(h->mtime));
@@ -213,7 +263,7 @@ int fftar_hdr_write(const fftar_file *f, char *buf)
 	uint chksum = tar_checksum(buf, sizeof(tar_hdr) + sizeof(tar_gnu));
 	tar_writenum(chksum, h->chksum, sizeof(h->chksum) - 2);
 	h->chksum[sizeof(h->chksum) - 2] = '\0';
-	return 0;
+	return rc;
 }
 
 /** Get header checksum. */
@@ -233,15 +283,15 @@ static uint tar_checksum(const char *d, size_t len)
 
 
 static const char *const tar_errs[] = {
-	"bad header",
-	"unsupported file type",
-	"checksum mismatch",
-	"invalid padding data",
-	"not ready",
-	"too big name or size",
-	"invalid filename",
-	"too long filename",
-	"file has non-zero size",
+	"bad header", //FFTAR_EHDR
+	"unsupported file type", //FFTAR_ETYPE
+	"checksum mismatch", //FFTAR_ECHKSUM
+	"invalid padding data", //FFTAR_EPADDING
+	"not ready", //FFTAR_ENOTREADY
+	"too big name or size", //FFTAR_EBIG
+	"invalid filename", //FFTAR_EFNAME
+	"too long filename", //FFTAR_ELONGNAME
+	"file has non-zero size", //FFTAR_EHAVEDATA
 };
 
 const char* fftar_errstr(void *_t)
@@ -451,7 +501,7 @@ uint fftar_mode(const fftar_file *f)
 	uint t = f->type;
 	if (t == '\0')
 		t = FFTAR_FILE;
-	if (t >= '0' || t <= '6')
+	if (t >= '0' && t <= '6')
 		t = (uint)tar_ftype[ffchar_tonum(t)] << 12;
 	else
 		t = FFUNIX_FILE_REG;
@@ -463,7 +513,7 @@ enum { W_NEWFILE, W_HDR, W_DATA, W_PADDING, W_FDONE, W_FTR, W_DONE };
 
 int fftar_create(fftar_cook *t)
 {
-	if (NULL == (t->buf = ffmem_alloc(TAR_ENDDATA)))
+	if (NULL == ffarr_alloc(&t->buf, TAR_ENDDATA))
 		return ERR(t, FFTAR_ESYS);
 	return 0;
 }
@@ -480,9 +530,8 @@ int fftar_newfile(fftar_cook *t, const fftar_file *f)
 	if (t->state != W_NEWFILE)
 		return ERR(t, FFTAR_ENOTREADY);
 
-	ffmem_zero(t->buf, TAR_BLOCK);
-
-	if (0 != (r = fftar_hdr_write(f, t->buf)))
+	r = fftar_hdr_write(f, &t->buf);
+	if (r != 0 && r != FFTAR_ELONGNAME)
 		return ERR(t, r);
 
 	t->fdone = 0;
@@ -496,7 +545,7 @@ int fftar_write(fftar_cook *t)
 	switch (t->state) {
 
 	case W_HDR:
-		ffstr_set(&t->out, t->buf, TAR_BLOCK);
+		ffstr_set2(&t->out, &t->buf);
 		t->fsize = 0;
 		t->state = W_DATA;
 		return FFTAR_DATA;
@@ -514,9 +563,9 @@ int fftar_write(fftar_cook *t)
 		return FFTAR_DATA;
 
 	case W_PADDING: {
-		ffmem_zero(t->buf, TAR_BLOCK);
+		ffmem_zero(t->buf.ptr, 512);
 		uint padding = (t->fsize % TAR_BLOCK != 0) ? TAR_BLOCK - (t->fsize % TAR_BLOCK) : 0;
-		ffstr_set(&t->out, t->buf, padding);
+		ffstr_set(&t->out, t->buf.ptr, padding);
 		t->state = W_FDONE;
 		return FFTAR_DATA;
 	}
@@ -526,8 +575,8 @@ int fftar_write(fftar_cook *t)
 		return FFTAR_FILEDONE;
 
 	case W_FTR:
-		ffmem_zero(t->buf, TAR_ENDDATA);
-		ffstr_set(&t->out, t->buf, TAR_ENDDATA);
+		ffmem_zero(t->buf.ptr, TAR_ENDDATA);
+		ffstr_set(&t->out, t->buf.ptr, TAR_ENDDATA);
 		t->state = W_DONE;
 		return FFTAR_DATA;
 

@@ -60,8 +60,13 @@ FF_EXTN int fftar_hdr_parse(fftar_file *f, char *filename, const char *buf);
 
 /** Write header.
 @buf: must be at least 512 bytes.
-Return enum FFTAR_E on error. */
-FF_EXTN int fftar_hdr_write(const fftar_file *f, char *buf);
+Return enum FFTAR_E on error
+ FFTAR_ELONGNAME: file name was trimmed. */
+FF_EXTN int _fftar_hdr_write(const fftar_file *f, char *buf, uint type);
+
+/** Write header: handle large file names.
+Return enum FFTAR_E on error */
+FF_EXTN int fftar_hdr_write(const fftar_file *f, ffarr *buf);
 
 
 typedef struct fftar {
@@ -83,7 +88,7 @@ typedef struct fftar {
 typedef struct fftar_cook {
 	uint state;
 	uint err;
-	char *buf;
+	ffarr buf;
 	uint64 fsize;
 
 	ffstr in;
@@ -128,7 +133,7 @@ FF_EXTN int fftar_create(fftar_cook *t);
 
 static FFINL void fftar_wclose(fftar_cook *t)
 {
-	ffmem_safefree(t->buf);
+	ffarr_free(&t->buf);
 }
 
 /** Prepare to add a new file. */
