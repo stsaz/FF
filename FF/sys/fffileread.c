@@ -217,12 +217,11 @@ done:
 	f->locked = ibuf;
 
 	next = b->offset + b->len;
+	if (flags & FFFILEREAD_FBACKWARD)
+		next = b->offset - f->conf.bufsize;
 	if ((flags & FFFILEREAD_FREADAHEAD)
-		&& ((flags & FFFILEREAD_FBACKWARD) || next != f->eof) // don't read past eof
+		&& (int64)next >= 0 && next != f->eof // don't read past eof
 		&& f->conf.directio && f->conf.nbufs != 1) {
-
-		if (flags & FFFILEREAD_FBACKWARD)
-			next = b->offset - f->conf.bufsize;
 
 		if (NULL == bufs_find(f, next)
 			&& f->state != FI_ASYNC) {
