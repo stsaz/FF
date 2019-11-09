@@ -48,8 +48,14 @@ int test_tar()
 	// write/read directory with a long name
 	f.name = "/namenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamename";
 	f.mode = FFUNIX_FILE_DIR | 0755;
-	x(FFTAR_ELONGNAME == fftar_hdr_write(&f, &a));
+	x(FFTAR_ELONGNAME == fftar_hdr_write(&f, &a) && a.len == 3 * 512);
 	x(0 == fftar_hdr_parse(&f2, fn, a.ptr));
+	x(f2.type == FFTAR_LONG);
+	x(ffsz_eq(f2.name, "././@LongLink"));
+	x(ffsz_eq(a.ptr + 512, "namenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamename/"));
+	x(0 == fftar_hdr_parse(&f2, fn, a.ptr + 1024));
+	x(f2.mode == f.mode);
+	x(f2.type == FFTAR_DIR);
 	x(ffsz_eq(f2.name, "namenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenamenam/"));
 
 	ffarr_free(&a);

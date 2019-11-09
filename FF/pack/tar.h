@@ -4,6 +4,12 @@ Copyright (c) 2016 Simon Zolin
 
 /*
 (HDR PADDING DATA PADDING)...  2_EMPTY_BLOCKS
+
+Long name blocks structure:
+HDR(L) PADDING
+LONGNAME_DATA PADDING
+HDR(0) PADDING
+DATA PADDING
 */
 
 #include <FF/array.h>

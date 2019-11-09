@@ -173,10 +173,35 @@ int fftar_hdr_write(const fftar_file *f, ffarr *buf)
 {
 	int r;
 	size_t cap = 512;
+	size_t namelen = ffsz_len(f->name);
+	ffbool dir = (f->mode & FFUNIX_FILE_TYPEMASK) == FFUNIX_FILE_DIR;
+	if (dir && ffpath_slash(f->name[namelen - 1]))
+		namelen--;
+	if (namelen + dir > FF_SIZEOF(tar_hdr, name))
+		cap = 512 + ff_align_ceil2(namelen + dir, 512) + 512;
 	buf->len = 0;
 	if (NULL == ffarr_realloc(buf, cap))
 		return FFTAR_ESYS;
 	ffmem_zero(buf->ptr, cap);
+
+	if (namelen + dir > FF_SIZEOF(tar_hdr, name)) {
+		fftar_file fl = {};
+		fl.name = "././@LongLink";
+		fl.mode = 0644;
+		fl.size = namelen + dir;
+		fftime_fromtime_t(&fl.mtime, 0);
+		r = _fftar_hdr_write(&fl, buf->ptr, FFTAR_LONG);
+		if (r != 0)
+			return r;
+		buf->len += 512;
+
+		namelen = ffpath_norm(ffarr_end(buf), ffarr_unused(buf) - dir, f->name, namelen, FFPATH_MERGEDOTS | FFPATH_FORCESLASH | FFPATH_TOREL);
+		if (namelen == 0)
+			return FFTAR_EFNAME;
+		if (dir)
+			buf->ptr[512 + namelen] = '/';
+		buf->len += ff_align_ceil2(namelen + dir, 512);
+	}
 
 	uint t = f->mode & FFUNIX_FILE_TYPEMASK;
 	uint type = FFTAR_FILE;
