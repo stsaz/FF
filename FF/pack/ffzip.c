@@ -297,7 +297,7 @@ void ffzip_close(ffzip *z)
 
 enum E_READ {
 	R_GATHER, R_CDIR_TRL_SEEK, R_CDIR_TRL, R_CDIR_SEEK, R_CDIR_NEXT, R_CDIR, R_CDIR_FIN,
-	R_FHDR_SEEK, R_FHDR, R_FHDR_FIN, R_SKIP, R_DATA, R_FDONE,
+	R_FHDR_SEEK, R_FHDR, R_FHDR_FIN, R_DATA, R_FDONE,
 };
 
 void ffzip_init(ffzip *z, uint64 total_size)
@@ -450,7 +450,7 @@ int ffzip_read(ffzip *z, char *dst, size_t cap)
 		z->crc = 0;
 		ffzip_file *f = FF_GETPTR(ffzip_file, sib, z->curfile);
 		if (f->comp == ZIP_STORED)
-			z->state = R_SKIP;
+		{}
 		else if (f->comp == ZIP_DEFLATED) {
 			if (!z->lzinit) {
 				z_conf conf = {0};
@@ -458,26 +458,36 @@ int ffzip_read(ffzip *z, char *dst, size_t cap)
 					return ERR(z, FFZIP_ELZINIT);
 				z->lzinit = 1;
 			}
-			z->state = R_DATA;
 		}
+		z->state = R_DATA;
 		return FFZIP_FILEHDR;
 	}
 
-	case R_SKIP:
-		z->state = R_FHDR;
-		return FFZIP_FILEDONE;
-
 	case R_DATA: {
-		size_t rd = z->in.len;
-		r = z_inflate(z->lz, z->in.ptr, &rd, dst, cap, 0);
+		size_t rd;
+		ffzip_file *f = FF_GETPTR(ffzip_file, sib, z->curfile);
+		if (f->comp == ZIP_DEFLATED) {
+			rd = z->in.len;
+			r = z_inflate(z->lz, z->in.ptr, &rd, dst, cap, 0);
 
-		if (r == Z_DONE) {
-			z_inflate_reset(z->lz);
-			z->state = R_FDONE;
-			continue;
+			if (r == Z_DONE) {
+				z_inflate_reset(z->lz);
+				z->state = R_FDONE;
+				continue;
 
-		} else if (r < 0)
-			return ERR(z, FFZIP_ELZ);
+			} else if (r < 0)
+				return ERR(z, FFZIP_ELZ);
+		} else {
+			rd = f->zsize - z->outsize;
+			if (rd == 0) {
+				z->state = R_FDONE;
+				continue;
+			}
+			rd = ffmin(rd, cap);
+			rd = ffmin(rd, z->in.len);
+			ffmemcpy(dst, z->in.ptr, rd);
+			r = rd;
+		}
 
 		ffstr_shift(&z->in, rd);
 
