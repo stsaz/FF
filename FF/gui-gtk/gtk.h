@@ -347,6 +347,11 @@ static inline int ffui_view_selnext(ffui_view *v, ffarr4 *sel)
 
 FF_EXTN void ffui_view_dragdrop(ffui_view *v, uint action_id);
 
+/** Get next drag'n'drop file name.
+Return -1 if no more. */
+FF_EXTN int ffui_fdrop_next(ffarr *fn, ffstr *dropdata);
+
+
 /**
 Note: must be called only from wnd.on_action(). */
 static inline int ffui_view_focused(ffui_view *v)

@@ -160,18 +160,30 @@ static void _ffui_view_drag_data_received(GtkWidget *wgt, GdkDragContext *contex
 	const void *ptr = gtk_selection_data_get_data_with_length(seldata, &len);
 	FFDBG_PRINTLN(10, "seldata:[%u] %*s", len, (size_t)len, ptr);
 
-	char *s = ffmem_alloc(len + 1);
-	if (s == NULL)
-		return;
-	size_t n = ffuri_decode(s, len, ptr, len, 0);
-	s[n] = '\0';
-
 	ffui_view *v = userdata;
-	ffstr_set(&v->drop_data, s, n);
+	ffstr_set(&v->drop_data, ptr, len);
 	v->wnd->on_action(v->wnd, v->dropfile_id);
 	ffstr_null(&v->drop_data);
+}
 
-	ffmem_free(s);
+int ffui_fdrop_next(ffarr *fn, ffstr *dropdata)
+{
+	ffstr ln;
+	while (dropdata->len != 0) {
+		ffstr_nextval3(dropdata, &ln, '\n');
+		ffstr_rskip1(&ln, '\r');
+		if (!ffstr_matchz(&ln, "file://"))
+			continue;
+		ffstr_shift(&ln, FFSLEN("file://"));
+
+		if (NULL == ffarr_realloc(fn, ln.len))
+			return -1;
+		fn->len = ffuri_decode(fn->ptr, fn->cap, ln.ptr, ln.len, 0);
+		if (fn->len == 0)
+			return -1;
+		return 0;
+	}
+	return -1;
 }
 
 int ffui_view_create(ffui_view *v, ffui_wnd *parent)
