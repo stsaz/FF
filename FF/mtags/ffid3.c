@@ -54,11 +54,13 @@ int ffid31_parse(ffid31ex *id31ex, const char *data, size_t len)
 
 	case I_TITLE:
 		if (id31->title[0] != '\0') {
-			*state = I_ARTIST;
 			ffstr_setnz(val, id31->title, sizeof(id31->title));
 			ffstr_rskip(val, ' ');
-			id31ex->field = FFMMTAG_TITLE;
-			break;
+			if (val->len != 0) {
+				id31ex->field = FFMMTAG_TITLE;
+				*state = I_ARTIST;
+				break;
+			}
 		}
 		//break
 
@@ -66,9 +68,11 @@ int ffid31_parse(ffid31ex *id31ex, const char *data, size_t len)
 		if (id31->artist[0] != '\0') {
 			ffstr_setnz(val, id31->artist, sizeof(id31->artist));
 			ffstr_rskip(val, ' ');
-			*state = I_ALBUM;
-			id31ex->field = FFMMTAG_ARTIST;
-			break;
+			if (val->len != 0) {
+				id31ex->field = FFMMTAG_ARTIST;
+				*state = I_ALBUM;
+				break;
+			}
 		}
 		//break
 
@@ -76,9 +80,11 @@ int ffid31_parse(ffid31ex *id31ex, const char *data, size_t len)
 		if (id31->album[0] != '\0') {
 			ffstr_setnz(val, id31->album, sizeof(id31->album));
 			ffstr_rskip(val, ' ');
-			*state = I_YEAR;
-			id31ex->field = FFMMTAG_ALBUM;
-			break;
+			if (val->len != 0) {
+				id31ex->field = FFMMTAG_ALBUM;
+				*state = I_YEAR;
+				break;
+			}
 		}
 		//break
 
@@ -86,9 +92,11 @@ int ffid31_parse(ffid31ex *id31ex, const char *data, size_t len)
 		if (id31->year[0] != '\0') {
 			ffstr_setnz(val, id31->year, sizeof(id31->year));
 			ffstr_rskip(val, ' ');
-			*state = I_COMMENT;
-			id31ex->field = FFMMTAG_DATE;
-			break;
+			if (val->len != 0) {
+				id31ex->field = FFMMTAG_DATE;
+				*state = I_COMMENT;
+				break;
+			}
 		}
 		//break
 
@@ -97,9 +105,11 @@ int ffid31_parse(ffid31ex *id31ex, const char *data, size_t len)
 			n = (id31->comment30[28] != '\0') ? sizeof(id31->comment30) : sizeof(id31->comment);
 			ffstr_setnz(val, id31->comment, n);
 			ffstr_rskip(val, ' ');
-			*state = (id31->comment30[28] != '\0') ? I_DONE : I_TRK;
-			id31ex->field = FFMMTAG_COMMENT;
-			break;
+			if (val->len != 0) {
+				id31ex->field = FFMMTAG_COMMENT;
+				*state = (id31->comment30[28] != '\0') ? I_DONE : I_TRK;
+				break;
+			}
 		}
 		//break
 
