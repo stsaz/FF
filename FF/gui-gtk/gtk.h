@@ -119,7 +119,7 @@ FF_EXTN void ffui_menu_setcmd(void *mi, uint id);
 
 static inline void ffui_menu_ins(ffui_menu *m, void *mi, int pos)
 {
-	gtk_menu_shell_insert((void*)m->h, mi, pos);
+	gtk_menu_shell_insert(GTK_MENU_SHELL(m->h), GTK_WIDGET(mi), pos);
 }
 
 
@@ -546,8 +546,8 @@ FF_EXTN void ffui_post(void *ctl, uint id, void *udata);
 FF_EXTN size_t ffui_send(void *ctl, uint id, void *udata);
 
 #define ffui_post_quitloop()  ffui_post(NULL, FFUI_QUITLOOP, NULL)
-#define ffui_send_lbl_settext(ctl, sz)  ffui_send(ctl, FFUI_LBL_SETTEXT, sz)
-#define ffui_send_wnd_settext(ctl, sz)  ffui_send(ctl, FFUI_WND_SETTEXT, sz)
+#define ffui_send_lbl_settext(ctl, sz)  ffui_send(ctl, FFUI_LBL_SETTEXT, (void*)sz)
+#define ffui_send_wnd_settext(ctl, sz)  ffui_send(ctl, FFUI_WND_SETTEXT, (void*)sz)
 #define ffui_send_view_rm(ctl, it)  ffui_send(ctl, FFUI_VIEW_RM, it)
 #define ffui_post_view_clear(ctl)  ffui_send(ctl, FFUI_VIEW_CLEAR, NULL)
 

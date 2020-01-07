@@ -799,8 +799,11 @@ FF_EXTN int ffui_trk_create(ffui_trkbar *t, ffui_wnd *parent);
 
 #define ffui_trk_setpage(t, pagesize)  ffui_ctl_send(t, TBM_SETPAGESIZE, 0, pagesize)
 
-#define ffui_trk_set(t, val) \
-	((!(t)->thumbtrk) ? ffui_ctl_send(t, TBM_SETPOS, 1, val) : (void)0)
+static inline void ffui_trk_set(ffui_trkbar *t, uint val)
+{
+	if (!t->thumbtrk)
+		ffui_ctl_send(t, TBM_SETPOS, 1, val);
+}
 
 #define ffui_trk_val(t)  ffui_ctl_send(t, TBM_GETPOS, 0, 0)
 
