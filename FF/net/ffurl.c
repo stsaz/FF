@@ -365,7 +365,7 @@ size_t ffuri_decode(char *dst, size_t dstcap, const char *d, size_t len, uint fl
 				idx = iQuoted1;
 			else if ((flags & FFURI_DEC_HTTPREQ) && (ffchar_isansiwhite(ch) || ch == '#'))
 				goto fail;
-			else if (!(flags & FFURI_DEC_HTTPREQ) && (ffchar_isansiwhite(ch) && ch != ' '))
+			else if (!(flags & FFURI_DEC_HTTPREQ) && (ffchar_isprintable(ch) && ch != ' '))
 				goto fail;
 			else
 				dst[idst++] = ch;

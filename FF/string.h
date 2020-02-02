@@ -103,6 +103,8 @@ static FFINL ffbool ffchar_ishex(int ch) {
 
 #define ffchar_isansiwhite(ch)  (0 == ffbit_testarr(ffcharmask_nowhite, (byte)(ch)))
 
+#define ffchar_isprintable(ch)  (0 == ffbit_testarr(ffcharmask_printable, (byte)(ch)))
+
 static FFINL ffbool ffchar_iswhitespace(int ch) {
 	return (ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r');
 }
