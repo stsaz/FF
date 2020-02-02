@@ -127,6 +127,7 @@ FEATURES
 	* ALSA playback/capture - `FF/adev/alsa.h`
 	* Pulse Audio playback - `FF/adev/pulse.h`
 	* CoreAudio playback/capture - `FF/adev/coreaudio.h`
+	* JACK capture - `FF/adev/jack.h`
 	* OSS playback - `FF/adev/oss.h`
 
 * Audio - `FF/audio/`
