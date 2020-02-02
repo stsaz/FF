@@ -50,9 +50,14 @@ do { \
 	(dst)->sample_rate = (src)->sample_rate; \
 } while (0)
 
+static inline ffbool ffpcm_eq(const ffpcm *a, const ffpcm *b)
+{
+	return !ffmemcmp(a, b, sizeof(*a));
+}
+
 static inline ffbool ffpcmex_eq(const ffpcmex *a, const ffpcmex *b)
 {
-	return !!ffmemcmp(a, b, sizeof(*a));
+	return !ffmemcmp(a, b, sizeof(*a));
 }
 
 enum {
