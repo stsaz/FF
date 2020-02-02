@@ -800,6 +800,9 @@ int mp4_itunes_smpb_write(char *data, uint64 total_samples, uint enc_delay, uint
 /*
 Supported boxes hierarchy:
 
+All boxes are used by ffmp4_write() automatically, unless explicitly marked as (R)ead-only.
+If so, don't forget to update _ffmp4_boxdata() when adding support for reading a new box.
+
 ftyp
 moov
  mvhd
@@ -817,13 +820,13 @@ moov
      stsd
       mp4a
        esds
-      alac
+      alac(R)
        alac
-      avc1
+      avc1(R)
      stts
      stsc
      stsz
-     stco | co64
+     stco | co64(R)
  udta
   meta
    ilst

@@ -830,6 +830,7 @@ static int _ffmp4_boxdata(ffmp4_cook *m, const struct bbox *b)
 
 	case BOX_CO64:
 	case BOX_STSD_ALAC:
+	case BOX_STSD_AVC1:
 		return -1;
 
 	case BOX_ILST_DATA:
