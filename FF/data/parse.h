@@ -278,6 +278,12 @@ static FFINL void ffpars_schemfree(ffparser_schem *ps) {
 	ffstr_free(&ps->vals[0]);
 }
 
+/** Get the current argument name. */
+static inline const char* ffpars_argname(ffparser_schem *p)
+{
+	return p->curarg->name;
+}
+
 /** Get context name ('conf' backend).
 Example:
 key "name" {...} */
