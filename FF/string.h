@@ -524,6 +524,13 @@ static inline void ffstr_skip(ffstr *s, int skip_char)
 	s->ptr = p;
 }
 
+static inline void ffstr_skipof(ffstr *s, ffstr skip_chars)
+{
+	char *p = ffs_skipof(s->ptr, s->len, skip_chars.ptr, skip_chars.len);
+	s->len = s->ptr + s->len - p;
+	s->ptr = p;
+}
+
 
 // REVERSE SKIP
 

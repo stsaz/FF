@@ -166,6 +166,30 @@ static FFINL int ffip6_cmp(const ffip6 *ip1, const ffip6 *ip2)
 	return memcmp(ip1, ip2, sizeof(*ip1));
 }
 
+/** Return TRUE if it's an IPv4-mapped address. */
+static inline ffbool ffip6_v4mapped(const ffip6 *ip)
+{
+	const uint *i = (void*)ip->a;
+	return i[0] == 0 && i[1] == 0 && i[2] == ffhton32(0x0000ffff);
+}
+
+/** Return IPv4 address or NULL. */
+static inline const ffip4* ffip6_tov4(const ffip6 *ip)
+{
+	const uint *i = (void*)ip->a;
+	if (!ffip6_v4mapped(ip))
+		return NULL;
+	return (void*)&i[3];
+}
+
+static inline void ffip6_v4mapped_set(ffip6 *ip6, const ffip4 *ip4)
+{
+	uint *i = (void*)ip6->a;
+	i[0] = i[1] = 0;
+	i[2] = ffhton32(0x0000ffff);
+	i[3] = ffhton32(*(uint*)ip4);
+}
+
 /** Parse IPv6 address.
 'subnet': (output) subnet mask (multiple of 16)
 Return 0 on success.
@@ -193,6 +217,17 @@ static FFINL uint ffip6_tostrz(char *dst, size_t cap, const ffip6 *ip6)
 		return 0;
 	dst[r] = '\0';
 	return r;
+}
+
+/** Convert IPv4 or IPv6 address to string.
+cap: FFIP6_STRLEN
+Return N of bytes written;  0: not enough capacity. */
+static inline size_t ffip46_tostr(const ffip6 *ip, char *buf, size_t cap)
+{
+	const ffip4 *ip4 = ffip6_tov4(ip);
+	if (ip4 != NULL)
+		return ffip4_tostr(buf, cap, ip4);
+	return ffip6_tostr(buf, cap, ip);
 }
 
 typedef struct ffip6hdr {

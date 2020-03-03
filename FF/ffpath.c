@@ -335,3 +335,31 @@ int ffpath_parent(const ffstr *p1, const ffstr *p2, ffstr *dir)
 	ffstr_set(dir, p1->ptr, sl - p1->ptr);
 	return 0;
 }
+
+int ffpath_match(const ffstr *path, const ffstr *match, uint flags)
+{
+	char p1[4096], p2[4096];
+	if (flags == FFPATH_CASE_DEF) {
+#if defined FF_UNIX
+		flags = FFPATH_CASE_SENS;
+#elif defined FF_WIN
+		flags = FFPATH_CASE_ISENS;
+#endif
+	}
+
+	uint normflags = FFPATH_MERGESLASH | FFPATH_MERGEDOTS | FFPATH_FORCESLASH;
+
+	size_t r1 = ffpath_norm(p1, sizeof(p1) - 1, path->ptr, path->len, normflags);
+	if (r1 == 0)
+		return 0;
+	p1[r1++] = '/';
+
+	size_t r2 = ffpath_norm(p2, sizeof(p2) - 1, match->ptr, match->len, normflags);
+	if (r2 == 0)
+		return 0;
+	p2[r2++] = '/';
+
+	if (flags & FFPATH_CASE_ISENS)
+		return ffs_imatch(p1, r1, p2, r2);
+	return ffs_match(p1, r1, p2, r2);
+}

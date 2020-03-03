@@ -113,3 +113,8 @@ FF_EXTN int ffpath_cmp(const ffstr *p1, const ffstr *p2, uint flags);
 
 /** Get max. shared parent directory (without the last slash). */
 FF_EXTN int ffpath_parent(const ffstr *p1, const ffstr *p2, ffstr *dir);
+
+/** Check if a path is a parent of another path.
+@flags: enum FFPATH_CASE
+Return TRUE if match. */
+FF_EXTN ffbool ffpath_match(const ffstr *path, const ffstr *match, uint flags);
