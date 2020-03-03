@@ -39,24 +39,12 @@ typedef struct dns_query {
 	char question[0];
 } dns_query;
 
-typedef struct dns_a {
-	ffaddrinfo ainfo;
-	struct sockaddr_in addr;
-} dns_a;
-
-typedef struct dns_a6 {
-	ffaddrinfo ainfo;
-	struct sockaddr_in6 addr;
-} dns_a6;
-
 struct ffdnscl_res {
-	void *cached_id;
-	uint usage; //reference count.  0 if stored in cache.
-
+	uint is4 :1;
 	uint naddrs;
 	union {
-		dns_a addrs[0];
-		dns_a6 addrs6[0];
+		ffip4 addrs4[0];
+		ffip6 addrs6[0];
 	};
 };
 
@@ -66,23 +54,23 @@ struct ffdnscl_res {
 #define errlog_x(r, ...) \
 	(r)->log(FFDNSCL_LOG_ERR, NULL, __VA_ARGS__)
 
-#define syserrlog_srv(serv, ...) \
-	(serv)->r->log(FFDNSCL_LOG_ERR | FFDNSCL_LOG_SYS, &(serv)->saddr, __VA_ARGS__)
-#define errlog_srv(serv, ...) \
-	(serv)->r->log(FFDNSCL_LOG_ERR, &(serv)->saddr, __VA_ARGS__)
-#define dbglog_srv(serv, lev, ...) \
+#define syserrlog_srv(serv, fmt, ...) \
+	(serv)->r->log(FFDNSCL_LOG_ERR | FFDNSCL_LOG_SYS, "%S: " fmt, &(serv)->saddr, __VA_ARGS__)
+#define errlog_srv(serv, fmt, ...) \
+	(serv)->r->log(FFDNSCL_LOG_ERR, "%S: " fmt, &(serv)->saddr, __VA_ARGS__)
+#define dbglog_srv(serv, lev, fmt, ...) \
 do { \
 	if ((serv)->r->debug_log) \
-		(serv)->r->log(FFDNSCL_LOG_DBG, &(serv)->saddr, __VA_ARGS__); \
+		(serv)->r->log(FFDNSCL_LOG_DBG, "%S: " fmt, &(serv)->saddr, __VA_ARGS__); \
 } while (0)
 
-#define errlog_q(q, ...)  (q)->r->log(FFDNSCL_LOG_ERR, &(q)->name, __VA_ARGS__)
-#define warnlog_q(q, ...)  (q)->r->log(FFDNSCL_LOG_WARN, &(q)->name, __VA_ARGS__)
+#define errlog_q(q, fmt, ...)  (q)->r->log(FFDNSCL_LOG_ERR, "%S: " fmt, &(q)->name, __VA_ARGS__)
+#define warnlog_q(q, fmt, ...)  (q)->r->log(FFDNSCL_LOG_WARN, "%S: " fmt, &(q)->name, __VA_ARGS__)
 #define log_checkdbglevel(q, lev)  (q->r->debug_log)
-#define dbglog_q(q, lev, ...) \
+#define dbglog_q(q, lev, fmt, ...) \
 do { \
 	if (log_checkdbglevel(q, lev)) \
-		(q)->r->log(FFDNSCL_LOG_DBG, &(q)->name, __VA_ARGS__); \
+		(q)->r->log(FFDNSCL_LOG_DBG, "%S: " fmt, &(q)->name, __VA_ARGS__); \
 } while (0)
 
 
@@ -99,7 +87,7 @@ static size_t query_prep(ffdnsclient *r, char *buf, size_t cap, uint txid, const
 static void query_send(dns_query *q, int resend);
 static int query_send1(dns_query *q, ffdnscl_serv *serv, int resend);
 static void query_onexpire(void *param);
-static void query_fin(dns_query *q, int status);
+static void query_fin(dns_query *q, int status, ffdnscl_serv *serv);
 static void query_free(void *param);
 
 // ANSWER
@@ -108,18 +96,36 @@ static void ans_proc(ffdnscl_serv *serv, const ffstr *resp);
 static dns_query * ans_find_query(ffdnscl_serv *serv, ffdns_hdr_host *h, const ffstr *resp);
 static uint ans_nrecs(dns_query *q, ffdns_hdr_host *h, const ffstr *resp, const char *pbuf, int is4);
 static ffdnscl_res* ans_proc_resp(dns_query *q, ffdns_hdr_host *h, const ffstr *resp, int is4);
+static void res_free(ffdnscl_res *dr);
 
 // DUMMY CALLBACKS
 static int oncomplete_dummy(ffdnsclient *r, ffdnscl_res *res, const ffstr *name, uint refcount, uint ttl)
 {
 	return 0;
 }
-static void log_dummy(uint level, const ffstr *trxn, const char *fmt, ...)
+static void log_dummy(uint level, const char *fmt, ...)
 {}
 static fftime time_dummy(void)
 {
 	fftime t = {};
 	return t;
+}
+
+
+void ffdnscl_conf_init(ffdnscl_conf *c)
+{
+	ffmem_tzero(c);
+
+	c->kq = FF_BADFD;
+	c->retry_timeout = 1000;
+	c->enable_ipv6 = 1;
+	c->edns = 1;
+	c->max_tries = 1;
+	c->buf_size = 4*1024;
+
+	c->log = &log_dummy;
+	c->time = &time_dummy;
+	c->oncomplete = &oncomplete_dummy;
 }
 
 ffdnsclient* ffdnscl_new(ffdnscl_conf *conf)
@@ -129,37 +135,26 @@ ffdnsclient* ffdnscl_new(ffdnscl_conf *conf)
 		return NULL;
 	ffmemcpy(r, conf, sizeof(*conf));
 
-	if (r->oncomplete == NULL)
-		r->oncomplete = &oncomplete_dummy;
-
-	if (r->log == NULL)
-		r->log = &log_dummy;
-
-	if (r->time == NULL)
-		r->time = &time_dummy;
-
 	fflist_init(&r->servs);
 	r->curserv = NULL;
 	ffrbt_init(&r->queries);
 	return r;
 }
 
-int ffdnscl_resolve(ffdnsclient *r, const char *name, size_t namelen, ffdnscl_onresolve ondone, void *udata, uint flags)
+int ffdnscl_resolve(ffdnsclient *r, ffstr name, ffdnscl_onresolve ondone, void *udata, uint flags)
 {
 	uint namecrc;
 	char buf4[FFDNS_MAXMSG], buf6[FFDNS_MAXMSG];
 	size_t ibuf4, ibuf6 = 0;
 	ffrbt_node *found_query, *parent;
 	dns_query *q = NULL;
-	ffstr host;
+	ffstr host = name;
 	ushort txid4, txid6 = 0;
-
-	ffstr_set(&host, name, namelen);
 
 	if (flags & FFDNSCL_CANCEL)
 		return query_rmuser(r, &host, ondone, udata);
 
-	namecrc = ffcrc32_iget(name, namelen);
+	namecrc = ffcrc32_iget(name.ptr, name.len);
 
 	// determine whether the needed query is already pending and if so, attach to it
 	found_query = ffrbt_find(&r->queries, namecrc, &parent);
@@ -171,7 +166,7 @@ int ffdnscl_resolve(ffdnsclient *r, const char *name, size_t namelen, ffdnscl_on
 			goto fail;
 		}
 
-		dbglog_q(q, LOG_DBGFLOW, "query hit");
+		dbglog_q(q, LOG_DBGFLOW, "query hit", 0);
 		if (0 != query_addusr(q, ondone, udata))
 			goto nomem;
 
@@ -201,7 +196,7 @@ int ffdnscl_resolve(ffdnsclient *r, const char *name, size_t namelen, ffdnscl_on
 	if (0 != query_addusr(q, ondone, udata))
 		goto nomem;
 
-	if (NULL == ffstr_copy(&q->name, name, namelen))
+	if (NULL == ffstr_copy(&q->name, name.ptr, name.len))
 		goto nomem;
 
 	q->need4 = 1;
@@ -231,18 +226,11 @@ fail:
 	if (q != NULL)
 		query_free(q);
 
-	ondone(udata, -1, NULL);
+	ffdnscl_result res = {};
+	res.name = host;
+	res.status = -1;
+	ondone(udata, &res);
 	return 0;
-}
-
-void ffdnscl_unref(ffdnsclient *r, const ffaddrinfo *ai)
-{
-	dns_a *paddrs = FF_GETPTR(dns_a, ainfo, ai);
-	ffdnscl_res *res = FF_GETPTR(ffdnscl_res, addrs, paddrs);
-
-	FF_ASSERT(res->usage != 0);
-	if (--res->usage == 0)
-		ffdnscl_res_free(res);
 }
 
 void ffdnscl_free(ffdnsclient *r)
@@ -271,7 +259,7 @@ static void query_onexpire(void *param)
 
 	if (q->tries_left == 0) {
 		errlog_q(q, "reached max_tries limit", 0);
-		query_fin(q, -1);
+		query_fin(q, -1, NULL);
 		return;
 	}
 
@@ -317,7 +305,7 @@ static int query_rmuser(ffdnsclient *r, const ffstr *host, ffdnscl_onresolve ond
 
 		if (udata == quser->udata && ondone == quser->ondone) {
 			ffarr_rmswap(&q->users, quser);
-			dbglog_q(q, LOG_DBGFLOW, "cancel: unref query");
+			dbglog_q(q, LOG_DBGFLOW, "cancel: unref query", 0);
 			return 0;
 		}
 	}
@@ -334,7 +322,7 @@ static void query_send(dns_query *q, int resend)
 
 		if (q->tries_left == 0) {
 			errlog_q(q, "reached max_tries limit", 0);
-			query_fin(q, -1);
+			query_fin(q, -1, NULL);
 			return;
 		}
 
@@ -373,7 +361,8 @@ static int query_send1(dns_query *q, ffdnscl_serv *serv, int resend)
 
 		serv->nqueries++;
 
-		dbglog_q(q, LOG_DBGNET, "%ssent %s query #%u (%u).  [%L]"
+		dbglog_q(q, LOG_DBGNET, "%S: %ssent %s query #%u (%u).  [%L]"
+			, &serv->saddr
 			, (resend ? "re" : ""), "AAAA", (int)q->txid6, serv->nqueries, (size_t)r->queries.len);
 	}
 
@@ -386,7 +375,8 @@ static int query_send1(dns_query *q, ffdnscl_serv *serv, int resend)
 
 		serv->nqueries++;
 
-		dbglog_q(q, LOG_DBGNET, "%ssent %s query #%u (%u).  [%L]"
+		dbglog_q(q, LOG_DBGNET, "%S: %ssent %s query #%u (%u).  [%L]"
+			, &serv->saddr
 			, (resend ? "re" : ""), "A", (int)q->txid4, serv->nqueries, (size_t)r->queries.len);
 	}
 
@@ -460,7 +450,7 @@ static void ans_proc(ffdnscl_serv *serv, const ffstr *resp)
 {
 	ffdns_hdr_host h;
 	dns_query *q;
-	int is4, i;
+	int is4;
 	ffdnsclient *r = serv->r;
 
 	q = ans_find_query(serv, &h, resp);
@@ -503,17 +493,12 @@ static void ans_proc(ffdnscl_serv *serv, const ffstr *resp)
 
 	q->r->timer(&q->tmr, 0);
 
-	for (i = 0;  i < q->nres;  i++) {
-		ffdnscl_res *res = q->res[i];
-		res->usage = (uint)q->users.len;
-	}
-
 	uint ttl = (uint)ffmin(q->ttl[0], q->ttl[q->nres - 1]);
 	for (uint i = 0;  i < q->nres;  i++) {
 		q->r->oncomplete(q->r, q->res[i], &q->name, q->users.len, ttl);
 	}
 
-	query_fin(q, q->status);
+	query_fin(q, q->status, serv);
 }
 
 /** Find query by a response from DNS server. */
@@ -559,8 +544,9 @@ static dns_query * ans_find_query(ffdnscl_serv *serv, ffdns_hdr_host *h, const f
 	name.len--;
 	name.ptr = qname;
 
-	serv->r->log(FFDNSCL_LOG_DBG /*LOG_DBGNET*/, &name
-		, "DNS response #%u.  Status: %u.  AA: %u, RA: %u.  Q: %u, A: %u, N: %u, R: %u."
+	serv->r->log(FFDNSCL_LOG_DBG /*LOG_DBGNET*/
+		, "%S: DNS response #%u.  Status: %u.  AA: %u, RA: %u.  Q: %u, A: %u, N: %u, R: %u."
+		, &name
 		, h->id, hdr->rcode, hdr->aa, hdr->ra
 		, h->qdcount, h->ancount, h->nscount, h->arcount);
 
@@ -573,9 +559,9 @@ static dns_query * ans_find_query(ffdnscl_serv *serv, ffdns_hdr_host *h, const f
 		ffdns_ques_host qh;
 		ffdns_questohost(&qh, pbuf);
 		if (qh.clas != FFDNS_IN) {
-			serv->r->log(FFDNSCL_LOG_ERR, &name
-				, "#%u: invalid class %u in DNS response"
-				, h->id, qh.clas);
+			serv->r->log(FFDNSCL_LOG_ERR
+				, "%S: #%u: invalid class %u in DNS response"
+				, &name, h->id, qh.clas);
 			goto fail;
 		}
 	}
@@ -686,7 +672,7 @@ static uint ans_nrecs(dns_query *q, ffdns_hdr_host *h, const ffstr *resp, const 
 
 				scname.len = ffdns_name(cname, sizeof(cname), resp->ptr, resp->len, &tbuf);
 				if (scname.len == 0 || tbuf > pbuf + ans.len) {
-					errlog_q(q, "invalid CNAME");
+					errlog_q(q, "invalid CNAME", 0);
 					continue;
 				}
 				scname.ptr = cname;
@@ -705,31 +691,6 @@ static uint ans_nrecs(dns_query *q, ffdns_hdr_host *h, const ffstr *resp, const 
 	return nrecs;
 }
 
-/** Set the linked list of addresses. */
-static void resv_addr_setlist4(dns_a *a, dns_a *end)
-{
-	for (;;) {
-		if (a + 1 == end) {
-			a->ainfo.ai_next = NULL;
-			break;
-		}
-		a->ainfo.ai_next = &(a + 1)->ainfo;
-		a++;
-	}
-}
-
-static void resv_addr_setlist6(dns_a6 *a6, dns_a6 *end)
-{
-	for (;;) {
-		if (a6 + 1 == end) {
-			a6->ainfo.ai_next = NULL;
-			break;
-		}
-		a6->ainfo.ai_next = &(a6 + 1)->ainfo;
-		a6++;
-	}
-}
-
 /** Create DNS resource object. */
 static ffdnscl_res* ans_proc_resp(dns_query *q, ffdns_hdr_host *h, const ffstr *resp, int is4)
 {
@@ -738,8 +699,8 @@ static ffdnscl_res* ans_proc_resp(dns_query *q, ffdns_hdr_host *h, const ffstr *
 	uint nrecs = 0;
 	uint ir;
 	ffdnscl_res *res = NULL;
-	dns_a *acur;
-	dns_a6 *a6cur;
+	ffip4 *acur;
+	ffip6 *a6cur;
 	uint minttl = (uint)-1;
 
 	pbuf = resp->ptr + sizeof(ffdns_hdr);
@@ -754,14 +715,15 @@ static ffdnscl_res* ans_proc_resp(dns_query *q, ffdns_hdr_host *h, const ffstr *
 	}
 
 	{
-		uint adr_sz = (is4 ? sizeof(dns_a) : sizeof(dns_a6));
+		uint adr_sz = (is4 ? sizeof(ffip4) : sizeof(ffip6));
 		res = ffmem_alloc(sizeof(ffdnscl_res) + adr_sz * nrecs);
 		if (res == NULL) {
 			syserrlog_x(q->r, "%e", FFERR_BUFALOC);
 			return NULL;
 		}
+		res->is4 = is4;
 		res->naddrs = nrecs;
-		acur = res->addrs;
+		acur = res->addrs4;
 		a6cur = res->addrs6;
 	}
 
@@ -778,39 +740,31 @@ static ffdnscl_res* ans_proc_resp(dns_query *q, ffdns_hdr_host *h, const ffstr *
 		pbuf += sizeof(ffdns_ans) + ans.len;
 		if (pbuf > end)
 			break;
+		if (ans.clas != FFDNS_IN)
+			continue;
 
-		if (is4 && ans.type == FFDNS_A) {
-			if (ans.clas != FFDNS_IN || ans.len != sizeof(struct in_addr))
+		switch (ans.type) {
+		case FFDNS_A:
+			if (!is4 || ans.len != sizeof(ffip4))
 				continue;
 
-			acur->addr.sin_family = AF_INET;
-			acur->ainfo.ai_family = AF_INET;
-			acur->ainfo.ai_addr = (struct sockaddr*)&acur->addr;
-			acur->ainfo.ai_addrlen = sizeof(struct sockaddr_in);
-			ffmemcpy(&acur->addr.sin_addr, ans.data, sizeof(struct in_addr));
+			ffmemcpy(acur, ans.data, sizeof(ffip4));
 			acur++;
 
 			minttl = (uint)ffmin(minttl, ans.ttl);
+			break;
 
-		} else if (!is4 && ans.type == FFDNS_AAAA) {
-			if (ans.clas != FFDNS_IN || ans.len != sizeof(struct in6_addr))
+		case FFDNS_AAAA:
+			if (is4 || ans.len != sizeof(ffip6))
 				continue;
 
-			a6cur->addr.sin6_family = AF_INET6;
-			a6cur->ainfo.ai_family = AF_INET6;
-			a6cur->ainfo.ai_addr = (struct sockaddr*)&a6cur->addr;
-			a6cur->ainfo.ai_addrlen = sizeof(struct sockaddr_in6);
-			ffmemcpy(&a6cur->addr.sin6_addr, ans.data, sizeof(struct in6_addr));
+			ffmemcpy(a6cur, ans.data, sizeof(ffip6));
 			a6cur++;
 
 			minttl = (uint)ffmin(minttl, ans.ttl);
+			break;
 		}
 	}
-
-	if (is4)
-		resv_addr_setlist4(res->addrs, acur);
-	else
-		resv_addr_setlist6(res->addrs6, a6cur);
 
 	ir = q->nres++;
 	q->res[ir] = res;
@@ -819,22 +773,57 @@ static ffdnscl_res* ans_proc_resp(dns_query *q, ffdns_hdr_host *h, const ffstr *
 }
 
 /** Notify users, waiting for this question.  Free query object. */
-static void query_fin(dns_query *q, int status)
+static void query_fin(dns_query *q, int status, ffdnscl_serv *serv)
 {
 	dns_quser *quser;
-	const ffaddrinfo *ai[2] = {0};
-	uint i;
+	uint i, i4 = 0, total = 0;
 
 	ffrbt_rm(&q->r->queries, &q->rbtnod);
 
-	for (i = 0;  i < q->nres;  i++) {
-		ai[i] = &q->res[i]->addrs[0].ainfo;
+	ffdnscl_result res = {};
+	res.name = q->name;
+	res.status = status;
+	for (i = 0;  i != q->nres;  i++) {
+		const ffdnscl_res *r = q->res[i];
+		total += r->naddrs;
+		if (r->naddrs != 0 && r->is4)
+			i4 = i;
+	}
+	if (NULL == ffarr2_allocT(&res.ip, total, ffip6)) {
+		res.status = -1;
+		goto done;
+	}
+	ffip6 *ip = res.ip.ptr;
+	for (i = i4;  i != q->nres;  ) {
+		const ffdnscl_res *r = q->res[i];
+		for (uint k = 0;  k != r->naddrs;  k++) {
+			if (r->is4)
+				ffip6_v4mapped_set(&ip[res.ip.len], &r->addrs4[k]);
+			else
+				ip[res.ip.len] = r->addrs6[k];
+			res.ip.len++;
+		}
+
+		if (i == i4 && i4 == 0)
+			i = 1;
+		else if (i == i4 && i4 != 0)
+			i = 0;
+		else
+			break;
 	}
 
+	if (serv != NULL)
+		res.server_addr = serv->saddr;
+
+done:
 	FFARR_WALK(&q->users, quser) {
 		dbglog_q(q, LOG_DBGFLOW, "calling user function %p, udata:%p"
 			, quser->ondone, quser->udata);
-		quser->ondone(quser->udata, status, ai);
+		quser->ondone(quser->udata, &res);
+	}
+	ffarr2_free(&res.ip);
+	for (i = 0;  i != q->nres;  i++) {
+		res_free(q->res[i]);
 	}
 
 	dbglog_q(q, LOG_DBGFLOW, "query done [%L]"
@@ -856,12 +845,20 @@ int ffdnscl_serv_add(ffdnsclient *r, const ffstr *saddr)
 		goto err;
 	r->curserv = FF_GETPTR(ffdnscl_serv, sib, r->servs.first);
 
+	ffstr ip, sport;
 	ffip4 a4;
-	if (0 != ffip4_parse(&a4, saddr->ptr, saddr->len))
+	if (0 != ffip_split(saddr->ptr, saddr->len, &ip, &sport))
+		goto err;
+	ushort port = FFDNS_PORT;
+	if (sport.len != 0) {
+		if (!ffstr_toint(&sport, &port, FFS_INT16))
+			goto err;
+	}
+	if (0 != ffip4_parse(&a4, ip.ptr, ip.len))
 		goto err;
 	ffaddr_init(&serv->addr);
 	ffip4_set(&serv->addr, (void*)&a4);
-	ffip_setport(&serv->addr, FFDNS_PORT);
+	ffip_setport(&serv->addr, port);
 
 	char *s = ffs_copy(serv->saddr_s, serv->saddr_s + FFCNT(serv->saddr_s), saddr->ptr, saddr->len);
 	ffstr_set(&serv->saddr, serv->saddr_s, s - serv->saddr_s);
@@ -931,31 +928,7 @@ static ffdnscl_serv * serv_next(ffdnsclient *r)
 	return serv;
 }
 
-
-ffdnscl_res* ffdnscl_res_by_ai(const ffaddrinfo *ai)
-{
-	dns_a *paddrs = FF_GETPTR(dns_a, ainfo, ai);
-	ffdnscl_res *res = FF_GETPTR(ffdnscl_res, addrs, paddrs);
-	return res;
-}
-
-ffaddrinfo* ffdnscl_res_ai(ffdnscl_res *res)
-{
-	return &res->addrs[0].ainfo;
-}
-
-void* ffdnscl_res_udata(ffdnscl_res *res)
-{
-	return res->cached_id;
-}
-
-void ffdnscl_res_setudata(ffdnscl_res *res, void *udata)
-{
-	res->cached_id = udata;
-	res->usage = 0;
-}
-
-void ffdnscl_res_free(ffdnscl_res *dr)
+void res_free(ffdnscl_res *dr)
 {
 	ffmem_free(dr);
 }
