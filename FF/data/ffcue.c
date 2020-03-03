@@ -148,7 +148,7 @@ int ffcue_parse(ffcuep *p, const char *data, size_t *len)
 
 		case CMD_INDEX: {
 			uint idx, m, sec, f;
-			if (s.len != ffs_fmatch(s.ptr, s.len, "%2u %2u:%2u:%2u", &idx, &m, &sec, &f))
+			if (s.len != ffs_fmatch(s.ptr, s.len, "%2u %u:%2u:%2u", &idx, &m, &sec, &f))
 				return -FFPARS_EBADVAL;
 			p->intval = (int64)(m * 60 + sec) * 75 + f;
 			p->state = CUE_FILE_TRACK_NXLINE;
