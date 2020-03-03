@@ -586,3 +586,56 @@ int fflang_info(uint flags)
 }
 
 #endif
+
+
+#ifdef FF_UNIX
+
+#include <FFOS/socket.h>
+
+/** Read system DNS configuration file and get DNS server addresses. */
+int _ffnetconf_getdns(ffnetconf *nc)
+{
+	int rc = -1;
+	ffarr fdata = {};
+	ffarr servers = {}; //ffstr[]
+	const char *fn = "/etc/resolv.conf";
+	if (0 != fffile_readall(&fdata, fn, -1))
+		goto end;
+
+	size_t cap = 0;
+	ffstr in, line, word, skip = FFSTR_INIT(" \t"), *el;
+	ffstr_set2(&in, &fdata);
+	while (in.len != 0) {
+		ffstr_nextval3(&in, &line, '\n');
+		ffstr_skipof(&line, skip);
+		ffstr_nextval3(&line, &word, FFS_NV_WORDS);
+		if (ffstr_eqz(&word, "nameserver")) {
+			ffstr_nextval3(&line, &word, FFS_NV_WORDS);
+			el = ffarr_pushT(&servers, ffstr);
+			*el = word;
+			cap += word.len + 1;
+		}
+	}
+
+	if (NULL == (nc->dns_addrs = ffmem_alloc(cap + servers.len * sizeof(void*))))
+		goto end;
+
+	// ptr1 ptr2 ... data1 data2 ...
+	char **ptr = nc->dns_addrs;
+	char *data = (char*)nc->dns_addrs + servers.len * sizeof(void*);
+	FFARR_WALKT(&servers, el, ffstr) {
+		ffmemcpy(data, el->ptr, el->len);
+		*(ptr++) = data;
+		data += el->len;
+		*(data++) = '\0';
+	}
+	nc->dns_addrs_num = servers.len;
+	rc = 0;
+
+end:
+	ffarr_free(&servers);
+	ffarr_free(&fdata);
+	return rc;
+}
+
+#endif
