@@ -440,6 +440,12 @@ static int trkbar_style(ffparser_schem *ps, void *obj, const ffstr *val)
 		return FFPARS_EBADVAL;
 	return 0;
 }
+static int trkbar_val(ffparser_schem *ps, void *obj, const int64 *val)
+{
+	ffui_loader *g = obj;
+	ffui_trk_set(g->trkbar, *val);
+	return 0;
+}
 static int trkbar_onscroll(ffparser_schem *ps, void *obj, const ffstr *val)
 {
 	ffui_loader *g = obj;
@@ -450,6 +456,8 @@ static int trkbar_onscroll(ffparser_schem *ps, void *obj, const ffstr *val)
 static int trkbar_done(ffparser_schem *ps, void *obj)
 {
 	ffui_loader *g = obj;
+	if (g->f_loadconf)
+		return 0;
 	if (g->f_horiz) {
 		if (g->hbox == NULL) {
 			g->hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
@@ -466,6 +474,7 @@ static const ffpars_arg trkbar_args[] = {
 	{ "style",	FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&trkbar_style) },
 	{ "range",	FFPARS_TINT, FFPARS_DST(&trkbar_range) },
 	{ "onscroll",	FFPARS_TSTR, FFPARS_DST(&trkbar_onscroll) },
+	{ "value",	FFPARS_TINT, FFPARS_DST(&trkbar_val) },
 	{ NULL,	FFPARS_TCLOSE, FFPARS_DST(&trkbar_done) },
 };
 
@@ -807,6 +816,13 @@ void ffui_ldr_setv(ffui_loaderw *ldr, const char *const *names, size_t nn, uint 
 			}
 			break;
 
+		case FFUI_UID_TRACKBAR:
+			if (ffstr_eqcz(&val, "value")) {
+				ffconf_writez(&ldr->confw, settname.ptr, FFCONF_TKEY | FFCONF_ASIS);
+				ffconf_writeint(&ldr->confw, ffui_trk_val(c), 0, FFCONF_TVAL);
+			}
+			break;
+
 		default:
 			continue;
 		}
@@ -855,6 +871,7 @@ void ffui_ldr_loadconf(ffui_loader *g, const char *fn)
 	fffile_read(f, buf.ptr, buf.cap);
 	ffstr_set(&s, buf.ptr, buf.cap);
 
+	g->f_loadconf = 1;
 	while (s.len != 0) {
 		size_t n = ffstr_nextval(s.ptr, s.len, &line, '\n');
 		ffstr_shift(&s, n);
@@ -890,6 +907,10 @@ void ffui_ldr_loadconf(ffui_loader *g, const char *fn)
 				ffpars_setargs(&ctx, g, wnd_args, FFCNT(wnd_args));
 				break;
 
+			case FFUI_UID_TRACKBAR:
+				ffpars_setargs(&ctx, g, trkbar_args, FFCNT(trkbar_args));
+				break;
+
 			default:
 				continue;
 			}
@@ -918,4 +939,5 @@ void ffui_ldr_loadconf(ffui_loader *g, const char *fn)
 done:
 	FF_SAFECLOSE(f, FF_BADFD, fffile_close);
 	ffarr_free(&buf);
+	g->f_loadconf = 0;
 }

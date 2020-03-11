@@ -94,6 +94,7 @@ static void _ffui_trk_value_changed(GtkWidget *widget, gpointer udata)
 
 int ffui_trk_create(ffui_trkbar *t, ffui_wnd *parent)
 {
+	t->uid = FFUI_UID_TRACKBAR;
 	t->h = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0, 100, 1);
 	gtk_scale_set_draw_value(GTK_SCALE(t->h), 0);
 	t->wnd = parent;

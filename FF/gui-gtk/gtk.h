@@ -66,6 +66,7 @@ static inline int ffui_icon_loadimg(ffui_icon *ico, const char *filename, uint c
 
 enum FFUI_UID {
 	FFUI_UID_WINDOW = 1,
+	FFUI_UID_TRACKBAR,
 };
 
 typedef struct ffui_wnd ffui_wnd;
@@ -611,6 +612,7 @@ typedef struct ffui_loader {
 	uint flags;
 	struct {
 		uint f_horiz :1;
+		uint f_loadconf :1; // ffui_ldr_loadconf()
 	};
 	};
 } ffui_loader;
