@@ -336,6 +336,14 @@ static FFINL ssize_t ffarr_append_until(ffarr *ar, const char *d, size_t len, si
 	return r;
 }
 
+static inline size_t ffarr_append_cap(ffarr *ar, const char *d, size_t len)
+{
+	size_t n = ffmin(ffarr_unused(ar), len);
+	ffmemcpy(ffarr_end(ar), d, n);
+	ar->len += n;
+	return n;
+}
+
 static FFINL void * _ffarr_copy(ffarr *ar, const void *src, size_t num, size_t elsz) {
 	ar->len = 0;
 	return _ffarr_append(ar, src, num, elsz);
@@ -543,9 +551,18 @@ FF_EXTN int fffile_writeall(const char *fn, const char *d, size_t len, uint flag
 FF_EXTN int fffile_cmp(const char *fn1, const char *fn2, uint64 limit);
 
 /** Buffered data output.
+Doesn't allocate memory.
 @dst is set if an output data block is ready.
 Return the number of processed bytes. */
 FF_EXTN size_t ffbuf_add(ffstr3 *buf, const char *src, size_t len, ffstr *dst);
+
+static inline ffstr ffbuf_addstr(ffarr *buf, ffstr *in)
+{
+	ffstr out;
+	size_t n = ffbuf_add(buf, in->ptr, in->len, &out);
+	ffstr_shift(in, n);
+	return out;
+}
 
 FF_EXTN ssize_t ffarr_gather2(ffarr *ar, const char *d, size_t len, size_t until, ffstr *out);
 
