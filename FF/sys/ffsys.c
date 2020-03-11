@@ -599,7 +599,7 @@ int _ffnetconf_getdns(ffnetconf *nc)
 	ffarr fdata = {};
 	ffarr servers = {}; //ffstr[]
 	const char *fn = "/etc/resolv.conf";
-	if (0 != fffile_readall(&fdata, fn, -1))
+	if (0 != fffile_readall(&fdata, fn, 16 * 1024 * 1024))
 		goto end;
 
 	size_t cap = 0;

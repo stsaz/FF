@@ -217,9 +217,15 @@ static const char *const wav_errstr[] = {
 	"invalid RIFF chunk",
 };
 
-const char* ffwav_errstr(void *_w)
+const char* ffwav_errstr(ffwav *w)
 {
-	ffwav *w = _w;
+	if (w->err == WAV_ESYS)
+		return fferr_strp(fferr_last());
+	return wav_errstr[w->err];
+}
+
+const char* ffwav_werrstr(ffwav_cook *w)
+{
 	if (w->err == WAV_ESYS)
 		return fferr_strp(fferr_last());
 	return wav_errstr[w->err];

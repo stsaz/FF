@@ -347,7 +347,7 @@ void ffui_view_setdata(ffui_view *v, uint first, int delta)
 
 	uint rows = ffui_view_nitems(v);
 	int n = first + delta;
-	if (delta == 0)
+	if (delta == 0 && rows != 0)
 		n++; // redraw the item
 
 	FFDBG_PRINTLN(10, "first:%u  delta:%d  rows:%u", first, delta, rows);

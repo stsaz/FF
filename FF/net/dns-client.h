@@ -52,21 +52,6 @@ struct ffdnsclient {
 	ffrbtree queries; //active queries by hostname.  dns_query[]
 };
 
-struct ffdnscl_serv {
-	fflist_item sib;
-	ffdnsclient *r;
-
-	ffskt sk;
-	ffaio_task aiotask;
-	ffaddr addr;
-	char saddr_s[FF_MAXIP4];
-	ffstr saddr;
-	char *ansbuf;
-	unsigned connected :1;
-
-	uint nqueries;
-};
-
 enum FFDNSCL_LOG {
 	FFDNSCL_LOG_ERR,
 	FFDNSCL_LOG_WARN,

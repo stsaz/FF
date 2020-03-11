@@ -86,7 +86,7 @@ enum FFWAV_R {
 	, FFWAV_RTAG
 };
 
-FF_EXTN const char* ffwav_errstr(void *w);
+FF_EXTN const char* ffwav_errstr(ffwav *w);
 
 FF_EXTN void ffwav_init(ffwav *w);
 
@@ -125,6 +125,8 @@ typedef struct ffwav_cook {
 	uint fin :1;
 	uint seekable :1;
 } ffwav_cook;
+
+FF_EXTN const char* ffwav_werrstr(ffwav_cook *w);
 
 FF_EXTN int ffwav_create(ffwav_cook *w, ffpcm *fmt, uint64 total_samples);
 FF_EXTN void ffwav_wclose(ffwav_cook *w);

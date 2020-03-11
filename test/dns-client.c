@@ -16,8 +16,8 @@ static fftmrq_entry gtmr;
 static fftimer_queue tq;
 static uint gflags;
 static int oncomplete(ffdnsclient *r, ffdnscl_res *res, const ffstr *name, uint refcount, uint ttl);
-static void onresolve(void *udata, int status, const ffaddrinfo *ai[2]);
-static void dnslog(uint level, const ffstr *trxn, const char *fmt, ...);
+static void onresolve(void *udata, const ffdnscl_result *res);
+static void dnslog(uint level, const char *fmt, ...);
 static void dnstimer(fftmrq_entry *tmr, uint value_ms);
 static fftime dnstime(void);
 static void tmr_exit(void *param);
@@ -56,10 +56,12 @@ void test_dns_client(void)
 	ffstr_setz(&s, "8.8.8.8");
 	x(0 == ffdnscl_serv_add(ctx, &s));
 
-	x(0 == ffdnscl_resolve(ctx, FFSTR("google.com"), &onresolve, (void*)1, 0));
+	ffstr_setz(&s, "google.com");
+	x(0 == ffdnscl_resolve(ctx, s, &onresolve, (void*)1, 0));
 
-	x(0 == ffdnscl_resolve(ctx, FFSTR("apple.com"), &onresolve, (void*)2, 0));
-	x(0 == ffdnscl_resolve(ctx, FFSTR("apple.com"), &onresolve, (void*)2, FFDNSCL_CANCEL));
+	ffstr_setz(&s, "apple.com");
+	x(0 == ffdnscl_resolve(ctx, s, &onresolve, (void*)2, 0));
+	x(0 == ffdnscl_resolve(ctx, s, &onresolve, (void*)2, FFDNSCL_CANCEL));
 
 	ffkqu_time tm;
 	ffkqu_settm(&tm, 1000);
@@ -79,18 +81,15 @@ void test_dns_client(void)
 	fftmrq_destroy(&tq, kq);
 }
 
-static void onresolve(void *udata, int status, const ffaddrinfo *ai[2])
+static void onresolve(void *udata, const ffdnscl_result *res)
 {
 	if (udata == (void*)1) {
-		x(status == FFDNS_NOERROR);
+		x(res->status == FFDNS_NOERROR);
 		gflags |= 1;
-		x(ai[0] != NULL);
-		ffdnscl_unref(ctx, ai[0]);
+		x(res->ip.len != 0);
 	} else {
 		x(0);
 	}
-	if (ai[1] != NULL)
-		ffdnscl_unref(ctx, ai[1]);
 }
 
 static int oncomplete(ffdnsclient *r, ffdnscl_res *res, const ffstr *name, uint refcount, uint ttl)
@@ -98,12 +97,11 @@ static int oncomplete(ffdnsclient *r, ffdnscl_res *res, const ffstr *name, uint 
 	return 0;
 }
 
-static void dnslog(uint level, const ffstr *trxn, const char *fmt, ...)
+static void dnslog(uint level, const char *fmt, ...)
 {
 	ffarr a = {};
 	va_list args;
 	va_start(args, fmt);
-	ffstr_catfmt(&a, "%S: ", trxn);
 	ffstr_catfmtv(&a, fmt, args);
 	va_end(args);
 	fffile_write(ffstdout, a.ptr, a.len);

@@ -11,6 +11,21 @@ Copyright 2019 Simon Zolin
 #include <FFOS/random.h>
 
 
+struct ffdnscl_serv {
+	fflist_item sib;
+	ffdnsclient *r;
+
+	ffskt sk;
+	ffaio_task aiotask;
+	ffaddr addr;
+	char saddr_s[FF_MAXIP4];
+	ffstr saddr;
+	char *ansbuf;
+	unsigned connected :1;
+
+	uint nqueries;
+};
+
 typedef struct dns_quser {
 	ffdnscl_onresolve ondone;
 	void *udata;
@@ -837,7 +852,6 @@ int ffdnscl_serv_add(ffdnsclient *r, const ffstr *saddr)
 	ffdnscl_serv *serv = ffmem_new(ffdnscl_serv);
 	if (serv == NULL)
 		return -1;
-	fflist_ins(&r->servs, &serv->sib);
 
 	serv->r = r;
 	serv->ansbuf = ffmem_alloc(r->buf_size);
@@ -862,6 +876,8 @@ int ffdnscl_serv_add(ffdnsclient *r, const ffstr *saddr)
 
 	char *s = ffs_copy(serv->saddr_s, serv->saddr_s + FFCNT(serv->saddr_s), saddr->ptr, saddr->len);
 	ffstr_set(&serv->saddr, serv->saddr_s, s - serv->saddr_s);
+
+	fflist_ins(&r->servs, &serv->sib);
 	return 0;
 
 err:
