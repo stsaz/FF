@@ -37,6 +37,7 @@ static void fr_log(fffileread *f, uint level, const char *fmt, ...)
 	ffstr_catfmtv(&a, fmt, va);
 	va_end(va);
 	f->conf.log(f->conf.udata, level, (ffstr*)&a);
+	ffarr_free(&a);
 }
 
 struct buf {
