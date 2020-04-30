@@ -73,18 +73,8 @@ static FFINL int ffip4_cmp(const ffip4 *ip1, const ffip4 *ip2)
 }
 
 /** Parse IPv4 address.
-'subnet': output subnet mask bits (8, 16, 24 or 32)
 Return 0 if the whole input is parsed;  >0 number of processed bytes;  <0 on error. */
-FF_EXTN int ffip4_parse_wildcard(ffip4 *ip4, const char *s, size_t len, uint *subnet);
-
-static FFINL int ffip4_parse(ffip4 *ip4, const char *s, size_t len)
-{
-	uint subnet;
-	int r = ffip4_parse_wildcard(ip4, s, len, &subnet);
-	if (subnet != 32)
-		return -1;
-	return r;
-}
+FF_EXTN int ffip4_parse(ffip4 *ip4, const char *s, size_t len);
 
 /** Parse "1.1.1.0/24"
 Return subnet mask bits;  <0 on error. */

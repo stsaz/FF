@@ -67,10 +67,9 @@ int ffethhdr_tostr(ffeth_hdr *h, char *buf, size_t cap)
 }
 
 
-int ffip4_parse_wildcard(ffip4 *ip4, const char *s, size_t len, uint *subnet)
+int ffip4_parse(ffip4 *ip4, const char *s, size_t len)
 {
 	uint nadr = 0, ndig = 0, b = 0, i;
-	*subnet = 32;
 
 	for (i = 0;  i != len;  i++) {
 		uint ch = (byte)s[i];
@@ -82,12 +81,6 @@ int ffip4_parse_wildcard(ffip4 *ip4, const char *s, size_t len, uint *subnet)
 			ndig++;
 
 		} else if (ndig == 0) {
-			if (ch == '*') {
-				// "1.*"
-				ffmem_zero(ip4->a + nadr, 4 - nadr);
-				*subnet = nadr * 8;
-				return (i + 1 == len) ? 0 : i + 1;
-			}
 			return -1; //"1.?"
 
 		} else if (nadr == 3) {
