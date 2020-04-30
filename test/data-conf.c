@@ -6,7 +6,7 @@ Copyright (c) 2013 Simon Zolin
 #include <FFOS/file.h>
 #include <FF/data/conf.h>
 #include <FF/data/psarg.h>
-#include "schem.h"
+#include "data-schem.h"
 #include "all.h"
 
 #define x FFTEST_BOOL

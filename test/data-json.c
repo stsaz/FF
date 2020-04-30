@@ -7,7 +7,7 @@ Copyright (c) 2013 Simon Zolin
 #include <FFOS/process.h>
 #include <FF/data/json.h>
 #define TEST_JSON_SCHEME
-#include "schem.h"
+#include "data-schem.h"
 #include "all.h"
 
 #define x FFTEST_BOOL

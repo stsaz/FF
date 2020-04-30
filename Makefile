@@ -38,19 +38,14 @@ include $(FF3PT)/makerules
 FF_TEST_HDR := $(wildcard $(FF)/test/*.h)
 
 FF_TEST_SRC := \
-	$(FF)/test/base.c $(FF)/test/base-sort.c $(FF)/test/str.c \
-	$(FF)/test/rbtree.c \
-	$(FF)/test/conf.c $(FF)/test/http.c $(FF)/test/json.c \
-	$(FF)/test/test.c $(FF)/test/time.c $(FF)/test/url.c $(FF)/test/cue.c $(FF)/test/sys.c \
-	$(FF)/test/ip.c \
+	$(wildcard $(FF)/test/base-*.c) \
+	$(FF)/test/base.c \
+	$(FF)/test/test.c $(FF)/test/time.c $(FF)/test/sys.c \
 	$(FF)/test/path.c \
-	$(FF)/test/tar.c $(FF)/test/iso.c \
-	$(FF)/test/tls.c \
-	$(FF)/test/webskt.c \
-	$(FF)/test/hashtab.c \
-	$(FF)/test/dns-client.c \
+	$(wildcard $(FF)/test/pack-*.c) \
+	$(wildcard $(FF)/test/net-*.c) \
+	$(wildcard $(FF)/test/data-*.c) \
 	$(FF)/test/cache.c \
-	$(FF)/test/xml.c \
 	$(FF)/test/compat.cpp
 FF_TEST_OBJ := $(addprefix ./, $(addsuffix .o, $(notdir $(basename $(FF_TEST_SRC)))))
 FF_TEST_OBJ += $(FF_OBJ_DIR)/sha1.o $(FF_OBJ_DIR)/base64.o
@@ -104,7 +99,7 @@ FF_TEST_SQLITE_O := $(FFOS_OBJ) $(FF_OBJ) \
 	$(FF_OBJ_DIR)/ffutf8.o \
 	$(FF_OBJ_DIR)/ffparse.o \
 	$(FF_OBJ_DIR)/fftest.o \
-	./sqlite.o
+	./db-sqlite.o
 fftest-sqlite: ff-obj $(FF_TEST_SQLITE_O)
 	$(LD) $(FF_TEST_SQLITE_O) $(LDFLAGS) -L$(FF3PT)-bin/$(OS)-$(ARCH) -lsqlite3-ff  -o$@
 
@@ -114,6 +109,6 @@ FF_TEST_PGSQL_O := $(FFOS_OBJ) $(FF_OBJ) \
 	$(FF_OBJ_DIR)/ffparse.o \
 	$(FF_OBJ_DIR)/fftest.o \
 	$(FF_OBJ_DIR)/ffdb-postgre.o \
-	./postgre.o
+	./db-postgre.o
 fftest-postgre: ff-obj $(FF_TEST_PGSQL_O)
 	$(LD) $(FF_TEST_PGSQL_O) $(LDFLAGS) -L$(FF3PT)-bin/$(OS)-$(ARCH) -lpq  -o$@
