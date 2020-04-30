@@ -1418,6 +1418,8 @@ format:
 #ifdef FF_WIN
 		case 'q': {
 			ffsyschar *s = va_arg(va, ffsyschar *);
+			if (s == NULL)
+				s = L"(null)";
 			if (swidth == (size_t)-1)
 				swidth = ffq_len(s);
 			p = buf;

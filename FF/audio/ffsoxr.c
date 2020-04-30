@@ -21,7 +21,6 @@ static int _ffsoxr_getfmt(int fmt, int ileaved)
 		return soxr_fmts[ileaved][2];
 	}
 
-	FF_ASSERT(0);
 	return -1;
 }
 

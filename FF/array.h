@@ -10,6 +10,9 @@ Copyright (c) 2013 Simon Zolin
 #include <FFOS/file.h>
 
 
+/** Get N of elements in C static array */
+#define FF_COUNT(ar)  (sizeof(ar) / sizeof(ar[0]))
+
 #define FFARR_WALKN(ar, n, it, elsz) \
 	for (it = (void*)(ar) \
 		;  it != (void*)((char*)(ar) + (n) * elsz) \
@@ -35,8 +38,15 @@ typedef struct ffarr2 {
 #define FFARR2_WALK(a, it) \
 	FFARR_WALKN((a)->ptr, (a)->len, it, sizeof(*(a)->ptr))
 
+#define FFARR2_WALK_T(a, it, T) \
+	for (it = (T*)(a)->ptr;  it != ffarr2_endT(a, T);  it++)
+
 #define FFARR2_RWALK(ar, it) \
 	for (it = ffarr2_last(ar);  it - (ar)->ptr >= 0;  it--)
+
+/** Reverse walk through array's elements. */
+#define FFARR2_RWALK_T(a, it, T) \
+	for (it = (T*)ffarr2_lastT(a, T);  it >= (T*)(a)->ptr;  it--)
 
 /** Set data pointer and length. */
 #define ffarr2_set(a, data, n) \
@@ -65,6 +75,8 @@ FF_EXTN void* ffarr2_realloc(ffarr2 *a, size_t n, size_t elsz);
 
 #define ffarr2_grow(a, by, elsz)  ffarr2_realloc(a, (a)->len + by, elsz)
 
+#define ffarr2_growT(a, by, T)  ffarr2_realloc(a, (a)->len + by, sizeof(T))
+
 #define ffarr2_free(a) \
 do { \
 	ffmem_safefree0((a)->ptr); \
@@ -92,6 +104,15 @@ do { \
 #define ffarr2_last(a)  (&(a)->ptr[(a)->len - 1])
 
 #define ffarr2_push(a)  (&(a)->ptr[(a)->len++])
+
+#define ffarr2_pushT(a, cap, T) \
+	(((a)->len < cap) ? &((T*)(a)->ptr)[(a)->len++] : NULL)
+
+#define ffarr2_lastT(a, T) \
+	(&((T*)(a)->ptr)[(a)->len - 1])
+
+#define ffarr2_endT(a, T) \
+	(&((T*)(a)->ptr)[(a)->len])
 
 /** Append data to an array. */
 static FFINL size_t ffarr2_addf(ffarr2 *a, const void *src, size_t n, size_t elsz)

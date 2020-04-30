@@ -1031,6 +1031,18 @@ static FFINL size_t ffs_fmt(char *buf, const char *end, const char *fmt, ...) {
 	return (r >= 0) ? r : 0;
 }
 
+/** Add %-formatted data into array's tail (the buffer must be allocated). */
+static inline int ffstr_addfmt(ffstr *s, size_t cap, const char *fmt, ...)
+{
+	va_list args;
+	va_start(args, fmt);
+	ssize_t n = ffs_fmtv2(s->ptr + s->len, cap - s->len, fmt, args);
+	va_end(args);
+	if (n > 0)
+		s->len += n;
+	return n;
+}
+
 /** Match string by format:
  "% [width] x u|U" - uint|uint64
  "% width s" - char* (copy)
