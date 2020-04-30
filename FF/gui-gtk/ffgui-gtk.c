@@ -139,8 +139,10 @@ void ffui_tab_ins(ffui_tab *t, int idx, const char *textz)
 {
 	GtkWidget *label = gtk_label_new(textz);
 	GtkWidget *child = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+	g_signal_handlers_block_by_func(t->h, G_CALLBACK(&_ffui_tab_switch_page), t);
 	gtk_notebook_insert_page(GTK_NOTEBOOK(t->h), child, label, idx);
 	gtk_widget_show_all(t->h);
+	g_signal_handlers_unblock_by_func(t->h, G_CALLBACK(&_ffui_tab_switch_page), t);
 }
 
 void ffui_tab_setactive(ffui_tab *t, int idx)
@@ -708,6 +710,9 @@ static gboolean _ffui_send_handler(gpointer data)
 		break;
 	case FFUI_VIEW_CLEAR:
 		ffui_view_clear((ffui_view*)c->ctl);
+		break;
+	case FFUI_VIEW_SCROLLSET:
+		ffui_view_scroll_setvert((ffui_view*)c->ctl, (size_t)c->udata);
 		break;
 	case FFUI_VIEW_GETSEL:
 		c->udata = ffui_view_getsel((ffui_view*)c->ctl);

@@ -370,6 +370,19 @@ FF_EXTN void ffui_view_set(ffui_view *v, int sub, ffui_viewitem *it);
 
 FF_EXTN void ffui_view_rm(ffui_view *v, ffui_viewitem *it);
 
+static inline uint ffui_view_scroll_vert(ffui_view *v)
+{
+	GtkAdjustment *a = gtk_scrollable_get_vadjustment(GTK_SCROLLABLE(v->h));
+	double d = gtk_adjustment_get_value(a);
+	return d * 100;
+}
+
+static inline void ffui_view_scroll_setvert(ffui_view *v, uint val)
+{
+	GtkAdjustment *a = gtk_scrollable_get_vadjustment(GTK_SCROLLABLE(v->h));
+	gtk_adjustment_set_value(a, (double)val / 100);
+}
+
 
 // STATUSBAR
 
@@ -535,6 +548,7 @@ enum FFUI_MSG {
 	FFUI_VIEW_CLEAR,
 	FFUI_VIEW_GETSEL,
 	FFUI_VIEW_SETDATA,
+	FFUI_VIEW_SCROLLSET,
 	FFUI_TRK_SETRANGE,
 	FFUI_TRK_SET,
 	FFUI_TAB_INS,
@@ -550,7 +564,8 @@ FF_EXTN size_t ffui_send(void *ctl, uint id, void *udata);
 #define ffui_send_lbl_settext(ctl, sz)  ffui_send(ctl, FFUI_LBL_SETTEXT, (void*)sz)
 #define ffui_send_wnd_settext(ctl, sz)  ffui_send(ctl, FFUI_WND_SETTEXT, (void*)sz)
 #define ffui_send_view_rm(ctl, it)  ffui_send(ctl, FFUI_VIEW_RM, it)
-#define ffui_post_view_clear(ctl)  ffui_send(ctl, FFUI_VIEW_CLEAR, NULL)
+#define ffui_post_view_clear(ctl)  ffui_post(ctl, FFUI_VIEW_CLEAR, NULL)
+#define ffui_post_view_scroll_set(ctl, vert_pos)  ffui_post(ctl, FFUI_VIEW_SCROLLSET, (void*)(size_t)vert_pos)
 
 /** See ffui_view_getsel().
 Return ffarr4* (uint[]) */
