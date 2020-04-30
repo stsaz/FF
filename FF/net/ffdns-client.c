@@ -857,7 +857,6 @@ int ffdnscl_serv_add(ffdnsclient *r, const ffstr *saddr)
 	serv->ansbuf = ffmem_alloc(r->buf_size);
 	if (serv->ansbuf == NULL)
 		goto err;
-	r->curserv = FF_GETPTR(ffdnscl_serv, sib, r->servs.first);
 
 	ffstr ip, sport;
 	ffip4 a4;
@@ -878,6 +877,7 @@ int ffdnscl_serv_add(ffdnsclient *r, const ffstr *saddr)
 	ffstr_set(&serv->saddr, serv->saddr_s, s - serv->saddr_s);
 
 	fflist_ins(&r->servs, &serv->sib);
+	r->curserv = FF_GETPTR(ffdnscl_serv, sib, r->servs.first);
 	return 0;
 
 err:
