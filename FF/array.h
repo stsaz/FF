@@ -8,10 +8,7 @@ Copyright (c) 2013 Simon Zolin
 #include <FF/string.h>
 #include <FF/chain.h>
 #include <FFOS/file.h>
-
-
-/** Get N of elements in C static array */
-#define FF_COUNT(ar)  (sizeof(ar) / sizeof(ar[0]))
+#include <ffbase/vector.h>
 
 #define FFARR_WALKN(ar, n, it, elsz) \
 	for (it = (void*)(ar) \
@@ -30,58 +27,12 @@ Copyright (c) 2013 Simon Zolin
 	for (it = (ar);  it != (ar) + FFCNT(ar);  it++)
 
 
-typedef struct ffarr2 {
-	size_t len;
-	void *ptr;
-} ffarr2;
+typedef ffslice ffarr2;
 
-#define FFARR2_WALK(a, it) \
-	FFARR_WALKN((a)->ptr, (a)->len, it, sizeof(*(a)->ptr))
-
-#define FFARR2_WALK_T(a, it, T) \
-	for (it = (T*)(a)->ptr;  it != ffarr2_endT(a, T);  it++)
-
-#define FFARR2_RWALK(ar, it) \
-	for (it = ffarr2_last(ar);  it - (ar)->ptr >= 0;  it--)
-
-/** Reverse walk through array's elements. */
-#define FFARR2_RWALK_T(a, it, T) \
-	for (it = (T*)ffarr2_lastT(a, T);  it >= (T*)(a)->ptr;  it--)
-
-/** Set data pointer and length. */
-#define ffarr2_set(a, data, n) \
-do { \
-	(a)->ptr = data; \
-	(a)->len = n; \
-} while(0)
-
-static FFINL void* ffarr2_alloc(ffarr2 *a, size_t n, size_t elsz)
-{
-	a->len = 0;
-	return (a->ptr = ffmem_alloc(n * elsz));
-}
-
-#define ffarr2_allocT(a, n, T)  ffarr2_alloc(a, n, sizeof(T))
-
-static FFINL void* ffarr2_calloc(ffarr2 *a, size_t n, size_t elsz)
-{
-	a->len = 0;
-	return (a->ptr = ffmem_calloc(n, elsz));
-}
-
-#define ffarr2_callocT(a, n, T)  ffarr2_calloc(a, n, sizeof(T))
-
-FF_EXTN void* ffarr2_realloc(ffarr2 *a, size_t n, size_t elsz);
-
-#define ffarr2_grow(a, by, elsz)  ffarr2_realloc(a, (a)->len + by, elsz)
-
-#define ffarr2_growT(a, by, T)  ffarr2_realloc(a, (a)->len + by, sizeof(T))
-
-#define ffarr2_free(a) \
-do { \
-	ffmem_safefree0((a)->ptr); \
-	(a)->len = 0; \
-} while (0)
+#define ffarr2_allocT  ffslice_allocT
+#define ffarr2_callocT  ffslice_zallocT
+#define ffarr2_free  ffslice_free
+#define FFARR_WALKT  FFSLICE_WALK_T
 
 #define FFARR2_FREE_ALL(a, func, T) \
 do { \
@@ -100,42 +51,6 @@ do { \
 	} \
 	ffarr2_free(a); \
 } while (0)
-
-#define ffarr2_last(a)  (&(a)->ptr[(a)->len - 1])
-
-#define ffarr2_push(a)  (&(a)->ptr[(a)->len++])
-
-#define ffarr2_pushT(a, cap, T) \
-	(((a)->len < cap) ? &((T*)(a)->ptr)[(a)->len++] : NULL)
-
-#define ffarr2_lastT(a, T) \
-	(&((T*)(a)->ptr)[(a)->len - 1])
-
-#define ffarr2_endT(a, T) \
-	(&((T*)(a)->ptr)[(a)->len])
-
-/** Append data to an array. */
-static FFINL size_t ffarr2_addf(ffarr2 *a, const void *src, size_t n, size_t elsz)
-{
-	if ((char*)a->ptr + a->len * elsz != src)
-		ffmemcpy((char*)a->ptr + a->len * elsz, src, n * elsz);
-	a->len += n;
-	return n;
-}
-
-#define ffarr2_add(a, cap, src, n, elsz) \
-	ffarr2_addf(a, src, ffmin(n, (cap) - (a)->len), elsz)
-
-/** Remove 1 element and shift other elements to the left.
-A[0]...  ( A[i] )  A[i+1]...
-*/
-#define ffarr2_rm_shift(a, i) \
-do { \
-	memmove(&(a)->ptr[i], &(a)->ptr[i + 1], ((a)->len - (i + 1)) * sizeof(*(a)->ptr)); \
-	(a)->len--; \
-} while (0)
-
-#define ffarr_zero(a)  ffmem_zero((a)->ptr, (a)->len)
 
 
 /** Declare an array. */
@@ -227,9 +142,6 @@ do { \
 #define _FFARR_WALK(ar, it, elsz) \
 	FFARR_WALKN((ar)->ptr, (ar)->len, it, elsz)
 
-#define FFARR_WALKT(ar, it, T) \
-	FFARR_WALKN((ar)->ptr, (ar)->len, it, sizeof(T))
-
 #define FFARR_WALK(ar, it) \
 	for (it = (ar)->ptr;  it != (ar)->ptr + (ar)->len;  it++)
 
@@ -241,7 +153,8 @@ do { \
 	if ((ar)->len != 0) \
 		for (it = (ar)->ptr + (ar)->len - 1;  it >= (ar)->ptr;  it--)
 
-FF_EXTN void * _ffarr_realloc(ffarr *ar, size_t newlen, size_t elsz);
+#define _ffarr_realloc(ar, newlen, elsz) \
+	ffvec_realloc((ffvec*)(ar), newlen, elsz)
 
 /** Reallocate array memory if new size is larger.
 Pointing buffer: transform into an allocated buffer, copying data.
@@ -289,10 +202,8 @@ FF_EXTN char *_ffarr_grow(ffarr *ar, size_t by, ssize_t lowat, size_t elsz);
 #define ffarr_grow(ar, by, lowat) \
 	_ffarr_grow((ffarr*)(ar), (by), (lowat), sizeof(*(ar)->ptr))
 
-FF_EXTN void _ffarr_free(ffarr *ar);
-
 /** Deallocate array memory. */
-#define ffarr_free(ar)  _ffarr_free((ffarr*)ar)
+#define ffarr_free(ar)  ffvec_free((ffvec*)ar)
 
 #define FFARR_FREE_ALL(a, func, T) \
 do { \
@@ -312,10 +223,7 @@ do { \
 	ffarr_free(a); \
 } while (0)
 
-/** Add 1 item into array.
-Return the item pointer.
-Return NULL on error. */
-FF_EXTN void * _ffarr_push(ffarr *ar, size_t elsz);
+#define _ffarr_push(ar, elsz)  ffvec_push((ffvec*)(ar), elsz)
 
 #define ffarr_push(ar, T) \
 	(T*)_ffarr_push((ffarr*)ar, sizeof(T))
@@ -330,13 +238,15 @@ FF_EXTN void* ffarr_pushgrow(ffarr *ar, size_t lowat, size_t elsz);
 #define ffarr_pushgrowT(ar, lowat, T) \
 	(T*)ffarr_pushgrow(ar, lowat, sizeof(T))
 
-#define ffarr_add(a, src, n, elsz) \
-	ffarr2_add((ffarr2*)a, (a)->cap, src, n, elsz)
-
 /** Add items into array.  Reallocate memory, if needed.
 Return the tail.
 Return NULL on error. */
-FF_EXTN void * _ffarr_append(ffarr *ar, const void *src, size_t num, size_t elsz);
+static inline void * _ffarr_append(ffarr *ar, const void *src, size_t num, size_t elsz)
+{
+	if (num != ffvec_add((ffvec*)ar, src, num, elsz))
+		return NULL;
+	return ar->ptr + ar->len * elsz;
+}
 
 #define ffarr_append(ar, src, num) \
 	_ffarr_append((ffarr*)ar, src, num, sizeof(*(ar)->ptr))
@@ -355,14 +265,6 @@ static FFINL ssize_t ffarr_append_until(ffarr *ar, const char *d, size_t len, si
 	if (r > 0 && ar->len < until)
 		return 0;
 	return r;
-}
-
-static inline size_t ffarr_append_cap(ffarr *ar, const char *d, size_t len)
-{
-	size_t n = ffmin(ffarr_unused(ar), len);
-	ffmemcpy(ffarr_end(ar), d, n);
-	ar->len += n;
-	return n;
 }
 
 static FFINL void * _ffarr_copy(ffarr *ar, const void *src, size_t num, size_t elsz) {
@@ -399,12 +301,7 @@ FF_EXTN void _ffarr_rm(ffarr *ar, size_t off, size_t n, size_t elsz);
 
 /** Remove element from array.  Move the last element into the hole. */
 static FFINL void _ffarr_rmswap(ffarr *ar, void *el, size_t elsz) {
-	const void *last;
-	FF_ASSERT(ar->len != 0);
-	ar->len--;
-	last = ar->ptr + ar->len * elsz;
-	if (el != last)
-		memmove(el, last, elsz);
+	ffslice_rmswap((ffslice*)ar, ((char*)el - (char*)ar->ptr) / elsz, 1, elsz);
 }
 
 #define ffarr_rmswap(ar, el) \

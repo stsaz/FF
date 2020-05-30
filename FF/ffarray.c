@@ -5,49 +5,6 @@ Copyright (c) 2016 Simon Zolin
 #include <FF/array.h>
 
 
-void* ffarr2_realloc(ffarr2 *a, size_t n, size_t elsz)
-{
-	void *p;
-	if (NULL == (p = ffmem_realloc(a->ptr, n * elsz)))
-		return NULL;
-	a->ptr = p;
-	if (a->len > n)
-		a->len = n;
-	return a->ptr;
-}
-
-
-void * _ffarr_realloc(ffarr *ar, size_t newlen, size_t elsz)
-{
-	void *d = NULL;
-
-	if (newlen == 0)
-		newlen = 1; //ffmem_realloc() returns NULL if requested buffer size is 0
-
-	if (ar->cap != 0) {
-		if (ar->cap >= newlen)
-			return ar->ptr; //nothing to do
-		if (ar->len == 0) {
-			// allocate new data unless we have data to preserve
-			ffmem_free(ar->ptr);
-			ffarr_null(ar);
-		} else {
-			d = ar->ptr;
-		}
-	}
-	d = ffmem_realloc(d, newlen * elsz);
-	if (d == NULL)
-		return NULL;
-
-	if (ar->cap == 0 && ar->len != 0)
-		ffmemcpy(d, ar->ptr, ffmin(ar->len, newlen));
-
-	ar->ptr = d;
-	ar->cap = newlen;
-	ar->len = ffmin(ar->len, newlen);
-	return d;
-}
-
 char *_ffarr_grow(ffarr *ar, size_t by, ssize_t lowat, size_t elsz)
 {
 	size_t newcap = ar->len + by;
@@ -63,28 +20,6 @@ char *_ffarr_grow(ffarr *ar, size_t by, ssize_t lowat, size_t elsz)
 	return (char*)_ffarr_realloc(ar, newcap, elsz);
 }
 
-void _ffarr_free(ffarr *ar)
-{
-	if (ar->cap != 0) {
-		FF_ASSERT(ar->ptr != NULL);
-		FF_ASSERT(ar->cap >= ar->len);
-		ffmem_free(ar->ptr);
-		ar->cap = 0;
-	}
-	ar->ptr = NULL;
-	ar->len = 0;
-}
-
-void * _ffarr_push(ffarr *ar, size_t elsz)
-{
-	if (ar->cap < ar->len + 1
-		&& NULL == _ffarr_realloc(ar, ar->len + 1, elsz))
-		return NULL;
-
-	ar->len += 1;
-	return ar->ptr + (ar->len - 1) * elsz;
-}
-
 void* ffarr_pushgrow(ffarr *ar, size_t lowat, size_t elsz)
 {
 	if (NULL == _ffarr_grow(ar, 1, lowat, elsz))
@@ -92,17 +27,6 @@ void* ffarr_pushgrow(ffarr *ar, size_t lowat, size_t elsz)
 
 	ar->len += 1;
 	return ar->ptr + (ar->len - 1) * elsz;
-}
-
-void * _ffarr_append(ffarr *ar, const void *src, size_t num, size_t elsz)
-{
-	if (ar->cap < ar->len + num
-		&& NULL == _ffarr_realloc(ar, ar->len + num, elsz))
-		return NULL;
-
-	ffmemcpy(ar->ptr + ar->len * elsz, src, num * elsz);
-	ar->len += num;
-	return ar->ptr + ar->len * elsz;
 }
 
 ssize_t ffarr_gather(ffarr *ar, const char *d, size_t len, size_t until)

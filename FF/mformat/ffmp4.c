@@ -614,7 +614,7 @@ int ffmp4_addtag(ffmp4_cook *m, uint mmtag, const char *val, size_t val_len)
 	if (NULL == _ffarr_grow(&m->tags, 1, 8, sizeof(struct ffmp4_tag)))
 		return MP4_ESYS;
 
-	struct ffmp4_tag *t = _ffarr_push(&m->tags, sizeof(struct ffmp4_tag));
+	struct ffmp4_tag *t = ffarr_pushT(&m->tags, struct ffmp4_tag);
 	t->id = mmtag;
 	if (NULL == ffstr_copy(&t->val, val, val_len))
 		return MP4_ESYS;
@@ -640,7 +640,8 @@ void ffmp4_wclose(ffmp4_cook *m)
 	ffarr_free(&m->buf);
 	ffarr_free(&m->stsz);
 	ffarr_free(&m->stco);
-	FFARR2_FREE_ALL(&m->tags, tag_free, struct ffmp4_tag);
+	FFSLICE_FOREACH_T(&m->tags, tag_free, struct ffmp4_tag);
+	ffslice_free(&m->tags);
 }
 
 uint64 ffmp4_wsize(ffmp4_cook *m)
@@ -989,7 +990,8 @@ int ffmp4_write(ffmp4_cook *m)
 
 	case W_DATA1:
 		ffarr_free(&m->buf);
-		FFARR2_FREE_ALL(&m->tags, tag_free, struct ffmp4_tag);
+		FFSLICE_FOREACH_T(&m->tags, tag_free, struct ffmp4_tag);
+		ffslice_free(&m->tags);
 		m->state = W_DATA;
 		// break
 
