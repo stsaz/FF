@@ -286,27 +286,6 @@ int test_direxp(void)
 	return 0;
 }
 
-int test_env(void)
-{
-#ifdef FF_UNIX
-	ffenv env;
-	char *e_s[] = { "KEY1=VAL1", "KEY=VAL", NULL };
-	char **e = e_s, *p, buf[256];
-	ffenv_init(&env, e);
-
-	p = ffenv_expand(&env, NULL, 0, "asdf $KEY 1234");
-	x(ffsz_eq(p, "asdf VAL 1234"));
-	ffmem_free(p);
-
-	p = ffenv_expand(&env, buf, sizeof(buf), "asdf $KEY 1234");
-	x(p == buf);
-	x(ffsz_eq(p, "asdf VAL 1234"));
-
-	ffenv_destroy(&env);
-#endif
-	return 0;
-}
-
 
 static void sig_handler(struct ffsig_info *inf)
 {
