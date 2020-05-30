@@ -59,52 +59,6 @@ int test_num(void)
 	return 0;
 }
 
-int test_list()
-{
-	fflist ls;
-	fflist_item i1, i2, i3;
-	fflist_item *li;
-	int n;
-
-	FFTEST_FUNC;
-
-	fflist_init(&ls);
-	fflist_ins(&ls, &i1);
-	fflist_ins(&ls, &i2);
-	x(ls.first == &i1 && ls.last == &i2);
-	x(ls.len == 2);
-
-	fflist_movetofront(&ls, &i2);
-	x(ls.first == &i2 && ls.last == &i1);
-	fflist_moveback(&ls, &i2);
-	x(ls.first == &i1 && ls.last == &i2);
-
-	ffchain_append(&i3, &i1);
-	// i1 -> i3 -> i2
-	x(i1.next == &i3 && i3.prev == &i1 && i3.next == &i2);
-
-	n = 0;
-	for (li = &i1;  li != fflist_sentl(&ls);  li = li->next) {
-		switch (n++) {
-		case 0:
-			x(li == &i1);
-			break;
-		case 1:
-			x(li == &i3);
-			break;
-		case 2:
-			x(li == &i2);
-			break;
-		}
-	}
-
-	ffchain_unlink(&i3);
-	x(i1.next == &i2 && i2.prev == &i1);
-
-	return 0;
-}
-
-
 enum {
 	RING_CNT = 64 * 1024,
 };

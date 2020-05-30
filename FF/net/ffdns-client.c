@@ -877,7 +877,7 @@ int ffdnscl_serv_add(ffdnsclient *r, const ffstr *saddr)
 	ffstr_set(&serv->saddr, serv->saddr_s, s - serv->saddr_s);
 
 	fflist_ins(&r->servs, &serv->sib);
-	r->curserv = FF_GETPTR(ffdnscl_serv, sib, r->servs.first);
+	r->curserv = FF_GETPTR(ffdnscl_serv, sib, fflist_first(&r->servs));
 	return 0;
 
 err:
@@ -939,7 +939,7 @@ static void serv_fin(ffdnscl_serv *serv)
 static ffdnscl_serv * serv_next(ffdnsclient *r)
 {
 	ffdnscl_serv *serv = r->curserv;
-	fflist_item *next = ((serv->sib.next != fflist_sentl(&r->servs)) ? serv->sib.next : r->servs.first);
+	fflist_item *next = ((serv->sib.next != fflist_sentl(&r->servs)) ? serv->sib.next : fflist_first(&r->servs));
 	r->curserv = FF_GETPTR(ffdnscl_serv, sib, next);
 	return serv;
 }
