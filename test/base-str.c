@@ -129,6 +129,7 @@ static int test_arr()
 	x(ffstr_match(&str, FFSTR("asd")));
 	x(!ffstr_match(&str, FFSTR("asdz")));
 	x(ffstr_imatch(&str, FFSTR("ASD")));
+	ffstr_null(&str);
 
 	p = ffstr_alloc(&str, 4);
 	x(p == str.ptr);
@@ -180,176 +181,15 @@ static int test_arrmem()
 	return 0;
 }
 
-int test_inttostr()
-{
-	char s[FFINT_MAXCHARS];
-	ffstr ss;
-	ss.ptr = s;
-
-	ss.len = ffs_fromint((uint64)-1, s, FFCNT(s), FFINT_SIGNED);
-	x(ffstr_eqcz(&ss, "-1"));
-
-	ss.len = ffs_fromint((uint64)-1, s, FFCNT(s), 0);
-	x(ffstr_eqcz(&ss, "18446744073709551615"));
-
-	ss.len = ffs_fromint(-1, s, FFCNT(s), FFINT_HEXUP);
-	x(ffstr_eqcz(&ss, "FFFFFFFFFFFFFFFF"));
-
-	ss.len = ffs_fromint(0xabc1, s, FFCNT(s), FFINT_HEXLOW | FFINT_ZEROWIDTH | FFINT_WIDTH(8));
-	x(ffstr_eqcz(&ss, "0000abc1"));
-
-	ss.len = ffs_fromint(0xabc1, s, FFCNT(s), FFINT_HEXLOW | FFINT_WIDTH(8));
-	x(ffstr_eqcz(&ss, "    abc1"));
-
-	ss.len = ffs_fromint(-1234, s, FFCNT(s), FFINT_SIGNED | FFINT_WIDTH(8));
-	x(ffstr_eqcz(&ss, "   -1234"));
-
-	ss.len = ffs_fromint(-1234, s, FFCNT(s), FFINT_SIGNED | FFINT_ZEROWIDTH | FFINT_WIDTH(8));
-	x(ffstr_eqcz(&ss, "-0001234"));
-
-	ss.len = ffs_fromint(1000, s, FFCNT(s), FFINT_SEP1000);
-	x(ffstr_eqcz(&ss, "1,000"));
-
-	ss.len = ffs_fromint(999, s, FFCNT(s), FFINT_SEP1000);
-	x(ffstr_eqcz(&ss, "999"));
-
-	return 0;
-}
-
-int test_strtoint()
-{
-	union {
-		int64 i8;
-		uint64 ui8;
-		int i4;
-		uint ui4;
-		short i2;
-		ushort ui2;
-		byte ui1;
-	} u;
-
-	x(0 == ffs_toint(FFSTR(""), &u.i8, FFS_INT64));
-
-	x(FFSLEN("3213213213213213123") == ffs_toint(FFSTR("3213213213213213123"), &u.i8, FFS_INT64)
-		&& u.ui8 == 3213213213213213123ULL);
-	x(FFSLEN("18446744073709551615") == ffs_toint(FFSTR("18446744073709551615;"), &u.i8, FFS_INT64)
-		&& u.ui8 == 18446744073709551615ULL);
-	x(FFSLEN("-123456789") == ffs_toint(FFSTR("-123456789"), &u.i8, FFS_INT64 | FFS_INTSIGN)
-		&& u.i8 == -123456789);
-	x(FFSLEN("-123456789") == ffs_toint(FFSTR("-123456789"), &u.i8, FFS_INT32 | FFS_INTSIGN)
-		&& u.i4 == -123456789);
-
-	x(FFSLEN("-1") == ffs_toint(FFSTR("-1"), &u.i8, FFS_INT64 | FFS_INTSIGN)
-		&& u.i8 == -1);
-	x(FFSLEN("+1") == ffs_toint(FFSTR("+1"), &u.i8, FFS_INT64 | FFS_INTSIGN)
-		&& u.i8 == 1);
-
-	x(FFSLEN("-3123456789") == ffs_toint(FFSTR("-3123456789"), &u.i8, FFS_INT64 | FFS_INTSIGN)
-		&& u.i8 == -3123456789LL);
-	x(0 == ffs_toint(FFSTR("-3123456789"), &u.i8, FFS_INT64));
-	x(0 == ffs_toint(FFSTR("-3123456789"), &u.i8, FFS_INT32 | FFS_INTSIGN));
-
-	x(FFSLEN("65535") == ffs_toint(FFSTR("65535"), &u.i8, FFS_INT16)
-		&& u.ui2 == 65535);
-	x(0 == ffs_toint(FFSTR("65536"), &u.i8, FFS_INT16));
-
-	x(FFSLEN("255") == ffs_toint(FFSTR("255"), &u.i8, FFS_INT8)
-		&& u.ui1 == 255);
-	x(0 == ffs_toint(FFSTR("256"), &u.i8, FFS_INT8));
-
-	x(FFSLEN("000abc1") == ffs_toint(FFSTR("000abc1"), &u.i8, FFS_INT32 | FFS_INTHEX)
-		&& u.ui4 == 0xabc1);
-	x(FFSLEN("abcdef") == ffs_toint(FFSTR("abcdef"), &u.i8, FFS_INT32 | FFS_INTHEX)
-		&& u.ui4 == 0xabcdef);
-	x(FFSLEN("abcdef") == ffs_toint(FFSTR("ABCDEF"), &u.i8, FFS_INT32 | FFS_INTHEX)
-		&& u.ui4 == 0xabcdef);
-	x(0 == ffs_toint(FFSTR("ffffffffffffffff"), &u.i8, FFS_INT32 | FFS_INTHEX));
-	x(FFSLEN("ffffffffffffffff") == ffs_toint(FFSTR("ffffffffffffffff"), &u.i8, FFS_INT64 | FFS_INTHEX)
-		&& u.ui8 == 0xffffffffffffffffLL);
-	x(FFSLEN("ABCDE") == ffs_toint(FFSTR("ABCDEg"), &u.i4, FFS_INT32 | FFS_INTHEX)
-		&& u.i4 == 0xabcde);
-
-	x(0 == ffs_toint(FFSTR(":"), &u.i4, FFS_INT32 | FFS_INTHEX));
-	x(0 == ffs_toint(FFSTR("-"), &u.i4, FFS_INT32 | FFS_INTSIGN));
-	x(0 == ffs_toint(FFSTR("184467440737095516150"), &u.i8, FFS_INT64));
-
-	return 0;
-}
-
-static int test_strtoflt()
-{
-	double d;
-	x(1 == ffs_tofloat(FFSTR("1/"), &d, 0) && d == 1);
-	x(1 == ffs_tofloat(FFSTR("1,0"), &d, 0) && d == 1);
-	x(2 == ffs_tofloat(FFSTR("30#5"), &d, 0) && d == 30);
-	x(2 == ffs_tofloat(FFSTR("1."), &d, 0) && d == 1.);
-	x(2 == ffs_tofloat(FFSTR(".1"), &d, 0) && d == .1);
-	x(3 == ffs_tofloat(FFSTR("1.1"), &d, 0) && d == 1.1);
-	x(3 == ffs_tofloat(FFSTR("0.0"), &d, 0) && d == 0.0);
-
-	x(0 != ffs_tofloat(FFSTR("1e1"), &d, 0) && d == 1e1);
-	x(0 != ffs_tofloat(FFSTR("1e+1"), &d, 0) && d == 1e+1);
-	x(0 != ffs_tofloat(FFSTR("1e-1"), &d, 0) && d == 1e-1);
-	x(0 != ffs_tofloat(FFSTR("1.e-1"), &d, 0) && d == 1.e-1);
-	x(0 != ffs_tofloat(FFSTR("1.1e-1"), &d, 0) && d == 1.1e-1);
-	x(0 != ffs_tofloat(FFSTR(".1e-1"), &d, 0) && d == .1e-1);
-	x(0 != ffs_tofloat(FFSTR("-.1e-1"), &d, 0) && d == -.1e-1);
-	x(0 != ffs_tofloat(FFSTR("+.1e-1"), &d, 0) && d == +.1e-1);
-
-	x(0 != ffs_tofloat(FFSTR("123.456e-052"), &d, 0) && d == 123.456e-052);
-	x(0 != ffs_tofloat(FFSTR("1e-323"), &d, 0) && d == 1e-323);
-	x(0 != ffs_tofloat(FFSTR("1e50/"), &d, 0) && d == 1e50);
-
-	x(0 == ffs_tofloat(FFSTR("-"), &d, 0));
-	x(0 == ffs_tofloat(FFSTR("+"), &d, 0));
-	x(0 == ffs_tofloat(FFSTR("1e"), &d, 0));
-	x(0 == ffs_tofloat(FFSTR("e-1"), &d, 0));
-	x(0 == ffs_tofloat(FFSTR(".e-1"), &d, 0));
-	return 0;
-}
-
 static int test_strf()
 {
 	ffstr3 s = { 0 };
-	ffstr s1;
-	ffqstr qs1;
 
-	char ss[128];
-	x(-((2+2)*2 + 5+5 + 1+5 + 1+1 + 1) == ffs_fmt2(NULL, 0, "%2b%*b" "%5s%*s" "%c%*c" "%%%Z"
-		, "12", (size_t)2, "12"
-		, "Strin", (size_t)5, "Strin"
-		, 'C', (size_t)5, 'c'));
-	x(((2+2)*2 + 5+5 + 1+5 + 1+1) == ffs_fmt2(ss, sizeof(ss), "%2b%*b" "%5s%*s" "%c%*c" "%%%Z"
-		, "12", (size_t)2, "12"
-		, "Strin", (size_t)5, "Strin"
-		, 'C', (size_t)5, 'c')
-			&& !ffsz_cmp(ss, "31323132StrinStrinCccccc%"));
-
-	x(0 != ffstr_catfmt(&s, "%03D %03xI %3d 0x%p", (int64)-9, (size_t)-0x543fe, (int)-5, (void*)0xab1234));
-	x(ffstr_eqcz(&s, "-09 -543fe  -5 0x00ab1234")),  s.len = 0;
-
-	x(0 != ffstr_catfmt(&s, "%06.5F", (double)12345.6789) && ffstr_eqcz(&s, "012345.67890")),  s.len = 0;
-	x(0 != ffstr_catfmt(&s, "%3.02F", (double)-0.123) && ffstr_eqcz(&s, " -0.12")),  s.len = 0;
-	x(0 != ffstr_catfmt(&s, "%3.02F", (double)-12.12) && ffstr_eqcz(&s, "-12.12")),  s.len = 0;
-	x(0 != ffstr_catfmt(&s, "%F", (double)-0.005) && ffstr_eqcz(&s, "-0.005000")),  s.len = 0;
-	x(0 != ffstr_catfmt(&s, "%.0F", (double)-0.005) && ffstr_eqcz(&s, "-0")),  s.len = 0;
-
-	s.len = 0;
-	ffstr_setcz(&s1, "hello");
-	ffqstr_set(&qs1, TEXT("hello"), 5);
-	x(0 != ffstr_catfmt(&s, "%*s %S %*q %Q", (size_t)3, "hello", &s1, (size_t)3, TEXT("hello"), &qs1));
-	x(ffstr_eqcz(&s, "hel hello hel hello"));
-
-	s.len = 0;
-	x(0 != ffstr_catfmt(&s, "%*c %Z%%", (size_t)5, (int)'-'));
-	x(ffstr_eqcz(&s, "----- \0%"));
-
-	s.len = 0;
-	x(0 != ffstr_catfmt(&s, "%e: %E", (int)FFERR_FOPEN, (int)EINVAL));
+	x(0 != ffstr_catfmt(&s, "%E", (int)EINVAL));
 #ifdef FF_UNIX
-	x(ffstr_eqcz(&s, "file open: (22) Invalid argument"));
+	x(ffstr_eqcz(&s, "(22) Invalid argument"));
 #else
-	x(ffstr_eqcz(&s, "file open: (87) The parameter is incorrect"));
+	x(ffstr_eqcz(&s, "(87) The parameter is incorrect"));
 #endif
 
 	ffarr_free(&s);
@@ -393,9 +233,10 @@ static int test_str_cmp()
 	x(ffs_cmpz(ptr, n, "") > 0);
 	x(ffs_cmpz(ptr, 0, "") == 0);
 	x(ffs_cmpz(ptr, n, "asdfa") == 0);
-	x(ffs_cmpz(ptr, n, "asdf") == FFSLEN("asdf") + 1);
-	x(ffs_cmpz(ptr, n, "asdff") == -FFSLEN("asdf") - 1);
-	x(ffs_cmpz(ptr, n, "asdfaz") == -FFSLEN("asdfa") - 1);
+
+	x(ffs_cmpn(ptr, "asdf", 4) == 0);
+	x(ffs_cmpn(ptr, "asdfz", 5) == -4 - 1);
+	x(ffs_cmpn(ptr, "asdf ", 5) == 4 + 1);
 
 	x(ffs_icmpz(ptr, n, "ASdFA") == 0);
 	x(ffs_icmpz(ptr, n, "ASDF1") > 0);
@@ -408,17 +249,6 @@ static int test_str_cmp()
 	x(!ffs_eqcz(ptr, n, "asdfaq"));
 	x(!ffs_eqcz(ptr, n, "asdfA"));
 	x(ffs_ieqcz(ptr, n, "asdfA"));
-
-	x(ffs_match("key=val", 7, "key", 3));
-	x(ffs_match("key=val", 7, "key=val", 7));
-	x(!ffs_match("key=val", 7, "key1", 4));
-	x(!ffs_match("key=val", 7, "keykeykeykey", 12));
-
-	x(ffsz_match("key=val", "key", 3));
-	x(ffsz_match("key=val", "key=val", 7));
-	x(!ffsz_match("key=val", "key1", 4));
-	x(!ffsz_match("key=val", "keykeykeykey", 12));
-
 	return 0;
 }
 
@@ -438,16 +268,6 @@ static int test_str_find()
 	x(ptr + 3 == ffs_rfind(ptr, n, 'f'));
 	x(end == ffs_rfind(ptr, n, 'z'));
 
-	x(ptr == ffs_finds(ptr, 0, FFSTR("")));
-	x(ptr == ffs_finds(ptr, n, FFSTR("")));
-	x(end == ffs_finds(ptr, n, FFSTR("dfb")));
-	x(ptr + 3 == ffs_finds(ptr, n, FFSTR("f")));
-	x(ptr + 2 == ffs_finds(ptr, n, FFSTR("df")));
-	{
-		const char *p = "abac";
-		x(p + 2 == ffs_finds(p, 4, FFSTR("ac")));
-	}
-
 	x(ptr + 3 == ffs_findof(ptr, n, "zxcvf", FFSLEN("zxcvf")));
 	x(end == ffs_findof(ptr, n, "zxcv", FFSLEN("zxcv")));
 
@@ -459,12 +279,6 @@ static int test_str_find()
 		x(0 == ffstr_findarr(ss, FFCNT(ss), FFSTR("qwer")));
 		x(1 == ffstr_findarr(ss, FFCNT(ss), FFSTR("asdf")));
 		x(-1 == ffstr_findarr(ss, FFCNT(ss), FFSTR("asdfa")));
-	}
-
-	{
-		static const char *const ss[] = { "qwer", "asdf" };
-		x(1 == ffs_findarrz(ss, FFCNT(ss), FFSTR("asdf")));
-		x(-1 == ffs_findarrz(ss, FFCNT(ss), FFSTR("asdfa")));
 	}
 
 	return 0;
@@ -539,26 +353,6 @@ static int test_escape()
 	x(FFSLEN("hello\\x00\\x01\xff\\x07\\x00\t\r\n\\x5chi") == ffs_escape(NULL, 0, FFSTR("hello\x00\x01\xff\f\b\t\r\n\\hi"), FFS_ESC_NONPRINT));
 	s.len = ffs_escape(buf, FFCNT(buf), FFSTR("hello\x00\x01\xff\f\b\t\r\n\\hi"), FFS_ESC_NONPRINT);
 	x(ffstr_eqcz(&s, "hello\\x00\\x01\xff\\x0C\\x08\t\r\n\\x5Chi"));
-
-	return 0;
-}
-
-static int test_chcase()
-{
-	char buf[255];
-	ffstr s;
-	s.ptr = buf;
-
-	FFTEST_FUNC;
-
-	s.len = ffs_lower(buf, buf + FFCNT(buf), FFSTR("ASDFqwer"));
-	x(ffstr_eqcz(&s, "asdfqwer"));
-
-	s.len = ffs_upper(buf, buf + FFCNT(buf), FFSTR("ASDFqwer"));
-	x(ffstr_eqcz(&s, "ASDFQWER"));
-
-	s.len = ffs_titlecase(buf, buf + FFCNT(buf), FFSTR("#it's ASDF qwer-ty"));
-	x(ffstr_eqcz(&s, "#it's Asdf Qwer-ty"));
 
 	return 0;
 }
@@ -789,12 +583,12 @@ static void test_str_gather(void)
 {
 	ffarr a = {0};
 	ffstr s, in;
-	x(4 == ffarr_gather2(&a, "abcd", 4, 7, &s)
-		&& ffstr_eqz(&s, "abcd") && s.ptr == a.ptr);
-	x(3 == ffarr_gather2(&a, "1234", 4, 7, &s)
-		&& ffstr_eqz(&s, "abcd123") && s.ptr == a.ptr);
-	x(0 == ffarr_gather2(&a, "1234", 4, 3, &s)
-		&& ffstr_eqz(&s, "abc") && s.ptr == a.ptr);
+	x(4 == ffarr_gather2(&a, "abcd", 4, 7, &s));
+	x(s.len == 0);
+	x(3 == ffarr_gather2(&a, "1234", 4, 7, &s));
+	x(ffstr_eqz(&s, "abcd123") && s.ptr == a.ptr);
+	x(0 == ffarr_gather2(&a, "1234", 4, 3, &s));
+	x(ffstr_eqz(&s, "abc") && s.ptr == a.ptr);
 	a.len = 0;
 	ffstr_setz(&in, "1234");
 	x(3 == ffarr_gather2(&a, in.ptr, in.len, 3, &s)
@@ -904,16 +698,12 @@ int test_str()
 	test_str_find();
 	test_strcat();
 	test_strqcat();
-	test_inttostr();
-	test_strtoint();
-	test_strtoflt();
 	test_strf();
 	test_fmatch();
 	test_arr();
 	test_arrmem();
 	test_str_nextval();
 	test_escape();
-	test_chcase();
 	test_bufadd();
 	test_replace();
 

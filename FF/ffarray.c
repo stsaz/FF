@@ -55,28 +55,6 @@ ssize_t ffarr_gather(ffarr *ar, const char *d, size_t len, size_t until)
 	return len;
 }
 
-ssize_t ffarr_gather2(ffarr *ar, const char *d, size_t len, size_t until, ffstr *out)
-{
-	if (ar->len == 0 && len >= until) {
-		ffstr_set(out, d, until);
-		return until;
-	}
-
-	if (ar->len >= until) {
-		ffstr_set(out, ar->ptr, until);
-		return 0;
-	}
-
-	if (ar->cap < until
-		&& NULL == _ffarr_realloc(ar, until, sizeof(char)))
-		return -1;
-
-	len = ffmin(len, until - ar->len);
-	ffarr_append(ar, d, len);
-	ffstr_set2(out, ar);
-	return len;
-}
-
 void _ffarr_rm(ffarr *ar, size_t off, size_t n, size_t elsz)
 {
 	FF_ASSERT(ar->len >= off + n);
@@ -119,35 +97,6 @@ size_t ffstr_crop_abs(ffstr *data, uint64 start, uint64 off, uint64 size)
 	data->ptr += l - start;
 	data->len = r - l;
 	return r - start;
-}
-
-size_t ffstr_catfmtv(ffstr3 *s, const char *fmt, va_list args)
-{
-	ssize_t r;
-	va_list va;
-
-	va_copy(va, args);
-	r = ffs_fmtv2(ffarr_end(s), ffarr_unused(s), fmt, va);
-	va_end(va);
-	if (r > 0)
-		goto done;
-	else if (r < 0)
-		r = -r;
-
-	if (r == 0 || NULL == ffarr_grow(s, r, 0))
-		return 0;
-
-	va_copy(va, args);
-	r = ffs_fmtv2(ffarr_end(s), ffarr_unused(s), fmt, va);
-	va_end(va);
-	if (r < 0) {
-		s->len = s->cap;
-		return 0;
-	}
-
-done:
-	s->len += r;
-	return r;
 }
 
 

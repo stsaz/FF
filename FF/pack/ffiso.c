@@ -285,6 +285,7 @@ int ffiso_storefile(ffiso *c)
 	if (NULL == (f = ffmem_new(ffiso_file)))
 		return -1;
 	*f = c->curfile;
+	ffstr_null(&f->name);
 	if (NULL == ffstr_alcopystr(&f->name, &c->curfile.name)) {
 		ffmem_free(f);
 		return -1;

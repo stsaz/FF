@@ -564,7 +564,7 @@ static cach_key * key_alloc(const char *key, size_t len, int key_icase)
 	if (!key_icase)
 		ffmemcpy(ckey->d, key, len);
 	else
-		ffs_lower(ckey->d, ckey->d + len, key, len);
+		ffs_lower(ckey->d, len, key, len);
 
 	ckey->len = len;
 	ckey->usage = 1;

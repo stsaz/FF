@@ -616,6 +616,7 @@ int ffmp4_addtag(ffmp4_cook *m, uint mmtag, const char *val, size_t val_len)
 
 	struct ffmp4_tag *t = ffarr_pushT(&m->tags, struct ffmp4_tag);
 	t->id = mmtag;
+	ffstr_null(&t->val);
 	if (NULL == ffstr_copy(&t->val, val, val_len))
 		return MP4_ESYS;
 	return 0;

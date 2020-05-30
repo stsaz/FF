@@ -13,7 +13,6 @@ ffs_*i*() (e.g. ffs_icmp()) - case-insensitive operation
 ALGORITHMS:
 CHARACTER - operations with 1 ANSI character
   ffchar_*()
-FFSTR
 COMPARE - compare two strings
   ffs*_cmp*()
   ffs*_eq*()
@@ -50,9 +49,12 @@ FFBSTR
 
 #pragma once
 
+#include <FF/bitops.h>
 #include <FFOS/string.h>
 #include <FFOS/mem.h>
-#include <FF/bitops.h>
+#include <FFOS/error.h>
+#include <ffbase/string.h>
+#include <ffbase/stringz.h>
 
 #if defined FF_UNIX
 #include <stdarg.h> // for va_arg
@@ -109,18 +111,6 @@ static FFINL ffbool ffchar_iswhitespace(int ch) {
 	return (ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r');
 }
 
-/** Convert character to hex 4-bit number.
-Return -1 if invalid hex char. */
-static FFINL int ffchar_tohex(int ch) {
-	uint b;
-	if (ffchar_isdigit(ch))
-		return ch - '0';
-	b = ffchar_lower(ch) - 'a' + 10;
-	if ((uint)b <= 0x0f)
-		return b;
-	return -1;
-}
-
 /** Get bits to shift by size suffix K, M, G, T. */
 FF_EXTN uint ffchar_sizesfx(int suffix);
 
@@ -129,47 +119,6 @@ FF_EXTN uint ffchar_sizesfx(int suffix);
 Return shift value. */
 FF_EXTN uint ffint_tosfx(uint64 size, char *suffix);
 
-
-// FFSTR
-
-typedef struct ffstr {
-	size_t len;
-	char *ptr;
-} ffstr;
-
-#if defined FF_UNIX
-typedef ffstr ffqstr;
-#else
-typedef struct ffqstr {
-	size_t len;
-	ffsyschar *ptr;
-} ffqstr;
-#endif
-
-/** Set a buffer. */
-#define ffstr_set(s, data, n) \
-do { \
-	(s)->ptr = (char*)data; \
-	(s)->len = n; \
-} while(0)
-
-#define ffstr_set2(s, src)  ffstr_set(s, (src)->ptr, (src)->len)
-
-/** Set constant NULL-terminated string. */
-#define ffstr_setcz(s, csz)  ffstr_set(s, (char*)csz, FFSLEN(csz))
-
-/** Set NULL-terminated string. */
-#define ffstr_setz(s, sz)  ffstr_set(s, (char*)sz, ffsz_len(sz))
-
-#define ffstr_setnz(s, sz, maxlen)  ffstr_set(s, (char*)sz, ffsz_nlen(sz, maxlen))
-
-/** Set ffstr from ffiovec. */
-#define ffstr_setiovec(s, iov)  ffstr_set(s, (iov)->iov_base, (iov)->iov_len)
-
-#define ffstr_null(s)  ffstr_set(s, NULL, 0)
-
-#define ffstr_end(s)  ((s)->ptr + (s)->len)
-
 #define FFS_SHIFT(ptr, len, by) \
 do { \
 	ssize_t _by = (by); \
@@ -177,21 +126,10 @@ do { \
 	(len) -= (_by); \
 } while (0)
 
-#define ffstr_shift(s, by)  FFS_SHIFT((s)->ptr, (s)->len, by)
-
-static inline int ffstr_popfront(ffstr *s)
-{
-	FF_ASSERT(s->len != 0);
-	s->len--;
-	return *(s->ptr++);
-}
-
 
 enum {
 	FF_TEXT_LINE_MAX = 64 * 1024, //max line size
 };
-
-#define ffsz_len(sz)  strlen(sz)
 
 #define ffsz_safelen(sz)  ((sz != NULL) ? strlen(sz) : 0)
 
@@ -219,32 +157,15 @@ Return 0 if equal.
 Return the mismatch byte position:
  . n+1 if s1 > sz2
  . -n-1 if s1 < sz2. */
-FF_EXTN ssize_t ffs_cmpz(const char *s1, size_t len, const char *sz2);
 FF_EXTN ssize_t ffs_cmpn(const char *s1, const char *s2, size_t len);
 
 #define ffsz_cmp(sz1, sz2)  strcmp(sz1, sz2)
-
-#define ffstr_cmp2(str1, str2) \
-	ffs_cmp4((str1)->ptr, (str1)->len, (str2)->ptr, (str2)->len)
 
 /** Return TRUE if a buffer and a constant NULL-terminated string are equal. */
 #define ffs_eqcz(s1, len, csz2) \
 	((len) == FFSLEN(csz2) && 0 == ffs_cmp(s1, csz2, len))
 
 #define ffsz_eq(sz1, sz2)  (!ffsz_cmp(sz1, sz2))
-
-#define ffstr_eq(str1, s2, n) \
-	((str1)->len == (n) && 0 == ffmemcmp((str1)->ptr, s2, n))
-
-/** Return TRUE if an array is equal to a NULL-terminated string. */
-#define ffstr_eqz(str1, sz2)  (0 == ffs_cmpz((str1)->ptr, (str1)->len, sz2))
-
-/** Compare ffstr object and constant NULL-terminated string. */
-#define ffstr_eqcz(str1, csz2)  ffstr_eq(str1, csz2, FFSLEN(csz2))
-
-/** Return TRUE if both strings are equal. */
-#define ffstr_eq2(str1, str2) \
-	ffstr_eq(str1, (str2)->ptr, (str2)->len)
 
 
 // COMPARE (case insensitive)
@@ -255,10 +176,6 @@ FF_EXTN ssize_t ffs_cmpn(const char *s1, const char *s2, size_t len);
 #define ffsz_icmp(sz1, sz2)  _stricmp(sz1, sz2)
 #endif
 
-/** Compare two ANSI strings.  Case-insensitive.
-Return -1 if s1 < s2. */
-FF_EXTN int ffs_icmp(const char *s1, const char *s2, size_t len);
-
 static FFINL int ffs_icmp4(const char *s1, size_t len1, const char *s2, size_t len2)
 {
 	int r = ffs_icmp(s1, s2, ffmin(len1, len2));
@@ -267,109 +184,8 @@ static FFINL int ffs_icmp4(const char *s1, size_t len1, const char *s2, size_t l
 	return r;
 }
 
-/** Compare buffer and NULL-terminated string.
-Return 0 if equal.
-Return the mismatch byte position:
- . n+1 if s1 > sz2
- . -n-1 if s1 < sz2. */
-FF_EXTN ssize_t ffs_icmpz(const char *s1, size_t len, const char *sz2);
-
 #define ffs_ieqcz(s1, len, csz2) \
 	((len) == FFSLEN(csz2) && 0 == ffs_icmp(s1, csz2, len))
-
-/** Compare ANSI strings.  Case-insensitive. */
-#define ffstr_icmp(str1, s2, len2) \
-	ffs_icmp4((str1)->ptr, (str1)->len, s2, len2)
-#define ffstr_icmp2(str1, str2) \
-	ffs_icmp4((str1)->ptr, (str1)->len, (str2)->ptr, (str2)->len)
-
-static inline ffbool ffstr_ieq(const ffstr *str, const char *s, size_t n)
-{
-	return str->len == n && 0 == ffs_icmp(str->ptr, s, n);
-}
-
-/** Return TRUE if both strings are equal. Case-insensitive */
-#define ffstr_ieq2(str1, str2)  ffstr_ieq(str1, (str2)->ptr, (str2)->len)
-
-#define ffstr_ieqz(str1, sz2)  (0 == ffs_icmpz((str1)->ptr, (str1)->len, sz2))
-
-/** Compare ffstr object and constant NULL-terminated string.  Case-insensitive. */
-#define ffstr_ieqcz(str1, csz2)  ffstr_ieq(str1, csz2, FFSLEN(csz2))
-
-
-// MATCH - match starting bytes of both strings
-
-/** Return TRUE if 'n' characters are equal in both strings.
-Useful to check whether "KEY=VALUE" starts with "KEY". */
-#define ffs_match(s, len, starts_with, n) \
-	((len) >= (n) && 0 == ffs_cmp(s, starts_with, n))
-
-static inline ffbool ffs_matchz(const char *s, size_t len, const char *starts_with)
-{
-	uint n = ffsz_len(starts_with);
-	return len >= n
-		&& 0 == ffs_cmp(s, starts_with, n);
-}
-
-static FFINL ffbool ffsz_match(const char *sz, const char *starts_with, size_t n)
-{
-	ssize_t r = ffs_cmpz(starts_with, n, sz);
-	return r == 0 || (r < 0 && (size_t)(-r) - 1 == n);
-}
-
-static FFINL ffbool ffsz_matchz(const char *sz, const char *starts_with)
-{
-	return ffsz_match(sz, starts_with, ffsz_len(starts_with));
-}
-
-/** Return TRUE if n characters are equal in both strings. */
-static inline ffbool ffstr_match(const ffstr *s1, const char *s2, size_t n)
-{
-	return s1->len >= n
-		&& 0 == ffmemcmp(s1->ptr, s2, n);
-}
-
-#define ffstr_matchcz(s, csz)  ffstr_match(s, csz, FFSLEN(csz))
-#define ffstr_matchz(s, sz)  ffstr_match(s, sz, ffsz_len(sz))
-#define ffstr_matchstr(s, s2)  ffstr_match(s, (s2)->ptr, (s2)->len)
-
-
-// MATCH (case insensitive)
-
-#define ffs_imatch(s, len, starts_with, n) \
-	((len) >= (n) && 0 == ffs_icmp(s, starts_with, n))
-
-static inline int ffs_imatchz(const char *s, size_t len, const char *starts_with)
-{
-	uint n = ffsz_len(starts_with);
-	return len >= n
-		&& 0 == ffs_icmp(s, starts_with, n);
-}
-
-static inline ffbool ffsz_imatch(const char *sz, const char *starts_with, size_t n)
-{
-	ssize_t r = ffs_icmpz(starts_with, n, sz);
-	return r == 0 || (r < 0 && (size_t)(-r) - 1 == n);
-}
-
-static inline ffbool ffstr_imatch(const ffstr *s1, const char *s2, size_t n)
-{
-	return s1->len >= n
-		&& 0 == ffs_icmp(s1->ptr, s2, n);
-}
-
-#define ffstr_imatchcz(s, csz)  ffstr_imatch(s, csz, FFSLEN(csz))
-
-
-// REVERSE MATCH - match ending bytes of both strings
-
-static inline ffbool ffstr_irmatch(const ffstr *s1, const char *s2, size_t len)
-{
-	return s1->len >= len
-		&& 0 == ffs_icmpz(s1->ptr + s1->len - len, len, s2);
-}
-
-#define ffstr_irmatchz(s, sz)  ffstr_irmatch(s, sz, ffsz_len(sz))
 
 
 /** Apply XOR on a data with a key of arbitrary length. */
@@ -398,36 +214,17 @@ static FFINL char * ffs_find(const char *buf, size_t len, int ch) {
 Return NULL if not found. */
 #define ffs_findc(buf, len, ch)  memchr(buf, ch, len)
 
-/** Find substring.
-Return END if not found. */
-FF_EXTN char * ffs_finds(const char *buf, size_t len, const char *search, size_t search_len);
+static inline char * ffs_finds(const char *buf, size_t len, const char *search, size_t search_len)
+{
+	ffssize pos = ffs_findstr(buf, len, search, search_len);
+	if (pos < 0)
+		return (char*)buf + len;
+	return (char*)buf + pos;
+}
 
 FF_EXTN char * ffs_findof(const char *buf, size_t len, const char *anyof, size_t cnt);
 
 #define ffsz_findof(sz, anyof)  strpbrk(sz, anyof)
-
-/** Find substring.
-Return -1 if not found. */
-static inline ssize_t ffstr_find(const ffstr *s, const char *search, size_t search_len)
-{
-	const char *r = ffs_finds(s->ptr, s->len, search, search_len);
-	if (r == s->ptr + s->len)
-		return -1;
-	return r - s->ptr;
-}
-
-#define ffstr_findstr(s, search)  ffstr_find(s, (search)->ptr, (search)->len)
-#define ffstr_findz(s, search)  ffstr_find(s, search, ffsz_len(search))
-
-/** Find end-of-line marker (LF or CRLF).
-Return byte offset or 'len' if not found. */
-static inline size_t ffs_findeol(const char *s, size_t len)
-{
-	const char *p = ffs_find(s, len, '\n');
-	if (p != s && p[-1] == '\r')
-		p--;
-	return p - s;
-}
 
 /** Return the number of occurrences of byte. */
 FF_EXTN size_t ffs_nfindc(const char *buf, size_t len, int ch);
@@ -435,17 +232,15 @@ FF_EXTN size_t ffs_nfindc(const char *buf, size_t len, int ch);
 
 // FIND (case insensitive)
 
-FF_EXTN char* ffs_ifinds(const char *buf, size_t len, const char *search, size_t search_len);
+#define ffstr_ifindstr(s, search)  ffstr_ifind2(s, search)
 
-static inline ssize_t ffstr_ifind(const ffstr *s, const char *search, size_t search_len)
+static inline char * ffs_ifinds(const char *s, size_t len, const char *search, size_t search_len)
 {
-	const char *r = ffs_ifinds(s->ptr, s->len, search, search_len);
-	if (r == s->ptr + s->len)
-		return -1;
-	return r - s->ptr;
+	ffssize i = ffs_ifindstr(s, len, search, search_len);
+	if (i < 0)
+		return (char*)s + len;
+	return (char*)s + i;
 }
-
-#define ffstr_ifindstr(s, search)  ffstr_ifind(s, (search)->ptr, (search)->len)
 
 
 // REVERSE FIND
@@ -517,19 +312,8 @@ FF_EXTN char * ffs_skipof(const char *buf, size_t len, const char *anyof, size_t
 @mask: uint[8] */
 FF_EXTN char* ffs_skip_mask(const char *buf, size_t len, const uint *mask);
 
-static inline void ffstr_skip(ffstr *s, int skip_char)
-{
-	char *p = ffs_skip(s->ptr, s->len, skip_char);
-	s->len = s->ptr + s->len - p;
-	s->ptr = p;
-}
-
-static inline void ffstr_skipof(ffstr *s, ffstr skip_chars)
-{
-	char *p = ffs_skipof(s->ptr, s->len, skip_chars.ptr, skip_chars.len);
-	s->len = s->ptr + s->len - p;
-	s->ptr = p;
-}
+#define ffstr_skipof  ffstr_skipany
+#define ffstr_rskip  ffstr_rskipchar
 
 
 // REVERSE SKIP
@@ -539,16 +323,7 @@ FF_EXTN char* ffs_rskip(const char *buf, size_t len, int ch);
 
 FF_EXTN char* ffs_rskipof(const char *buf, size_t len, const char *anyof, size_t cnt);
 
-static inline void ffstr_rskip(ffstr *s, int skip_char)
-{
-	s->len = ffs_rskip(s->ptr, s->len, skip_char) - s->ptr;
-}
-
-static inline void ffstr_rskip1(ffstr *s, int skip_char)
-{
-	if (s->len != 0 && *(ffstr_end(s) - 1) == skip_char)
-		s->len--;
-}
+#define ffstr_rskip1  ffstr_rskipchar1
 
 
 // FIND IN ARRAY - get position of a string in array
@@ -565,20 +340,10 @@ Return -1 if not found. */
 FF_EXTN ssize_t ffs_findarr(const void *ar, size_t n, uint elsz, const void *s, size_t len);
 #define ffs_findarr3(ar, s, len)  ffs_findarr(ar, FFCNT(ar), sizeof(*ar), s, len)
 
-/** Search a string in array of pointers to NULL-terminated strings.
-Return -1 if not found. */
-FF_EXTN ssize_t ffs_findarrz(const char *const *ar, size_t n, const char *search, size_t search_len);
-FF_EXTN ssize_t ffs_ifindarrz(const char *const *ar, size_t n, const char *search, size_t search_len);
-#define ffszarr_find(ar, n, search, search_len) \
-	ffs_findarrz(ar, n, search, search_len)
-#define ffszarr_ifind(ar, n, search, search_len) \
-	ffs_ifindarrz(ar, n, search, search_len)
-FF_EXTN ssize_t ffszarr_findsorted(const char *const *ar, size_t n, const char *search, size_t search_len);
-FF_EXTN ssize_t ffszarr_ifindsorted(const char *const *ar, size_t n, const char *search, size_t search_len);
-
-/** Search a string in char[n][m] array.
-Return -1 if not found. */
-FF_EXTN ssize_t ffcharr_findsorted(const void *ar, size_t n, size_t m, const char *search, size_t search_len);
+#define ffs_findarrz(ar, n, search, search_len) \
+	ffszarr_find(ar, n, search, search_len)
+#define ffs_ifindarrz(ar, n, search, search_len) \
+	ffszarr_ifind(ar, n, search, search_len)
 
 /** Find entry that matches expression "KEY=VAL".
 Return pointer to VAL;  NULL if not found. */
@@ -604,8 +369,6 @@ FF_EXTN void* ffmemcpy(void *dst, const void *src, size_t len);
 #define ffmem_ncopy(dst, src, n, elsz)  ffmemcpy(dst, src, (n) * (elsz))
 #define ffmem_ncopyT(dst, src, n, T)  ffmemcpy(dst, src, (n) * sizeof(T))
 
-/** Copy data and return the tail. */
-#define ffmem_copy(dst, src, len)  ((char*)ffmemcpy(dst, src, len) + (len))
 #define ffmem_copycz(dst, s)  ((char*)ffmemcpy(dst, s, FFSLEN(s)) + FFSLEN(s))
 
 /** Copy 1 character.
@@ -648,7 +411,8 @@ static FFINL char * ffsz_copy(char *dst, size_t cap, const char *src, size_t len
 }
 
 static FFINL char * ffsz_fcopy(char *dst, const char *src, size_t len) {
-	dst = ffmem_copy(dst, src, len);
+	ffmem_copy(dst, src, len);
+	dst += len;
 	*dst = '\0';
 	return dst;
 }
@@ -694,18 +458,12 @@ static inline void ffs_max(const void *s1, size_t len1, const void *s2, size_t l
 
 // CONVERT CASE - convert character case
 
-/** Convert case (ANSI).
-Return the number of bytes written. */
-FF_EXTN size_t ffs_lower(char *dst, const char *end, const char *src, size_t len);
-FF_EXTN size_t ffs_upper(char *dst, const char *end, const char *src, size_t len);
-FF_EXTN size_t ffs_titlecase(char *dst, const char *end, const char *src, size_t len);
-
 static FFINL char* ffsz_alcopylwr(const char *src, size_t len)
 {
 	char *s = (char*)ffmem_alloc(len + 1);
 	if (s == NULL)
 		return NULL;
-	ffs_lower(s, s + len, src, len);
+	ffs_lower(s, len, src, len);
 	s[len] = '\0';
 	return s;
 }
@@ -853,10 +611,6 @@ FF_EXTN ssize_t ffs_escape(char *dst, size_t cap, const char *s, size_t len, int
 
 // TYPE CONVERT - convert between string, number and boolean
 
-/** Lowercase/uppercase hex alphabet. */
-FF_EXTN const char ffhex[16];
-FF_EXTN const char ffHEX[16];
-
 /** Convert a byte into 2-byte hex string.
 @hex: alphabet to use. */
 static FFINL int ffs_hexbyte(char *dst, int b, const char *hex) {
@@ -865,23 +619,11 @@ static FFINL int ffs_hexbyte(char *dst, int b, const char *hex) {
 	return 2;
 }
 
-enum FFS_INT {
-	FFS_INT8 = 1
-	, FFS_INT16 = 2
-	, FFS_INT32 = 4
-	, FFS_INT64 = 8
-
-	, FFS_INTSIGN = 0x10
-	, FFS_INTHEX = 0x20
-	, FFS_INTOCTAL = 0x40
-};
-
-/** Convert string to integer.
-'dst': int64|int|short|char
-'flags': enum FFS_INT
-Return the number of chars processed.
-Return 0 on error. */
-FF_EXTN uint ffs_toint(const char *src, size_t len, void *dst, int flags);
+#define FFINT_WIDTH  FFS_INTWIDTH
+#define FFINT_HEXLOW  FFS_INTHEX
+#define FFINT_SIGNED  FFS_INTSIGN
+#define FFINT_OCTAL  FFS_INTOCTAL
+#define FFINT_ZEROWIDTH  FFS_INTZERO
 
 #define ffs_toint32(src, len, dst, flags) \
 	ffs_toint(src, len, dst, FFS_INT32 | (flags))
@@ -889,32 +631,7 @@ FF_EXTN uint ffs_toint(const char *src, size_t len, void *dst, int flags);
 #define ffs_toint64(src, len, dst, flags) \
 	ffs_toint(src, len, dst, FFS_INT64 | (flags))
 
-/** Return TRUE on success. */
-#define ffstr_toint(s, dst, flags) \
-	((s)->len != 0 && (s)->len == ffs_toint((s)->ptr, (s)->len, dst, flags))
-
 enum { FFINT_MAXCHARS = FFSLEN("18446744073709551615") };
-
-enum FFINT_TOSTR {
-	FFINT_SIGNED = 1
-	, FFINT_HEXLOW = 2
-	, FFINT_HEXUP = 4
-	, FFINT_OCTAL = 0x20
-	, FFINT_ZEROWIDTH = 8
-	, FFINT_SEP1000 = 0x10 // use thousands separator, e.g. "1,000"
-	, FFINT_NEG = 0x40 // value is always negative
-
-	, _FFINT_WIDTH_MASK = 0xff000000
-	, _FFS_FLT_FRAC_WIDTH_MASK = 0x00ff0000
-};
-
-#define FFINT_WIDTH(width) ((width) << 24)
-#define FFS_INT_WFRAC(width) ((width) << 16)
-
-/** Convert integer to string.
-'flags': enum FFINT_TOSTR
-Return the number of chars written. */
-FF_EXTN uint ffs_fromint(uint64 i, char *dst, size_t cap, int flags);
 
 enum FFS_FROMSIZE {
 	FFS_FROMSIZE_FRAC = 1, //use 1-digit fraction: 1524 -> "1.5k"
@@ -926,16 +643,6 @@ enum FFS_FROMSIZE {
 @flags: enum FFS_FROMSIZE
 Return number of bytes written. */
 FF_EXTN int ffs_fromsize(char *buf, size_t cap, uint64 size, uint flags);
-
-/** Convert string to a floating point number.
-Return the number of chars processed.
-Return 0 on error. */
-FF_EXTN uint ffs_tofloat(const char *s, size_t len, double *dst, int flags);
-
-/** Convert float to string.
-@flags: enum FFINT_TOSTR
-Return bytes written. */
-FF_EXTN uint ffs_fromfloat(double d, char *dst, size_t cap, uint flags);
 
 /** Convert "true" or "false" to boolean integer.
 Return the number of chars processed;  0 on error. */
@@ -949,66 +656,11 @@ FF_EXTN uint ffs_tobool(const char *s, size_t len, ffbool *dst, uint flags);
 Return 0 on success. */
 FF_EXTN int ffs_numlist(const char *d, size_t *len, uint *dst);
 
-enum FFS_HEXSTR {
-	FFS_HEXLOW = 0,
-	FFS_HEXUP = 1,
-};
-
-/** Convert bytes to hex string.
-@flags: enum FFS_HEXSTR.
-Return the number of bytes written. */
-FF_EXTN size_t ffs_hexstr(char *dst, size_t cap, const char *src, size_t len, uint flags);
-
-/** Convert hex string to bytes data.
-dst: if NULL, return the capacity needed
-Return the number of bytes written;  <0 on error. */
-FF_EXTN ssize_t ffs_hex_to_bytes(void *dst, size_t cap, const char *s, size_t len);
+#define ffs_hexstr  ffs_fromhex
+#define ffs_hex_to_bytes  ffs_tohex
 
 
 // FORMATTED I/O - string write/read by %-format string and parameters
-
-/** Formatted output into string.
-Integer:
-%[0][width] [x|X|,] d|u  int|uint
-%[0][width] [x|X|,] D|U  int64|uint64
-%[0][width] [x|X|,] I|L  ssize_t|size_t
-
-Floating-point:
-% [0][width][.width] F  double
-
-Binary data:
-% width|* x|X b  [size_t,] byte*
- e.g. ("%2xb", "AB")  =>  "4142"
-      ("%*xb", (size_t)2, "AB")  =>  "4142"
-
-String:
-% [width|*] s    [size_t,] char*
-%S     ffstr*
-% [width|*] q    [size_t,] ffsyschar*
-%Q     ffqstr*
-
-% [width|*] c  [size_t,] int  (Char)
-
-%p  void*  (Pointer)
-%Z  '\0'  (NULL byte)
-%%  '%'  (Percent sign)
-
-%e  int(enum FFERR)  (System function name)
-%E  int  (System error message)
-
-Return bytes written;  0 on error (bad format string);
- <0 if not enough space: 'cap' bytes were written into 'buf' and "-RESULT" is the total number of bytes needed. */
-FF_EXTN ssize_t ffs_fmtv2(char *buf, size_t cap, const char *fmt, va_list va);
-
-static FFINL ssize_t ffs_fmt2(char *buf, size_t cap, const char *fmt, ...)
-{
-	ssize_t r;
-	va_list args;
-	va_start(args, fmt);
-	r = ffs_fmtv2(buf, cap, fmt, args);
-	va_end(args);
-	return r;
-}
 
 /**
 Return the number of chars written.
@@ -1029,18 +681,6 @@ static FFINL size_t ffs_fmt(char *buf, const char *end, const char *fmt, ...) {
 	r = ffs_fmtv2(buf, end - buf, fmt, args);
 	va_end(args);
 	return (r >= 0) ? r : 0;
-}
-
-/** Add %-formatted data into array's tail (the buffer must be allocated). */
-static inline int ffstr_addfmt(ffstr *s, size_t cap, const char *fmt, ...)
-{
-	va_list args;
-	va_start(args, fmt);
-	ssize_t n = ffs_fmtv2(s->ptr + s->len, cap - s->len, fmt, args);
-	va_end(args);
-	if (n > 0)
-		s->len += n;
-	return n;
 }
 
 /** Match string by format:

@@ -321,10 +321,10 @@ int ffurl_joinstr(ffstr *dst, const ffstr *scheme, const ffstr *host, uint port,
 	char *p = a.ptr;
 	const char *end = ffarr_edge(&a);
 
-	p += ffs_lower(p, end, scheme->ptr, scheme->len);
+	p += ffs_lower(p, end - p, scheme->ptr, scheme->len);
 	p = ffs_copy(p, end, "://", 3);
 
-	p += ffs_lower(p, end, host->ptr, host->len);
+	p += ffs_lower(p, end - p, host->ptr, host->len);
 
 	if (port != 0) {
 		FF_ASSERT(0 == (port & ~0xffff));

@@ -82,7 +82,7 @@ typedef struct ffgz_cook {
 	uint64 insize;
 
 	ffstr out;
-	ffarr2 buf;
+	ffstr buf;
 	uint64 outsize;
 
 	uint flush;

@@ -32,7 +32,7 @@ const char* ffalac_errstr(ffalac *a)
 	else if (a->err == EINIT)
 		return "bad magic cookie";
 
-	uint n = ffs_fromint(a->err, a->serr, sizeof(a->serr), FFINT_SIGNED);
+	uint n = ffs_fromint(a->err, a->serr, sizeof(a->serr) - 1, FFS_INTSIGN);
 	a->serr[n] = '\0';
 	return a->serr;
 }

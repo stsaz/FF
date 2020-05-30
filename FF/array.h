@@ -341,8 +341,6 @@ FF_EXTN void _ffarr_crop(ffarr *ar, size_t off, size_t n, size_t elsz);
 
 typedef ffarr ffstr3;
 
-#define FFSTR_INIT(s)  { FFSLEN(s), (char*)(s) }
-
 #define FFSTR2(s)  (s).ptr, (s).len
 
 static FFINL void ffstr_acq(ffstr *dst, ffstr *src) {
@@ -356,46 +354,14 @@ static FFINL void ffstr_acqstr3(ffstr *dst, ffstr3 *src) {
 	ffarr_null(src);
 }
 
-#define ffstr_alloc(s, cap)  ffarr2_alloc((ffarr2*)s, cap, sizeof(char))
-
-#define ffstr_free(s)  ffarr2_free(s)
-
 static FFINL size_t ffstr_cat(ffstr *s, size_t cap, const char *d, size_t len) {
-	return ffarr2_add((ffarr2*)s, cap, d, len, sizeof(char));
+	return ffstr_add(s, cap, d, len);
 }
 
-static FFINL char* ffstr_dup(ffstr *s, const char *d, size_t len) {
-	if (NULL == ffstr_alloc(s, len))
-		return NULL;
-	ffstr_cat(s, len, d, len);
-	return s->ptr;
-}
 #define ffstr_copy(dst, d, len)  ffstr_dup(dst, d, len)
 
 #define ffstr_alcopyz(dst, sz)  ffstr_copy(dst, sz, ffsz_len(sz))
 #define ffstr_alcopystr(dst, src)  ffstr_copy(dst, (src)->ptr, (src)->len)
-
-
-#if defined FF_UNIX
-typedef ffstr3 ffqstr3;
-#define ffqstr_set ffstr_set
-#define ffqstr_alloc ffstr_alloc
-#define ffqstr_free ffstr_free
-
-#elif defined FF_WIN
-
-typedef struct { FFARR(ffsyschar) } ffqstr3;
-
-static FFINL void ffqstr_set(ffqstr *s, const ffsyschar *d, size_t len) {
-	ffarr_set(s, (ffsyschar*)d, len);
-}
-
-#define ffqstr_alloc(s, cap) \
-	((ffsyschar*)ffstr_alloc((ffstr*)(s), (cap) * sizeof(ffsyschar)))
-
-#define ffqstr_free(s)  ffstr_free((ffstr*)(s))
-
-#endif
 
 /** Trim data by absolute bounds.
 Return the number of bytes processed from the beginning. */
@@ -406,50 +372,36 @@ static FFINL void ffstr3_cat(ffstr3 *s, const char *d, size_t len) {
 	ffstr_cat((ffstr*)s, s->cap, d, len);
 }
 
-FF_EXTN size_t ffstr_catfmtv(ffstr3 *s, const char *fmt, va_list args);
+static inline size_t ffstr_catfmtv(ffstr3 *s, const char *fmt, va_list va)
+{
+	va_list args;
+	va_copy(args, va);
+	ffsize r = ffstr_growfmtv((ffstr*)s, &s->cap, fmt, args);
+	va_end(args);
+	return r;
+}
 
-static FFINL size_t ffstr_catfmt(ffstr3 *s, const char *fmt, ...) {
-	size_t r;
+static inline size_t ffstr_catfmt(ffstr3 *s, const char *fmt, ...)
+{
 	va_list args;
 	va_start(args, fmt);
-	r = ffstr_catfmtv(s, fmt, args);
+	ffsize r = ffstr_growfmtv((ffstr*)s, &s->cap, fmt, args);
 	va_end(args);
 	return r;
 }
 
 static inline size_t ffstr_fmt(ffstr3 *s, const char *fmt, ...)
 {
-	size_t r;
 	va_list args;
 	va_start(args, fmt);
 	s->len = 0;
-	r = ffstr_catfmtv(s, fmt, args);
+	ffsize r = ffstr_growfmtv((ffstr*)s, &s->cap, fmt, args);
 	va_end(args);
 	return r;
 }
 
-/** Formatted output to a newly allocated NULL-terminated string. */
-static FFINL char* _ffsz_alfmt(const char *fmt, ...)
-{
-	size_t r;
-	ffarr a = {};
-	va_list args;
-	va_start(args, fmt);
-	r = ffstr_catfmtv(&a, fmt, args);
-	va_end(args);
-	if (r == 0)
-		ffarr_free(&a);
-	return a.ptr;
-}
-static inline char* ffsz_alfmtv(const char *fmt, va_list args)
-{
-	ffarr a = {};
-	if ((0 == ffstr_catfmtv(&a, fmt, args) && a.len != 0)
-		|| 0 == ffarr_append(&a, "", 1))
-		ffarr_free(&a);
-	return a.ptr;
-}
-#define ffsz_alfmt(fmt, ...) _ffsz_alfmt(fmt "%Z", __VA_ARGS__)
+#define ffsz_alfmtv  ffsz_allocfmtv
+#define ffsz_alfmt  ffsz_allocfmt
 
 /** Formatted output into a file.
 'buf': optional buffer. */
@@ -482,7 +434,10 @@ static inline ffstr ffbuf_addstr(ffarr *buf, ffstr *in)
 	return out;
 }
 
-FF_EXTN ssize_t ffarr_gather2(ffarr *ar, const char *d, size_t len, size_t until, ffstr *out);
+static inline ssize_t ffarr_gather2(ffarr *ar, const char *d, size_t len, size_t until, ffstr *out)
+{
+	return ffstr_gather((ffstr*)ar, &ar->cap, d, len, until, out);
+}
 
 
 struct ffbuf_gather {

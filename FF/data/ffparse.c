@@ -133,7 +133,7 @@ static int _ffpars_str(const ffpars_arg *a, const ffstr *val, void *obj, void *p
 {
 	uint f, t;
 	ffbool func;
-	ffstr tmp;
+	ffstr tmp = {};
 	int er = 0;
 	union ffpars_val dst;
 

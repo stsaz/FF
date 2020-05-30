@@ -239,7 +239,7 @@ enum { W_FIRST, W_HDR, W_DATA, W_TRL, W_DONE };
 
 void ffgz_wclose(ffgz_cook *gz)
 {
-	ffarr2_free(&gz->buf);
+	ffstr_free(&gz->buf);
 	FF_SAFECLOSE(gz->lz, NULL, z_deflate_free);
 }
 
@@ -264,10 +264,11 @@ int ffgz_wfile(ffgz_cook *gz, const char *name, const fftime *mtime)
 
 	if (name != NULL)
 		ffpath_split2(name, ffsz_len(name), NULL, &nm);
-	if (NULL == ffarr2_alloc(&gz->buf, 1, sizeof(ffgzheader) + nm.len + 1))
+	ffuint cap = sizeof(ffgzheader) + nm.len + 1;
+	if (NULL == ffstr_alloc(&gz->buf, cap))
 		return ERR(gz, FFGZ_ESYS);
 
-	ffarr2_addf(&gz->buf, &gz_defhdr, sizeof(gz_defhdr), sizeof(char));
+	ffstr_add(&gz->buf, cap, &gz_defhdr, sizeof(gz_defhdr));
 	ffgzheader *h = (void*)gz->buf.ptr;
 	time_t t = 0;
 	if (mtime != NULL) {
@@ -278,7 +279,7 @@ int ffgz_wfile(ffgz_cook *gz, const char *name, const fftime *mtime)
 
 	if (name != NULL) {
 		h->flags |= GZ_FNAME;
-		ffarr2_addf(&gz->buf, nm.ptr, nm.len + 1, sizeof(char));
+		ffstr_add(&gz->buf, cap, nm.ptr, nm.len + 1);
 	}
 
 	gz->state = W_HDR;
@@ -326,7 +327,7 @@ int ffgz_write(ffgz_cook *gz, char *dst, size_t cap)
 	}
 
 	case W_TRL: {
-		ffgztrailer *trl = gz->buf.ptr;
+		ffgztrailer *trl = (void*)gz->buf.ptr;
 		ffint_htol32(trl->crc32, gz->crc);
 		ffint_htol32(trl->isize, (uint)gz->insize);
 		ffstr_set(&gz->out, gz->buf.ptr, sizeof(ffgztrailer));

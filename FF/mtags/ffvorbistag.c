@@ -125,13 +125,14 @@ int ffvorbtag_add(ffvorbtag_cook *v, const char *name, const char *val, size_t v
 		v->vendor_off = v->out.len;
 		ffint_htol32(d, len);
 		d += 4;
-		d = ffmem_copy(d, val, vallen) + 4;
+		ffmem_copy(d, val, vallen);
+		d += vallen + 4;
 		goto done;
 	}
 
 	ffint_htol32(d, len);
 	d += 4;
-	d += ffs_upper(d, end, name, namelen);
+	d += ffs_upper(d, end - d, name, namelen);
 	*d++ = '=';
 	d = ffmem_copy(d, val, vallen);
 

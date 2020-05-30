@@ -31,7 +31,7 @@ int ffico_open(ffico *c)
 
 void ffico_close(ffico *c)
 {
-	ffstr_free(&c->ents);
+	ffslice_free(&c->ents);
 	ffarr_free(&c->buf);
 }
 
