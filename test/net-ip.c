@@ -127,24 +127,30 @@ static int test_ip6()
 		x(0 == memcmp(&a6, ip6, 16));
 	}
 
-	uint subnet;
-
-	x(0 == ffip6_parse_wildcard(&a6, FFSTR("100:*"), &subnet));
-	x(!memcmp(&a6, "\x01\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0", 16) && subnet == 2 * 8);
-
-	x(0 == ffip6_parse_wildcard(&a6, FFSTR("100:1234:*"), &subnet));
-	x(!memcmp(&a6, "\x01\0\x12\x34\0\0\0\0\0\0\0\0\0\0\0\0", 16) && subnet == 4 * 8);
-
 	x(0 != ffip6_parse(&a6, FFSTR("1234:")));
+	x(0 != ffip6_parse(&a6, FFSTR("1234::1234:")));
 	x(0 != ffip6_parse(&a6, FFSTR(":1234")));
 	x(0 != ffip6_parse(&a6, FFSTR(":::")));
 	x(0 != ffip6_parse(&a6, FFSTR("::1::")));
 	x(0 != ffip6_parse(&a6, FFSTR("0:12345::")));
 	x(0 != ffip6_parse(&a6, FFSTR("0:123z::")));
 	x(0 != ffip6_parse(&a6, FFSTR("0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:1")));
-	x(0 != ffip6_parse_wildcard(&a6, FFSTR("*:100"), &subnet));
-	x(0 != ffip6_parse_wildcard(&a6, FFSTR("0:*:100"), &subnet));
 
+	x(128 == ffip6_parse_subnet(&a6, FFSTR("123::abcd:0:0:6789:abcd/128")));
+	x(!memcmp(&a6, "\x01\x23\0\0\0\0\xab\xcd\0\0\0\0\x67\x89\xab\xcd", 16));
+	x(128 == ffip6_parse_subnet(&a6, FFSTR("123::abcd:0:0:6789:abc/128")));
+	x(!memcmp(&a6, "\x01\x23\0\0\0\0\xab\xcd\0\0\0\0\x67\x89\x0a\xbc", 16));
+	x(128 == ffip6_parse_subnet(&a6, FFSTR("123::/128")));
+	x(128 == ffip6_parse_subnet(&a6, FFSTR("::123/128")));
+	x(128 == ffip6_parse_subnet(&a6, FFSTR("::/128")));
+	x(0 > ffip6_parse_subnet(&a6, FFSTR("123::abcd:0:0:6789:abcd0/128")));
+	x(0 > ffip6_parse_subnet(&a6, FFSTR("123::abcd:0:0:6789:/128")));
+
+	ffip4 a4;
+	ffip4_parse(&a4, FFSTR("1.2.3.4"));
+	ffip6_v4mapped_set(&a6, &a4);
+	x(ffip6_v4mapped(&a6));
+	x(0 == ffip4_cmp(ffip6_tov4(&a6), &a4));
 	return 0;
 }
 

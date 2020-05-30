@@ -177,23 +177,17 @@ static inline void ffip6_v4mapped_set(ffip6 *ip6, const ffip4 *ip4)
 	uint *i = (uint*)ip6->a;
 	i[0] = i[1] = 0;
 	i[2] = ffhton32(0x0000ffff);
-	i[3] = ffhton32(*(uint*)ip4);
+	i[3] = *(uint*)ip4;
 }
 
 /** Parse IPv6 address.
-'subnet': (output) subnet mask (multiple of 16)
-Return 0 on success.
-Note: v4-mapped address is not supported. */
-FF_EXTN int ffip6_parse_wildcard(void *addr, const char *s, size_t len, uint *subnet);
+Note: v4-mapped address is not supported.
+Return 0 on success. */
+FF_EXTN int ffip6_parse(void *addr, const char *s, size_t len);
 
-static FFINL int ffip6_parse(void *addr, const char *s, size_t len)
-{
-	uint subnet;
-	int r = ffip6_parse_wildcard(addr, s, len, &subnet);
-	if (subnet != 16 * 8)
-		return -1;
-	return r;
-}
+/** Parse "1:1:1::/64"
+Return subnet mask bits;  <0 on error. */
+FF_EXTN int ffip6_parse_subnet(ffip6 *ip6, const char *s, size_t len);
 
 /** Convert IPv6 address to string.
 Return the number of characters written.

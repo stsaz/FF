@@ -176,61 +176,36 @@ int ffip4hdr_tostr(ffip4hdr *ip4, char *buf, size_t cap)
 }
 
 
-int ffip6_parse_wildcard(void *a, const char *s, size_t len, uint *subnet)
+int ffip6_parse(void *a, const char *s, size_t len)
 {
-	uint i, chunk = 0, ndigs = 0;
+	uint i, chunk = 0, ndigs = 0, idst = 0;
 	char *dst = (char*)a;
-	const char *end = (char*)a + 16, *zr = NULL;
-	int hx;
+	int hx, izero = -1;
 
 	for (i = 0;  i != len;  i++) {
 		int b = s[i];
 
-		if (dst == end)
+		if (idst == 16)
 			return -1; // too large input
 
 		if (b == ':') {
 
-			if (ndigs == 0) { // "::"
-				uint k;
-
-				if (i == 0) {
+			if (ndigs == 0) { // ":" or "...::"
+				if (i == 0) { // ":"
 					i++;
 					if (i == len || s[i] != ':')
 						return -1; // ":" or ":?"
-				}
-
-				if (zr != NULL)
+				} else if (izero >= 0)
 					return -1; // second "::"
-
-				// count the number of chunks after zeros
-				zr = end;
-				if (i != len - 1)
-					zr -= 2;
-				for (k = i + 1;  k < len;  k++) {
-					if (s[k] == ':')
-						zr -= 2;
-				}
-
-				// fill with zeros
-				while (dst != zr)
-					*dst++ = '\0';
-
+				izero = idst;
 				continue;
 			}
 
-			*dst++ = chunk >> 8;
-			*dst++ = chunk & 0xff;
+			dst[idst++] = chunk >> 8;
+			dst[idst++] = chunk & 0xff;
 			ndigs = 0;
 			chunk = 0;
 			continue;
-		}
-
-		if (ndigs == 0 && b == '*' && i + 1 == len) {
-			// "1:2:*"
-			*subnet = (dst - (char*)a) * 8;
-			ffmem_zero(dst, end - dst);
-			return 0;
 		}
 
 		if (ndigs == 4)
@@ -244,16 +219,48 @@ int ffip6_parse_wildcard(void *a, const char *s, size_t len, uint *subnet)
 		ndigs++;
 	}
 
-	if (ndigs != 0) {
-		*dst++ = chunk >> 8;
-		*dst++ = chunk & 0xff;
+	if (ndigs == 0 && (uint)izero != idst)
+		return -1; // ':' at the end, but not "...::"
+	else if (ndigs != 0) {
+		dst[idst++] = chunk >> 8;
+		dst[idst++] = chunk & 0xff;
 	}
 
-	if (dst != end)
+	if (izero >= 0) {
+		// "123" -> "1.....23"
+		uint nzero = 16 - idst;
+		// move(&dst[izero + nzero], &dst[izero], idst - izero);
+		// zero(&dst[izero], nzero);
+		uint src = idst - 1;
+		for (int k = 16-1;  k >= (int)(izero + nzero);  k--) {
+			dst[k] = dst[src--];
+		}
+		for (uint k = izero;  k != izero + nzero;  k++) {
+			dst[k] = 0x00;
+		}
+		return 0;
+	}
+
+	if (idst != 16)
 		return -1; // too small input
 
-	*subnet = 16 * 8;
 	return 0;
+}
+
+int ffip6_parse_subnet(ffip6 *ip6, const char *s, size_t len)
+{
+	uint subnet, r;
+	ffstr ip, sn;
+	ffs_rsplit2by(s, len, '/', &ip, &sn);
+	r = ffip6_parse(ip6, ip.ptr, ip.len);
+	if (r != 0)
+		return -1;
+
+	if (!ffstr_to_uint32(&sn, &subnet)
+		|| subnet == 0 || subnet > 128)
+		return -1;
+
+	return subnet;
 }
 
 size_t ffip6_tostr(char *dst, size_t cap, const void *addr)
