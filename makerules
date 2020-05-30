@@ -4,7 +4,7 @@
 FF_OBJ_DIR := ./ff-obj
 override FF_CFLAGS += \
 	-Wall -Wextra -Wpointer-arith -Wno-unused-parameter \
-	-I$(FF) -I$(FF)-3pt -I$(FFOS)
+	-I$(FFBASE) -I$(FF) -I$(FF)-3pt -I$(FFOS)
 FF_CFLAGS_EX := -Wno-implicit-fallthrough
 
 ifeq ($(LD),clang)
@@ -29,7 +29,7 @@ FF_SRC := $(FF)/FF/ffcrc.c \
 	$(FF)/FF/ffstring.c \
 	$(FF)/FF/fftime.c
 
-FF_HDR := $(FFOS_HDR) $(wildcard $(FF)/FF/*.h)
+FF_HDR := $(wildcard $(FFBASE)/ffbase/*.h) $(FFOS_HDR) $(wildcard $(FF)/FF/*.h)
 
 # FF_OBJ=$(FF_SRC:.c=.o)
 FF_OBJ := $(addprefix $(FF_OBJ_DIR)/, $(addsuffix .o, $(notdir $(basename $(FF_SRC)))))

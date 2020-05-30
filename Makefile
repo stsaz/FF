@@ -2,6 +2,7 @@
 
 ROOT := ..
 FFOS = $(ROOT)/ffos
+FFBASE := $(ROOT)/ffbase
 FF = $(ROOT)/ff
 FF3PT := $(ROOT)/ff-3pt
 DEBUG := 1
@@ -15,13 +16,16 @@ else
 FF_TEST_BIN := fftest
 endif
 
+# CFLAGS += -DFF_WIN=0x0501
 FFOS_CFLAGS := $(CFLAGS) -Werror
-FF_CFLAGS := $(CFLAGS) -DFFHST_DEBUG -Werror
+FF_CFLAGS := $(CFLAGS) -DFFHST_DEBUG -DFFBASE_HAVE_FFERR_STR -Werror
 CFLAGS += -Werror -Wall -Wextra -Wno-unused-parameter -Wno-sign-compare \
-	-DFF_NO_OBSOLETE -DFFHST_DEBUG \
-	-I$(FF) -I$(FF3PT) -I$(FFOS)
+	-DFFBASE_HAVE_FFERR_STR -DFF_NO_OBSOLETE -DFFHST_DEBUG \
+	-I$(FFBASE) -I$(FF) -I$(FF3PT) -I$(FFOS)
 CXXFLAGS += -Werror -Wall \
-	-I$(FF) -I$(FF3PT) -I$(FFOS)
+	-I$(FFBASE) -I$(FF) -I$(FF3PT) -I$(FFOS)
+# CFLAGS += -fsanitize=address
+# LDFLAGS += -fsanitize=address
 
 all: ff $(FF_TEST_BIN)
 

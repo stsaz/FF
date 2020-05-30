@@ -4,7 +4,7 @@ FAST-FORWARD (FF) LIBRARY
 
 FF library contains a huge amount of useful functionality helping to develop applications in C and C++ faster.  It boosts development speed and also encourages developers to make the right design choices, splitting their project code into an application code and a bunch of service functions that can be reused in any other project.
 
-FF is built on top of FFOS which provides cross-platform abilities.  FF is written with all 3 aspects in mind:
+FF is built on top of ffbase library which provides base algorithms and FFOS library which provides cross-platform abilities.  FF is written with all 3 aspects in mind:
 
 * Performance.
 One of the key aspects of the library: it is designed to run 24/7 in server environment.

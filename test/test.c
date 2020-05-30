@@ -167,12 +167,12 @@ struct test_s {
 
 #define F(nm) { #nm, (int (*)())&test_ ## nm }
 static const struct test_s _fftests[] = {
-	F(str), F(regex)
-	, F(num), F(sort), F(bits), F(list), F(rbtree), F(rbtlist), F(htable), F(ring), F(ringbuf), F(tq), F(crc)
-	, F(file), F(fmap), F(time), F(timerq), F(sendfile), F(path), F(direxp), F(env), F(sig)
-	, F(ip),
-	F(url), F(http), F(dns), F(icy), F(tls), F(webskt)
-	, F(json), F(conf), F(conf_write), F(args), F(cue), F(xml),
+	F(str), F(regex),
+	F(num), F(bits), F(rbtree), F(rbtlist), F(htable), F(ring), F(ringbuf), F(tq), F(crc),
+	F(file), F(fmap), F(time), F(timerq), F(sendfile), F(path), F(direxp),
+	//F(sig),
+	F(ip), F(url), F(http), F(dns), F(icy), F(tls), F(webskt),
+	F(json), F(conf), F(conf_write), F(args), F(cue), F(xml),
 	F(tar), F(iso),
 	F(dns_client),
 	F(cache),
