@@ -22,7 +22,6 @@ FF_SRC := $(FF)/FF/ffcrc.c \
 	$(FF)/FF/ffhashtab.c \
 	$(FF)/FF/ffring.c \
 	$(FF)/FF/fflist.c \
-	$(FF)/FF/ffnumber.c \
 	$(FF)/FF/ffpath.c \
 	$(FF)/FF/ffrbtree.c \
 	$(FF)/FF/ffs-regex.c \

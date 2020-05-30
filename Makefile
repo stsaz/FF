@@ -31,7 +31,7 @@ all: ff $(FF_TEST_BIN)
 
 clean:
 	rm -vf $(FF_TEST_BIN) \
-		$(FF_TEST_OBJ) $(FF_OBJ) $(FF_OBJ_DIR)/ffdbg.o $(FF_OBJ_DIR)/fftest.o \
+		$(FF_TEST_OBJ) $(FF_TEST_O) $(FF_OBJ) $(FF_OBJ_DIR)/fftest.o \
 		$(FFOS_OBJ) $(FFOS_SKT) $(FFOS_THD)
 
 include $(FF)/makerules
@@ -62,7 +62,6 @@ FF_TEST_OBJ += $(FF_OBJ_DIR)/sha1.o $(FF_OBJ_DIR)/base64.o
 FF_TEST_O := $(FFOS_OBJ) $(FF_OBJ) \
 	$(FFOS_THD) \
 	$(FFOS_SKT) \
-	$(FF_OBJ_DIR)/ffdbg.o \
 	$(FF_OBJ_DIR)/fftmr.o \
 	$(FF_OBJ_DIR)/ffhttp.o $(FF_OBJ_DIR)/ffproto.o $(FF_OBJ_DIR)/ffurl.o $(FF_OBJ_DIR)/ffdns.o \
 	$(FF_OBJ_DIR)/fficy.o \
@@ -92,7 +91,6 @@ copy:
 	cp -ur $(FF)/test/  .
 
 FF_TESTSSL_O := $(FFOS_OBJ) $(FF_OBJ) \
-	$(FF_OBJ_DIR)/ffdbg.o \
 	$(FF_OBJ_DIR)/ffutf8.o \
 	$(FF_OBJ_DIR)/ffparse.o \
 	$(FF_OBJ_DIR)/ffssl.o \
@@ -102,7 +100,6 @@ fftest-ssl: $(FF_TESTSSL_O)
 	$(LD) $(FF_TESTSSL_O) $(LDFLAGS) -L$(FF3PT)-bin/$(OS)-$(ARCH) -lcrypto -lssl $(LD_LDL)  -o$@
 
 FF_TEST_SQLITE_O := $(FFOS_OBJ) $(FF_OBJ) \
-	$(FF_OBJ_DIR)/ffdbg.o \
 	$(FF_OBJ_DIR)/ffutf8.o \
 	$(FF_OBJ_DIR)/ffparse.o \
 	$(FF_OBJ_DIR)/fftest.o \
@@ -111,7 +108,6 @@ fftest-sqlite: ff-obj $(FF_TEST_SQLITE_O)
 	$(LD) $(FF_TEST_SQLITE_O) $(LDFLAGS) -L$(FF3PT)-bin/$(OS)-$(ARCH) -lsqlite3-ff  -o$@
 
 FF_TEST_PGSQL_O := $(FFOS_OBJ) $(FF_OBJ) \
-	$(FF_OBJ_DIR)/ffdbg.o \
 	$(FF_OBJ_DIR)/ffutf8.o \
 	$(FF_OBJ_DIR)/ffparse.o \
 	$(FF_OBJ_DIR)/fftest.o \

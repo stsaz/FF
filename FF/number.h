@@ -4,7 +4,8 @@ Copyright (c) 2015 Simon Zolin
 
 #pragma once
 
-#include <FFOS/types.h>
+#include <FFOS/mem.h>
+#include <ffbase/slice.h>
 
 #ifdef FF_AMD64
 #include <emmintrin.h> //SSE2
@@ -234,23 +235,10 @@ static FFINL int ffint_ftoi(double d)
 }
 
 
-/** Search number within array. */
-FF_EXTN ssize_t ffint_find1(const byte *arr, size_t n, int search);
-FF_EXTN ssize_t ffint_find2(const ushort *arr, size_t n, uint search);
-FF_EXTN ssize_t ffint_find4(const uint *arr, size_t n, uint search);
+#define ffint_find1  ffarrint8_find
+#define ffint_find2  ffarrint16_find
+#define ffint_find4  ffarrint32_find
+#define ffint_binfind1  ffarrint8_binfind
+#define ffint_binfind4  ffarrint32_binfind
 
-/** Binary search integer. */
-FF_EXTN ssize_t ffint_binfind1(const byte *arr, size_t n, uint search);
-FF_EXTN ssize_t ffint_binfind4(const uint *arr, size_t n, uint search);
-
-
-FF_EXTN void ffint_sort(uint *arr, size_t n, uint flags);
-
-/** Return 0: (a == b);  -1: (a < b);  1: (a > b). */
-typedef int (*ffsortcmp)(const void *a, const void *b, void *udata);
-
-/** Sort array elements.
-Uses merge-sort with insertion-sort.
-n: number of elements
-sz: size of 1 element */
-FF_EXTN void ffsort(void *data, size_t n, size_t sz, ffsortcmp cmp, void *udata);
+#define ffint_sort(arr, n, flags)  ffarrint32_sort(arr, n)

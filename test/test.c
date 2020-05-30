@@ -144,7 +144,6 @@ FF_EXTN int test_ringbuf(void);
 FF_EXTN int test_tq(void);
 FF_EXTN int test_regex(void);
 FF_EXTN int test_num(void);
-extern int test_sort(void);
 FF_EXTN int test_inchk_speed(void);
 FF_EXTN int test_cue(void);
 extern int test_xml(void);
