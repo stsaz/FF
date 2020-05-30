@@ -6,6 +6,8 @@ Copyright (c) 2013 Simon Zolin
 #include <FFOS/dir.h>
 
 
+static const char ffpath_fn_restricted_win[] = "/\\:*\"?<>|\0";
+
 size_t ffpath_norm(char *dst, size_t dstcap, const char *path, size_t len, int flags)
 {
 	ffstr name;
@@ -87,7 +89,7 @@ size_t ffpath_norm(char *dst, size_t dstcap, const char *path, size_t len, int f
 
 		} else {
 			if (flags & FFPATH_WINDOWS) {
-				if (ffarr_end(&name) != ffs_findof(name.ptr, name.len, "*?:\"\0", 5))
+				if (-1 != ffstr_findanyz(&name, ffpath_fn_restricted_win))
 					return 0;
 			} else {
 				if (ffarr_end(&name) != ffs_find(name.ptr, name.len, '\0'))
