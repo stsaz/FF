@@ -702,55 +702,6 @@ int test_regex(void)
 	return 0;
 }
 
-static void test_utf(void)
-{
-	char utf8[FFUTF8_MAXCHARLEN];
-	char utf16[8];
-	size_t sl, r;
-	uint n;
-
-	FFTEST_FUNC;
-
-	x(2 == ffutf8_size(0x044f));
-	x(2 == ffutf8_encode1(utf8, 2, 0x044f));
-	x(!memcmp(utf8, "\xd1\x8f", 2));
-
-	x(2 == ffutf8_decode1("\xd1\x8f", 2, &n) && n == 0x044f);
-	x(3 == ffutf8_decode1("\xef\xbf\xbd\x00", 4, &n) && n == 0xfffd);
-	x(-3 == ffutf8_decode1("\xef\xbf", 2, &n));
-	x(0 == ffutf8_decode1("\xff", 1, &n));
-
-	sl = 2;
-	x(2 == (r = ffutf8_encode(NULL, 0, "\xfc\x00", &sl, FFU_UTF16LE)) && sl == 2);
-
-	sl = 2;
-	x(2 == (r = ffutf8_encode(utf8, 2, "\xfc\x00", &sl, FFU_UTF16LE)) && sl == 2);
-
-	sl = 2;
-	x(2 == (r = ffutf8_encode(utf8, 2, "\x00\xfc", &sl, FFU_UTF16BE)) && sl == 2);
-
-	//not enough output space
-	sl = 2;
-	x(0 == (r = ffutf8_encode(utf8, 1, "\xfc\x00", &sl, FFU_UTF16LE)) && sl == 0);
-
-	//incomplete input
-	sl = 1;
-	x(0 == (r = ffutf8_encode(utf8, 2, "\xfc", &sl, FFU_UTF16LE)) && sl == 0);
-
-	x(3 == (r = ffutf8_encodewhole(utf8, 3, "\xfc", 1, FFU_UTF16LE)));
-
-
-	sl = 4;
-	x(FFU_UTF8 == ffutf_bom("\xef\xbb\xbf\x00", &sl) && sl == 3);
-
-	r = 4;
-	x(4 == ffutf8_to_utf16(NULL, 0, "\xd1\x8f\xd1\x8f", &r, FFU_FWHOLE | FFU_UTF16BE)
-		&& r == 4);
-	x(4 == ffutf8_to_utf16(utf16, sizeof(utf16), "\xd1\x8f\xd1\x8f", &r, FFU_FWHOLE | FFU_UTF16BE)
-		&& r == 4);
-	x(!memcmp(utf16, "\x04\x4f\x04\x4f", 4));
-}
-
 static void test_str_fromsize(void)
 {
 	char buf[32];
@@ -973,7 +924,6 @@ int test_str()
 
 	test_bstr();
 	test_wildcard();
-	test_utf();
 	test_str_fromsize();
 	test_str_crop();
 	test_str_contig();

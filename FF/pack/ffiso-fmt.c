@@ -111,8 +111,7 @@ static void iso_writename(char *dst, size_t cap, const char *s)
 
 static void iso_writename16(char *dst, size_t cap, const char *s)
 {
-	size_t n = ffsz_len(s);
-	uint i = ffutf8_to_utf16(dst, cap, s, &n, FFU_FWHOLE | FFU_UTF16BE);
+	uint i = ffutf8_to_utf16(dst, cap, s, ffsz_len(s), FFUNICODE_UTF16BE);
 	for (;  i != cap;  i += 2) {
 		dst[i] = '\0';
 		dst[i + 1] = ' ';
@@ -223,8 +222,7 @@ done:
 
 int iso_ent_write(void *buf, size_t cap, const struct ffiso_file *f, uint64 off, uint flags)
 {
-	uint nlen, fnlen, reserved, rrlen;
-	size_t n;
+	uint fnlen, reserved, rrlen;
 	FF_ASSERT(f->name.len != 0);
 
 	reserved = 0;
@@ -235,12 +233,13 @@ int iso_ent_write(void *buf, size_t cap, const struct ffiso_file *f, uint64 off,
 
 	// determine filename length
 	if (reserved)
-		nlen = fnlen = 1;
+		fnlen = 1;
 	else if (flags & ENT_WRITE_JLT) {
-		n = f->name.len;
 		// Note: by spec these chars are not supported: 0x00..0x1f, * / \\ : ; ?
-		nlen = ffutf8_to_utf16(NULL, 0, f->name.ptr, &n, FFU_FWHOLE | FFU_UTF16BE);
-		fnlen = nlen;
+		ffssize ss = ffutf8_to_utf16(NULL, 0, f->name.ptr, f->name.len, FFUNICODE_UTF16BE);
+		if (ss < 0)
+			return -FFISO_ELARGE; // can't encode into UTF-16
+		fnlen = ss;
 
 	} else {
 		fnlen = iso_ent_name_write(NULL, &f->name, f->attr);
@@ -283,8 +282,7 @@ int iso_ent_write(void *buf, size_t cap, const struct ffiso_file *f, uint64 off,
 	if (reserved)
 		ent->name[0] = f->name.ptr[0];
 	else if (flags & ENT_WRITE_JLT) {
-		n = f->name.len;
-		ffutf8_to_utf16((char*)ent->name, 255, f->name.ptr, &n, FFU_FWHOLE | FFU_UTF16BE);
+		ffutf8_to_utf16((char*)ent->name, 255, f->name.ptr, f->name.len, FFUNICODE_UTF16BE);
 	} else {
 		iso_ent_name_write((char*)ent->name, &f->name, f->attr);
 	}
@@ -489,8 +487,7 @@ int iso_pathent_write(void *dst, size_t cap, const ffstr *name, uint extent, uin
 	if (reserved)
 		p->name[0] = '\0';
 	else if (flags & PATHENT_WRITE_JLT) {
-		size_t n = name->len;
-		ffutf8_to_utf16((char*)p->name, 255, name->ptr, &n, FFU_FWHOLE | FFU_UTF16BE);
+		ffutf8_to_utf16((char*)p->name, 255, name->ptr, name->len, FFUNICODE_UTF16BE);
 	} else
 		iso_ent_name_write((char*)p->name, name, FFUNIX_FILE_DIR);
 
