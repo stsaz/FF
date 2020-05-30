@@ -288,10 +288,12 @@ int test_bits()
 	i = (size_t)-1;
 	x(0 != ffbit_reset(&i, 31));
 
+#ifdef FF_64
 	i8 = 0x8800000000000000ULL;
 	x(63-4 == ffbit_ffs64(i8)-1);
 	i8 = 0;
 	x(0 == ffbit_ffs64(i8));
+#endif
 	i4 = 0x88000000;
 	x(31-4 == ffbit_ffs32(i4)-1);
 	i4 = 0;

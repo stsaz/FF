@@ -144,6 +144,9 @@ static inline size_t ffconf_writeln(ffconfw *c, const ffstr *data, uint flags)
 {
 	return ffconf_writestr(c, data, FFCONF_TKEY | FFCONF_ASIS | flags);
 }
+
+/**
+intflags: enum FFS_FROMINT */
 static FFINL size_t ffconf_writeint(ffconfw *c, int64 data, uint intflags, uint flags)
 {
 	char buf[64];

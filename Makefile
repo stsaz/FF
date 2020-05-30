@@ -54,9 +54,9 @@ FF_TEST_SRC := \
 FF_TEST_OBJ := $(addprefix ./, $(addsuffix .o, $(notdir $(basename $(FF_TEST_SRC)))))
 FF_TEST_OBJ += $(FF_OBJ_DIR)/sha1.o $(FF_OBJ_DIR)/base64.o
 
-./%.o: $(FF)/test/%.c $(FF_HDR) $(FF_TEST_HDR)
+./%.o: $(FF)/test/%.c $(FF_HDR) $(FF_TEST_HDR) $(FF)/Makefile
 	$(C) $(CFLAGS)  $< -o$@
-./%.o: $(FF)/test/%.cpp $(FF_HDR) $(FF_TEST_HDR)
+./%.o: $(FF)/test/%.cpp $(FF_HDR) $(FF_TEST_HDR) $(FF)/Makefile
 	$(CXX) $(CXXFLAGS)  $< -o$@
 
 FF_TEST_O := $(FFOS_OBJ) $(FF_OBJ) \

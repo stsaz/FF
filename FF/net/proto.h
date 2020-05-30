@@ -124,6 +124,7 @@ typedef struct ffip4hdr {
 } ffip4hdr;
 
 enum FFIP4_PROTO {
+	FFIP_ICMP = 1,
 	FFIP_TCP = 6,
 	FFIP_UDP = 17,
 };

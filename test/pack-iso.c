@@ -241,9 +241,6 @@ static void test_iso_read(ffarr *data, uint opt)
 
 void test_iso(void)
 {
-#ifdef _DEBUG
-	ffdbg_mask = 10;
-#endif
 	ffarr data = {0};
 
 	test_iso_write(&data);

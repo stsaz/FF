@@ -152,6 +152,9 @@ CFLAGS_GTK := -I/usr/lib64/glib-2.0/include \
 	-I/usr/include/cairo \
 	-I/usr/include/gdk-pixbuf-2.0 \
 	-I/usr/include/atk-1.0
+FF_ALL_OBJ += \
+	$(FF_OBJ_DIR)/ffgui-gtk-loader.o \
+	$(FF_OBJ_DIR)/ffgui-gtk.o
 $(FF_OBJ_DIR)/%.o: $(FF)/FF/gui-gtk/%.c $(FF_HDR) $(FF_GUI_HDR)
 	$(C) $(FF_CFLAGS) $(CFLAGS_GTK)  $< -o$@
 

@@ -6,6 +6,7 @@ Copyright (c) 2013 Simon Zolin
 #include <FFOS/test.h>
 #include <FFOS/file.h>
 #include <FFOS/timer.h>
+#include <FFOS/dir.h>
 #include <FF/array.h>
 #include <FF/crc.h>
 #include <FF/net/dns.h>
@@ -184,13 +185,16 @@ int main(int argc, const char **argv)
 	ffmem_init();
 
 	fftestobj.flags |= FFTEST_STOPERR;
+	ffdir_make(TESTDIR);
 
 	if (argc == 1) {
-		printf("Supported tests: all ");
+		ffarr a = {};
+		ffstr_catfmt(&a, "Supported tests: all ", 0);
 		for (i = 0;  i < FFCNT(_fftests);  i++) {
-			printf("%s ", _fftests[i].nm);
+			ffstr_catfmt(&a, "%s ", _fftests[i].nm);
 		}
-		printf("\n");
+		ff_printf("%S\n", &a);
+		ffarr_free(&a);
 		return 0;
 
 	} else if (!ffsz_cmp(argv[1], "all")) {
@@ -222,7 +226,7 @@ int main(int argc, const char **argv)
 		}
 	}
 
-	printf("%u tests were run, failed: %u.\n", fftestobj.nrun, fftestobj.nfail);
+	ff_printf("%u tests were run, failed: %u.\n", fftestobj.nrun, fftestobj.nfail);
 
 	return 0;
 }

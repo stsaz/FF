@@ -565,9 +565,6 @@ int ffid3_parse(ffid3 *p, const char *data, size_t *len)
 			if ((p->flags & FFID3_FWHOLE) && p->frsize != 0)
 				break; //wait until we copy data completely
 
-			if (p->h.ver[0] == 2 && p->data.len != 0)
-				p->data.len--; //remove last '\0'
-
 			if (p->frame == FFMMTAG_TRACKNO)
 				p->state = I_TRKTOTAL;
 

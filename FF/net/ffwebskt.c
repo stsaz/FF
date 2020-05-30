@@ -209,9 +209,11 @@ int ffwebskt_newmsg(ffwebskt_cook *w, uint mask_key, uint op)
 	} else if (w->in.len <= WS_MAXMSG2) {
 		ffint_hton16(w->buf + 2, w->in.len);
 		p = w->buf + 2 + 2;
-	} else if ((uint64)w->in.len <= WS_MAXMSG) {
+#ifdef FF_64
+	} else if (w->in.len <= WS_MAXMSG) {
 		ffint_hton64(w->buf + 2, w->in.len);
 		p = w->buf + 2 + 8;
+#endif
 	} else
 		return FFWEBSKT_RERR;
 

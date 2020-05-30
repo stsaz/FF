@@ -5,6 +5,7 @@ Copyright (c) 2019 Simon Zolin
 #include <FF/net/dns-client.h>
 #include <FF/net/dns.h>
 #include <FF/array.h>
+#include <FF/net/proto.h>
 #include <FFOS/random.h>
 #include <FFOS/test.h>
 
@@ -24,6 +25,7 @@ static void tmr_exit(void *param);
 
 void test_dns_client(void)
 {
+	FFTEST_FUNC;
 	fffd kq = FF_BADFD;
 
 	fftime now;
@@ -87,6 +89,17 @@ static void onresolve(void *udata, const ffdnscl_result *res)
 		x(res->status == FFDNS_NOERROR);
 		gflags |= 1;
 		x(res->ip.len != 0);
+
+		ffarr data = {};
+		const ffip6 *ip;
+		FFARR_WALKT(&res->ip, ip, ffip6) {
+			char buf[FFIP6_STRLEN];
+			size_t n = ffip46_tostr(ip, buf, sizeof(buf));
+			ffstr_catfmt(&data, "%*s  ", n, buf);
+		}
+		fffile_write(ffstdout, data.ptr, data.len);
+		fffile_write(ffstdout, "\r\n", 2);
+
 	} else {
 		x(0);
 	}

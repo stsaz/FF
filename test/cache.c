@@ -212,6 +212,7 @@ static void test_cache_limits()
 
 int test_cache(void)
 {
+	FFTEST_FUNC;
 	ffcache *c;
 	ffcache_conf conf;
 

@@ -87,6 +87,7 @@ int test_fmap()
 
 int test_sendfile()
 {
+	FFTEST_FUNC;
 	ffsf sf;
 	int64 n;
 	ssize_t nr;
@@ -219,6 +220,7 @@ done:
 
 int test_direxp(void)
 {
+	FFTEST_FUNC;
 	uint n;
 	ffdirexp dex;
 	const char *name;
@@ -297,7 +299,7 @@ static void sig_handler(struct ffsig_info *inf)
 	fffile_write(ffstderr, buf, n);
 }
 
-int sig_thdfunc(void *param)
+int FFTHDCALL sig_thdfunc(void *param)
 {
 	ffsig_raise(FFSIG_SEGV);
 	return 0;

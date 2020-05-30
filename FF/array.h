@@ -407,6 +407,9 @@ static inline size_t ffstr_fmt(ffstr3 *s, const char *fmt, ...)
 'buf': optional buffer. */
 FF_EXTN size_t fffile_fmt(fffd fd, ffstr3 *buf, const char *fmt, ...);
 
+#undef ff_printf
+#define ff_printf(fmt, ...)  fffile_fmt(ffstdout, NULL, fmt, __VA_ARGS__)
+
 /** Read the whole file into memory buffer.
 @limit: maximum allowed file size
 */

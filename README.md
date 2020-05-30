@@ -17,6 +17,40 @@ FF can be quite easily extended, modified or rewritten block by block.
 
 FF is absolutely free, which means that you can ship it standalone, bundle it inside your software, copy and modify it.
 
+
+## Requirements
+
+* gcc or clang
+* ffbase (base types & algorithms)
+* ffos (cross-platform OS interface)
+
+Optional dependencies:
+
+* ff-3pt (for 3rd party libraries):
+	* libsoxr (sample rate conversion)
+	* libMAC (APE decode)
+	* libfdk-aac (AAC decode/encode)
+	* libvorbis (Vorbis decode/encode)
+	* libopus (Opus decode/encode)
+	* libmpg123 (MPEG decode)
+	* libmp3lame (MPEG encode)
+	* libmpc (Musepack decode)
+	* libflac (FLAC decode/encode)
+	* libalac (ALAC decode)
+	* libwavpack (WavPack decode)
+	* libsqlite (SQLite)
+	* libpq (PostgreSQL)
+	* libjpeg (JPEG)
+	* libpng (PNG)
+	* libz (deflate)
+	* liblzma (LZMA)
+* libalsa-devel (for ALSA module)
+* libpulse-devel (for Pulse Audio module)
+* jack-audio-connection-kit-devel (for JACK module)
+* gtk3-devel (for GUI module)
+* libssl, libcrypto (SSL)
+
+
 ## Documentation
 
 Documentation can be found in `doc/index.md`.  It provides a quick-start guidance on how to use an interface.  For advanced features you need to open `.h` files and look through the available functions.  The most of the functions are briefly documented inline in header files.  Many functions have test use-cases which are located in `test/` directory, so you can look for an example there.
