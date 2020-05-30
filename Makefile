@@ -72,6 +72,9 @@ FF_TEST_O := $(FFOS_OBJ) $(FF_OBJ) \
 	$(FF_OBJ_DIR)/ffdns-client.o \
 	$(FF_OBJ_DIR)/ffcache.o \
 	$(FF_OBJ_DIR)/ffsendfile.o \
+	$(FF_OBJ_DIR)/fffileread.o \
+	$(FF_OBJ_DIR)/fffilewrite.o \
+	$(FF_OBJ_DIR)/ffthpool.o \
 	$(FF_OBJ_DIR)/fftar.o \
 	$(FF_OBJ_DIR)/ffiso.o $(FF_OBJ_DIR)/ffiso-fmt.o \
 	$(FF_OBJ_DIR)/fftls.o \

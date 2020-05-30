@@ -43,6 +43,7 @@ FEATURES
 	* file mapping - `FF/sys/filemap.h`
 	* file reader - `FF/sys/fileread.hh`
 	* send file - `FF/sys/sendfile.h`
+	* Thread Pool - `FF/sys/thpool.h`
 	* Windows registry functions - `FF/sys/wreg.h`
 	* Windows object handler - `FF/sys/wohandler.h`
 
