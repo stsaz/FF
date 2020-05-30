@@ -61,7 +61,14 @@ typedef struct ffpulse_buf {
 	void *udata;
 } ffpulse_buf;
 
+enum FFPULSE_E {
+	FFPULSE_EFMT = 1, // 'fmt' is set to the format which the device supports
+};
+
+/**
+Return 0 on success;  enum FFPULSE_E */
 FF_EXTN int ffpulse_open(ffpulse_buf *snd, const char *dev, ffpcm *fmt, uint bufsize_msec);
+
 FF_EXTN void ffpulse_close(ffpulse_buf *snd);
 
 #define ffpulse_bufsize(snd)  ((snd)->bufsize)

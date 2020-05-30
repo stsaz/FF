@@ -250,8 +250,7 @@ static FFINL int findfmt(uint f)
 {
 	int r;
 	if (-1 == (r = ffint_find2(afmt_ff, FFCNT(afmt_ff), f))) {
-		fferr_set(EINVAL);
-		return -ESYS;
+		return -FFPCM_16;
 	}
 	return afmt_pa[r];
 }
@@ -262,8 +261,10 @@ int ffpulse_open(ffpulse_buf *snd, const char *dev, ffpcm *fmt, uint bufsize_mse
 	int r;
 
 	pa_sample_spec spec;
-	if (0 > (r = findfmt(fmt->format)))
-		return r;
+	if (0 > (r = findfmt(fmt->format))) {
+		fmt->format = -r;
+		return FFPULSE_EFMT;
+	}
 	spec.format = r;
 	spec.rate = fmt->sample_rate;
 	spec.channels = fmt->channels;
