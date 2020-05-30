@@ -235,7 +235,7 @@ int ffdnscl_resolve(ffdnsclient *r, ffstr name, ffdnscl_onresolve ondone, void *
 	return 0;
 
 nomem:
-	syserrlog_x(r, "%e", FFERR_BUFALOC);
+	syserrlog_x(r, "ffmem_alloc", 0);
 
 fail:
 	if (q != NULL)
@@ -352,7 +352,7 @@ static void query_send(dns_query *q, int resend)
 static int query_send1(dns_query *q, ffdnscl_serv *serv, int resend)
 {
 	ssize_t rc;
-	int er;
+	const char *er;
 	ffdnsclient *r = q->r;
 
 	if (!serv->connected) {
@@ -360,7 +360,7 @@ static int query_send1(dns_query *q, ffdnscl_serv *serv, int resend)
 			return 1;
 
 		if (0 != ffskt_connect(serv->sk, &serv->addr.a, serv->addr.len)) {
-			er = FFERR_SKTCONN;
+			er = "ffskt_connect";
 			goto fail;
 		}
 		serv->connected = 1;
@@ -370,8 +370,8 @@ static int query_send1(dns_query *q, ffdnscl_serv *serv, int resend)
 	if (q->need6) {
 		rc = ffskt_send(serv->sk, q->question + q->ques_len4, q->ques_len6, 0);
 		if (rc != q->ques_len6) {
-			er = FFERR_WRITE;
-			goto fail;
+			er = "ffskt_send";
+			goto fail_send;
 		}
 
 		serv->nqueries++;
@@ -384,8 +384,8 @@ static int query_send1(dns_query *q, ffdnscl_serv *serv, int resend)
 	if (q->need4) {
 		rc = ffskt_send(serv->sk, q->question, q->ques_len4, 0);
 		if (rc != q->ques_len4) {
-			er = FFERR_WRITE;
-			goto fail;
+			er = "ffskt_send";
+			goto fail_send;
 		}
 
 		serv->nqueries++;
@@ -401,13 +401,15 @@ static int query_send1(dns_query *q, ffdnscl_serv *serv, int resend)
 	return 0;
 
 fail:
-	syserrlog_srv(serv, "%e", er);
-	if (er == FFERR_WRITE) {
-		ffskt_close(serv->sk);
-		serv->sk = FF_BADSKT;
-		ffaio_fin(&serv->aiotask);
-		serv->connected = 0;
-	}
+	syserrlog_srv(serv, "%s", er);
+	return 1;
+
+fail_send:
+	syserrlog_srv(serv, "%s", er);
+	ffskt_close(serv->sk);
+	serv->sk = FF_BADSKT;
+	ffaio_fin(&serv->aiotask);
+	serv->connected = 0;
 	return 1;
 }
 
@@ -449,7 +451,7 @@ static void ans_read(void *udata)
 		if (r == FFAIO_ASYNC)
 			return;
 		else if (r == FFAIO_ERROR) {
-			syserrlog_srv(serv, "%e", FFERR_READ);
+			syserrlog_srv(serv, "ffaio_recv", 0);
 			return;
 		}
 
@@ -733,7 +735,7 @@ static ffdnscl_res* ans_proc_resp(dns_query *q, ffdns_hdr_host *h, const ffstr *
 		uint adr_sz = (is4 ? sizeof(ffip4) : sizeof(ffip6));
 		res = ffmem_alloc(sizeof(ffdnscl_res) + adr_sz * nrecs);
 		if (res == NULL) {
-			syserrlog_x(q->r, "%e", FFERR_BUFALOC);
+			syserrlog_x(q->r, "ffmem_alloc", 0);
 			return NULL;
 		}
 		res->is4 = is4;
@@ -888,12 +890,12 @@ err:
 /** Prepare socket to connect to a DNS server. */
 static int serv_init(ffdnscl_serv *serv)
 {
-	int er;
+	const char *er;
 	ffskt sk;
 
 	sk = ffskt_create(ffaddr_family(&serv->addr), SOCK_DGRAM | SOCK_NONBLOCK, IPPROTO_UDP);
 	if (sk == FF_BADSKT) {
-		er = FFERR_SKTCREAT;
+		er = "ffskt_create";
 		goto fail;
 	}
 
@@ -902,7 +904,7 @@ static int serv_init(ffdnscl_serv *serv)
 		ffaddr_init(&la);
 		ffaddr_setany(&la, ffaddr_family(&serv->addr));
 		if (0 != ffskt_bind(sk, &la.a, la.len)) {
-			er = FFERR_SKTLISTEN;
+			er = "ffskt_bind";
 			goto fail;
 		}
 	}
@@ -912,7 +914,7 @@ static int serv_init(ffdnscl_serv *serv)
 	serv->aiotask.sk = sk;
 	serv->aiotask.udp = 1;
 	if (0 != ffaio_attach(&serv->aiotask, serv->r->kq, FFKQU_READ)) {
-		er = FFERR_KQUATT;
+		er = "ffaio_attach";
 		goto fail;
 	}
 
@@ -920,7 +922,7 @@ static int serv_init(ffdnscl_serv *serv)
 	return 0;
 
 fail:
-	syserrlog_srv(serv, "%e", er);
+	syserrlog_srv(serv, "%s", er);
 
 	if (sk != FF_BADSKT)
 		ffskt_close(sk);
