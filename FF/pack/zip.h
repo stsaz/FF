@@ -3,7 +3,7 @@ Copyright (c) 2016 Simon Zolin
 */
 
 /*
-(FILE_HDR DATA [DATA_DESC])... EXTRA_DATA CDIR_HDR... CDIR_EOF
+(FILE_HDR DATA [DATA_DESC])... EXTRA_DATA CDIR_HDR... [CDIR64_EOF CDIR64_EOF_LOCATOR] CDIR_EOF
 */
 
 #include <FF/array.h>
@@ -22,7 +22,6 @@ enum FFZIP_E {
 	FFZIP_ELZINIT,
 	FFZIP_EMAXITEMS,
 	FFZIP_EFNAME,
-	FFZIP_ETRL,
 	FFZIP_EDISK,
 	FFZIP_ECDIR,
 	FFZIP_EHDR,
@@ -32,12 +31,10 @@ enum FFZIP_E {
 	FFZIP_ECRC,
 	FFZIP_ECDIR_SIZE,
 	FFZIP_EFSIZE,
+	FFZIP_EMSG,
 };
 
 FF_EXTN const char* _ffzip_errstr(int err, z_ctx *lz);
-
-#define ffzip_errstr(z)  _ffzip_errstr((z)->err, (z)->lz)
-
 
 typedef struct ffzip_fattr {
 	ushort win; //enum FFWIN_FILEATTR
@@ -62,20 +59,23 @@ static FFINL ffbool ffzip_isdir(const ffzip_fattr *a)
 
 typedef struct ffzip_file {
 	char *fn;
-	uint osize;
-	uint zsize;
+	uint64 osize;
+	uint64 zsize;
 	uint crc;
 	fftime mtime;
 	ffzip_fattr attrs;
-	uint offset;
+	uint64 offset;
 	byte comp;
 
 	ffchain_item sib;
 } ffzip_file;
 
+typedef void (*ffzip_log)(void *udata, uint level, ffstr msg);
+
 typedef struct ffzip {
 	uint state;
 	int err;
+	const char *errmsg;
 	uint nxstate;
 	uint crc;
 	uint hsize;
@@ -88,12 +88,22 @@ typedef struct ffzip {
 	uint64 cdir_off;
 	uint64 cdir_end;
 
+	ffzip_log log;
+	void *udata;
+
 	ffstr in;
 	ffstr out;
 
 	uint lzinit :1
 		;
 } ffzip;
+
+static inline const char* ffzip_errstr(ffzip *z)
+{
+	if (z->err == FFZIP_EMSG)
+		return z->errmsg;
+	return _ffzip_errstr(z->err, z->lz);
+}
 
 typedef struct ffzip_cook {
 	uint state;
@@ -116,6 +126,11 @@ typedef struct ffzip_cook {
 		;
 } ffzip_cook;
 
+static inline const char* ffzip_werrstr(ffzip_cook *z)
+{
+	return _ffzip_errstr(z->err, z->lz);
+}
+
 enum FFZIP_R {
 	FFZIP_ERR = -1,
 	FFZIP_DATA,
@@ -131,7 +146,7 @@ FF_EXTN void ffzip_close(ffzip *z);
 
 FF_EXTN void ffzip_init(ffzip *z, uint64 total_size);
 
-FF_EXTN void ffzip_readfile(ffzip *z, uint off);
+FF_EXTN void ffzip_readfile(ffzip *z, uint64 off);
 
 /** Get next file from CDIR.
 Return NULL if no more files. */

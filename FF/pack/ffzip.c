@@ -40,7 +40,7 @@ typedef struct zip_hdr {
 
 /** Data descriptor. */
 typedef struct zip_trl {
-	// char sig[4]; //"PK\7\8"
+	// char sig[4]; //"PK\7\8" - optional signature
 	byte crc32[4];
 	byte size[4];
 	byte size_orig[4];
@@ -72,9 +72,30 @@ typedef struct zip_cdir {
 	byte attrs[4]; // [0]: enum FFWIN_FILE_ATTR; [2..3]: enum FFUNIX_FILEATTR
 	byte offset[4];
 	char filename[0];
-	// char extra[0];
+	// char extra[0]; // struct zip64_extra, struct ntfs_extra
 	// char comment[0];
 } zip_cdir;
+
+// struct zip64_extra {
+	// char id[2]; // "\1\0"
+	// byte size[2]; // size of the following data (4 or more)
+	// byte size_orig[8]; // appears if zip_cdir.size_orig == -1
+	// byte size_comp[8]; // appears if zip_cdir.size == -1
+	// byte offset[8]; // appears if zip_cdir.offset == -1
+	// byte disk[4]; // appears if zip_cdir.disknum == -1
+// };
+
+struct ntfs_extra {
+	// char id[2]; // "\x0A\0"
+	// byte size[2]; // size of the following data
+	byte reserved[4];
+
+	byte tag[2]; // "\1\0"
+	byte tag_size[2]; // size of the following data
+	byte mod_time[8];
+	byte access_time[8];
+	byte create_time[8];
+};
 
 typedef struct zip_cdir_trl {
 	char sig[4]; //"PK\5\6"
@@ -82,15 +103,36 @@ typedef struct zip_cdir_trl {
 	byte cdir_disk[2];
 	byte disk_ents[2];
 	byte total_ents[2];
-	byte cdir_size[4]; //size of zip_cdir[]
-	byte cdir_off[4];
+	byte cdir_size[4]; //size of zip_cdir[].  -1: value is in zip64_cdir_trl
+	byte cdir_off[4]; // -1: value is in zip64_cdir_trl
 	byte commentlen[2];
 	byte comment[0];
 } zip_cdir_trl;
 
+struct zip64_cdir_trl {
+	char sig[4]; //"PK\6\6"
+	byte size[8]; // size of the following data
+	byte ver[2];
+	byte ver2[2];
+	byte disk[4];
+	byte cdir_disk[4];
+	byte disk_ents[8];
+	byte total_ents[8];
+	byte cdir_size[8];
+	byte cdir_offset[8];
+	// char data[]
+};
+
+struct zip64_cdir_trl_locator {
+	char sig[4]; //"PK\6\7"
+	byte cdir_trl_disk[4];
+	byte offset[8];
+	byte disks_number[4];
+};
+
 enum {
 	ZIP_MINVER = 20,
-	ZIP_CDIR_TRL_MAXSIZE = 4 * 1024,
+	ZIP_CDIR_TRL_MAXSIZE = 0xffff + sizeof(zip_cdir_trl),
 };
 
 static int zip_cdir_parse(ffzip_file *f, const char *buf);
@@ -127,32 +169,6 @@ static const byte zip_defcdir[] = {
 static const byte zip_defcdir_trl[] = {
 	'P','K','\x05','\x06',
 };
-
-/** Find CDIR trailer and store it in 'buf'.
-Return 1 if found;  0 if more data is needed;  -1 on error. */
-static int zip_cdir_trl_find(ffarr *buf, ffstr *in)
-{
-	int r;
-	struct ffbuf_gather bg = {0};
-	ffstr_set2(&bg.data, in);
-	bg.ctglen = sizeof(zip_cdir_trl);
-	while (FFBUF_DONE != (r = ffbuf_gather(buf, &bg))) {
-		switch (r) {
-		case 0:
-		case -1:
-			return r;
-
-		case FFBUF_READY: {
-			char *p;
-			if (ffarr_end(buf) != (p = ffs_finds(buf->ptr, buf->len, (char*)zip_defcdir_trl, 4)))
-				bg.off = p - buf->ptr + 1;
-			break;
-		}
-		}
-	}
-
-	return 1;
-}
 
 /** Parse CDIR entry.
 Return CDIR entry size;  <0 on error. */
@@ -248,21 +264,90 @@ static int zip_fhdr_write(char *buf, char *cdir_buf, ffstr *name, const fftime *
 	return sizeof(zip_hdr) + name->len;
 }
 
+/** Get next CDIR extra record
+Return record ID */
+static inline int zip_cdirextra_next(ffstr *data, ffstr *chunk)
+{
+	if (4 > data->len)
+		return -1;
+	uint id = ffint_ltoh16(data->ptr);
+	uint size = ffint_ltoh16(data->ptr + 2);
+	if (4 + size > data->len)
+		return -1;
+	ffstr_set(chunk, data->ptr + 4, size);
+	ffstr_shift(data, 4 + size);
+	return id;
+}
+
+static inline int zip_zip64extra_parse(const zip_cdir *cdir, const ffstr *data, ffzip_file *f)
+{
+	uint i = 0;
+
+	uint size_orig = ffint_ltoh32(cdir->size_orig);
+	if (size_orig == (uint)-1) {
+		if (i + 8 > data->len)
+			return -1;
+		f->osize = ffint_ltoh64(data->ptr + i);
+		i += 8;
+	}
+
+	uint size_comp = ffint_ltoh32(cdir->size);
+	if (size_comp == (uint)-1) {
+		if (i + 8 > data->len)
+			return -1;
+		f->zsize = ffint_ltoh64(data->ptr + i);
+		i += 8;
+	}
+
+	uint offset = ffint_ltoh32(cdir->offset);
+	if (offset == (uint)-1) {
+		if (i + 8 > data->len)
+			return -1;
+		f->offset = ffint_ltoh64(data->ptr + i);
+		i += 8;
+	}
+
+	// disk
+
+	return 0;
+}
+
+static inline int zip_ntfsextra_parse(const ffstr *data, ffzip_file *f)
+{
+	if (sizeof(struct ntfs_extra) > data->len)
+		return -1;
+	const struct ntfs_extra *ntfs = (void*)data->ptr;
+
+	uint tag = ffint_ltoh16(ntfs->tag);
+	if (tag != 1)
+		return -1;
+	uint tag_size = ffint_ltoh16(ntfs->tag_size);
+	if (tag_size < 8 * 3)
+		return -1;
+
+	uint64 t = ffint_ltoh64(ntfs->mod_time);
+	fftime_winftime wt;
+	wt.lo = (uint)t;
+	wt.hi = (uint)(t >> 32);
+	f->mtime = fftime_from_winftime(&wt);
+	return 0;
+}
+
 
 static const char *const zip_errs[] = {
-	"not ready",
-	"libz init",
-	"reached maximum number of items",
-	"invalid filename",
-	"multi-disk archives are not supported",
-	"bad CDIR record",
-	"bad local file header",
-	"unsupported flags",
-	"unsupported compression method",
-	"info from CDIR and local file header don't match",
-	"CRC mismatch",
-	"invalid CDIR size",
-	"size mismatch for STORED file",
+	"not ready", // FFZIP_ENOTREADY
+	"libz init", // FFZIP_ELZINIT
+	"reached maximum number of items", // FFZIP_EMAXITEMS
+	"invalid filename", // FFZIP_EFNAME
+	"multi-disk archives are not supported", // FFZIP_EDISK
+	"bad CDIR record", // FFZIP_ECDIR
+	"bad local file header", // FFZIP_EHDR
+	"unsupported flags", // FFZIP_EFLAGS
+	"unsupported compression method", // FFZIP_ECOMP
+	"info from CDIR and local file header don't match", // FFZIP_EHDR_CDIR
+	"CRC mismatch", // FFZIP_ECRC
+	"invalid CDIR size", // FFZIP_ECDIR_SIZE
+	"size mismatch for STORED file", // FFZIP_EFSIZE
 };
 
 const char* _ffzip_errstr(int err, z_ctx *lz)
@@ -280,6 +365,9 @@ const char* _ffzip_errstr(int err, z_ctx *lz)
 #define ERR(z, n) \
 	(z)->err = n, FFZIP_ERR
 
+#define ERRSTR(z, msg) \
+	(z)->err = FFZIP_EMSG, (z)->errmsg = msg, FFZIP_ERR
+
 
 void ffzip_close(ffzip *z)
 {
@@ -296,7 +384,10 @@ void ffzip_close(ffzip *z)
 }
 
 enum E_READ {
-	R_GATHER, R_CDIR_TRL_SEEK, R_CDIR_TRL, R_CDIR_SEEK, R_CDIR_NEXT, R_CDIR, R_CDIR_FIN,
+	R_GATHER,
+	R_CDIR_TRL_SEEK, R_CDIR_TRL,
+	R_CDIR_NEXT, R_CDIR, R_CDIR_FIN,
+	R_CDIR64_LOC, R_CDIR64,
 	R_FHDR_SEEK, R_FHDR, R_FHDR_FIN, R_DATA, R_FDONE,
 };
 
@@ -307,7 +398,7 @@ void ffzip_init(ffzip *z, uint64 total_size)
 	ffchain_init(&z->cdir);
 }
 
-void ffzip_readfile(ffzip *z, uint off)
+void ffzip_readfile(ffzip *z, uint64 off)
 {
 	ffzip_file *f = FF_GETPTR(ffzip_file, sib, z->curfile);
 	if (f->offset != off)
@@ -325,8 +416,27 @@ ffzip_file* ffzip_nextfile(ffzip *z)
 	return f;
 }
 
+static void zlog(ffzip *z, uint level, const char *fmt, ...)
+{
+	if (z->log == NULL)
+		return;
+
+	ffstr s = {};
+	ffsize cap = 0;
+	va_list va;
+	va_start(va, fmt);
+	ffstr_growfmtv(&s, &cap, fmt, va);
+	va_end(va);
+
+	z->log(z->udata, 0, s);
+	ffstr_free(&s);
+}
+
 /*
-. Find CDIR trailer, get CDIR offset (FFZIP_SEEK)
+. Find CDIR trailer at file end, get CDIR offset (FFZIP_SEEK)
+ . If CDIR offset is -1:
+  . Read zip64 CDIR locator, get CDIR trailer offset (FFZIP_SEEK)
+  . Read zip64 CDIR trailer, get CDIR offset (FFZIP_SEEK)
 . Read entries from CDIR (FFZIP_FILEINFO, FFZIP_DONE)
 
 . After ffzip_readfile() has been called by user, seek to local file header (FFZIP_SEEK)
@@ -343,6 +453,7 @@ int ffzip_read(ffzip *z, char *dst, size_t cap)
 		r = ffarr_append_until(&z->buf, z->in.ptr, z->in.len, z->hsize);
 		switch (r) {
 		case 0:
+			z->inoff += z->in.len;
 			return FFZIP_MORE;
 		case -1:
 			return ERR(z, FFZIP_ESYS);
@@ -350,22 +461,31 @@ int ffzip_read(ffzip *z, char *dst, size_t cap)
 		ffstr_shift(&z->in, r);
 		z->inoff += r;
 		z->state = z->nxstate;
+
+		zlog(z, 0, "gathered data chunk: [%L] %*Xb @%xU"
+			, z->buf.len, ffmin(z->buf.len, 80), z->buf.ptr
+			, z->inoff - z->buf.len);
 		continue;
 
-	case R_CDIR_TRL_SEEK:
-		z->inoff = ffmax(0, (int64)z->inoff - ZIP_CDIR_TRL_MAXSIZE);
-		z->hsize = sizeof(zip_cdir_trl);
-		z->state = R_CDIR_TRL;
+	case R_CDIR_TRL_SEEK: {
+		uint64 total_size = z->inoff;
+		if (total_size < sizeof(struct zip_cdir_trl))
+			return ERR(z, FFZIP_ECDIR);
+
+		z->inoff = ffmax(0, (int64)total_size - ZIP_CDIR_TRL_MAXSIZE);
+		z->hsize = total_size - z->inoff;
+		z->state = R_GATHER, z->nxstate = R_CDIR_TRL;
 		return FFZIP_SEEK;
+	}
 
 	case R_CDIR_TRL: {
-		r = zip_cdir_trl_find(&z->buf, &z->in);
-		if (r == 0)
-			return FFZIP_MORE;
-		else if (r < 0)
-			return ERR(z, FFZIP_ESYS);
+		ffssize pos = ffs_rfindstr(z->buf.ptr, z->buf.len - sizeof(struct zip_cdir_trl) + 4, "PK\5\6", 4);
+		if (pos < 0)
+			return ERRSTR(z, "no CDIR trailer");
+		z->inoff = z->inoff - z->buf.len + pos;
 
-		const zip_cdir_trl *trl = (void*)z->buf.ptr;
+		const zip_cdir_trl *trl = (void*)((char*)z->buf.ptr + pos);
+		zlog(z, 0, "CDIR trailer: %*Xb", sizeof(struct zip_cdir_trl), trl);
 		z->buf.len = 0;
 
 		uint disknum, cdir_disk, cdir_size, cdir_off;
@@ -376,16 +496,60 @@ int ffzip_read(ffzip *z, char *dst, size_t cap)
 		if (disknum != 0 || cdir_disk != 0)
 			return ERR(z, FFZIP_EDISK);
 
+		if (cdir_off == (uint)-1) {
+			z->inoff -= sizeof(struct zip64_cdir_trl_locator);
+			z->hsize = sizeof(struct zip64_cdir_trl_locator);
+			z->state = R_GATHER, z->nxstate = R_CDIR64_LOC;
+			z->buf.len = 0;
+			return FFZIP_SEEK;
+		}
+
 		z->cdir_off = cdir_off;
 		z->cdir_end = cdir_off + cdir_size;
-		z->state = R_CDIR_SEEK;
-		// break
-	}
-
-	case R_CDIR_SEEK:
 		z->inoff = z->cdir_off;
 		z->state = R_CDIR_NEXT;
 		return FFZIP_SEEK;
+	}
+
+	case R_CDIR64_LOC: {
+		const struct zip64_cdir_trl_locator *loc = (void*)z->buf.ptr;
+		if (0 != ffs_cmp(loc->sig, "PK\x06\x07", 4))
+			return ERRSTR(z, "bad ZIP64 CDIR trailer locator");
+
+		uint cdir_trl_disk = ffint_ltoh32(loc->cdir_trl_disk);
+		uint disks_number = ffint_ltoh32(loc->disks_number);
+		uint64 off = ffint_ltoh64(loc->offset);
+		if (cdir_trl_disk != 0 || disks_number != 1)
+			return ERR(z, FFZIP_EDISK);
+
+		z->inoff = off;
+		z->hsize = sizeof(struct zip64_cdir_trl);
+		z->state = R_GATHER, z->nxstate = R_CDIR64;
+		z->buf.len = 0;
+		return FFZIP_SEEK;
+	}
+
+	case R_CDIR64: {
+		const struct zip64_cdir_trl *trl = (void*)z->buf.ptr;
+		if (ffs_cmp(trl->sig, "PK\x06\x06", 4))
+			return ERRSTR(z, "bad ZIP64 CDIR trailer");
+
+		uint size = ffint_ltoh32(trl->size);
+		uint disk = ffint_ltoh32(trl->disk);
+		uint cdir_disk = ffint_ltoh32(trl->cdir_disk);
+		uint64 cdir_size = ffint_ltoh64(trl->cdir_size);
+		uint64 cdir_offset = ffint_ltoh64(trl->cdir_offset);
+		if (size < sizeof(struct zip64_cdir_trl) - 12)
+			return ERRSTR(z, "bad size of ZIP64 CDIR trailer");
+		if (disk != 0 || cdir_disk != 0)
+			return ERR(z, FFZIP_EDISK);
+
+		z->cdir_off = cdir_offset;
+		z->cdir_end = cdir_offset + cdir_size;
+		z->inoff = z->cdir_off;
+		z->state = R_CDIR_NEXT;
+		return FFZIP_SEEK;
+	}
 
 	case R_CDIR_NEXT:
 		if (z->cdir_off == z->cdir_end) {
@@ -395,6 +559,7 @@ int ffzip_read(ffzip *z, char *dst, size_t cap)
 
 		z->hsize = sizeof(zip_cdir);
 		z->state = R_GATHER, z->nxstate = R_CDIR;
+		z->buf.len = 0;
 		continue;
 
 	case R_CDIR: {
@@ -416,12 +581,34 @@ int ffzip_read(ffzip *z, char *dst, size_t cap)
 	}
 
 	case R_CDIR_FIN: {
-		z->buf.len = 0;
 		const zip_cdir *cdir = (void*)z->buf.ptr;
 		uint filenamelen = ffint_ltoh16(cdir->filenamelen);
 		ffzip_file *f = FF_GETPTR(ffzip_file, sib, ffchain_last(&z->cdir));
 		if (NULL == (f->fn = ffsz_alcopy(cdir->filename, filenamelen)))
 			return ERR(z, FFZIP_ESYS);
+
+		ffstr extra;
+		ffstr_set2(&extra, &z->buf);
+		z->buf.len = 0;
+		ffstr_shift(&extra, sizeof(struct zip_cdir) + filenamelen);
+		while (extra.len != 0) {
+			ffstr s;
+			r = zip_cdirextra_next(&extra, &s);
+			if (r < 0)
+				break;
+
+			zlog(z, 0, "CDIR extra: %xu [%L] %*Xb"
+				, r, s.len, s.len, s.ptr);
+
+			switch (r) {
+			case 0x0001:
+				(void) zip_zip64extra_parse(cdir, &s, f);
+				break;
+			case 0x000A:
+				(void) zip_ntfsextra_parse(&s, f);
+				break;
+			}
+		}
 
 		z->state = R_CDIR_NEXT;
 		return FFZIP_FILEINFO;
