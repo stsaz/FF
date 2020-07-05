@@ -349,19 +349,19 @@ static int test_findhdr()
 	x(r == FFHTTP_DONE);
 
 	for (i = 1;  i < FFHTTP_HLAST;  i++) {
-		int n;
+		int n = 0;
 		x(0 != ffhttp_findhdr(&h, ffhttp_shdr[i].ptr, ffhttp_shdr[i].len, &val));
-		ffs_toint(val.ptr, val.len, &n, FFS_INT32);
+		x(ffstr_to_uint32(&val, &n));
 		x(i == n);
 	}
 
 	for (i = 1;  ihdr = ffhttp_gethdr(&h, (int)i - 1, &key, &val), ihdr != FFHTTP_DONE;  i++) {
-		int n;
+		int n = 0;
 
 		x(ihdr == i);
 		x(ffstr_eq2(&key, &ffhttp_shdr[i]));
 
-		ffs_toint(val.ptr, val.len, &n, FFS_INT32);
+		x(ffstr_to_uint32(&val, &n));
 		x(i == n);
 	}
 

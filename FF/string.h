@@ -662,6 +662,9 @@ FF_EXTN int ffs_numlist(const char *d, size_t *len, uint *dst);
 
 // FORMATTED I/O - string write/read by %-format string and parameters
 
+#define ffs_fmt2  ffs_format
+#define ffs_fmtv2  ffs_formatv
+
 /**
 Return the number of chars written.
 Return 0 on error. */
@@ -669,7 +672,7 @@ static FFINL size_t ffs_fmtv(char *buf, const char *end, const char *fmt, va_lis
 {
 	va_list va;
 	va_copy(va, args);
-	ssize_t r = ffs_fmtv2(buf, end - buf, fmt, va);
+	ssize_t r = ffs_formatv(buf, end - buf, fmt, va);
 	va_end(va);
 	return (r >= 0) ? r : 0;
 }
@@ -678,7 +681,7 @@ static FFINL size_t ffs_fmt(char *buf, const char *end, const char *fmt, ...) {
 	ssize_t r;
 	va_list args;
 	va_start(args, fmt);
-	r = ffs_fmtv2(buf, end - buf, fmt, args);
+	r = ffs_formatv(buf, end - buf, fmt, args);
 	va_end(args);
 	return (r >= 0) ? r : 0;
 }

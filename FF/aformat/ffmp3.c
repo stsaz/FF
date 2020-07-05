@@ -661,6 +661,13 @@ int ffmpg_addtag(ffmpgw *m, uint id, const char *val, size_t vallen)
 	return 0;
 }
 
+/*
+. Return ID3v2 (FFMPG_RID32)
+. Return next frame (FFMPG_RDATA)
+. Return ID3v1 (FFMPG_RID31)
+. Seek output to Xing tag offset (FFMPG_RSEEK)
+. Return the complete Xing tag (FFMPG_RDATA)
+*/
 int ffmpg_writeframe(ffmpgw *m, const char *fr, uint frlen, ffstr *data)
 {
 	switch (m->state) {

@@ -1155,7 +1155,7 @@ int ffhttp_parsecachctl(ffhttp_cachectl *cctl, const char *val, size_t vallen)
 			{
 				uint n;
 				ffstr_shift(&vv, cc->len + FFSLEN("="));
-				if (vv.len == ffs_toint(vv.ptr, vv.len, &n, FFS_INT32)) {
+				if (ffstr_to_uint32(&vv, &n)) {
 					uint *dst = &cctl->maxage + (i - _MAXAGE_IDX);
 					*dst = n;
 					rc |= (1 << i);
@@ -1211,7 +1211,7 @@ int64 ffhttp_range(const char *d, size_t len, uint64 *size)
 	else {
 		uint64 n;
 		sz = d + len - (dash + 1);
-		if (sz != ffs_toint(dash + 1, sz, &n, FFS_INT64))
+		if (sz == 0 || sz != ffs_toint(dash + 1, sz, &n, FFS_INT64))
 			return -1; //invalid end/size
 
 		if (dash == d) { //"-size"

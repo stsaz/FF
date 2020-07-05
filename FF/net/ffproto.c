@@ -106,7 +106,7 @@ int ffip4_parse(ffip4 *ip4, const char *s, size_t len)
 
 int ffip4_parse_subnet(ffip4 *ip4, const char *s, size_t len)
 {
-	uint subnet, r;
+	uint subnet = 0, r;
 	r = ffip4_parse(ip4, s, len);
 	if ((int)r <= 0)
 		return -1;

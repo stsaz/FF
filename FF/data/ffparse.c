@@ -447,7 +447,7 @@ int ffpars_arg_process(const ffpars_arg *a, const ffstr *val, void *obj, void *p
 		break;
 
 	case FFPARS_TFLOAT:
-		if (val->len != ffs_tofloat(val->ptr, val->len, &fltval, 0))
+		if (!ffstr_to_float(val, &fltval))
 			return FFPARS_EBADVAL;
 		er = _ffpars_flt(a, fltval, obj, ps);
 		break;
