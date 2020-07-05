@@ -137,6 +137,7 @@ typedef struct ffid3 {
 	uint gsize;
 	uint size //bytes left in the whole ID3v2
 		, frsize; //bytes left in the frame
+	uint unsync_n; // number of bytes skipped (with 'unsync' flag)
 	int txtenc; //enum FFID3_TXTENC
 	uint flags; //enum FFID3_F
 	int frame; //enum FFMMTAG or enum FFID3_FRAME (<0)

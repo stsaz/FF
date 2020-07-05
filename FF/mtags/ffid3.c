@@ -377,8 +377,10 @@ static FFINL int _ffid3_unsync(ffid3 *p, const char *data, size_t len)
 
 		case I_UNSYNC_00:
 			p->state = I_DATA;
-			if ((byte)data[i] == 0x00)
+			if ((byte)data[i] == 0x00) {
+				p->unsync_n++;
 				continue;
+			}
 			break;
 		}
 
@@ -543,6 +545,7 @@ int ffid3_parse(ffid3 *p, const char *data, size_t *len)
 		case I_UNSYNC_00:
 			n = (uint)ffmin(p->frsize, end - data);
 			if ((p->fr.flags[1] & FFID324_FFR1_UNSYNC) || (p->h.flags & FFID3_FHDR_UNSYNC)) {
+				p->unsync_n = 0;
 				if (0 != _ffid3_unsync(p, data, n)) {
 					p->err = ID3_ESYS;
 					goto done;
@@ -558,8 +561,8 @@ int ffid3_parse(ffid3 *p, const char *data, size_t *len)
 				ffarr_free(&p->data);
 				ffarr_set(&p->data, (char*)data, ffmin(p->frsize, end - data));
 			}
-			data += n;
-			p->size -= n;
+			data += n + p->unsync_n;
+			p->size -= n + p->unsync_n;
 			p->frsize -= n;
 
 			if ((p->flags & FFID3_FWHOLE) && p->frsize != 0)
