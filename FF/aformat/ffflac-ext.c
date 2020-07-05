@@ -415,13 +415,13 @@ int ffflac_read(ffflac *f)
 		}
 
 		FFARR_SHIFT(f->data, f->datalen, r);
-		f->off += f->blksize;
 		f->buf.len = 0;
 		if (0 > flac_seektab(f->buf.ptr, f->blksize, &f->sktab, f->info.total_samples)) {
 			f->st = I_SKIPMETA;
 			f->errtype = FLAC_ESEEKTAB;
 			return FFFLAC_RWARN;
 		}
+		f->off += f->blksize;
 		f->st = (f->hdrlast) ? I_METALAST : I_META;
 		break;
 
@@ -434,7 +434,6 @@ int ffflac_read(ffflac *f)
 			return FFFLAC_RERR;
 		}
 		FFARR_SHIFT(f->data, f->datalen, r);
-		f->off += f->blksize;
 		f->buf.len = 0;
 
 		if (0 != (r = flac_meta_pic(f->buf.ptr, f->blksize, &f->vtag.val))) {
@@ -442,6 +441,7 @@ int ffflac_read(ffflac *f)
 			f->errtype = r;
 			return FFFLAC_RWARN;
 		}
+		f->off += f->blksize;
 		f->vtag.tag = FFMMTAG_PICTURE;
 		f->vtag.name.len = 0;
 		f->st = (f->hdrlast) ? I_METALAST : I_META;
