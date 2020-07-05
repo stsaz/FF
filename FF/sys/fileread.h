@@ -4,29 +4,39 @@ Copyright (c) 2019 Simon Zolin
 
 #pragma once
 
+#include <FF/sys/thpool.h>
 #include <FF/string.h>
 #include <FFOS/file.h>
-#include <FFOS/asyncio.h>
+#include <FFOS/mem.h>
 
 
 typedef struct fffileread fffileread;
-typedef void (*fffileread_log)(void *udata, uint level, const ffstr *msg);
+enum FFFILEREAD_LOG {
+	FFFILEREAD_LOG_DBG,
+	FFFILEREAD_LOG_ERR,
+	_FFFILEREAD_LOG_SYSERR,
+};
+typedef void (*fffileread_log)(void *udata, uint level, ffstr msg);
 typedef void (*fffileread_onread)(void *udata);
 
 typedef struct fffileread_conf {
 	void *udata;
 	fffileread_log log;
 	fffileread_onread onread;
+	ffthpool *thpool; // thread pool
 
-	fffd kq; // kqueue descriptor or -1 for synchronous reading
-	uint oflags; // flags for fffile_open()
+	fffd kq; // kqueue descriptor
+	uint oflags; // flags for fffile_open().  default:FFO_RDONLY
 
-	uint bufsize; // size of 1 buffer.  Aligned to 'bufalign'.
-	uint nbufs; // number of buffers
+	uint bufsize; // size of 1 buffer.  Aligned to 'bufalign'.  default:64k
+	uint nbufs; // number of buffers.  default:1
 	uint bufalign; // buffer & file offset align value.  Power of 2.
 
 	uint directio :1; // use direct I/O if available
+	uint log_debug :1; // enable debug logging.  default:0
 } fffileread_conf;
+
+FF_EXTN void fffileread_setconf(fffileread_conf *conf);
 
 /** Create reader.
 Return object pointer.
@@ -35,13 +45,14 @@ Return object pointer.
 FF_EXTN fffileread* fffileread_create(const char *fn, fffileread_conf *conf);
 
 /** Release object (it may be freed later after the async task is complete). */
-FF_EXTN void fffileread_unref(fffileread *f);
+FF_EXTN void fffileread_free(fffileread *f);
 
 FF_EXTN fffd fffileread_fd(fffileread *f);
 
 enum FFFILEREAD_F {
 	FFFILEREAD_FREADAHEAD = 1, // read-ahead: schedule reading of the next block
 	FFFILEREAD_FBACKWARD = 2, // read-ahead: schedule reading of the previous block, not the next
+	FFFILEREAD_FALLOWBLOCK = 4, // file reading is allowed to block this thread (i.e. perform synchronous I/O)
 };
 
 enum FFFILEREAD_R {

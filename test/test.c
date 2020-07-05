@@ -140,6 +140,8 @@ static int test_icy(void)
 
 
 extern int test_file(void);
+extern int test_fileread();
+extern int test_filewrite();
 FF_EXTN int test_ring(void);
 FF_EXTN int test_ringbuf(void);
 FF_EXTN int test_tq(void);

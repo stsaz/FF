@@ -3,42 +3,16 @@ Copyright (c) 2019 Simon Zolin
 */
 
 #include <FF/sys/fileread.h>
-#include <FF/array.h>
 #include <FF/number.h>
+#include <FF/time.h>
+#include <FFOS/timer.h>
+#include <FFOS/asyncio.h>
+#include <ffbase/slice.h>
 
 
 static int fr_read_off(fffileread *f, uint64 off);
 static int fr_read(fffileread *f);
 
-
-struct fffileread {
-	fffd fd;
-	ffaio_filetask aio;
-	uint state; //enum FI_ST
-	uint64 eof; // end-of-file position set after the last block has been read
-	uint64 async_off; // last user request's offset for which async operation is scheduled
-
-	ffarr2 bufs; //struct buf[]
-	uint wbuf;
-	uint locked;
-
-	fffileread_conf conf;
-	struct fffileread_stat stat;
-};
-
-static void fr_log(fffileread *f, uint level, const char *fmt, ...)
-{
-	if (f->conf.log == NULL)
-		return;
-
-	ffarr a = {};
-	va_list va;
-	va_start(va, fmt);
-	ffstr_catfmtv(&a, fmt, va);
-	va_end(va);
-	f->conf.log(f->conf.udata, level, (ffstr*)&a);
-	ffarr_free(&a);
-}
 
 struct buf {
 	size_t len;
@@ -46,14 +20,60 @@ struct buf {
 	uint64 offset;
 };
 
+struct fffileread {
+	fffd fd;
+	ffaio_filetask aio;
+	fflock lk;
+	uint state; //enum FI_ST
+	uint64 eof; // end-of-file position set after the last block has been read
+	uint64 async_off; // last user request's offset for which async operation is scheduled
+	ffthpool_task *iotask;
+	uint nfy_user :1;
+
+	ffslice bufs; //struct buf[]
+	uint wbuf;
+	uint locked;
+
+	fffileread_conf conf;
+	struct fffileread_stat stat;
+};
+
+#define dbglog(f, fmt, ...)  fr_log(f, FFFILEREAD_LOG_DBG, fmt, __VA_ARGS__)
+#define errlog(f, fmt, ...)  fr_log(f, FFFILEREAD_LOG_ERR, fmt, __VA_ARGS__)
+#define syserrlog(f, fmt, ...)  fr_log(f, _FFFILEREAD_LOG_SYSERR, fmt, __VA_ARGS__)
+
+static void fr_log(fffileread *f, uint level, const char *fmt, ...)
+{
+	if (f->conf.log == NULL)
+		return;
+	if (level == FFFILEREAD_LOG_DBG && !f->conf.log_debug)
+		return;
+
+	char buf[4096];
+	ffstr s;
+	ffstr_set(&s, buf, 0);
+
+	va_list va;
+	va_start(va, fmt);
+	ffstr_addfmtv(&s, sizeof(buf), fmt, va);
+	va_end(va);
+
+	if (level == _FFFILEREAD_LOG_SYSERR) {
+		ffstr_addfmt(&s, sizeof(buf), ": %E", fferr_last());
+		level = FFFILEREAD_LOG_ERR;
+	}
+
+	f->conf.log(f->conf.udata, level, s);
+}
+
 /** Create buffers aligned to system pagesize. */
 static int bufs_create(fffileread *f, const fffileread_conf *conf)
 {
-	if (NULL == ffarr2_callocT(&f->bufs, conf->nbufs, struct buf))
+	if (NULL == ffslice_zallocT(&f->bufs, conf->nbufs, struct buf))
 		goto err;
 	f->bufs.len = conf->nbufs;
 	struct buf *b;
-	FFARR_WALKT(&f->bufs, b, struct buf) {
+	FFSLICE_WALK_T(&f->bufs, b, struct buf) {
 		if (NULL == (b->ptr = ffmem_align(conf->bufsize, conf->bufalign)))
 			goto err;
 		b->offset = (uint64)-1;
@@ -61,24 +81,24 @@ static int bufs_create(fffileread *f, const fffileread_conf *conf)
 	return 0;
 
 err:
-	fr_log(f, 0, "%s", ffmem_alloc_S);
+	syserrlog(f, "%s", ffmem_alloc_S);
 	return -1;
 }
 
-static void bufs_free(ffarr2 *bufs)
+static void bufs_free(ffslice *bufs)
 {
 	struct buf *b;
-	FFARR_WALKT(bufs, b, struct buf) {
+	FFSLICE_WALK_T(bufs, b, struct buf) {
 		ffmem_alignfree(b->ptr);
 	}
-	ffarr2_free(bufs);
+	ffslice_free(bufs);
 }
 
 /** Find buffer containing file offset. */
 static struct buf* bufs_find(fffileread *f, uint64 offset)
 {
 	struct buf *b;
-	FFARR_WALKT(&f->bufs, b, struct buf) {
+	FFSLICE_WALK_T(&f->bufs, b, struct buf) {
 		if (ffint_within(offset, b->offset, b->offset + b->len))
 			return b;
 	}
@@ -105,7 +125,18 @@ enum FI_ST {
 	FI_ERR,
 	FI_ASYNC,
 	FI_EOF,
+	FI_CLOSED,
 };
+
+void fffileread_setconf(fffileread_conf *conf)
+{
+	ffmem_tzero(conf);
+	conf->kq = FF_BADFD;
+	conf->oflags = FFO_RDONLY;
+	conf->bufsize = 64 * 1024;
+	conf->nbufs = 1;
+	conf->bufalign = 4 * 1024;
+}
 
 fffileread* fffileread_create(const char *fn, fffileread_conf *conf)
 {
@@ -122,6 +153,7 @@ fffileread* fffileread_create(const char *fn, fffileread_conf *conf)
 		return NULL;
 	f->fd = FF_BADFD;
 	f->async_off = (uint64)-1;
+	f->eof = (uint64)-1;
 	f->conf.udata = conf->udata;
 	f->conf.log = conf->log;
 
@@ -142,13 +174,13 @@ fffileread* fffileread_create(const char *fn, fffileread_conf *conf)
 		}
 #endif
 
-		fr_log(f, 0, "%s", fffile_open_S);
+		syserrlog(f, "%s", fffile_open_S);
 		goto err;
 	}
 
 	ffaio_finit(&f->aio, f->fd, f);
 	if (0 != ffaio_fattach(&f->aio, conf->kq, !!(flags & FFO_DIRECT))) {
-		fr_log(f, 0, "%s: %s", ffkqu_attach_S, fn);
+		syserrlog(f, "%s: %s", ffkqu_attach_S, fn);
 		goto err;
 	}
 	f->conf = *conf;
@@ -157,18 +189,157 @@ fffileread* fffileread_create(const char *fn, fffileread_conf *conf)
 	return f;
 
 err:
-	fffileread_unref(f);
+	fffileread_free(f);
 	return NULL;
 }
 
-void fffileread_unref(fffileread *f)
+void fffileread_free(fffileread *f)
 {
 	FF_SAFECLOSE(f->fd, FF_BADFD, fffile_close);
-	if (f->state == FI_ASYNC)
+
+	ffbool ret = 0;
+	fflk_lock(&f->lk);
+	if (f->state == FI_ASYNC) {
+		f->state = FI_CLOSED;
+		ret = 1;
+	}
+	fflk_unlock(&f->lk);
+	if (ret)
 		return; //wait until AIO is completed
 
 	bufs_free(&f->bufs);
+	ffthpool_task_free(f->iotask);
 	ffmem_free(f);
+}
+
+struct fr_task {
+	ffstr buf;
+	uint64 off;
+	fffd fd;
+	int error;
+	ssize_t result;
+};
+
+/** Called within thread pool's worker. */
+static void fr_aio(ffthpool_task *t)
+{
+	fffileread *f = t->udata;
+	struct fr_task *ext = (void*)t->ext;
+	fftime t1, t2;
+	if (f->conf.log_debug)
+		ffclk_gettime(&t1);
+	ext->result = fffile_pread(ext->fd, ext->buf.ptr, ext->buf.len, ext->off);
+	ext->error = fferr_last();
+	if (f->conf.log_debug) {
+		ffclk_gettime(&t2);
+		fftime_sub(&t2, &t1);
+		dbglog(f, "read result: %L offset:%xU  error:%d  (%uus)"
+			, ext->result, ext->off, ext->error, fftime_mcs(&t2));
+	}
+	FF_ASSERT(t == f->iotask);
+	FF_ASSERT(f->nfy_user);
+
+	/* Handling a close event from user while AIO is pending:
+	...
+	set FI_ASYNC, add asynchronous task
+	user calls free()
+	FI_ASYNC: free() sets FI_CLOSED and waits until aio() is called or unblocked
+	FI_CLOSED: aio() destroys the object
+	FI_OK:
+	  aio() is calling the user function;  free() is waiting
+	  aio() has finished calling the user function;  free() continues execution
+	*/
+	fflk_lock(&f->lk);
+	if (f->state == FI_CLOSED) {
+		// user has closed the object
+		fflk_unlock(&f->lk);
+		fffileread_free(f);
+		return;
+	}
+	FF_ASSERT(f->state == FI_ASYNC);
+	f->state = FI_OK;
+	if (f->nfy_user) {
+		f->nfy_user = 0;
+		f->conf.onread(f->conf.udata);
+	}
+	fflk_unlock(&f->lk);
+}
+
+/** Read using thread pool. */
+static int fr_thpool_read(fffileread *f, ffstr *dst, uint64 off)
+{
+	if (off > f->eof) {
+		errlog(f, "seek offset %U is bigger than file size %U", off, f->eof);
+		return FFFILEREAD_RERR;
+	} else if (off == f->eof)
+		return FFFILEREAD_REOF;
+
+	if (f->state == FI_ASYNC) {
+		errlog(f, "async task is already pending", 0);
+		return FFFILEREAD_RERR;
+	}
+
+	FF_ASSERT(f->wbuf != f->locked);
+	struct buf *b = ffslice_itemT(&f->bufs, f->wbuf, struct buf);
+	b->offset = ff_align_floor2(off, f->conf.bufalign);
+
+	ffthpool_task *t;
+	if (NULL == (t = ffthpool_task_new(sizeof(struct fr_task))))
+		return FFFILEREAD_RERR;
+
+	struct fr_task *ext = (void*)t->ext;
+	ext->fd = f->fd;
+	ffstr_set(&ext->buf, b->ptr, f->conf.bufsize);
+	ext->off = b->offset;
+
+	t->handler = &fr_aio;
+	t->udata = f;
+	f->state = FI_ASYNC;
+	FF_ASSERT(f->iotask == NULL);
+	f->iotask = t;
+	f->nfy_user = 1;
+	dbglog(f, "adding file read task to thread pool: offset:%xU", b->offset);
+	if (0 != ffthpool_add(f->conf.thpool, t)) {
+		f->iotask = NULL;
+		syserrlog(f, "ffthpool_add", 0);
+		ffthpool_task_free(t);
+		return FFFILEREAD_RERR;
+	}
+	f->stat.nasync++;
+	return FFFILEREAD_RASYNC;
+}
+
+/** Process the result of operation completed in thread pool's worker. */
+static int fr_thpool_result(fffileread *f)
+{
+	int r = FFFILEREAD_RERR;
+	ffthpool_task *t = f->iotask;
+	struct fr_task *ext = (void*)t->ext;
+	if (ext->result < 0) {
+		fferr_set(ext->error);
+		syserrlog(f, "%s", fffile_read_S);
+		goto end;
+	}
+
+	dbglog(f, "buf#%u: read:%L offset:%xU"
+		, f->wbuf, ext->result, ext->off);
+
+	struct buf *b = ffslice_itemT(&f->bufs, f->wbuf, struct buf);
+	FF_ASSERT(b->offset == ext->off);
+	b->len = ext->result;
+	f->wbuf = ffint_cycleinc(f->wbuf, f->conf.nbufs);
+	f->stat.nread++;
+
+	if ((uint)ext->result != f->conf.bufsize) {
+		dbglog(f, "read the last block", 0);
+		f->eof = b->offset + b->len;
+	}
+	r = 0;
+
+end:
+	ffthpool_task_free(f->iotask);
+	f->iotask = NULL;
+	return r;
 }
 
 int fffileread_getdata(fffileread *f, ffstr *dst, uint64 off, uint flags)
@@ -177,6 +348,20 @@ int fffileread_getdata(fffileread *f, ffstr *dst, uint64 off, uint flags)
 	uint ibuf;
 	struct buf *b;
 	uint64 next;
+
+	if (f->conf.thpool != NULL)
+		flags &= ~(FFFILEREAD_FREADAHEAD | FFFILEREAD_FBACKWARD);
+
+	if (f->iotask != NULL) {
+		FF_ASSERT(f->state == FI_OK);
+		if (0 != (r = fr_thpool_result(f)))
+			return r;
+		b = bufs_find(f, off);
+		if (b != NULL)
+			goto done;
+		if (off == f->eof)
+			return FFFILEREAD_REOF;
+	}
 
 	f->locked = (uint)-1;
 
@@ -189,11 +374,15 @@ int fffileread_getdata(fffileread *f, ffstr *dst, uint64 off, uint flags)
 		goto done;
 	}
 
-	if (f->state == FI_ASYNC)
+	if (f->conf.thpool != NULL && !(flags & FFFILEREAD_FALLOWBLOCK))
+		return fr_thpool_read(f, dst, off);
+
+	if (f->state == FI_ASYNC) {
+		f->nfy_user = 1;
 		return FFFILEREAD_RASYNC;
-	else if (f->state == FI_EOF) {
+	} else if (f->state == FI_EOF) {
 		if (off > f->eof) {
-			fr_log(f, 0, "seek offset %U is bigger than file size %U", off, f->eof);
+			errlog(f, "seek offset %U is bigger than file size %U", off, f->eof);
 			return FFFILEREAD_RERR;
 		} else if (off == f->eof)
 			return FFFILEREAD_REOF;
@@ -203,6 +392,7 @@ int fffileread_getdata(fffileread *f, ffstr *dst, uint64 off, uint flags)
 	r = fr_read_off(f, ff_align_floor2(off, f->conf.bufalign));
 	if (r == R_ASYNC) {
 		f->async_off = off;
+		f->nfy_user = 1;
 		return FFFILEREAD_RASYNC;
 	} else if (r == R_ERR)
 		return FFFILEREAD_RERR;
@@ -232,10 +422,11 @@ done:
 		}
 	}
 
-	fr_log(f, 1, "returning buf#%u  off:%Uk  cache-hit:%u"
-		, ibuf, b->offset / 1024, cachehit);
+	dbglog(f, "returning buf#%u  offset:%xU  cache-hit:%u"
+		, ibuf, b->offset, cachehit);
 
-	ffarr_setshift(dst, b->ptr, b->len, off - b->offset);
+	ffstr_set(dst, b->ptr, b->len);
+	ffstr_shift(dst, off - b->offset);
 	return FFFILEREAD_RREAD;
 }
 
@@ -245,26 +436,28 @@ static void fr_read_a(void *param)
 	fffileread *f = param;
 	int r;
 
-	FF_ASSERT(f->state == FI_ASYNC);
-	f->state = FI_OK;
-
-	if (f->fd == FF_BADFD) {
-		//chain was closed while AIO is pending
-		fffileread_unref(f);
+	if (f->state == FI_CLOSED) {
+		// object was closed while AIO is pending
+		fffileread_free(f);
 		return;
 	}
+	FF_ASSERT(f->state == FI_ASYNC);
+	f->state = FI_OK;
 
 	r = fr_read(f);
 	if (r == R_ASYNC)
 		return;
 
-	f->conf.onread(f->conf.udata);
+	if (f->nfy_user) {
+		f->nfy_user = 0;
+		f->conf.onread(f->conf.udata);
+	}
 }
 
 /** Start reading at the specified aligned offset. */
 static int fr_read_off(fffileread *f, uint64 off)
 {
-	struct buf *b = ffarr_itemT(&f->bufs, f->wbuf, struct buf);
+	struct buf *b = ffslice_itemT(&f->bufs, f->wbuf, struct buf);
 	FF_ASSERT(f->wbuf != f->locked);
 	buf_prepread(b, off);
 	return fr_read(f);
@@ -276,17 +469,17 @@ static int fr_read(fffileread *f)
 	int r;
 	struct buf *b;
 
-	b = ffarr_itemT(&f->bufs, f->wbuf, struct buf);
+	b = ffslice_itemT(&f->bufs, f->wbuf, struct buf);
 	r = (int)ffaio_fread(&f->aio, b->ptr, f->conf.bufsize, b->offset, &fr_read_a);
 	if (r < 0) {
 		if (fferr_again(fferr_last())) {
-			fr_log(f, 1, "buf#%u: async read, offset:%Uk", f->wbuf, b->offset / 1024);
+			dbglog(f, "buf#%u: async read, offset:%Uk", f->wbuf, b->offset / 1024);
 			f->state = FI_ASYNC;
 			f->stat.nasync++;
 			return R_ASYNC;
 		}
 
-		fr_log(f, 0, "%s: buf#%u offset:%Uk"
+		syserrlog(f, "%s: buf#%u offset:%Uk"
 			, fffile_read_S, f->wbuf, b->offset / 1024);
 		f->state = FI_ERR;
 		return R_ERR;
@@ -294,13 +487,13 @@ static int fr_read(fffileread *f)
 
 	b->len = r;
 	f->stat.nread++;
-	fr_log(f, 1, "buf#%u: read %L bytes at offset %Uk"
+	dbglog(f, "buf#%u: read:%L  offset:%Uk"
 		, f->wbuf, b->len, b->offset / 1024);
 
 	f->wbuf = ffint_cycleinc(f->wbuf, f->conf.nbufs);
 
 	if ((uint)r != f->conf.bufsize) {
-		fr_log(f, 1, "read the last block", 0);
+		dbglog(f, "read the last block", 0);
 		f->eof = b->offset + b->len;
 		f->state = FI_EOF;
 		return R_DONE;

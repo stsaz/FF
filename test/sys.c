@@ -7,6 +7,8 @@ Copyright (c) 2017 Simon Zolin
 #include <FF/sys/filemap.h>
 #include <FF/sys/sendfile.h>
 #include <FF/sys/dir.h>
+#include <FF/sys/fileread.h>
+#include <FF/sys/filewrite.h>
 #include <FF/net/url.h>
 #include <FFOS/process.h>
 #include <FFOS/thread.h>
@@ -311,5 +313,190 @@ int test_sig(void)
 	ffsig_subscribe(&sig_handler, sigs_fault, FFCNT(sigs_fault));
 	ffthd th = ffthd_create(&sig_thdfunc, NULL, 0);
 	ffthd_join(th, -1, NULL);
+	return 0;
+}
+
+
+static void onlog(void *udata, uint level, ffstr msg)
+{
+	fffile_fmt(ffstdout, NULL, "%S\n", &msg);
+}
+
+uint syncvar;
+
+static void onread()
+{
+	syncvar = 1;
+}
+
+int test_fileread()
+{
+	FFTEST_FUNC;
+	syncvar = 0;
+	char *fn = TESTDIR "/fftest-filerw";
+
+	ffthpool *thpool;
+	ffthpoolconf ioconf;
+	ioconf.maxqueue = 4;
+	ioconf.maxthreads = 2;
+	x(NULL != (thpool = ffthpool_create(&ioconf)));
+
+	fffileread *fr;
+	fffileread_conf conf;
+	fffileread_setconf(&conf);
+	conf.thpool = thpool;
+	conf.log = &onlog;
+	conf.log_debug = 1;
+	conf.onread = &onread;
+	conf.oflags = FFO_CREATE | FFO_RDWR;
+	conf.nbufs = 2;
+	x(NULL != (fr = fffileread_create(fn, &conf)));
+
+	ffarr a = {};
+	ffarr_alloc(&a, 128*1024 + 9);
+	ffmemcpy(a.ptr + 64*1024, "123456789", 9);
+	ffmemcpy(a.ptr + 128*1024, "abcdefghi", 9);
+	x(a.cap == fffile_pwrite(fffileread_fd(fr), a.ptr, a.cap, 0));
+	ffarr_free(&a);
+
+	ffstr d;
+	int r;
+	// read from file at 64k
+	x(FFFILEREAD_RASYNC == (r = fffileread_getdata(fr, &d, 64*1024 + 1, 0)));
+	ffatom_waitchange(&syncvar, 0);  syncvar = 0;
+	x(FFFILEREAD_RREAD == (r = fffileread_getdata(fr, &d, 64*1024 + 1, 0)));
+	x(ffstr_matchz(&d, "23456789"));
+
+	// read from file at 128k
+	x(FFFILEREAD_RASYNC == (r = fffileread_getdata(fr, &d, 128*1024 + 1, 0)));
+	ffatom_waitchange(&syncvar, 0);  syncvar = 0;
+	x(FFFILEREAD_RREAD == (r = fffileread_getdata(fr, &d, 128*1024 + 1, 0)));
+	x(ffstr_matchz(&d, "bcdefghi"));
+
+	// EOF
+	x(FFFILEREAD_REOF == (r = fffileread_getdata(fr, &d, 128*1024 + 9, 0)));
+
+	// read from cache at 64k
+	x(FFFILEREAD_RREAD == (r = fffileread_getdata(fr, &d, 64*1024 + 2, 0)));
+	x(ffstr_matchz(&d, "3456789"));
+
+	// read from cache at 128k
+	x(FFFILEREAD_RREAD == (r = fffileread_getdata(fr, &d, 128*1024 + 2, 0)));
+	x(ffstr_matchz(&d, "cdefghi"));
+
+	// check stats
+	struct fffileread_stat st;
+	fffileread_stat(fr, &st);
+	x(st.nread == 2);
+	x(st.ncached == 2);
+
+	fffileread_free(fr);
+	ffthpool_free(thpool);
+	fffile_rm(fn);
+	return 0;
+}
+
+static void onlogw(void *udata, uint level, ffstr msg)
+{
+	fffile_fmt(ffstdout, NULL, "%S\n", &msg);
+}
+
+static void onwrite()
+{
+	syncvar = 1;
+}
+
+int test_filewrite()
+{
+	FFTEST_FUNC;
+	fffilewrite_stat st;
+	syncvar = 0;
+	char *fn = TESTDIR "/fftest-filerw";
+	ffarr aread = {};
+	ffstr a = {};
+
+	ffthpool *thpool;
+	ffthpoolconf ioconf;
+	ioconf.maxqueue = 4;
+	ioconf.maxthreads = 2;
+	x(NULL != (thpool = ffthpool_create(&ioconf)));
+
+	fffilewrite *fw;
+	fffilewrite_conf conf;
+	fffilewrite_setconf(&conf);
+	conf.log = &onlogw;
+	conf.log_debug = 1;
+	conf.bufsize = 64*1024;
+	conf.nbufs = 2;
+	conf.onwrite = &onwrite;
+	conf.prealloc = 64*1024;
+	conf.prealloc_grow = 0;
+	conf.thpool = thpool;
+	conf.overwrite = 1;
+	x(NULL != (fw = fffilewrite_create(fn, &conf)));
+
+	ffstr data;
+	ffstr_setz(&data, "0123456789");
+	x(10 == fffilewrite_write(fw, data, -1, 0)); // buf0@0: "0123456789"
+
+	ffstr_setz(&data, "abcdef");
+	x(6 == fffilewrite_write(fw, data, -1, 0)); // buf0@0: "0123456789abcdef"
+	fffilewrite_getstat(fw, &st); x(st.nmwrite == 2);
+
+	ffstr_setz(&data, "-");
+	x(1 == fffilewrite_write(fw, data, 13, 0)); // file: "0123456789abcdef"  buf0:aio  buf1@13: "-"
+	fffilewrite_getstat(fw, &st); x(st.nmwrite == 3); x(st.nasync == 1);
+
+	ffstr_setz(&data, "=");
+	x(1 == fffilewrite_write(fw, data, -1, 0)); // file: "0123456789abcdef"  buf0:aio  buf1@13: "-="
+	fffilewrite_getstat(fw, &st); x(st.nmwrite == 4);
+
+	ffstr_alloc(&a, 128*1024);
+	ffstr_addfill(&a, 128*1024, 'A', 128*1024);
+	ffstr_set2(&data, &a);
+
+	while (data.len != 0) {
+		ssize_t r = fffilewrite_write(fw, data, -1, 0);
+		if (r == FFFILEWRITE_RASYNC) {
+			ffthd_sleep(100);
+			continue;
+		}
+		x(r >= 0);
+		// file: "0123456789abcdef-=A[64k-2]"  buf0:aio  buf1:aio
+		// file: "0123456789abc-=A[64k-2+64k]"  buf1: ""
+		// file: "0123456789abc-=A[64k-2+64k]"  buf1@13+2+64k-2+64k: "AA"
+		ffstr_shift(&data, r);
+	}
+
+	for (;;) {
+		ssize_t r = fffilewrite_write(fw, data, -1, FFFILEWRITE_FFLUSH);
+		if (r == FFFILEWRITE_RASYNC) {
+			ffthd_sleep(100);
+			continue;
+		}
+		x(r == 0);
+		if (r == 0) // file: "0123456789abc-=A[64k+64k]"
+			break;
+	}
+
+	fffilewrite_getstat(fw, &st);
+	x(st.nmwrite == 6);
+	x(st.nprealloc == 3);
+	x(st.nasync == 4);
+	x(st.nfwrite == 4);
+
+	fffilewrite_free(fw);
+
+	ffstr_free(&a);
+	ffstr_alloc(&a, 128*1024 + 13 + 2);
+	ffstr_add(&a, -1, "0123456789abc-=", 13 + 2);
+	ffstr_addfill(&a, -1, 'A', 128*1024);
+	x(0 == fffile_readall(&aread, fn, -1));
+	x(ffstr_eq2(&aread, &a));
+
+	ffthpool_free(thpool);
+	fffile_rm(fn);
+	ffstr_free(&a);
+	ffarr_free(&aread);
 	return 0;
 }
