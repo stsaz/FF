@@ -677,7 +677,7 @@ static void test_replace()
 
 	ffstr_setz(&s, "1234567");
 	ffstr_setz(&f, "78");
-	x(0 == ffstr_replace(&d, &s, &f, &r, 0));
+	x(-1 == ffstr_replace(&d, &s, &f, &r, 0));
 }
 
 int test_str()

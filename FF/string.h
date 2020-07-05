@@ -592,7 +592,7 @@ enum FFSTR_REPL_F {
 /** Replace text in 'src' and write output to 'dst'.
 'dst': points to an allocated buffer.  Min size: (src.len - search.len + replace.len).
 'flags': enum FFSTR_REPL_F
-Return the position after replacement;  0:no match ('dst' will be empty). */
+Return the position after replacement;  -1:no match ('dst' will be empty). */
 FF_EXTN ssize_t ffstr_replace(ffstr *dst, const ffstr *src, const ffstr *search, const ffstr *replace, uint flags);
 
 enum FFS_ESCAPE {

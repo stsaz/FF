@@ -283,7 +283,7 @@ ssize_t ffstr_replace(ffstr *dst, const ffstr *src, const ffstr *search, const f
 		r = ffstr_find2(src, search);
 	if (r < 0) {
 		dst->len = 0;
-		return 0;
+		return -1;
 	}
 
 	// dst = src... [-search] [+replace] ...src
