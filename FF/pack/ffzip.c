@@ -394,6 +394,7 @@ enum E_READ {
 void ffzip_init(ffzip *z, uint64 total_size)
 {
 	z->inoff = total_size;
+	z->codepage = FFUNICODE_WIN1252;
 	z->state = R_CDIR_TRL_SEEK;
 	ffchain_init(&z->cdir);
 }
@@ -584,8 +585,20 @@ int ffzip_read(ffzip *z, char *dst, size_t cap)
 		const zip_cdir *cdir = (void*)z->buf.ptr;
 		uint filenamelen = ffint_ltoh16(cdir->filenamelen);
 		ffzip_file *f = FF_GETPTR(ffzip_file, sib, ffchain_last(&z->cdir));
-		if (NULL == (f->fn = ffsz_alcopy(cdir->filename, filenamelen)))
-			return ERR(z, FFZIP_ESYS);
+
+		if (ffutf8_valid(cdir->filename, filenamelen)) {
+			if (NULL == (f->fn = ffsz_dupn(cdir->filename, filenamelen)))
+				return ERR(z, FFZIP_ESYS);
+		} else {
+			ffstr s = {};
+			ffsize cap = 0;
+			if (0 == ffstr_growadd_codepage(&s, &cap, cdir->filename, filenamelen, z->codepage)
+				|| 0 == ffstr_growaddchar(&s, &cap, '\0')) {
+				ffstr_free(&s);
+				return ERR(z, FFZIP_ESYS);
+			}
+			f->fn = s.ptr;
+		}
 
 		ffstr extra;
 		ffstr_set2(&extra, &z->buf);

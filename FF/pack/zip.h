@@ -87,6 +87,7 @@ typedef struct ffzip {
 	uint64 inoff;
 	uint64 cdir_off;
 	uint64 cdir_end;
+	uint codepage; // enum FFUNICODE_CP  default: FFUNICODE_WIN1252
 
 	ffzip_log log;
 	void *udata;
