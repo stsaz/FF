@@ -345,7 +345,8 @@ int ffdir_expopen(ffdirexp *dex, char *pattern, uint flags)
 	ffpath_split2(pattern, len, &path, &wildcard);
 
 	if (wildcard.len != 0
-		&& ffarr_end(&wildcard) == ffs_findof(wildcard.ptr, wildcard.len, "*?", 2)) {
+		&& ((flags & FFDIR_EXP_NOWILDCARD)
+			|| 0 > ffstr_findanyz(&wildcard, "*?"))) {
 		// "/path" (without the last "/")
 		ffstr_set(&path, pattern, len);
 		wildcard.len = 0;
@@ -386,7 +387,7 @@ int ffdir_expopen(ffdirexp *dex, char *pattern, uint flags)
 #if FF_WIN >= 0x0600
 	dir = FindFirstFileEx(wpatt, FindExInfoBasic, &de.info, 0, NULL, 0);
 #else
-	dir = FindFirstFile(wpatt, &de.info);
+	dir = FindFirstFile(wpatt, &de.find_data);
 #endif
 	if (wpatt != wpatt_s)
 		ffmem_free(wpatt);

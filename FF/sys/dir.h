@@ -22,6 +22,7 @@ enum FFDIR_EXP {
 	FFDIR_EXP_NOSORT = 1,
 	FFDIR_EXP_DOT12 = 2, //include "." and ".."
 	FFDIR_EXP_REL = 4, //output relative filenames
+	FFDIR_EXP_NOWILDCARD = 8, // disable matching by wildcard
 };
 
 /** Get file names by a wildcard pattern.
