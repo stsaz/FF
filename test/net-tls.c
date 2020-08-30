@@ -5,8 +5,6 @@ Copyright (c) 2018 Simon Zolin
 #include <FFOS/test.h>
 #include <FF/net/tls.h>
 
-#define x FFTEST_BOOL
-
 
 static const char tls13_clienthello_ciphers[] =
 "\x13\x01\x13\x03\x13\x02\xc0\x2b\xc0\x2f\xcc\xa9\xcc\xa8\xc0\x2c"

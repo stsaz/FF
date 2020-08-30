@@ -4,8 +4,6 @@ Copyright (c) 2013 Simon Zolin
 
 #pragma once
 
-#define x FFTEST_BOOL
-
 
 typedef struct obj_s obj_s;
 

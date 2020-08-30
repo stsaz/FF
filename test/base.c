@@ -14,8 +14,6 @@ Copyright (c) 2014 Simon Zolin
 
 #include <test/all.h>
 
-#define x FFTEST_BOOL
-
 
 static void test_endian(void)
 {

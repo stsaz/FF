@@ -4,8 +4,6 @@ Copyright (c) 2019 Simon Zolin
 
 #include <FF/net/url.h>
 #include <FFOS/test.h>
-#define x FFTEST_BOOL
-
 
 static int test_ip4()
 {

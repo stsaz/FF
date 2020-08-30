@@ -7,8 +7,6 @@ Copyright (c) 2018 Simon Zolin
 #include <FFOS/random.h>
 #include <FFOS/test.h>
 
-#define x FFTEST_BOOL
-
 
 struct route {
 	byte ip[4];

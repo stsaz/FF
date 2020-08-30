@@ -159,13 +159,9 @@ Return the mismatch byte position:
  . -n-1 if s1 < sz2. */
 FF_EXTN ssize_t ffs_cmpn(const char *s1, const char *s2, size_t len);
 
-#define ffsz_cmp(sz1, sz2)  strcmp(sz1, sz2)
-
 /** Return TRUE if a buffer and a constant NULL-terminated string are equal. */
 #define ffs_eqcz(s1, len, csz2) \
 	((len) == FFSLEN(csz2) && 0 == ffs_cmp(s1, csz2, len))
-
-#define ffsz_eq(sz1, sz2)  (!ffsz_cmp(sz1, sz2))
 
 
 // COMPARE (case insensitive)
@@ -706,16 +702,6 @@ static FFINL size_t ffs_fmatch(const char *s, size_t len, const char *fmt, ...) 
 
 
 // PATTERN MATCH - match text by a pattern
-
-enum FFS_WILDCARD {
-	FFS_WC_ICASE = 1
-};
-
-/** Match string by a wildcard pattern ('*', '?').
-@flags: enum FFS_WILDCARD.
-Return 0 if match. */
-FF_EXTN int ffs_wildcard(const char *pattern, size_t patternlen, const char *s, size_t len, uint flags);
-
 
 /** Match string by a regular expression.
 REGEX:     MEANING:

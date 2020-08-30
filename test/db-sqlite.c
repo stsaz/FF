@@ -8,8 +8,6 @@ Copyright 2018 Simon Zolin.
 
 #include <test/all.h>
 
-#define x FFTEST_BOOL
-
 #define SQL_CRE  "CREATE TABLE tbl (int INTEGER, str TEXT)"
 #define SQL_INS  "INSERT INTO tbl VALUES (?, ?)"
 #define SQL_SEL  "SELECT int, str FROM tbl WHERE int = ?"

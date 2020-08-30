@@ -5,8 +5,6 @@ Copyright (c) 2018 Simon Zolin
 #include <FF/net/websocket.h>
 #include <FFOS/test.h>
 
-#define x FFTEST_BOOL
-
 
 static const char ws_key[] = "dGhlIHNhbXBsZSBub25jZQ==";
 static const char ws_accept_key[] = "s3pPLMBiTxaQ9kYGzzhZRbK+xOo=";

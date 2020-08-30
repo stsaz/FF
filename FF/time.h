@@ -22,10 +22,6 @@ FF_EXTN int fftime_cmp(const fftime *t1, const fftime *t2);
 /** Normalize time value. */
 FF_EXTN void fftime_normalize(fftime *t);
 
-/** Add/subtract a normal time value. */
-FF_EXTN void fftime_add(fftime *t, const fftime *t2);
-FF_EXTN void fftime_sub(fftime *t, const fftime *t2);
-
 // obsolete
 #define fftime_diff(start, stop)  fftime_sub(stop, start)
 

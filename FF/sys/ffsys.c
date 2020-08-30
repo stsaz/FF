@@ -14,19 +14,6 @@ Copyright (c) 2014 Simon Zolin
 #include <FFOS/error.h>
 
 
-/** Make directories for a filename. */
-int fffile_makepath(char *fn, size_t off)
-{
-	ffstr dir;
-	ffpath_split2(fn, ffsz_len(fn), &dir, NULL);
-	char *s = dir.ptr + dir.len;
-	char c = *s;
-	*s = '\0';
-	int r = ffdir_rmake(dir.ptr, off);
-	*s = c;
-	return r;
-}
-
 static const char s_fmode[] = ".pc.d.b.-.l.s...";
 static const char s_fperm_set[] = "rwxrwxrwx";
 
@@ -298,21 +285,6 @@ uint fftask_run(fftaskmgr *mgr)
 }
 
 
-int ffdir_make_path(char *fn, size_t off)
-{
-	ffstr dir;
-	int r, c;
-
-	if (NULL == ffpath_split2(fn, ffsz_len(fn), &dir, NULL))
-		return 0; // no slash in filename
-
-	c = dir.ptr[dir.len];
-	dir.ptr[dir.len] = '\0';
-	r = ffdir_rmake(dir.ptr, off);
-	dir.ptr[dir.len] = c;
-	return r;
-}
-
 static int _ffdir_cmpfilename(const void *a, const void *b, void *udata)
 {
 	char *n1 = *(char**)a, *n2 = *(char**)b;
@@ -333,7 +305,7 @@ int ffdir_expopen(ffdirexp *dex, char *pattern, uint flags)
 	int rc = 1;
 	uint wcflags;
 	char **pname;
-	const ffsyschar *nm;
+	const char *nm;
 	ffstr path, wildcard;
 	ffarr names = {0};
 	ffstr3 fullname = {0};
@@ -370,25 +342,32 @@ int ffdir_expopen(ffdirexp *dex, char *pattern, uint flags)
 		return 1;
 
 #else //windows:
+	wchar_t wpatt_s[256], *wpatt;
+
 	if (wildcard.len == 0) {
-		if (NULL == (dir = ffdir_open(pattern, 0, &de)))
+		// "/dir" -> "/dir\\*"
+		int n = ffsz_utow(NULL, 0, pattern);
+		if (n <= 0) {
+			fferr_set(EINVAL);
 			return 1;
+		}
+		if (NULL == (wpatt = ffmem_alloc((n + 2) * sizeof(wchar_t))))
+			return 1;
+		n = ffsz_utow(wpatt, n + 2, pattern);
+
+		n--;
+		if (wpatt[n - 1] == '/' || wpatt[n - 1] == '\\')
+			n--; // "dir/" -> "dir"
+		wpatt[n] = '\\';
+		wpatt[n + 1] = '*';
+		wpatt[n + 2] = '\0';
 
 	} else {
+		if (NULL == (wpatt = ffsz_alloc_buf_utow(wpatt_s, FF_COUNT(wpatt_s), pattern)))
+			return 1;
+	}
 
-	ffsyschar *wpatt;
-	ffsyschar wpatt_s[FF_MAXFN];
-	size_t wpatt_len = FFCNT(wpatt_s);
-
-	wpatt = ffs_utow(wpatt_s, &wpatt_len, pattern, -1);
-	if (wpatt == NULL)
-		return 1;
-
-#if FF_WIN >= 0x0600
-	dir = FindFirstFileEx(wpatt, FindExInfoBasic, &de.info, 0, NULL, 0);
-#else
-	dir = FindFirstFile(wpatt, &de.find_data);
-#endif
+	dir = FindFirstFileW(wpatt, &de.find_data);
 	if (wpatt != wpatt_s)
 		ffmem_free(wpatt);
 
@@ -396,7 +375,6 @@ int ffdir_expopen(ffdirexp *dex, char *pattern, uint flags)
 		if (fferr_last() == ERROR_FILE_NOT_FOUND)
 			fferr_set(ENOMOREFILES);
 		return 1;
-	}
 	}
 #endif
 
@@ -410,7 +388,7 @@ int ffdir_expopen(ffdirexp *dex, char *pattern, uint flags)
 			goto done;
 		}
 
-		nm = ffdir_entryname(&de);
+		nm = ffdir_entry_name(&de);
 		if (!(flags & FFDIR_EXP_DOT12)
 			&& nm[0] == '.' && (nm[1] == '\0'
 				|| (nm[1] == '.' && nm[2] == '\0')))
@@ -420,7 +398,7 @@ int ffdir_expopen(ffdirexp *dex, char *pattern, uint flags)
 			goto done;
 
 		fullname.len = 0;
-		if (0 == ffstr_catfmt(&fullname, "%*q%Z", de.namelen, ffdir_entryname(&de)))
+		if (0 == ffstr_catfmt(&fullname, "%s%Z", ffdir_entry_name(&de)))
 			goto done;
 		fullname.len--;
 

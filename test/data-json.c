@@ -10,8 +10,6 @@ Copyright (c) 2013 Simon Zolin
 #include "data-schem.h"
 #include "all.h"
 
-#define x FFTEST_BOOL
-
 /** Parse JSON from file.
 The window is just 1 byte to make the parser work harder.
 Use heap memory buffer to collect data for incomplete entities.
@@ -29,8 +27,7 @@ int test_json_parse(const char *testJsonFile)
 	void *dst;
 
 	f = fffile_open(testJsonFile, O_RDONLY);
-	if (!x(f != FF_BADFD))
-		return 0;
+	x(f != FF_BADFD);
 
 	ffjson_parseinit(&json);
 	ffjson_cookinit(&ck, NULL, 0);
@@ -264,8 +261,7 @@ int test_json_generat(const char *fn)
 	ffjson_cookinit(&j, buf, sizeof(buf));
 
 	f = fffile_open(fn, FFO_CREATE | FFO_TRUNC | FFO_WRONLY);
-	if (!x(f != FF_BADFD))
-		return 0;
+	x(f != FF_BADFD);
 
 	ffjson_add(&j, FFJSON_TARR | jf, FFJSON_CTXOPEN);
 

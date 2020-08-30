@@ -3,8 +3,6 @@
 #include <FF/data/xml.h>
 #include <FFOS/test.h>
 
-#define x FFTEST_BOOL
-
 static void xml_parse()
 {
 	int r, rr = 0, tag = 0, attr = 0;

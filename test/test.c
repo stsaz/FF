@@ -14,7 +14,6 @@ Copyright (c) 2013 Simon Zolin
 
 #include <test/all.h>
 
-#define x FFTEST_BOOL
 #define CALL FFTEST_TIMECALL
 
 
@@ -25,8 +24,7 @@ size_t _test_readfile(const char *fn, char *buf, size_t n)
 	x(f != FF_BADFD);
 	n = fffile_read(f, buf, n);
 	fffile_close(f);
-	if (!x(n != 0 && n != (size_t)-1))
-		return 0;
+	x(n != 0 && n != (size_t)-1);
 	return n;
 }
 
@@ -156,7 +154,6 @@ extern int test_tls(void);
 extern int test_webskt(void);
 extern int test_path(void);
 extern int test_bits(void);
-extern int test_sig(void);
 extern void test_conf_write(void);
 extern void test_dns_client(void);
 extern int test_cache(void);
@@ -172,7 +169,6 @@ static const struct test_s _fftests[] = {
 	F(str), F(regex),
 	F(num), F(bits), F(rbtree), F(rbtlist), F(htable), F(ring), F(ringbuf), F(tq), F(crc),
 	F(file), F(fmap), F(time), F(timerq), F(sendfile), F(path), F(direxp),
-	//F(sig),
 	F(ip), F(url), F(http), F(dns), F(icy), F(tls), F(webskt),
 	F(json), F(conf), F(conf_write), F(args), F(cue), F(xml),
 	F(tar), F(iso),
@@ -186,7 +182,6 @@ int main(int argc, const char **argv)
 	size_t i, iarg;
 	ffmem_init();
 
-	fftestobj.flags |= FFTEST_STOPERR;
 	ffdir_make(TESTDIR);
 
 	if (argc == 1) {
@@ -202,7 +197,9 @@ int main(int argc, const char **argv)
 	} else if (!ffsz_cmp(argv[1], "all")) {
 		//run all tests
 		for (i = 0;  i < FFCNT(_fftests);  i++) {
-			FFTEST_TIMECALL(_fftests[i].func());
+			ffstdout_fmt("%s\n", _fftests[i].nm);
+			_fftests[i].func();
+			ffstdout_fmt("  OK\n");
 		}
 
 	} else {
@@ -212,7 +209,9 @@ int main(int argc, const char **argv)
 			for (i = 0;  i < FFCNT(_fftests);  i++) {
 
 				if (!ffsz_cmp(argv[iarg], _fftests[i].nm)) {
-					FFTEST_TIMECALL(_fftests[i].func());
+					ffstdout_fmt("%s\n", _fftests[i].nm);
+					_fftests[i].func();
+					ffstdout_fmt("  OK\n");
 					break;
 				}
 
@@ -220,15 +219,15 @@ int main(int argc, const char **argv)
 					&& ffsz_eq(argv[iarg] + ffsz_len(_fftests[i].nm), "...")) {
 					// run all next tests
 					for (uint k = i;  k < FFCNT(_fftests);  k++) {
-						FFTEST_TIMECALL(_fftests[k].func());
+						ffstdout_fmt("%s\n", _fftests[k].nm);
+						_fftests[k].func();
+						ffstdout_fmt("  OK\n");
 					}
 					break;
 				}
 			}
 		}
 	}
-
-	ff_printf("%u tests were run, failed: %u.\n", fftestobj.nrun, fftestobj.nfail);
 
 	return 0;
 }

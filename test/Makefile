@@ -1,6 +1,6 @@
 # FF makefile
 
-ROOT := ..
+ROOT := ../..
 FFOS = $(ROOT)/ffos
 FFBASE := $(ROOT)/ffbase
 FF = $(ROOT)/ff
@@ -31,7 +31,7 @@ all: ff $(FF_TEST_BIN)
 
 clean:
 	rm -vf $(FF_TEST_BIN) \
-		$(FF_TEST_OBJ) $(FF_TEST_O) $(FF_OBJ) $(FF_OBJ_DIR)/fftest.o \
+		$(FF_TEST_OBJ) $(FF_TEST_O) $(FF_OBJ) \
 		$(FFOS_OBJ) $(FFOS_SKT) $(FFOS_THD)
 
 include $(FF)/makerules
@@ -54,9 +54,9 @@ FF_TEST_SRC := \
 FF_TEST_OBJ := $(addprefix ./, $(addsuffix .o, $(notdir $(basename $(FF_TEST_SRC)))))
 FF_TEST_OBJ += $(FF_OBJ_DIR)/sha1.o $(FF_OBJ_DIR)/base64.o
 
-./%.o: $(FF)/test/%.c $(FF_HDR) $(FF_TEST_HDR) $(FF)/Makefile
+./%.o: $(FF)/test/%.c $(FF_HDR) $(FF_TEST_HDR) $(FF)/test/Makefile
 	$(C) $(CFLAGS)  $< -o$@
-./%.o: $(FF)/test/%.cpp $(FF_HDR) $(FF_TEST_HDR) $(FF)/Makefile
+./%.o: $(FF)/test/%.cpp $(FF_HDR) $(FF_TEST_HDR) $(FF)/test/Makefile
 	$(CXX) $(CXXFLAGS)  $< -o$@
 
 FF_TEST_O := $(FFOS_OBJ) $(FF_OBJ) \
@@ -82,19 +82,15 @@ FF_TEST_O := $(FFOS_OBJ) $(FF_OBJ) \
 	$(FF_OBJ_DIR)/ffiso.o $(FF_OBJ_DIR)/ffiso-fmt.o \
 	$(FF_OBJ_DIR)/fftls.o \
 	$(FF_OBJ_DIR)/ffwebskt.o \
-	$(FF_OBJ_DIR)/fftest.o $(FF_TEST_OBJ)
+	$(FF_TEST_OBJ)
 
 $(FF_TEST_BIN): $(FF_TEST_O)
 	$(LD) $(FF_TEST_O) $(LDFLAGS) $(LIBS) $(LD_LWS2_32) $(LD_LPTHREAD) -o$@
-
-copy:
-	cp -ur $(FF)/test/  .
 
 FF_TESTSSL_O := $(FFOS_OBJ) $(FF_OBJ) \
 	$(FF_OBJ_DIR)/ffutf8.o \
 	$(FF_OBJ_DIR)/ffparse.o \
 	$(FF_OBJ_DIR)/ffssl.o \
-	$(FF_OBJ_DIR)/fftest.o \
 	./ssl.o
 fftest-ssl: $(FF_TESTSSL_O)
 	$(LD) $(FF_TESTSSL_O) $(LDFLAGS) -L$(FF3PT)-bin/$(OS)-$(ARCH) -lcrypto -lssl $(LD_LDL)  -o$@
@@ -102,7 +98,6 @@ fftest-ssl: $(FF_TESTSSL_O)
 FF_TEST_SQLITE_O := $(FFOS_OBJ) $(FF_OBJ) \
 	$(FF_OBJ_DIR)/ffutf8.o \
 	$(FF_OBJ_DIR)/ffparse.o \
-	$(FF_OBJ_DIR)/fftest.o \
 	./db-sqlite.o
 fftest-sqlite: ff-obj $(FF_TEST_SQLITE_O)
 	$(LD) $(FF_TEST_SQLITE_O) $(LDFLAGS) -L$(FF3PT)-bin/$(OS)-$(ARCH) -lsqlite3-ff  -o$@
@@ -110,7 +105,6 @@ fftest-sqlite: ff-obj $(FF_TEST_SQLITE_O)
 FF_TEST_PGSQL_O := $(FFOS_OBJ) $(FF_OBJ) \
 	$(FF_OBJ_DIR)/ffutf8.o \
 	$(FF_OBJ_DIR)/ffparse.o \
-	$(FF_OBJ_DIR)/fftest.o \
 	$(FF_OBJ_DIR)/ffdb-postgre.o \
 	./db-postgre.o
 fftest-postgre: ff-obj $(FF_TEST_PGSQL_O)

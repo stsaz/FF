@@ -7,8 +7,6 @@ Copyright (c) 2018 Simon Zolin
 #include <FFOS/file.h>
 #include <FFOS/test.h>
 
-#define x FFTEST_BOOL
-
 
 void test_ssl(void)
 {

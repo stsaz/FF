@@ -9,8 +9,6 @@ Copyright (c) 2013 Simon Zolin
 
 #include <test/all.h>
 
-#define x FFTEST_BOOL
-
 int test_strqcat()
 {
 	ffsyschar buf[255];

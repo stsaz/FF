@@ -98,26 +98,6 @@ void fftime_addms(fftime *t, uint64 ms)
 	fftime_add(t, &t2);
 }
 
-void fftime_add(fftime *t, const fftime *t2)
-{
-	t->sec += t2->sec;
-	t->nsec += t2->nsec;
-	if (t->nsec >= 1000000000) {
-		t->nsec -= 1000000000;
-		t->sec++;
-	}
-}
-
-void fftime_sub(fftime *t, const fftime *t2)
-{
-	t->sec -= t2->sec;
-	t->nsec -= t2->nsec;
-	if ((int)t->nsec < 0) {
-		t->nsec += 1000000000;
-		t->sec--;
-	}
-}
-
 void fftime_totm(struct tm *tm, const ffdtm *dt)
 {
 	tm->tm_year = ffmax(dt->year - 1900, 0);

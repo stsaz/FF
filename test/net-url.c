@@ -10,8 +10,6 @@ Copyright (c) 2013 Simon Zolin
 #include <FF/data/parse.h>
 
 
-#define x FFTEST_BOOL
-
 static int test_urldecode()
 {
 	char decoded[255];

@@ -5,8 +5,6 @@ Copyright (c) 2013 Simon Zolin
 #include <FFOS/test.h>
 #include <FF/net/http.h>
 
-#define x FFTEST_BOOL
-
 
 static int test_meth()
 {

@@ -6,8 +6,6 @@ Copyright (c) 2019 Simon Zolin
 #include <test/all.h>
 #include <FFOS/test.h>
 
-#define x FFTEST_BOOL
-
 static void setci(ffcache_item *ci, const char *k, const char *v)
 {
 	ffmem_tzero(ci);

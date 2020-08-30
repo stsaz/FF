@@ -5,8 +5,6 @@ Copyright (c) 2018 Simon Zolin
 #include <FFOS/test.h>
 #include <FF/pack/iso.h>
 
-#define x FFTEST_BOOL
-
 
 static void test_iso_write(ffarr *data)
 {

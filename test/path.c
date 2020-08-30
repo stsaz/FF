@@ -6,8 +6,6 @@ Copyright (c) 2019 Simon Zolin
 #include <FF/path.h>
 #include <FFOS/test.h>
 
-#define x FFTEST_BOOL
-
 
 static void test_path_norm()
 {

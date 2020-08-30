@@ -9,8 +9,6 @@ Copyright (c) 2019 Simon Zolin
 #include <FFOS/random.h>
 #include <FFOS/test.h>
 
-#define x FFTEST_BOOL
-
 
 static ffdnsclient *ctx;
 static fftmrq_entry gtmr;

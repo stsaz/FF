@@ -17,8 +17,6 @@ psql -d mydb
 
 #include <test/all.h>
 
-#define x FFTEST_BOOL
-
 #define SQL_DROP  "DROP TABLE tbl"
 #define SQL_CRE  "CREATE TABLE tbl (int INTEGER, str TEXT)"
 #define SQL_DEL  "DELETE FROM tbl"

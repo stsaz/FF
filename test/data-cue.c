@@ -6,8 +6,6 @@ Copyright (c) 2015 Simon Zolin
 #include <test/all.h>
 #include <FFOS/test.h>
 
-#define x FFTEST_BOOL
-
 
 static const uint idx_prev[] = {
 	1, 3,

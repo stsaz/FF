@@ -7,8 +7,6 @@ Copyright (c) 2014 Simon Zolin
 #include <FFOS/mem.h>
 #include <FFOS/test.h>
 
-#define x FFTEST_BOOL
-
 
 int test_rbtree(void)
 {

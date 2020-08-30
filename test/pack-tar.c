@@ -7,8 +7,6 @@ Copyright (c) 2019 Simon Zolin
 #include <FF/time.h>
 #include <FFOS/test.h>
 
-#define x FFTEST_BOOL
-
 
 int test_tar()
 {

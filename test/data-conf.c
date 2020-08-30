@@ -9,8 +9,6 @@ Copyright (c) 2013 Simon Zolin
 #include "data-schem.h"
 #include "all.h"
 
-#define x FFTEST_BOOL
-
 
 static int test_conf_parse(const char *testConfFile)
 {
@@ -115,9 +113,10 @@ int test_conf_schem(const char *testConfFile)
 		len = pend - p;
 		rc = ffconf_parse(ps.p, p, &len);
 		rc = ffconf_schemrun(&ps);
-		if (!x(rc <= 0)) {
+		if (rc > 0) {
 			fffile_fmt(ffstdout, NULL, "\nerror: %u:%u near '%S' (%u) %s\n"
 				, conf.line, conf.ch, &conf.val, rc, ffpars_errstr(rc));
+			x(rc <= 0);
 			break;
 		}
 		p += len;
@@ -387,8 +386,10 @@ void test_conf_write(void)
 
 	ffstr s;
 	ffconf_output(&cw, &s);
-	if (!x(ffstr_eqz(&s, RES_STR)))
+	if (!ffstr_eqz(&s, RES_STR)) {
 		fffile_write(ffstdout, s.ptr, s.len);
+		x(ffstr_eqz(&s, RES_STR));
+	}
 	ffconf_wdestroy(&cw);
 }
 
