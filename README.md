@@ -156,15 +156,6 @@ FEATURES
 	* .m3u (read/write) - `FF/data/m3u.h`
 	* .pls (read) - `FF/data/pls.h`
 
-* Audio I/O - `FF/adev/`
-	* Direct Sound playback/capture - `FF/adev/dsound.h`
-	* WASAPI playback/capture - `FF/adev/wasapi.h`
-	* ALSA playback/capture - `FF/adev/alsa.h`
-	* Pulse Audio playback - `FF/adev/pulse.h`
-	* CoreAudio playback/capture - `FF/adev/coreaudio.h`
-	* JACK capture - `FF/adev/jack.h`
-	* OSS playback - `FF/adev/oss.h`
-
 * Audio - `FF/audio/`
 	* ICY - `FF/audio/icy.h`
 	* PCM operations: mix, convert, gain/attenuate - `FF/audio/pcm.h`

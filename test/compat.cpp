@@ -22,17 +22,7 @@ Copyright (c) 2018 Simon Zolin
 #include <FFOS/timer.h>
 #include <FFOS/types.h>
 
-#if defined FF_LINUX && 0
-#include <FF/adev/alsa.h>
-#include <FF/adev/pulse.h>
-
-#elif defined FF_BSD && 0
-#include <FF/adev/oss.h>
-
-#elif defined FF_WIN
-#include <FF/adev/dsound.h>
-#include <FF/adev/wasapi.h>
-
+#if defined FF_WIN
 #include <FF/sys/wohandler.h>
 #include <FF/sys/wreg.h>
 
