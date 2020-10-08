@@ -9,6 +9,12 @@ Copyright (c) 2013 Simon Zolin
 
 #include <test/all.h>
 
+#ifdef FF_WIN
+#define TEXT(s) L##s
+#else
+#define TEXT(s) s
+#endif
+
 int test_strqcat()
 {
 	ffsyschar buf[255];

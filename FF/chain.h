@@ -29,7 +29,7 @@ typedef ffchain_item ffchain;
 
 /** Split chain after the item.
 ... <-> ITEM (-> SENTL <-) 2 <-> ... */
-static FFINL void ffchain_split(ffchain_item *it, void *sentl)
+static inline void ffchain_split(ffchain_item *it, void *sentl)
 {
 	it->next->prev = (ffchain_item*)sentl;
 	it->next = (ffchain_item*)sentl;

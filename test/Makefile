@@ -109,3 +109,8 @@ FF_TEST_PGSQL_O := $(FFOS_OBJ) $(FF_OBJ) \
 	./db-postgre.o
 fftest-postgre: ff-obj $(FF_TEST_PGSQL_O)
 	$(LD) $(FF_TEST_PGSQL_O) $(LDFLAGS) -L$(FF3PT)-bin/$(OS)-$(ARCH) -lpq  -o$@
+
+FF_TEST_AES_O := $(FFOS_OBJ) $(FF_OBJ) \
+	./aes.o
+fftest-aes: ff-obj $(FF_TEST_AES_O)
+	$(LD) $(FF_TEST_AES_O) $(LDFLAGS) $(FF3PT)-bin/$(OS)-$(ARCH)/AES-ff.a  -o$@

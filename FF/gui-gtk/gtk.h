@@ -277,7 +277,7 @@ static inline void ffui_view_itemreset(ffui_viewitem *it)
 
 #define ffui_view_setindex(it, i)  (it)->idx = (i)
 
-#define ffui_view_settextz(it, sz)  (it)->text = (sz)
+#define ffui_view_settextz(it, sz)  (it)->text = (char*)(sz)
 static inline void ffui_view_settext(ffui_viewitem *it, const char *text, size_t len)
 {
 	it->text = ffsz_alcopy(text, len);

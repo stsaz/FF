@@ -87,7 +87,7 @@ enum FFUI_CUR {
 
 // FONT
 typedef struct ffui_font {
-	LOGFONT lf;
+	LOGFONTW lf;
 } ffui_font;
 
 enum FFUI_FONT {
@@ -104,7 +104,7 @@ FF_EXTN void ffui_font_set(ffui_font *fnt, const ffstr *name, int height, uint f
 Return NULL on error. */
 static FFINL HFONT ffui_font_create(ffui_font *fnt)
 {
-	return CreateFontIndirect(&fnt->lf);
+	return CreateFontIndirectW(&fnt->lf);
 }
 
 
@@ -197,7 +197,7 @@ static FFINL void ffui_iconlist_addstd(ffui_iconlist *il, uint tag)
 
 // DIALOG
 typedef struct ffui_dialog {
-	OPENFILENAME of;
+	OPENFILENAMEW of;
 	ffsyschar *names
 		, *pname;
 	char *name;
@@ -206,7 +206,7 @@ typedef struct ffui_dialog {
 static FFINL void ffui_dlg_init(ffui_dialog *d)
 {
 	ffmem_tzero(d);
-	d->of.lStructSize = sizeof(OPENFILENAME);
+	d->of.lStructSize = sizeof(d->of);
 	d->of.Flags = OFN_EXPLORER | OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT;
 }
 
@@ -263,7 +263,7 @@ static inline void ffui_drawtext_q(HDC dc, const ffui_pos *r, uint fmt, const ff
 {
 	RECT rr;
 	ffui_pos_torect(r, &rr);
-	DrawTextEx(dc, (ffsyschar*)text, len, &rr, fmt, NULL);
+	DrawTextExW(dc, (ffsyschar*)text, len, &rr, fmt, NULL);
 }
 
 
@@ -542,7 +542,7 @@ FF_EXTN int ffui_lbl_create(ffui_label *c, ffui_wnd *parent);
 type: enum FFUI_CUR */
 static inline void ffui_lbl_setcursor(ffui_label *c, uint type)
 {
-	ffui_ctl_setcursor(c, LoadCursor(NULL, (wchar_t*)(size_t)type));
+	ffui_ctl_setcursor(c, LoadCursorW(NULL, (wchar_t*)(size_t)type));
 }
 
 
@@ -579,7 +579,7 @@ static FFINL int ffui_menu_create(ffui_menu *m)
 	TrackPopupMenuEx((m)->h, 0, x, y, hwnd, NULL)
 
 
-typedef MENUITEMINFO ffui_menuitem;
+typedef MENUITEMINFOW ffui_menuitem;
 
 static FFINL void ffui_menu_itemreset(ffui_menuitem *mi)
 {
@@ -650,8 +650,8 @@ FF_EXTN void ffui_menu_sethotkey(ffui_menuitem *mi, const char *s, size_t len);
 
 static FFINL int ffui_menu_ins(ffui_menu *m, int pos, ffui_menuitem *mi)
 {
-	mi->cbSize = sizeof(MENUITEMINFO);
-	int r = !InsertMenuItem(m->h, pos, 1, mi);
+	mi->cbSize = sizeof(MENUITEMINFOW);
+	int r = !InsertMenuItemW(m->h, pos, 1, mi);
 	ffui_menu_itemreset(mi);
 	return r;
 }
@@ -662,31 +662,31 @@ static FFINL int ffui_menu_ins(ffui_menu *m, int pos, ffui_menuitem *mi)
 
 static FFINL int ffui_menu_set(ffui_menu *m, int pos, ffui_menuitem *mi)
 {
-	mi->cbSize = sizeof(MENUITEMINFO);
-	int r = !SetMenuItemInfo(m->h, pos, 1, mi);
+	mi->cbSize = sizeof(MENUITEMINFOW);
+	int r = !SetMenuItemInfoW(m->h, pos, 1, mi);
 	ffui_menu_itemreset(mi);
 	return r;
 }
 
 static inline int ffui_menu_set_byid(ffui_menu *m, int id, ffui_menuitem *mi)
 {
-	mi->cbSize = sizeof(MENUITEMINFO);
-	int r = !SetMenuItemInfo(m->h, id, 0, mi);
+	mi->cbSize = sizeof(MENUITEMINFOW);
+	int r = !SetMenuItemInfoW(m->h, id, 0, mi);
 	ffui_menu_itemreset(mi);
 	return r;
 }
 
 static inline int ffui_menu_get_byid(ffui_menu *m, int id, ffui_menuitem *mi)
 {
-	mi->cbSize = sizeof(MENUITEMINFO);
-	int r = !GetMenuItemInfo(m->h, id, 0, mi);
+	mi->cbSize = sizeof(MENUITEMINFOW);
+	int r = !GetMenuItemInfoW(m->h, id, 0, mi);
 	return r;
 }
 
 static inline int ffui_menu_get(ffui_menu *m, int pos, ffui_menuitem *mi)
 {
-	mi->cbSize = sizeof(MENUITEMINFO);
-	return !GetMenuItemInfo(m->h, pos, 1, mi);
+	mi->cbSize = sizeof(MENUITEMINFOW);
+	return !GetMenuItemInfoW(m->h, pos, 1, mi);
 }
 
 static FFINL int ffui_menu_destroy(ffui_menu *m)
@@ -702,7 +702,7 @@ static FFINL int ffui_menu_destroy(ffui_menu *m)
 
 // TRAY
 typedef struct ffui_trayicon {
-	NOTIFYICONDATA nid;
+	NOTIFYICONDATAW nid;
 	ffui_menu *pmenu;
 	uint lclick_id;
 	uint balloon_click_id;
@@ -849,7 +849,7 @@ FF_EXTN int ffui_tab_create(ffui_tab *t, ffui_wnd *parent);
 #define ffui_tab_clear(t)  ffui_ctl_send(t, TCM_DELETEALLITEMS, 0, 0)
 
 typedef struct ffui_tabitem {
-	TCITEM item;
+	TCITEMW item;
 	ffsyschar wtext[255];
 	ffsyschar *w;
 } ffui_tabitem;
@@ -934,7 +934,7 @@ typedef struct ffui_view {
 	int idx;
 	int col;
 	char *text;
-	LVITEM *dispinfo_item;
+	LVITEMW *dispinfo_item;
 	};
 } ffui_view;
 
@@ -969,7 +969,7 @@ FF_EXTN int ffui_view_itempos(ffui_view *v, uint idx, ffui_pos *pos);
 	ffui_send((HWND)ffui_ctl_send(v, LVM_GETHEADER, 0, 0), HDM_GETITEMCOUNT, 0, 0)
 
 typedef struct ffui_viewcol {
-	LVCOLUMN col;
+	LVCOLUMNW col;
 	ffsyschar text[255];
 } ffui_viewcol;
 
@@ -1042,7 +1042,7 @@ typedef struct ffui_viewgrp {
 
 static FFINL void ffui_viewgrp_reset(ffui_viewgrp *vg)
 {
-	vg->grp.cbSize = sizeof(LVGROUP);
+	vg->grp.cbSize = sizeof(vg->grp);
 	vg->grp.mask = LVGF_GROUPID;
 }
 
@@ -1113,7 +1113,7 @@ static FFINL void ffui_view_grp(ffui_view *v, int i, ffui_viewgrp *vg)
 	ffui_ctl_send(v, LVM_REDRAWITEMS, first, last)
 
 typedef struct ffui_viewitem {
-	LVITEM item;
+	LVITEMW item;
 	ffsyschar wtext[255];
 	ffsyschar *w;
 } ffui_viewitem;
@@ -1260,7 +1260,7 @@ FF_EXTN void ffui_view_edit_set(ffui_view *v, uint i, uint sub);
 
 
 /** Set text on a 'dispinfo_item' object. */
-static inline void ffui_view_dispinfo_settext(LVITEM *it, const char *text, size_t len)
+static inline void ffui_view_dispinfo_settext(LVITEMW *it, const char *text, size_t len)
 {
 	if (!(it->mask & LVIF_TEXT) || it->cchTextMax == 0)
 		return;
@@ -1269,7 +1269,7 @@ static inline void ffui_view_dispinfo_settext(LVITEM *it, const char *text, size
 }
 
 /** Check/uncheck a 'dispinfo_item' object. */
-static inline void ffui_view_dispinfo_check(LVITEM *it, int checked)
+static inline void ffui_view_dispinfo_check(LVITEMW *it, int checked)
 {
 	it->stateMask |= LVIS_STATEIMAGEMASK;
 	it->state &= ~LVIS_STATEIMAGEMASK;
@@ -1281,7 +1281,7 @@ static inline void ffui_view_dispinfo_check(LVITEM *it, int checked)
 FF_EXTN int ffui_tree_create(ffui_ctl *c, void *parent);
 
 typedef struct ffui_tvitem {
-	TVITEM ti;
+	TVITEMW ti;
 	ffsyschar wtext[255];
 	ffsyschar *w;
 } ffui_tvitem;

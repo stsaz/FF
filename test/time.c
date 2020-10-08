@@ -48,7 +48,7 @@ static void test_time_dt(void)
 
 	dt.year = 2014; dt.month = 5; dt.day = 19;
 	dt.weekday = 1; dt.yday = 139;
-	dt.hour = 8; dt.min = 52; dt.sec = 36; fftime_setmsec(&dt, 23);
+	dt.hour = 8; dt.min = 52; dt.sec = 36; dt.nsec = 23 * 1000000;
 
 	fftime_join(&t, &dt, FFTIME_TZUTC);
 	x(fftime_sec(&t) == 1400489556 && fftime_msec(&t) == 23);
@@ -110,7 +110,7 @@ int test_time()
 	dt.hour = 8;
 	dt.min = 52;
 	dt.sec = 36;
-	fftime_setmsec(&dt, 23);
+	dt.nsec = 23 * 1000000;
 	s.ptr = buf;
 
 	s.len = fftime_tostr(&dt, buf, FFCNT(buf), FFTIME_DATE_YMD);

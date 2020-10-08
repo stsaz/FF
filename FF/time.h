@@ -71,6 +71,9 @@ enum FF_TIMEZONE {
 	FFTIME_TZNODATE,
 };
 
+/** Store local timezone for fast timestamp conversion using FFTIME_TZLOCAL */
+FF_EXTN void fftime_storelocal(const fftime_zone *tz);
+
 /** Split the time value into date and time elements. */
 FF_EXTN void fftime_split2(ffdtm *dt, const fftime *t, uint flags);
 

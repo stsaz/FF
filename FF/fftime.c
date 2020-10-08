@@ -516,7 +516,7 @@ msec:
 			s++;
 			if (0 == (i = ffs_toint(s, s_end - s, &ms, FFS_INT32)))
 				goto fail;
-			fftime_setmsec(t, ms);
+			t->nsec = ms * 1000000;
 			s += i;
 		}
 		break;

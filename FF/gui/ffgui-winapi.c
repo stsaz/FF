@@ -43,27 +43,27 @@ struct ctlinfo {
 };
 
 static const struct ctlinfo ctls[] = {
-	{ "",	TEXT(""), 0, 0 },
-	{ "window",	TEXT("FF_WNDCLASS"), WS_CLIPCHILDREN | WS_CLIPSIBLINGS, 0 },
-	{ "label",	TEXT("STATIC"), SS_NOTIFY, 0 },
-	{ "image",	TEXT("STATIC"), SS_ICON | SS_NOTIFY, 0 },
-	{ "editbox",	TEXT("EDIT"), ES_AUTOHSCROLL | ES_AUTOVSCROLL | ES_NOHIDESEL/* | WS_TABSTOP*/
+	{ "",	L"", 0, 0 },
+	{ "window",	L"FF_WNDCLASS", WS_CLIPCHILDREN | WS_CLIPSIBLINGS, 0 },
+	{ "label",	L"STATIC", SS_NOTIFY, 0 },
+	{ "image",	L"STATIC", SS_ICON | SS_NOTIFY, 0 },
+	{ "editbox",	L"EDIT", ES_AUTOHSCROLL | ES_AUTOVSCROLL | ES_NOHIDESEL/* | WS_TABSTOP*/
 		, WS_EX_CLIENTEDGE },
-	{ "text",	TEXT("EDIT"), ES_MULTILINE | ES_AUTOHSCROLL | ES_AUTOVSCROLL | ES_NOHIDESEL | WS_HSCROLL | WS_VSCROLL
+	{ "text",	L"EDIT", ES_MULTILINE | ES_AUTOHSCROLL | ES_AUTOVSCROLL | ES_NOHIDESEL | WS_HSCROLL | WS_VSCROLL
 		, WS_EX_CLIENTEDGE },
-	{ "combobox",	TEXT("COMBOBOX"), CBS_DROPDOWN | CBS_AUTOHSCROLL, WS_EX_CLIENTEDGE },
-	{ "button",	TEXT("BUTTON"), 0, 0 },
-	{ "checkbox",	TEXT("BUTTON"), BS_AUTOCHECKBOX, 0 },
-	{ "radiobutton",	TEXT("BUTTON"), BS_AUTORADIOBUTTON, 0 },
+	{ "combobox",	L"COMBOBOX", CBS_DROPDOWN | CBS_AUTOHSCROLL, WS_EX_CLIENTEDGE },
+	{ "button",	L"BUTTON", 0, 0 },
+	{ "checkbox",	L"BUTTON", BS_AUTOCHECKBOX, 0 },
+	{ "radiobutton",	L"BUTTON", BS_AUTORADIOBUTTON, 0 },
 
-	{ "trackbar",	TEXT("msctls_trackbar32"), 0, 0 },
-	{ "progressbar",	TEXT("msctls_progress32"), 0, 0 },
-	{ "status_bar",	TEXT("msctls_statusbar32"), SBARS_SIZEGRIP, 0 },
+	{ "trackbar",	L"msctls_trackbar32", 0, 0 },
+	{ "progressbar",	L"msctls_progress32", 0, 0 },
+	{ "status_bar",	L"msctls_statusbar32", SBARS_SIZEGRIP, 0 },
 
-	{ "tab",	TEXT("SysTabControl32"), TCS_FOCUSNEVER, 0 },
-	{ "listview",	TEXT("SysListView32"), WS_BORDER | LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS
+	{ "tab",	L"SysTabControl32", TCS_FOCUSNEVER, 0 },
+	{ "listview",	L"SysListView32", WS_BORDER | LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS
 		| LVS_AUTOARRANGE | LVS_SHAREIMAGELISTS, 0 },
-	{ "treeview",	TEXT("SysTreeView32"), WS_BORDER | TVS_SHOWSELALWAYS | TVS_INFOTIP, 0 },
+	{ "treeview",	L"SysTreeView32", WS_BORDER | TVS_SHOWSELALWAYS | TVS_INFOTIP, 0 },
 };
 
 
@@ -84,7 +84,7 @@ int ffui_init(void)
 void ffui_uninit(void)
 {
 	if (_ffui_flags & _FFUI_WNDSTYLE)
-		UnregisterClass(ctls[FFUI_UID_WINDOW].sid, GetModuleHandle(NULL));
+		UnregisterClassW(ctls[FFUI_UID_WINDOW].sid, GetModuleHandleW(NULL));
 	_ffui_dpi = 0;
 }
 
@@ -331,9 +331,9 @@ static HWND create(enum FFUI_UID uid, const ffsyschar *text, HWND parent, const 
 {
 	HINSTANCE inst = NULL;
 	if (uid == FFUI_UID_WINDOW)
-		inst = GetModuleHandle(NULL);
+		inst = GetModuleHandleW(NULL);
 
-	return CreateWindowEx(exstyle, ctls[uid].sid, text, style
+	return CreateWindowExW(exstyle, ctls[uid].sid, text, style
 		, dpi_scale(r->x), dpi_scale(r->y), dpi_scale(r->cx), dpi_scale(r->cy)
 		, parent, NULL, inst, param);
 }
@@ -342,7 +342,7 @@ static int ctl_create2(ffui_ctl *c, enum FFUI_UID uid, HWND parent, uint style, 
 {
 	ffui_pos r = {0};
 	c->uid = uid;
-	if (0 == (c->h = create(uid, TEXT(""), parent, &r
+	if (0 == (c->h = create(uid, L"", parent, &r
 		, ctls[uid].style | WS_CHILD | style
 		, ctls[uid].exstyle | exstyle
 		, NULL)))
@@ -472,7 +472,7 @@ const char* ffui_fdrop_next(ffui_fdrop *df)
 	uint nbuf;
 	wchar_t *w, ws[255];
 
-	nbuf = DragQueryFile(df->hdrop, df->idx, NULL, 0);
+	nbuf = DragQueryFileW(df->hdrop, df->idx, NULL, 0);
 	if (nbuf == 0)
 		return NULL;
 	nbuf++;
@@ -482,7 +482,7 @@ const char* ffui_fdrop_next(ffui_fdrop *df)
 	else if (NULL == (w = ffq_alloc(nbuf)))
 		return NULL;
 
-	DragQueryFile(df->hdrop, df->idx++, w, nbuf);
+	DragQueryFileW(df->hdrop, df->idx++, w, nbuf);
 
 	ffmem_safefree(df->fn);
 	df->fn = ffsz_alcopyqz(w);
@@ -1017,7 +1017,7 @@ void ffui_tree_settext(ffui_tvitem *it, const char *text, size_t len)
 
 void* ffui_tree_ins(ffui_view *v, void *parent, void *after, ffui_tvitem *it)
 {
-	TVINSERTSTRUCT ins = { 0 };
+	TVINSERTSTRUCTW ins = { 0 };
 	ins.hParent = (HTREEITEM)parent;
 	ins.hInsertAfter = (HTREEITEM)after;
 	ins.item = it->ti;
@@ -1035,7 +1035,7 @@ void ffui_tree_get(ffui_view *v, void *pitem, ffui_tvitem *it)
 char* ffui_tree_text(ffui_view *t, void *item)
 {
 	ffsyschar buf[255];
-	TVITEM it = {0};
+	TVITEMW it = {0};
 	it.mask = TVIF_TEXT;
 	it.pszText = buf;
 	it.cchTextMax = FFCNT(buf);
@@ -1109,7 +1109,7 @@ int ffui_icon_load_q(ffui_icon *ico, const ffsyschar *filename, uint index, uint
 		small = &ico->h;
 	else
 		big = &ico->h;
-	return !ExtractIconEx(filename, index, big, small, 1);
+	return !ExtractIconExW(filename, index, big, small, 1);
 }
 
 int ffui_icon_load(ffui_icon *ico, const char *filename, uint index, uint flags)
@@ -1132,7 +1132,7 @@ int ffui_icon_loadimg_q(ffui_icon *ico, const ffsyschar *filename, uint cx, uint
 		cx = dpi_scale(cx);
 		cy = dpi_scale(cy);
 	}
-	ico->h = LoadImage(NULL, filename, IMAGE_ICON, cx, cy, LR_LOADFROMFILE);
+	ico->h = LoadImageW(NULL, filename, IMAGE_ICON, cx, cy, LR_LOADFROMFILE);
 	return (ico->h == NULL);
 }
 
@@ -1157,11 +1157,11 @@ int ffui_icon_loadstd(ffui_icon *ico, uint tag)
 
 	switch (type) {
 	case _FFUI_ICON_STD:
-		ico->h = LoadImage(NULL, MAKEINTRESOURCE(n), IMAGE_ICON, 0, 0, LR_SHARED);
+		ico->h = LoadImageW(NULL, MAKEINTRESOURCEW(n), IMAGE_ICON, 0, 0, LR_SHARED);
 		return (ico->h == NULL);
 
 	case _FFUI_ICON_IMAGERES:
-		fn = TEXT("imageres.dll"); break;
+		fn = L"imageres.dll"; break;
 
 	default:
 		return -1;
@@ -1172,7 +1172,7 @@ int ffui_icon_loadstd(ffui_icon *ico, uint tag)
 int ffui_icon_loadres(ffui_icon *ico, const ffsyschar *name, uint cx, uint cy)
 {
 	uint f = (cx == 0 && cy == 0) ? LR_DEFAULTSIZE : 0;
-	ico->h = LoadImage(GetModuleHandle(NULL), name, IMAGE_ICON, dpi_scale(cx), dpi_scale(cy), f);
+	ico->h = LoadImageW(GetModuleHandleW(NULL), name, IMAGE_ICON, dpi_scale(cx), dpi_scale(cy), f);
 	return (ico->h == NULL);
 }
 
@@ -1208,7 +1208,7 @@ char* ffui_dlg_open(ffui_dialog *d, ffui_wnd *parent)
 	d->of.hwndOwner = parent->h;
 	d->of.lpstrFile = w;
 	d->of.nMaxFile = cap;
-	if (!GetOpenFileName(&d->of)) {
+	if (!GetOpenFileNameW(&d->of)) {
 		ffmem_free(w);
 		return NULL;
 	}
@@ -1242,7 +1242,7 @@ char* ffui_dlg_save(ffui_dialog *d, ffui_wnd *parent, const char *fn, size_t fnl
 	d->of.hwndOwner = parent->h;
 	d->of.lpstrFile = ws;
 	d->of.nMaxFile = FFCNT(ws);
-	if (!GetSaveFileName(&d->of))
+	if (!GetSaveFileNameW(&d->of))
 		return NULL;
 
 	ffmem_safefree(d->name);
@@ -1287,7 +1287,7 @@ int ffui_msgdlg_show(const char *title, const char *text, size_t len, uint flags
 	if (NULL == (wtit = ffs_utow(NULL, NULL, title, -1)))
 		goto done;
 
-	r = MessageBox(NULL, w, wtit, flags);
+	r = MessageBoxW(NULL, w, wtit, flags);
 
 done:
 	ffmem_safefree(wtit);
@@ -1300,7 +1300,7 @@ static uint tray_id;
 
 void ffui_tray_create(ffui_trayicon *t, ffui_wnd *wnd)
 {
-	t->nid.cbSize = sizeof(NOTIFYICONDATA);
+	t->nid.cbSize = sizeof(t->nid);
 	t->nid.hWnd = wnd->h;
 	t->nid.uID = tray_id++;
 	t->nid.uFlags = NIF_MESSAGE;
@@ -1376,16 +1376,16 @@ void paned_resize(ffui_paned *pn, ffui_wnd *wnd)
 
 int ffui_wnd_initstyle(void)
 {
-	WNDCLASSEX cls = {0};
-	cls.cbSize = sizeof(WNDCLASSEX);
-	cls.hInstance = GetModuleHandle(NULL);
+	WNDCLASSEXW cls = {0};
+	cls.cbSize = sizeof(cls);
+	cls.hInstance = GetModuleHandleW(NULL);
 	cls.lpfnWndProc = &wnd_proc;
 	cls.lpszClassName = ctls[FFUI_UID_WINDOW].sid;
 	cls.hIcon = LoadIcon(cls.hInstance, 0);
 	cls.hIconSm = cls.hIcon;
 	cls.hCursor = LoadCursor(NULL, IDC_ARROW);
 	cls.hbrBackground = (HBRUSH)COLOR_WINDOW;
-	if (RegisterClassEx(&cls)) {
+	if (RegisterClassExW(&cls)) {
 		_ffui_flags |= _FFUI_WNDSTYLE;
 		return 0;
 	}
@@ -1397,7 +1397,7 @@ int ffui_wnd_create(ffui_wnd *w)
 	ffui_pos r = { 0, 0, CW_USEDEFAULT, CW_USEDEFAULT };
 	w->uid = FFUI_UID_WINDOW;
 	w->on_action = &wnd_onaction;
-	return 0 == create(FFUI_UID_WINDOW, TEXT(""), NULL, &r
+	return 0 == create(FFUI_UID_WINDOW, L"", NULL, &r
 		, ctls[FFUI_UID_WINDOW].style | WS_OVERLAPPEDWINDOW
 		, ctls[FFUI_UID_WINDOW].exstyle | 0
 		, w);
@@ -1466,12 +1466,12 @@ void ffui_wnd_opacity(ffui_wnd *w, uint percent)
 
 int ffui_wnd_tooltip(ffui_wnd *w, ffui_ctl *ctl, const char *text, size_t len)
 {
-	TTTOOLINFO ti = {0};
+	TTTOOLINFOW ti = {0};
 	ffsyschar *pw, ws[255];
 	size_t n = FFCNT(ws) - 1;
 
 	if (w->ttip == NULL
-		&& NULL == (w->ttip = CreateWindowEx(0, TOOLTIPS_CLASS, NULL
+		&& NULL == (w->ttip = CreateWindowExW(0, TOOLTIPS_CLASSW, NULL
 			, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP
 			, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT
 			, NULL, NULL, NULL, NULL)))
@@ -1481,7 +1481,7 @@ int ffui_wnd_tooltip(ffui_wnd *w, ffui_ctl *ctl, const char *text, size_t len)
 		return -1;
 	pw[n] = '\0';
 
-	ti.cbSize = sizeof(TTTOOLINFO);
+	ti.cbSize = sizeof(ti);
 	ti.uFlags = TTF_SUBCLASS | TTF_IDISHWND;
 	ti.hwnd = ctl->h;
 	ti.uId = (UINT_PTR)ctl->h;

@@ -160,7 +160,7 @@ static void iso_date_parse(const struct iso_date *d, ffdtm *dt)
 	dt->hour = d->hour;
 	dt->min = d->min;
 	dt->sec = d->sec;
-	fftime_setmsec(dt, 0);
+	dt->nsec = 0;
 	dt->weekday = 0;
 	dt->yday = 0;
 }

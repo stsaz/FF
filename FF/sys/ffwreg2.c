@@ -139,7 +139,7 @@ int ffwreg_nextkey(ffwreg_enum *e, ffwreg key)
 
 	for (;;) {
 		n = e->wname.cap;
-		r = RegEnumKeyEx(key, e->idx, (ffsyschar*)e->wname.ptr, &n, NULL, NULL, NULL, NULL);
+		r = RegEnumKeyExW(key, e->idx, (ffsyschar*)e->wname.ptr, &n, NULL, NULL, NULL, NULL);
 		if (r == 0)
 			break;
 
@@ -147,7 +147,7 @@ int ffwreg_nextkey(ffwreg_enum *e, ffwreg key)
 
 			// get maximum length of subkey's name
 			DWORD subkey_maxlen;
-			if (0 != RegQueryInfoKey(key, NULL, NULL, NULL, NULL, &subkey_maxlen, NULL, NULL, NULL, NULL, NULL, NULL))
+			if (0 != RegQueryInfoKeyW(key, NULL, NULL, NULL, NULL, &subkey_maxlen, NULL, NULL, NULL, NULL, NULL, NULL))
 				return -1;
 			if (NULL == ffarr_reallocT(&e->wname, subkey_maxlen + 1, ffsyschar))
 				return -1;
@@ -212,14 +212,14 @@ int ffwreg_nextval(ffwreg_enum *e, ffwreg key)
 	for (;;) {
 		n = e->wname.cap;
 		nval = e->wval.cap;
-		r = RegEnumValue(key, e->idx++, (ffsyschar*)e->wname.ptr, &n, NULL, &type, (byte*)e->wval.ptr, &nval);
+		r = RegEnumValueW(key, e->idx++, (ffsyschar*)e->wname.ptr, &n, NULL, &type, (byte*)e->wval.ptr, &nval);
 		if (r == 0)
 			break;
 
 		else if (r == ERROR_MORE_DATA) {
 			// get maximum length of value's name and data
 			DWORD name_maxlen, val_maxlen;
-			if (0 != RegQueryInfoKey(key, NULL, NULL, NULL, NULL, NULL, NULL, NULL, &name_maxlen, &val_maxlen, NULL, NULL))
+			if (0 != RegQueryInfoKeyW(key, NULL, NULL, NULL, NULL, NULL, NULL, NULL, &name_maxlen, &val_maxlen, NULL, NULL))
 				return -1;
 			if (NULL == ffarr_reallocT(&e->wname, name_maxlen + 1, ffsyschar))
 				return -1;
