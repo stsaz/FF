@@ -109,8 +109,6 @@ FEATURES
 	* LZMA (liblzma) - `FF/pack/7z.h`
 
 * Packing - `FF/pack/`
-	* .xz (read) - `FF/pack/xz.h`
-	* .gz (read/write) - `FF/pack/gz.h`
 	* .zip (read/write) - `FF/pack/zip.h`
 	* .7z (read) - `FF/pack/7z.h`
 	* .tar (read/write) - `FF/pack/tar.h`
