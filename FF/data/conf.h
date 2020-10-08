@@ -153,6 +153,16 @@ static FFINL size_t ffconf_writeint(ffconfw *c, int64 data, uint intflags, uint 
 	uint n = ffs_fromint(data, buf, sizeof(buf), intflags);
 	return ffconf_write(c, buf, n, flags);
 }
+
+/**
+floatflags: precision | enum FFS_FROMFLOAT | FFS_FLTWIDTH() */
+static FFINL size_t ffconf_writefloat(ffconfw *c, double data, uint floatflags, uint flags)
+{
+	char buf[64];
+	uint n = ffs_fromfloat(data, buf, sizeof(buf), floatflags);
+	return ffconf_write(c, buf, n, flags);
+}
+
 static inline size_t ffconf_writebool(ffconfw *c, int val, uint flags)
 {
 	ffstr s;
