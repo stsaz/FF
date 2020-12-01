@@ -327,3 +327,28 @@ static inline int ffurl_isdomain(const char *name, ffsize len)
 
 	return level;
 }
+
+/** Convert [IP][:][port] string to a socket address object
+Note: IPv6 isn't supported
+Return 0 on success */
+static inline int ffsockaddr_fromstr(ffsockaddr *a, const char *s, ffsize len, ffuint default_port)
+{
+	if (len == 0)
+		return -1;
+	ffstr str = FFSTR_INITN(s, len);
+	ffip4 ip;
+	int r = ffip4_parse((ffip4*)&ip, str.ptr, str.len);
+	if (r < 0)
+		return -1;
+	ffstr_shift(&str, r);
+
+	ffushort port = default_port;
+	if (r > 0 && str.ptr[0] == ':') {
+		ffstr_shift(&str, 1);
+		if (!ffstr_toint(&str, &port, FFS_INT16))
+			return -1;
+	}
+
+	ffsockaddr_set_ipv4(a, &ip, port);
+	return 0;
+}
