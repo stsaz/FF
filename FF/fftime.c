@@ -78,18 +78,6 @@ void fftime_normalize(fftime *t)
 	t->nsec = t->nsec % 1000000000;
 }
 
-int fftime_cmp(const fftime *t1, const fftime *t2)
-{
-	if (t1->sec == t2->sec) {
-		if (t1->nsec == t2->nsec)
-			return 0;
-		if (t1->nsec < t2->nsec)
-			return -1;
-	} else if (t1->sec < t2->sec)
-		return -1;
-	return 1;
-}
-
 void fftime_addms(fftime *t, uint64 ms)
 {
 	fftime t2;
@@ -488,7 +476,7 @@ static int time_fromstr(ffdtm *t, const ffstr *ss, uint fmt)
 		s += i;
 		break;
 
-	case FFTIME_HMS_MSEC_VAR & ~FFTIME_NOCHECK:
+	case FFTIME_HMS_MSEC_VAR:
 		if (0 == (i = ffs_toint(s, s_end - s, &t->sec, FFS_INT32)))
 			goto fail;
 		s += i;
@@ -528,7 +516,7 @@ msec:
 		goto fail;
 	}
 
-	if (!(fmt & FFTIME_NOCHECK) && !fftime_chk(t, FFTIME_CHKTIME))
+	if ((fmt & 0xf0) != FFTIME_HMS_MSEC_VAR && !fftime_chk(t, FFTIME_CHKTIME))
 		return -1;
 
 	return s - ss->ptr;

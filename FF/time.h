@@ -16,9 +16,6 @@ Leap year is each 4th and each 400th except each 100th. */
 
 #define FFTIME_DAY_SECS  (60*60*24)
 
-/** Compare two 'fftime' objects. */
-FF_EXTN int fftime_cmp(const fftime *t1, const fftime *t2);
-
 /** Normalize time value. */
 FF_EXTN void fftime_normalize(fftime *t);
 
@@ -86,26 +83,11 @@ FF_EXTN void fftime_split(ffdtm *dt, const fftime *t, enum FF_TIMEZONE tz);
 FF_EXTN fftime* fftime_join(fftime *t, const ffdtm *dt, enum FF_TIMEZONE tz);
 
 
-enum FFTIME_FMT {
-	FFTIME_NOCHECK = 1 << 31, // allow time value overflow (e.g. 25 hours)
-
-	//date:
-	FFTIME_DATE_YMD = 2	// yyyy-MM-dd
-	, FFTIME_DATE_WDMY = 3	// Wed, 07 Sep 2011
-	, FFTIME_DATE_MDY0 // 09/07/2011
-	, FFTIME_DATE_MDY // 9/7/2011
-	, FFTIME_DATE_DMY // 07.09.2011
-
-	//time:
-	, FFTIME_HMS = 0x20	// hh:mm:ss
-	, FFTIME_HMS_MSEC = 0x30 // hh:mm:ss.msc
-	, FFTIME_HMS_GMT = 0x40	// hh:mm:ss GMT
-	, FFTIME_HMS_MSEC_VAR = 0x50 | FFTIME_NOCHECK // [[h:]m:]s[.ms]
-
-	//date & time:
-	, FFTIME_YMD = FFTIME_DATE_YMD | FFTIME_HMS	// yyyy-MM-dd hh:mm:ss, ISO 8601
-	, FFTIME_WDMY = FFTIME_DATE_WDMY | FFTIME_HMS_GMT	// Wed, 07 Sep 2011 00:00:00 GMT, RFC1123
-};
+// compatibility:
+// FFTIME_DATE_MDY:
+//  fftime_tostr() treats it as M/d/yyyy
+//  fftime_tostr1() treats it as MM/dd/yyyy
+#define FFTIME_DATE_MDY0  0x0f // MM/dd/yyyy. See enum FFTIME_FMT
 
 /** Convert date/time to string.
 @fmt: enum FFTIME_FMT.
