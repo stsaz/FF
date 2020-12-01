@@ -97,6 +97,7 @@ extern int test_domain();
 extern void test_dns_client(void);
 extern int test_cache(void);
 extern int test_ip();
+extern int test_cmdarg();
 
 struct test_s {
 	const char *nm;
@@ -110,7 +111,7 @@ static const struct test_s _fftests[] = {
 	F(file), F(fmap), F(time), F(timerq), F(sendfile), F(path), F(direxp),
 	F(ip), F(url), F(http), F(dns), F(icy), F(tls), F(webskt),
 	F(domain),
-	F(json), F(conf), F(conf_write), F(args), F(cue), F(xml),
+	F(json), F(cmdarg), F(conf), F(conf_write), F(args), F(cue), F(xml),
 	F(tar), F(iso),
 	F(dns_client),
 	F(cache),

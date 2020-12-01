@@ -99,7 +99,7 @@ FEATURES
 	* JSON reader/writer  - `FF/data/json.h`
 	* XML reader  - `FF/data/xml.h`
 	* configuration file reader/writer  - `FF/data/conf.h`
-	* command-line arguments parser  - `FF/data/psarg.h`
+	* command-line arguments parser  - `FF/data/cmdarg.h`, `FF/data/cmdarg-scheme.h`
 	* deserialization of structured data using a predefined scheme  - `FF/data/parse.h`
 	* UTF-8 decode/encode  - `FF/data/utf8.h`
 	* CRC32 - `FF/crc.h`

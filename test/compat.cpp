@@ -59,7 +59,7 @@ Copyright (c) 2018 Simon Zolin
 #include <FF/data/m3u.h>
 #include <FF/data/parse.h>
 #include <FF/data/pls.h>
-#include <FF/data/psarg.h>
+#include <FF/data/cmdarg.h>
 #include <FF/data/utf8.h>
 #include <FF/data/xml.h>
 #include <FF/hashtab.h>
