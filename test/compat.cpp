@@ -41,11 +41,8 @@ Copyright (c) 2018 Simon Zolin
 #include <FF/db/db.h>
 
 #include <FF/pack/7z.h>
-#include <FF/pack/gz.h>
 #include <FF/pack/iso.h>
 #include <FF/pack/tar.h>
-#include <FF/pack/xz.h>
-#include <FF/pack/zip.h>
 
 #include <FF/pic/bmp.h>
 #include <FF/pic/jpeg.h>
