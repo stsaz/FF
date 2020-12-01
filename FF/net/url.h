@@ -236,3 +236,94 @@ static FFINL size_t ffaddr_tostr(const ffaddr *a, char *dst, size_t cap, int fla
 /** Set address and port.
 Return 0 on success. */
 FF_EXTN int ffaddr_set(ffaddr *a, const char *ip, size_t iplen, const char *port, size_t portlen);
+
+
+/** Check if domain name is valid
+Syntax: [label.]... label.label
+  Each label is 1 to 63 characters long, and may contain:
+    . ASCII letters a-z and A-Z
+    . digits 0-9
+    . hyphen ('-')
+  . labels cannot start or end with hyphens (RFC 952)
+  . max length of ascii hostname including dots is 253 characters
+  . TLD is >=2 characters
+  . TLD is [a-zA-Z]+ or "xn--[a-zA-Z0-9]+"
+  . at least 1 level above TLD Source
+Return domain level;
+  <0 on error */
+static inline int ffurl_isdomain(const char *name, ffsize len)
+{
+	if (len > 253)
+		return -1;
+
+	int st = 0, nlabel = 0, level = 1, prev_char = 0, char_only = 1;
+	ffuint xn = 0;
+
+	for (ffsize i = 0;  i != len;  i++) {
+		int c = name[i];
+
+		switch (st) {
+		case 0:
+			// fallthrough
+		case 1:
+			if (!((c >= 'a' && c <= 'z')
+				|| (c >= 'A' && c <= 'Z'))) {
+
+				char_only = 0;
+				if (!(c >= '0' && c <= '9'))
+					return -1;
+
+			} else if (c == 'x' || c == 'X') {
+				xn = 1;
+			}
+			st = 2;
+			nlabel = 1;
+			break;
+
+		case 2:
+			if (c == '.') {
+				if (prev_char == '-')
+					return -1;
+				level++;
+				st = 0;
+				char_only = 1;
+				xn = 0;
+				continue;
+			}
+
+			if (nlabel == 63)
+				return -1;
+
+			if (!((c >= 'a' && c <= 'z')
+				|| (c >= 'A' && c <= 'Z'))) {
+
+				char_only = 0;
+				if (!((c >= '0' && c <= '9')
+					|| c == '-'))
+					return -1;
+			}
+
+			if (xn > 0) {
+				if (xn < FFS_LEN("xn--")) {
+					if (c == "xn--"[xn])
+						xn++;
+					else
+						xn = 0;
+				} else {
+					xn++;
+				}
+			}
+
+			prev_char = c;
+			nlabel++;
+			break;
+		}
+	}
+
+	if (st != 2
+		|| nlabel == 1
+		|| (!char_only && xn < FFS_LEN("xn--wwww")))
+		return -1;
+
+	return level;
+}
