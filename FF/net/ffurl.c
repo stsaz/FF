@@ -691,14 +691,14 @@ uint ffip_tostr(char *buf, size_t cap, uint family, const void *ip, uint port)
 	uint n;
 
 	if (family == AF_INET) {
-		if (0 == (n = ffip4_tostr(buf, cap, ip)))
+		if (0 == (n = ffip4_tostr(ip, buf, cap)))
 			return 0;
 		p += n;
 
 	} else {
 		if (port != 0)
 			p = ffs_copyc(p, end, '[');
-		if (0 == (n = ffip6_tostr(p, end - p, ip)))
+		if (0 == (n = ffip6_tostr(ip, p, end - p)))
 			return 0;
 		p += n;
 		if (port != 0)

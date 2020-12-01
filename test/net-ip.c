@@ -2,6 +2,8 @@
 Copyright (c) 2019 Simon Zolin
 */
 
+#include <FF/net/ipaddr.h>
+#include <FF/net/proto.h>
 #include <FF/net/url.h>
 #include <FFOS/test.h>
 
@@ -18,9 +20,9 @@ static int test_ip4()
 	x(0 == ffip4_parse(&a4, FFSTR("1.65.192.255")));
 	x(!memcmp(&a4, FFSTR("\x01\x41\xc0\xff")));
 
-	x(FFSLEN("1.65.192.255") == ffip4_parse(&a4, FFSTR("1.65.192.255.")));
+	x(FFS_LEN("1.65.192.255") == ffip4_parse(&a4, FFSTR("1.65.192.255.")));
 	x(!memcmp(&a4, "\x01\x41\xc0\xff", 4));
-	x(FFSLEN("1.65.192.2") == ffip4_parse(&a4, FFSTR("1.65.192.2/")));
+	x(FFS_LEN("1.65.192.2") == ffip4_parse(&a4, FFSTR("1.65.192.2/")));
 	x(!memcmp(&a4, "\x01\x41\xc0\x02", 4));
 
 	x(0 > ffip4_parse(&a4, FFSTR(".1.65.192.255")));
@@ -34,20 +36,20 @@ static int test_ip4()
 	x(0 > ffip4_parse_subnet(&a4, FFSTR("1.65.192.0/0")));
 	x(0 > ffip4_parse_subnet(&a4, FFSTR("1.65.192.0/")));
 
-	sip.len = ffip4_tostr(buf, FFCNT(buf), (void*)"\x7f\0\0\x01");
+	sip.len = ffip4_tostr((void*)"\x7f\0\0\x01", buf, FF_COUNT(buf));
 	x(ffstr_eqz(&sip, "127.0.0.1"));
 
-	sip.len = ffip_tostr(buf, FFCNT(buf), AF_INET, (void*)"\x7f\0\0\x01", 8080);
+	sip.len = ffip_tostr(buf, FF_COUNT(buf), AF_INET, (void*)"\x7f\0\0\x01", 8080);
 	x(ffstr_eqz(&sip, "127.0.0.1:8080"));
 
-	x(ffip4_mask(33, buf, FFCNT(buf)) < 0);
-	sip.len = ffip4_mask(32, buf, FFCNT(buf));
+	x(ffip4_mask(33, buf, FF_COUNT(buf)) < 0);
+	sip.len = ffip4_mask(32, buf, FF_COUNT(buf));
 	x(ffstr_eqz(&sip, "255.255.255.255"));
-	sip.len = ffip4_mask(31, buf, FFCNT(buf));
+	sip.len = ffip4_mask(31, buf, FF_COUNT(buf));
 	x(ffstr_eqz(&sip, "255.255.255.254"));
-	sip.len = ffip4_mask(16, buf, FFCNT(buf));
+	sip.len = ffip4_mask(16, buf, FF_COUNT(buf));
 	x(ffstr_eqz(&sip, "255.255.0.0"));
-	sip.len = ffip4_mask(0, buf, FFCNT(buf));
+	sip.len = ffip4_mask(0, buf, FF_COUNT(buf));
 	x(ffstr_eqz(&sip, "0.0.0.0"));
 
 	return 0;
@@ -94,17 +96,17 @@ static int test_ip6()
 
 	sip.ptr = buf;
 
-	for (i = 0;  i < FFCNT(ip6_data);  i += 2) {
+	for (i = 0;  i < FF_COUNT(ip6_data);  i += 2) {
 		const char *ip6 = ip6_data[i];
 		const char *sip6 = ip6_data[i + 1];
 
-		sip.len = ffip6_tostr(buf, FFCNT(buf), ip6);
+		sip.len = ffip6_tostr(ip6, buf, FF_COUNT(buf));
 		x(ffstr_eqz(&sip, sip6));
 	}
 
 	ffmem_zero(a, 16);
 	a[15] = '\x01';
-	sip.len = ffip_tostr(buf, FFCNT(buf), AF_INET6, a, 8080);
+	sip.len = ffip_tostr(buf, FF_COUNT(buf), AF_INET6, a, 8080);
 	x(ffstr_eqz(&sip, "[::1]:8080"));
 
 
@@ -113,11 +115,11 @@ static int test_ip6()
 		ffaddr_init(&a);
 		ffip6_set(&a, &in6addr_loopback);
 		ffip_setport(&a, 8080);
-		sip.len = ffaddr_tostr(&a, buf, FFCNT(buf), FFADDR_USEPORT);
+		sip.len = ffaddr_tostr(&a, buf, FF_COUNT(buf), FFADDR_USEPORT);
 		x(ffstr_eqz(&sip, "[::1]:8080"));
 	}
 
-	for (i = 0;  i < FFCNT(ip6_data);  i += 2) {
+	for (i = 0;  i < FF_COUNT(ip6_data);  i += 2) {
 		const char *ip6 = ip6_data[i];
 		const char *sip6 = ip6_data[i + 1];
 

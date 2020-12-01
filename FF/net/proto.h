@@ -4,7 +4,7 @@ Copyright (c) 2017 Simon Zolin
 
 #pragma once
 
-#include <FFOS/string.h>
+#include <FF/net/ipaddr.h>
 #include <FF/number.h>
 
 
@@ -62,43 +62,6 @@ typedef struct ffvlanhdr {
 #define ffvlan_id(vh)  (ffint_ntoh16((vh)->info) & 0x0fff)
 
 
-typedef struct { char a[4]; } ffip4;
-
-enum { FFIP4_STRLEN = FFSLEN("000.000.000.000") };
-
-/** Compare two IPv4 addresses. */
-static FFINL int ffip4_cmp(const ffip4 *ip1, const ffip4 *ip2)
-{
-	return memcmp(ip1, ip2, sizeof(*ip1));
-}
-
-/** Parse IPv4 address.
-Return 0 if the whole input is parsed;  >0 number of processed bytes;  <0 on error. */
-FF_EXTN int ffip4_parse(ffip4 *ip4, const char *s, size_t len);
-
-/** Parse "1.1.1.0/24"
-Return subnet mask bits;  <0 on error. */
-FF_EXTN int ffip4_parse_subnet(ffip4 *ip4, const char *s, size_t len);
-
-/** Convert subnet bits to mask.
-32 -> "255.255.255.255"
-Return bytes written;  -1 on error. */
-FF_EXTN int ffip4_mask(uint bits, char *mask, size_t cap);
-
-
-/** Convert IPv4 address to string.
-Return the number of characters written. */
-FF_EXTN size_t ffip4_tostr(char *dst, size_t cap, const ffip4 *ip4);
-
-static FFINL uint ffip4_tostrz(char *dst, size_t cap, const ffip4 *ip4)
-{
-	uint r = ffip4_tostr(dst, cap, ip4);
-	if (r == 0 || r == cap)
-		return 0;
-	dst[r] = '\0';
-	return r;
-}
-
 typedef struct ffip4hdr {
 #ifdef FF_BIG_ENDIAN
 	byte version :4 //=4
@@ -146,74 +109,6 @@ To compute checksum for the first time, set checksum field to 0.
 To validate checksum in a complete header, just compare the result with 0. */
 FF_EXTN uint ffip4_chksum(const void *hdr, uint ihl);
 
-
-typedef struct { char a[16]; } ffip6;
-
-enum { FFIP6_STRLEN = FFSLEN("abcd:") * 8 - 1 };
-
-/** Compare two IPv6 addresses. */
-static FFINL int ffip6_cmp(const ffip6 *ip1, const ffip6 *ip2)
-{
-	return memcmp(ip1, ip2, sizeof(*ip1));
-}
-
-/** Return TRUE if it's an IPv4-mapped address. */
-static inline ffbool ffip6_v4mapped(const ffip6 *ip)
-{
-	const uint *i = (uint*)ip->a;
-	return i[0] == 0 && i[1] == 0 && i[2] == ffhton32(0x0000ffff);
-}
-
-/** Return IPv4 address or NULL. */
-static inline const ffip4* ffip6_tov4(const ffip6 *ip)
-{
-	const uint *i = (uint*)ip->a;
-	if (!ffip6_v4mapped(ip))
-		return NULL;
-	return (ffip4*)&i[3];
-}
-
-static inline void ffip6_v4mapped_set(ffip6 *ip6, const ffip4 *ip4)
-{
-	uint *i = (uint*)ip6->a;
-	i[0] = i[1] = 0;
-	i[2] = ffhton32(0x0000ffff);
-	i[3] = *(uint*)ip4;
-}
-
-/** Parse IPv6 address.
-Note: v4-mapped address is not supported.
-Return 0 on success. */
-FF_EXTN int ffip6_parse(void *addr, const char *s, size_t len);
-
-/** Parse "1:1:1::/64"
-Return subnet mask bits;  <0 on error. */
-FF_EXTN int ffip6_parse_subnet(ffip6 *ip6, const char *s, size_t len);
-
-/** Convert IPv6 address to string.
-Return the number of characters written.
-Note: v4-mapped address is not supported. */
-FF_EXTN size_t ffip6_tostr(char *dst, size_t cap, const void *addr);
-
-static FFINL uint ffip6_tostrz(char *dst, size_t cap, const ffip6 *ip6)
-{
-	uint r = ffip6_tostr(dst, cap, ip6);
-	if (r == 0 || r == cap)
-		return 0;
-	dst[r] = '\0';
-	return r;
-}
-
-/** Convert IPv4 or IPv6 address to string.
-cap: FFIP6_STRLEN
-Return N of bytes written;  0: not enough capacity. */
-static inline size_t ffip46_tostr(const ffip6 *ip, char *buf, size_t cap)
-{
-	const ffip4 *ip4 = ffip6_tov4(ip);
-	if (ip4 != NULL)
-		return ffip4_tostr(buf, cap, ip4);
-	return ffip6_tostr(buf, cap, ip);
-}
 
 typedef struct ffip6hdr {
 	byte ver_tc_fl[4]; // ver[4] traf_class[8] flow_label[20]
