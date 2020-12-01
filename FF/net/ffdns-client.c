@@ -108,9 +108,9 @@ static void query_free(void *param);
 // ANSWER
 static void ans_read(void *udata);
 static void ans_proc(ffdnscl_serv *serv, const ffstr *resp);
-static dns_query * ans_find_query(ffdnscl_serv *serv, ffdns_hdr_host *h, const ffstr *resp);
-static uint ans_nrecs(dns_query *q, ffdns_hdr_host *h, const ffstr *resp, const char *pbuf, int is4);
-static ffdnscl_res* ans_proc_resp(dns_query *q, ffdns_hdr_host *h, const ffstr *resp, int is4);
+static dns_query * ans_find_query(ffdnscl_serv *serv, ffdns_header *h, const ffstr *resp);
+static uint ans_nrecs(dns_query *q, ffdns_header *h, const ffstr *resp, const char *pbuf, int is4);
+static ffdnscl_res* ans_proc_resp(dns_query *q, ffdns_header *h, const ffstr *resp, int is4);
 static void res_free(ffdnscl_res *dr);
 
 // DUMMY CALLBACKS
@@ -416,26 +416,31 @@ fail_send:
 /** Prepare DNS query. */
 static size_t query_prep(ffdnsclient *r, char *buf, size_t cap, uint txid, const ffstr *host, int type)
 {
-	char *pbuf;
-	uint n;
-	ffdns_hdr *h = (ffdns_hdr*)buf;
+	int rr, i;
 
-	ffdns_initquery(h, txid, 1);
-	pbuf = buf + sizeof(ffdns_hdr);
-
-	n = ffdns_addquery(pbuf, (buf + cap) - pbuf, host->ptr, host->len, type);
-	if (n == 0)
+	ffdns_header h = {};
+	h.id = txid;
+	h.questions = 1;
+	h.recursion_desired = 1;
+	if (r->edns)
+		h.additionals = 1;
+	if (0 > (rr = ffdns_header_write(buf, cap, &h)))
 		return 0;
-	pbuf += n;
+	i = rr;
+
+	ffdns_question q = {};
+	ffstr_set2(&q.name, host);
+	q.clas = FFDNS_IN;
+	q.type = type;
+	if (0 > (rr = ffdns_question_write(&buf[i], cap - i, &q)))
+		return 0;
+	i += rr;
 
 	if (r->edns) {
-		h->arcount[1] = 1;
-		*pbuf++ = '\x00';
-		ffdns_optinit((ffdns_opt*)pbuf, r->buf_size);
-		pbuf += sizeof(ffdns_opt);
+		i += ffdns_optinit((struct ffdns_opt*)&buf[i], r->buf_size);
 	}
 
-	return pbuf - buf;
+	return i;
 }
 
 
@@ -465,7 +470,7 @@ static void ans_read(void *udata)
 /** Process response and notify users waiting for it. */
 static void ans_proc(ffdnscl_serv *serv, const ffstr *resp)
 {
-	ffdns_hdr_host h;
+	ffdns_header h;
 	dns_query *q;
 	int is4;
 	ffdnsclient *r = serv->r;
@@ -489,7 +494,7 @@ static void ans_proc(ffdnscl_serv *serv, const ffstr *resp)
 
 	if (h.rcode != FFDNS_NOERROR) {
 		errlog_q(q, "#%u: DNS response: (%u) %s"
-			, h.id, h.rcode, ffdns_errstr(h.rcode));
+			, h.id, h.rcode, ffdns_rcode_str(h.rcode));
 		if (q->nres == 0)
 			q->status = h.rcode; //set error only from the first response
 
@@ -519,71 +524,57 @@ static void ans_proc(ffdnscl_serv *serv, const ffstr *resp)
 }
 
 /** Find query by a response from DNS server. */
-static dns_query * ans_find_query(ffdnscl_serv *serv, ffdns_hdr_host *h, const ffstr *resp)
+static dns_query * ans_find_query(ffdnscl_serv *serv, ffdns_header *h, const ffstr *resp)
 {
 	dns_query *q;
-	const char *end = resp->ptr + resp->len;
-	const char *pbuf;
-	ffdns_hdr *hdr;
-	char qname[FFDNS_MAXNAME];
 	const char *errmsg = NULL;
 	uint namecrc;
 	ffstr name;
 	ffrbt_node *found_query;
 	uint resp_id = 0;
+	ffdns_question qh = {};
 
-	if (resp->len < sizeof(ffdns_hdr)) {
+	if (0 > ffdns_header_read(h, *resp)) {
 		errmsg = "too small response";
 		goto fail;
 	}
-
-	hdr = (ffdns_hdr*)resp->ptr;
-	ffdns_hdrtohost(h, hdr);
-	if (hdr->qr != 1) {
+	if (h->response != 1) {
 		errmsg = "received invalid response";
 		goto fail;
 	}
 
 	resp_id = h->id;
 
-	if (h->qdcount != 1) {
+	if (h->questions != 1) {
 		errmsg = "number of questions in response is not 1";
 		goto fail;
 	}
 
-	pbuf = resp->ptr + sizeof(ffdns_hdr);
-
-	name.len = ffdns_name(qname, sizeof(qname), resp->ptr, resp->len, &pbuf);
-	if (name.len == 0) {
+	if (0 > ffdns_question_read(&qh, *resp)) {
+		errmsg = "too small response";
+		goto fail;
+	}
+	if (qh.name.len == 0) {
 		errmsg = "invalid name in question";
 		goto fail;
 	}
+	ffstr_set2(&name, &qh.name);
 	name.len--;
-	name.ptr = qname;
 
 	serv->r->log(FFDNSCL_LOG_DBG /*LOG_DBGNET*/
 		, "%S: DNS response #%u.  Status: %u.  AA: %u, RA: %u.  Q: %u, A: %u, N: %u, R: %u."
 		, &name
-		, h->id, hdr->rcode, hdr->aa, hdr->ra
-		, h->qdcount, h->ancount, h->nscount, h->arcount);
+		, h->id, h->rcode, h->authoritive, h->recursion_available
+		, h->questions, h->answers, h->nss, h->additionals);
 
-	if (pbuf + sizeof(ffdns_ques) > end) {
-		errmsg = "too small response";
+	if (qh.clas != FFDNS_IN) {
+		serv->r->log(FFDNSCL_LOG_ERR
+			, "%S: #%u: invalid class %u in DNS response"
+			, &name, h->id, qh.clas);
 		goto fail;
 	}
 
-	{
-		ffdns_ques_host qh;
-		ffdns_questohost(&qh, pbuf);
-		if (qh.clas != FFDNS_IN) {
-			serv->r->log(FFDNSCL_LOG_ERR
-				, "%S: #%u: invalid class %u in DNS response"
-				, &name, h->id, qh.clas);
-			goto fail;
-		}
-	}
-
-	namecrc = ffcrc32_get(qname, name.len);
+	namecrc = ffcrc32_get(name.ptr, name.len);
 
 	found_query = ffrbt_find(&serv->r->queries, namecrc, NULL);
 	if (found_query == NULL) {
@@ -603,39 +594,33 @@ fail:
 	if (errmsg != NULL)
 		errlog_srv(serv, "%s. ID: #%u. Name: %S", errmsg, resp_id, &name);
 
+	ffdns_question_destroy(&qh);
 	return NULL;
 }
 
 /** Get the number of useful records.  Print debug info about the records in response. */
-static uint ans_nrecs(dns_query *q, ffdns_hdr_host *h, const ffstr *resp, const char *pbuf, int is4)
+static uint ans_nrecs(dns_query *q, ffdns_header *h, const ffstr *resp, const char *pbuf, int is4)
 {
 	uint nrecs = 0;
 	uint ir;
-	char qname[FFDNS_MAXNAME];
-	const char *end = resp->ptr + resp->len;
-	ffdns_ans_host ans;
+	ffdns_answer ans = {};
 	ffstr name;
+	int rr;
 
-	for (ir = 0;  ir < h->ancount;  ir++) {
-		name.len = ffdns_name(qname, sizeof(qname), resp->ptr, resp->len, &pbuf);
+	for (ir = 0;  ir < h->answers;  ir++) {
+		ffdns_answer_destroy(&ans);
+		if (0 > (rr = ffdns_answer_read(&ans, *resp, pbuf - resp->ptr))) {
+			dbglog_q(q, LOG_DBGNET, "#%u: incomplete response", h->id);
+			break;
+		}
+		pbuf += rr;
+
+		ffstr_set2(&name, &ans.name);
 		if (name.len == 0) {
 			warnlog_q(q, "#%u: invalid name in answer", h->id);
 			break;
 		}
-		name.ptr = qname;
 		name.len--;
-
-		if (pbuf + sizeof(ffdns_ans) > end) {
-			dbglog_q(q, LOG_DBGNET, "#%u: incomplete response", h->id);
-			break;
-		}
-
-		ffdns_anstohost(&ans, (ffdns_ans*)pbuf);
-		pbuf += sizeof(ffdns_ans) + ans.len;
-		if (pbuf > end) {
-			dbglog_q(q, LOG_DBGNET, "#%u: incomplete response", h->id);
-			break;
-		}
 
 		switch (ans.type) {
 
@@ -644,14 +629,14 @@ static uint ans_nrecs(dns_query *q, ffdns_hdr_host *h, const ffstr *resp, const 
 				errlog_q(q, "#%u: invalid class in %s record: %u", h->id, "A", ans.clas);
 				continue;
 			}
-			if (ans.len != sizeof(ffip4)) {
-				errlog_q(q, "#%u: invalid %s address length: %u", h->id, "A", ans.len);
+			if (ans.data.len != sizeof(ffip4)) {
+				errlog_q(q, "#%u: invalid %s address length: %u", h->id, "A", ans.data.len);
 				continue;
 			}
 
 			if (log_checkdbglevel(q, LOG_DBGFLOW)) {
 				char ip[FFIP4_STRLEN];
-				size_t iplen = ffip4_tostr(ip, FFCNT(ip), (void*)ans.data);
+				size_t iplen = ffip4_tostr((void*)ans.data.ptr, ip, FFCNT(ip));
 				dbglog_q(q, LOG_DBGFLOW, "%s for %S : %*s, TTL:%u"
 					, "A", &name, (size_t)iplen, ip, ans.ttl);
 			}
@@ -665,14 +650,14 @@ static uint ans_nrecs(dns_query *q, ffdns_hdr_host *h, const ffstr *resp, const 
 				errlog_q(q, "#%u: invalid class in %s record: %u", h->id, "AAAA", ans.clas);
 				continue;
 			}
-			if (ans.len != sizeof(ffip6)) {
-				errlog_q(q, "#%u: invalid %s address length: %u", h->id, "AAAA", ans.len);
+			if (ans.data.len != sizeof(ffip6)) {
+				errlog_q(q, "#%u: invalid %s address length: %u", h->id, "AAAA", ans.data.len);
 				continue;
 			}
 
 			if (log_checkdbglevel(q, LOG_DBGFLOW)) {
 				char ip[FFIP6_STRLEN];
-				size_t iplen = ffip6_tostr(ip, FFCNT(ip), (void*)ans.data);
+				size_t iplen = ffip6_tostr((void*)ans.data.ptr, ip, FFCNT(ip));
 				dbglog_q(q, LOG_DBGFLOW, "%s for %S : %*s, TTL:%u"
 					, "AAAA", &name, (size_t)iplen, ip, ans.ttl);
 			}
@@ -683,48 +668,51 @@ static uint ans_nrecs(dns_query *q, ffdns_hdr_host *h, const ffstr *resp, const 
 
 		case FFDNS_CNAME:
 			if (log_checkdbglevel(q, LOG_DBGFLOW)) {
-				ffstr scname;
+				/*ffstr scname;
 				char cname[NI_MAXHOST];
 				const char *tbuf = pbuf;
 
 				scname.len = ffdns_name(cname, sizeof(cname), resp->ptr, resp->len, &tbuf);
-				if (scname.len == 0 || tbuf > pbuf + ans.len) {
+				if (scname.len == 0 || tbuf > pbuf + ans.data.len) {
 					errlog_q(q, "invalid CNAME", 0);
 					continue;
 				}
 				scname.ptr = cname;
 				scname.len--;
 
-				dbglog_q(q, LOG_DBGFLOW, "CNAME for %S : %S", &name, &scname);
+				dbglog_q(q, LOG_DBGFLOW, "CNAME for %S : %S", &name, &scname);*/
 			}
 			break;
 
 		default:
-			dbglog_q(q, LOG_DBGFLOW, "record of type %u, length %u", ans.type, ans.len);
+			dbglog_q(q, LOG_DBGFLOW, "record of type %u, length %u", ans.type, ans.data.len);
 			break;
 		}
 	}
 
+	ffdns_answer_destroy(&ans);
 	return nrecs;
 }
 
 /** Create DNS resource object. */
-static ffdnscl_res* ans_proc_resp(dns_query *q, ffdns_hdr_host *h, const ffstr *resp, int is4)
+static ffdnscl_res* ans_proc_resp(dns_query *q, ffdns_header *h, const ffstr *resp, int is4)
 {
-	const char *end = resp->ptr + resp->len;
 	const char *pbuf;
-	uint nrecs = 0;
-	uint ir;
 	ffdnscl_res *res = NULL;
 	ffip4 *acur;
 	ffip6 *a6cur;
 	uint minttl = (uint)-1;
+	int r;
 
-	pbuf = resp->ptr + sizeof(ffdns_hdr);
-	ffdns_skipname(resp->ptr, resp->len, &pbuf);
-	pbuf += sizeof(ffdns_ques);
+	ffdns_question qh = {};
+	if (0 > (r = ffdns_question_read(&qh, *resp))) {
+		dbglog_q(q, LOG_DBGFLOW, "#%u: invalid message", h->id);
+		return NULL;
+	}
+	ffdns_question_destroy(&qh);
+	pbuf = resp->ptr + sizeof(struct ffdns_hdr) + r;
 
-	nrecs = ans_nrecs(q, h, resp, pbuf, is4);
+	uint nrecs = ans_nrecs(q, h, resp, pbuf, is4);
 
 	if (nrecs == 0) {
 		dbglog_q(q, LOG_DBGFLOW, "#%u: no useful records in response", h->id);
@@ -745,37 +733,32 @@ static ffdnscl_res* ans_proc_resp(dns_query *q, ffdns_hdr_host *h, const ffstr *
 	}
 
 	// set addresses and get the minimum TTL value
-	for (ir = 0;  ir < h->ancount;  ir++) {
-		ffdns_ans_host ans;
-
-		ffdns_skipname(resp->ptr, resp->len, &pbuf);
-
-		if (pbuf + sizeof(ffdns_ans) > end)
+	uint ir;
+	for (ir = 0;  ir < h->answers;  ir++) {
+		ffdns_answer ans = {};
+		if (0 > (r = ffdns_answer_read(&ans, *resp, pbuf - resp->ptr)))
 			break;
-
-		ffdns_anstohost(&ans, (ffdns_ans*)pbuf);
-		pbuf += sizeof(ffdns_ans) + ans.len;
-		if (pbuf > end)
-			break;
+		ffdns_answer_destroy(&ans);
+		pbuf += r;
 		if (ans.clas != FFDNS_IN)
 			continue;
 
 		switch (ans.type) {
 		case FFDNS_A:
-			if (!is4 || ans.len != sizeof(ffip4))
+			if (!is4 || ans.data.len != sizeof(ffip4))
 				continue;
 
-			ffmemcpy(acur, ans.data, sizeof(ffip4));
+			ffmemcpy(acur, ans.data.ptr, sizeof(ffip4));
 			acur++;
 
 			minttl = (uint)ffmin(minttl, ans.ttl);
 			break;
 
 		case FFDNS_AAAA:
-			if (is4 || ans.len != sizeof(ffip6))
+			if (is4 || ans.data.len != sizeof(ffip6))
 				continue;
 
-			ffmemcpy(a6cur, ans.data, sizeof(ffip6));
+			ffmemcpy(a6cur, ans.data.ptr, sizeof(ffip6));
 			a6cur++;
 
 			minttl = (uint)ffmin(minttl, ans.ttl);

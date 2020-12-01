@@ -30,7 +30,6 @@ void test_dns_client(void)
 	fftime_now(&now);
 	ffrnd_seed(now.sec);
 
-	// ffkqu_init();
 	kq = ffkqu_create();
 	fftmrq_init(&tq);
 	fftmrq_start(&tq, kq, 100);
@@ -84,7 +83,7 @@ void test_dns_client(void)
 static void onresolve(void *udata, const ffdnscl_result *res)
 {
 	if (udata == (void*)1) {
-		x(res->status == FFDNS_NOERROR);
+		xieq(FFDNS_NOERROR, res->status);
 		gflags |= 1;
 		x(res->ip.len != 0);
 
