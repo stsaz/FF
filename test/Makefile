@@ -63,7 +63,7 @@ FF_TEST_O := $(FFOS_OBJ) $(FF_OBJ) \
 	$(FFOS_THD) \
 	$(FFOS_SKT) \
 	$(FF_OBJ_DIR)/fftmr.o \
-	$(FF_OBJ_DIR)/ffhttp.o $(FF_OBJ_DIR)/ffproto.o $(FF_OBJ_DIR)/ffurl.o $(FF_OBJ_DIR)/ffdns.o \
+	$(FF_OBJ_DIR)/ffhttp.o $(FF_OBJ_DIR)/ffproto.o $(FF_OBJ_DIR)/ffurl.o \
 	$(FF_OBJ_DIR)/fficy.o \
 	$(FF_OBJ_DIR)/ffconf.o \
 	$(FF_OBJ_DIR)/ffjson.o \

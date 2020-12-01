@@ -35,69 +35,6 @@ static int test_crc()
 	return 0;
 }
 
-static int test_dns()
-{
-	char buf[FFDNS_MAXNAME];
-	const char *pos;
-	ffstr d;
-	ffstr s;
-	s.ptr = buf;
-
-	FFTEST_FUNC;
-
-	s.len = ffdns_encodename(buf, FFCNT(buf), FFSTR("www.my.dot.com"));
-	x(ffstr_eqz(&s, "\3www\2my\3dot\3com"));
-
-	s.len = ffdns_encodename(buf, FFCNT(buf), FFSTR("."));
-	x(ffstr_eqcz(&s, "\0"));
-
-	s.len = ffdns_encodename(buf, FFCNT(buf), FFSTR("www.my.dot.com."));
-	x(ffstr_eqcz(&s, "\3www\2my\3dot\3com\0"));
-
-	x(0 == ffdns_encodename(buf, FFCNT(buf), FFSTR("www.my.dot.com..")));
-	x(0 == ffdns_encodename(buf, FFCNT(buf), FFSTR(".www.my.dot.com.")));
-	x(0 == ffdns_encodename(buf, FFCNT(buf), FFSTR("www..my.dot.com.")));
-	x(0 == ffdns_encodename(buf, FFCNT(buf), FFSTR("www..my.dot.com.")));
-
-
-	ffstr_setcz(&d, "\3www\2my\3dot\3com\0");
-	pos = d.ptr;
-	s.len = ffdns_name(buf, FFCNT(buf), d.ptr, d.len, &pos);
-	x(ffstr_eqcz(&s, "www.my.dot.com."));
-
-	ffstr_setcz(&d, "\3www\xc0\6" "\2my\3dot\3com\0");
-	pos = d.ptr;
-	s.len = ffdns_name(buf, FFCNT(buf), d.ptr, d.len, &pos);
-	x(ffstr_eqcz(&s, "www.my.dot.com."));
-
-	ffstr_setcz(&d, "\2my\3dot\3com\0" "\3www\xc0\0");
-	pos = d.ptr + FFSLEN("\2my\3dot\3com\0");
-	s.len = ffdns_name(buf, FFCNT(buf), d.ptr, d.len, &pos);
-	x(ffstr_eqcz(&s, "www.my.dot.com."));
-
-	ffstr_setcz(&d, "\2my\3dot\3com\0" "\3www\xff\xff");
-	pos = d.ptr + FFSLEN("\2my\3dot\3com\0");
-	x(0 == ffdns_name(buf, FFCNT(buf), d.ptr, d.len, &pos));
-
-	ffstr_setcz(&d, "\3www\xc0\0\0");
-	pos = d.ptr;
-	x(0 == ffdns_name(buf, FFCNT(buf), d.ptr, d.len, &pos));
-
-	ffstr_setcz(&d, "\0");
-	pos = d.ptr;
-	x(0 == ffdns_name(buf, FFCNT(buf), d.ptr, d.len, &pos));
-
-
-	s.len = ffdns_addquery(buf, FFCNT(buf), FFSTR("my.dot.com"), FFDNS_AAAA);
-	x(ffstr_eqcz(&s, "\2my\3dot\3com\0" "\0\x1c" "\0\1"));
-
-	s.len = ffdns_addquery(buf, FFCNT(buf), FFSTR("my.dot.com."), FFDNS_AAAA);
-	x(ffstr_eqcz(&s, "\2my\3dot\3com\0" "\0\x1c" "\0\1"));
-
-	return 0;
-}
-
-
 #define ICY_META "\x03StreamTitle='artist - track';StreamUrl='';\0\0\0\0\0\0"
 
 static int test_icy(void)
@@ -155,6 +92,7 @@ extern int test_webskt(void);
 extern int test_path(void);
 extern int test_bits(void);
 extern void test_conf_write(void);
+extern void test_dns(void);
 extern void test_dns_client(void);
 extern int test_cache(void);
 extern int test_ip();
