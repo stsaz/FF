@@ -61,60 +61,6 @@ size_t fffile_fmt(fffd fd, ffarr *buf, const char *fmt, ...)
 	return r;
 }
 
-int fffile_readall(ffarr *a, const char *fn, uint64 limit)
-{
-	fffd fd;
-	uint64 fsz;
-	int r = -1;
-
-	if (FF_BADFD == (fd = fffile_open(fn, O_RDONLY)))
-		return -1;
-
-	fsz = fffile_size(fd);
-	if (fsz > limit)
-		goto end;
-
-	if (fsz != FF_TOSIZE(fsz))
-		goto end;
-	if (NULL == ffarr_realloc(a, fsz))
-		goto end;
-
-	if (fsz != (size_t)fffile_read(fd, a->ptr, fsz))
-		goto end;
-
-	a->len = fsz;
-	r = 0;
-
-end:
-	fffile_close(fd);
-	return r;
-}
-
-int fffile_writeall(const char *fn, const char *d, size_t len, uint flags)
-{
-	fffd f;
-	int rc = 1;
-
-	if (flags == 0)
-		flags = FFO_CREATE | FFO_TRUNC;
-
-	if (FF_BADFD == (f = fffile_open(fn, flags | FFO_WRONLY)))
-		goto done;
-
-	if (len != (size_t)fffile_write(f, d, len))
-		goto done;
-
-	rc = 0;
-
-done:
-	if (f != FF_BADFD) {
-		rc |= fffile_close(f);
-		if (rc != 0)
-			fffile_rm(fn);
-	}
-	return rc;
-}
-
 int fffile_cmp(const char *fn1, const char *fn2, uint64 limit)
 {
 	int r;

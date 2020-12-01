@@ -413,11 +413,17 @@ FF_EXTN size_t fffile_fmt(fffd fd, ffstr3 *buf, const char *fmt, ...);
 /** Read the whole file into memory buffer.
 @limit: maximum allowed file size
 */
-FF_EXTN int fffile_readall(ffarr *a, const char *fn, uint64 limit);
+static inline int fffile_readall(ffarr *a, const char *fn, uint64 limit)
+{
+	return fffile_readwhole(fn, (ffvec*)a, limit);
+}
 
 /** Create (overwrite) file from buffer.
 @flags: FFO_* (default: FFO_CREATE | FFO_TRUNC) */
-FF_EXTN int fffile_writeall(const char *fn, const char *d, size_t len, uint flags);
+static inline int fffile_writeall(const char *fn, const char *d, size_t len, uint flags)
+{
+	return fffile_writewhole(fn, d, len, flags);
+}
 
 /** Compare files by content.
 @limit: maximum amount of data to process (0:unlimited). */
