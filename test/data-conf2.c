@@ -11,8 +11,7 @@
 void test_conf2_r()
 {
 	ffvec data = {};
-	//TESTDATADIR
-	xieq(0, fffile_readwhole("/d/src/ff/test/data/test.conf", &data, -1));
+	xieq(0, fffile_readwhole(TESTDATADIR "/test.conf", &data, -1));
 	ffstr d = FFSTR_INITSTR(&data);
 
 	ffconf c;
