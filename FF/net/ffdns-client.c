@@ -211,7 +211,7 @@ int ffdnscl_resolve(ffdnsclient *r, ffstr name, ffdnscl_onresolve ondone, void *
 	if (0 != query_addusr(q, ondone, udata))
 		goto nomem;
 
-	if (NULL == ffstr_copy(&q->name, name.ptr, name.len))
+	if (NULL == ffstr_dupstr(&q->name, &name))
 		goto nomem;
 
 	q->need4 = 1;

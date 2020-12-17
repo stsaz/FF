@@ -277,7 +277,7 @@ int ffcaf_read(ffcaf *c)
 		mp4_esds(c->chunk.ptr, c->chunk.len, &esds);
 		c->info.bitrate = esds.avg_brate;
 		ffstr_free(&c->asc);
-		ffstr_copy(&c->asc, esds.conf, esds.conflen);
+		ffstr_dup(&c->asc, esds.conf, esds.conflen);
 		gather(c, R_CHUNK, sizeof(struct caf_chunk));
 		break;
 	}

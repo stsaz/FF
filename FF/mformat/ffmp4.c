@@ -233,7 +233,7 @@ static int mp4_box_process(ffmp4 *m, const ffstr *data)
 	case BOX_ALAC:
 		if (m->codec_conf.len != 0)
 			break;
-		if (NULL == ffstr_copy(&m->codec_conf, sbox.ptr, sbox.len))
+		if (NULL == ffstr_dup(&m->codec_conf, sbox.ptr, sbox.len))
 			return ERR(m, MP4_ESYS);
 		m->codec = FFMP4_ALAC;
 		break;
@@ -258,7 +258,7 @@ static int mp4_box_process(ffmp4 *m, const ffstr *data)
 
 		if (m->codec_conf.len != 0)
 			break;
-		if (NULL == ffstr_copy(&m->codec_conf, esds.conf, esds.conflen))
+		if (NULL == ffstr_dup(&m->codec_conf, esds.conf, esds.conflen))
 			return ERR(m, MP4_ESYS);
 
 		m->aac_brate = esds.avg_brate;
@@ -278,11 +278,11 @@ static int mp4_box_process(ffmp4 *m, const ffstr *data)
 		break;
 
 	case BOX_STTS:
-		ffstr_copy(&m->stts, sbox.ptr, sbox.len);
+		ffstr_dup(&m->stts, sbox.ptr, sbox.len);
 		break;
 
 	case BOX_STSC:
-		ffstr_copy(&m->stsc, sbox.ptr, sbox.len);
+		ffstr_dup(&m->stsc, sbox.ptr, sbox.len);
 		break;
 
 	case BOX_STCO:
@@ -617,7 +617,7 @@ int ffmp4_addtag(ffmp4_cook *m, uint mmtag, const char *val, size_t val_len)
 	struct ffmp4_tag *t = ffarr_pushT(&m->tags, struct ffmp4_tag);
 	t->id = mmtag;
 	ffstr_null(&t->val);
-	if (NULL == ffstr_copy(&t->val, val, val_len))
+	if (NULL == ffstr_dup(&t->val, val, val_len))
 		return MP4_ESYS;
 	return 0;
 }

@@ -358,10 +358,8 @@ static FFINL size_t ffstr_cat(ffstr *s, size_t cap, const char *d, size_t len) {
 	return ffstr_add(s, cap, d, len);
 }
 
-#define ffstr_copy(dst, d, len)  ffstr_dup(dst, d, len)
-
-#define ffstr_alcopyz(dst, sz)  ffstr_copy(dst, sz, ffsz_len(sz))
-#define ffstr_alcopystr(dst, src)  ffstr_copy(dst, (src)->ptr, (src)->len)
+#define ffstr_alcopyz(dst, sz)  ffstr_dup(dst, sz, ffsz_len(sz))
+#define ffstr_alcopystr(dst, src)  ffstr_dup(dst, (src)->ptr, (src)->len)
 
 /** Trim data by absolute bounds.
 Return the number of bytes processed from the beginning. */
