@@ -403,8 +403,15 @@ static int edit_done(ffparser_schem *ps, void *obj)
 
 	return 0;
 }
+static int edit_text(ffparser_schem *ps, void *obj, const ffstr *val)
+{
+	ffui_loader *g = obj;
+	ffui_edit_settextstr(g->edit, val);
+	return 0;
+}
 static const ffpars_arg edit_args[] = {
 	{ "style",	FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&btn_style) },
+	{ "text",	FFPARS_TSTR, FFPARS_DST(&edit_text) },
 	{ NULL,	FFPARS_TCLOSE, FFPARS_DST(&edit_done) },
 };
 
