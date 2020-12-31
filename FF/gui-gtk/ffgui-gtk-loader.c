@@ -119,6 +119,7 @@ static void* ldr_getctl(ffui_loader *g, const ffstr *name)
 // LABEL
 // BUTTON
 // EDITBOX
+// TEXT
 // TRACKBAR
 // TAB
 // VIEW COL
@@ -419,6 +420,48 @@ static int edit_new(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 		return FFPARS_ESYS;
 
 	ffpars_setargs(ctx, g, edit_args, FFCNT(edit_args));
+	g->flags = 0;
+	return 0;
+}
+
+
+// TEXT
+static int text_done(ffparser_schem *ps, void *obj)
+{
+	ffui_loader *g = obj;
+	if (g->f_horiz) {
+		if (g->hbox == NULL) {
+			g->hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+			gtk_box_pack_start(GTK_BOX(g->wnd->vbox), g->hbox, /*expand=*/1, /*fill=*/0, /*padding=*/0);
+		}
+		gtk_box_pack_start(GTK_BOX(g->hbox), g->text->h, /*expand=*/1, /*fill=*/1, /*padding=*/0);
+	} else {
+		void *scrl = gtk_scrolled_window_new(NULL, NULL);
+		gtk_container_add(GTK_CONTAINER(scrl), g->text->h);
+		gtk_scrolled_window_set_policy(scrl, GTK_POLICY_ALWAYS, GTK_POLICY_ALWAYS);
+		g->hbox = NULL;
+		gtk_box_pack_start(GTK_BOX(g->wnd->vbox), scrl, /*expand=*/1, /*fill=*/1, /*padding=*/0);
+	}
+
+	return 0;
+}
+static const ffpars_arg text_args[] = {
+	{ "style",	FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&btn_style) },
+	{ NULL,	FFPARS_TCLOSE, FFPARS_DST(&text_done) },
+};
+
+static int text_new(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
+{
+	ffui_loader *g = obj;
+
+	g->ctl = ldr_getctl(g, &ps->vals[0]);
+	if (g->ctl == NULL)
+		return FFPARS_EBADVAL;
+
+	if (0 != ffui_text_create(g->text, g->wnd))
+		return FFPARS_ESYS;
+
+	ffpars_setargs(ctx, g, text_args, FFCNT(text_args));
 	g->flags = 0;
 	return 0;
 }
@@ -735,6 +778,7 @@ static const ffpars_arg wnd_args[] = {
 	{ "button",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&btn_new) },
 	{ "label",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&lbl_new) },
 	{ "editbox",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&edit_new) },
+	{ "text",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&text_new) },
 	{ "trackbar",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&trkbar_new) },
 	{ "tab",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&tab_new) },
 	{ "listview",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&view_new) },

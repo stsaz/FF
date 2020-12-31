@@ -701,6 +701,13 @@ static gboolean _ffui_send_handler(gpointer data)
 	case FFUI_LBL_SETTEXT:
 		ffui_lbl_settextz((ffui_label*)c->ctl, c->udata);
 		break;
+	case FFUI_TEXT_SETTEXT:
+		ffui_text_clear((ffui_text*)c->ctl);
+		ffui_text_addtextstr((ffui_text*)c->ctl, (ffstr*)c->udata);
+		break;
+	case FFUI_TEXT_ADDTEXT:
+		ffui_text_addtextstr((ffui_text*)c->ctl, (ffstr*)c->udata);
+		break;
 	case FFUI_WND_SETTEXT:
 		ffui_wnd_settextz((ffui_wnd*)c->ctl, c->udata);
 		break;

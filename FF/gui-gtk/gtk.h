@@ -25,6 +25,7 @@ static inline void ffui_init()
 // BUTTON
 // LABEL
 // EDITBOX
+// TEXT
 // TRACKBAR
 // TAB
 // LISTVIEW COLUMN
@@ -164,7 +165,7 @@ static inline void ffui_lbl_settext(ffui_label *l, const char *text, size_t len)
 	ffui_lbl_settextz(l, sz);
 	ffmem_free(sz);
 }
-#define ffui_lbl_settextstr(l, str)  ffui_lbl_settext(l, str->ptr, str->len)
+#define ffui_lbl_settextstr(l, str)  ffui_lbl_settext(l, (str)->ptr, (str)->len)
 
 
 // EDITBOX
@@ -181,6 +182,7 @@ static inline void ffui_edit_settext(ffui_edit *e, const char *text, size_t len)
 	ffui_edit_settextz(e, sz);
 	ffmem_free(sz);
 }
+#define ffui_edit_settextstr(e, str)  ffui_edit_settext(e, (str)->ptr, (str)->len)
 
 static inline void ffui_edit_textstr(ffui_edit *e, ffstr *s)
 {
@@ -190,6 +192,44 @@ static inline void ffui_edit_textstr(ffui_edit *e, ffstr *s)
 
 #define ffui_edit_sel(e, start, end) \
 	gtk_editable_select_region(GTK_EDITABLE((e)->h), start, end);
+
+
+// TEXT
+typedef struct ffui_text {
+	_FFUI_CTL_MEMBERS
+} ffui_text;
+
+static inline int ffui_text_create(ffui_text *t, ffui_wnd *parent)
+{
+	t->h = gtk_text_view_new();
+	t->wnd = parent;
+	return 0;
+}
+
+static inline void ffui_text_addtext(ffui_text *t, const char *text, size_t len)
+{
+	GtkTextBuffer *gbuf = gtk_text_view_get_buffer(GTK_TEXT_VIEW(t->h));
+	GtkTextIter end;
+	gtk_text_buffer_get_end_iter(gbuf, &end);
+	gtk_text_buffer_insert(gbuf, &end, text, len);
+}
+#define ffui_text_addtextz(t, text)  ffui_text_addtext(t, text, ffsz_len(text))
+#define ffui_text_addtextstr(t, str)  ffui_text_addtext(t, (str)->ptr, (str)->len)
+
+static inline void ffui_text_clear(ffui_text *t)
+{
+	GtkTextBuffer *gbuf = gtk_text_view_get_buffer(GTK_TEXT_VIEW(t->h));
+	GtkTextIter start, end;
+	gtk_text_buffer_get_start_iter(gbuf, &start);
+	gtk_text_buffer_get_end_iter(gbuf, &end);
+	gtk_text_buffer_delete(gbuf, &start, &end);
+}
+
+/**
+mode: GTK_WRAP_NONE GTK_WRAP_CHAR GTK_WRAP_WORD GTK_WRAP_WORD_CHAR*/
+#define ffui_text_setwrapmode(t, mode)  gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW((t)->h), mode)
+
+#define ffui_text_setmonospace(t, mono)  gtk_text_view_set_monospace(GTK_TEXT_VIEW((t)->h), mono)
 
 
 // TRACKBAR
@@ -543,6 +583,8 @@ FF_EXTN void ffui_thd_post(ffui_handler func, void *udata, uint flags);
 enum FFUI_MSG {
 	FFUI_QUITLOOP,
 	FFUI_LBL_SETTEXT,
+	FFUI_TEXT_SETTEXT,
+	FFUI_TEXT_ADDTEXT,
 	FFUI_WND_SETTEXT,
 	FFUI_VIEW_RM,
 	FFUI_VIEW_CLEAR,
@@ -562,6 +604,8 @@ FF_EXTN size_t ffui_send(void *ctl, uint id, void *udata);
 
 #define ffui_post_quitloop()  ffui_post(NULL, FFUI_QUITLOOP, NULL)
 #define ffui_send_lbl_settext(ctl, sz)  ffui_send(ctl, FFUI_LBL_SETTEXT, (void*)sz)
+#define ffui_send_text_settextstr(ctl, str)  ffui_send(ctl, FFUI_TEXT_SETTEXT, (void*)str)
+#define ffui_send_text_addtextstr(ctl, str)  ffui_send(ctl, FFUI_TEXT_ADDTEXT, (void*)str)
 #define ffui_send_wnd_settext(ctl, sz)  ffui_send(ctl, FFUI_WND_SETTEXT, (void*)sz)
 #define ffui_send_view_rm(ctl, it)  ffui_send(ctl, FFUI_VIEW_RM, it)
 #define ffui_post_view_clear(ctl)  ffui_post(ctl, FFUI_VIEW_CLEAR, NULL)
@@ -613,6 +657,7 @@ typedef struct ffui_loader {
 		ffui_label *lbl;
 		ffui_btn *btn;
 		ffui_edit *edit;
+		ffui_text *text;
 		ffui_trkbar *trkbar;
 		ffui_tab *tab;
 		ffui_view *vi;
