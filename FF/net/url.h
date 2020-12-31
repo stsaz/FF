@@ -244,11 +244,9 @@ Syntax: [label.]... label.label
     . ASCII letters a-z and A-Z
     . digits 0-9
     . hyphen ('-')
+  . labels may be in "xn--[a-zA-Z0-9]+" format
   . labels cannot start or end with hyphens (RFC 952)
   . max length of ascii hostname including dots is 253 characters
-  . TLD is >=2 characters
-  . TLD is [a-zA-Z]+ or "xn--[a-zA-Z0-9]+"
-  . at least 1 level above TLD Source
 Return domain level;
   <0 on error */
 static inline int ffurl_isdomain(const char *name, ffsize len)
@@ -256,7 +254,7 @@ static inline int ffurl_isdomain(const char *name, ffsize len)
 	if (len > 253)
 		return -1;
 
-	int st = 0, nlabel = 0, level = 1, prev_char = 0, char_only = 1;
+	int st = 0, nlabel = 0, level = 1, prev_char = 0;
 	ffuint xn = 0;
 
 	for (ffsize i = 0;  i != len;  i++) {
@@ -269,7 +267,6 @@ static inline int ffurl_isdomain(const char *name, ffsize len)
 			if (!((c >= 'a' && c <= 'z')
 				|| (c >= 'A' && c <= 'Z'))) {
 
-				char_only = 0;
 				if (!(c >= '0' && c <= '9'))
 					return -1;
 
@@ -286,7 +283,6 @@ static inline int ffurl_isdomain(const char *name, ffsize len)
 					return -1;
 				level++;
 				st = 0;
-				char_only = 1;
 				xn = 0;
 				continue;
 			}
@@ -295,12 +291,10 @@ static inline int ffurl_isdomain(const char *name, ffsize len)
 				return -1;
 
 			if (!((c >= 'a' && c <= 'z')
-				|| (c >= 'A' && c <= 'Z'))) {
-
-				char_only = 0;
-				if (!((c >= '0' && c <= '9')
-					|| c == '-'))
-					return -1;
+				|| (c >= 'A' && c <= 'Z')
+				|| (c >= '0' && c <= '9')
+				|| c == '-')) {
+				return -1;
 			}
 
 			if (xn > 0) {
@@ -321,8 +315,7 @@ static inline int ffurl_isdomain(const char *name, ffsize len)
 	}
 
 	if (st != 2
-		|| nlabel == 1
-		|| (!char_only && xn < FFS_LEN("xn--wwww")))
+		|| (xn > 0 && xn < FFS_LEN("xn--wwww")))
 		return -1;
 
 	return level;
