@@ -3,7 +3,6 @@ Copyright (c) 2020 Simon Zolin
 */
 
 #include <FF/aformat/caf.h>
-#include <FF/mformat/mp4-fmt.h>
 
 
 #define CHUNK_MAXSIZE  (2*1024*1024) // max. meta chunk size
@@ -99,6 +98,7 @@ enum E {
 	E_CHUNKSMALL,
 	E_CHUNKLARGE,
 	E_ORDER,
+	E_ESDS,
 	E_DATA,
 };
 
@@ -108,6 +108,7 @@ static const char* const errstr[] = {
 	"chunk too small", // E_CHUNKSMALL
 	"chunk too large", // E_CHUNKLARGE
 	"bad chunks order", // E_ORDER
+	"bad esds data", // E_ESDS
 	"bad audio chunk", // E_DATA
 };
 
@@ -189,6 +190,114 @@ static int caf_varint(const void *data, size_t len, uint *dst)
 
 	*dst = d0;
 	return 1;
+}
+
+struct mp4_acodec {
+	ffuint type; //enum MP4_ESDS_DEC_TYPE
+	ffuint stm_type;
+	ffuint max_brate;
+	ffuint avg_brate;
+	const char *conf;
+	ffuint conflen;
+};
+
+/* "esds" box:
+(TAG SIZE ESDS) {
+	(TAG SIZE DEC_CONF) {
+		(TAG SIZE DEC_SPEC)
+	}
+	(TAG SIZE SL)
+} */
+
+enum MP4_ESDS_TAGS {
+	MP4_ESDS_TAG = 3,
+	MP4_ESDS_DEC_TAG = 4,
+	MP4_ESDS_DECSPEC_TAG = 5,
+	MP4_ESDS_SL_TAG = 6,
+};
+struct mp4_esds_tag {
+	ffbyte tag; //enum MP4_ESDS_TAGS
+	ffbyte size[4]; //"NN" | "80 80 80 NN"
+};
+struct mp4_esds {
+	ffbyte unused[3];
+};
+struct mp4_esds_dec {
+	ffbyte type; //enum MP4_ESDS_DEC_TYPE
+	ffbyte stm_type;
+	ffbyte unused[3];
+	ffbyte max_brate[4];
+	ffbyte avg_brate[4];
+};
+struct mp4_esds_decspec {
+	ffbyte data[2]; //Audio Specific Config
+};
+struct mp4_esds_sl {
+	ffbyte val;
+};
+
+/** Get next esds block.
+@size: input: minimum block size;  output: actual block size
+Return block tag;  0 on error. */
+static int mp4_esds_block(const char **pd, const char *end, ffuint *size)
+{
+	const struct mp4_esds_tag *tag = (struct mp4_esds_tag*)*pd;
+	ffuint sz;
+
+	if (*pd + 2 > end)
+		return 0;
+
+	if (tag->size[0] != 0x80) {
+		*pd += 2;
+		sz = tag->size[0];
+
+	} else {
+		*pd += sizeof(struct mp4_esds_tag);
+		if (*pd > end)
+			return 0;
+		sz = tag->size[3];
+	}
+
+	if (sz < *size)
+		return 0;
+	*size = sz;
+	return tag->tag;
+}
+
+/**
+Return 0 on success;
+ <0 on error. */
+static inline int mp4_esds_read(const char *data, ffuint len, struct mp4_acodec *ac)
+{
+	const char *d = data;
+	const char *end = data + len;
+	int r = -1;
+	ffuint size;
+
+	size = sizeof(struct mp4_esds);
+	if (MP4_ESDS_TAG == mp4_esds_block(&d, end, &size)) {
+		d += sizeof(struct mp4_esds);
+
+		size = sizeof(struct mp4_esds_dec);
+		if (MP4_ESDS_DEC_TAG == mp4_esds_block(&d, end, &size)) {
+			const struct mp4_esds_dec *dec = (struct mp4_esds_dec*)d;
+			d += sizeof(struct mp4_esds_dec);
+			ac->type = dec->type;
+			ac->stm_type = dec->stm_type;
+			ac->max_brate = ffint_be_cpu32_ptr(dec->max_brate);
+			ac->avg_brate = ffint_be_cpu32_ptr(dec->avg_brate);
+
+			size = sizeof(struct mp4_esds_decspec);
+			if (MP4_ESDS_DECSPEC_TAG == mp4_esds_block(&d, end, &size)) {
+				const struct mp4_esds_decspec *spec = (struct mp4_esds_decspec*)d;
+				d += size;
+				ac->conf = (char*)spec->data,  ac->conflen = size;
+				r = 0;
+			}
+		}
+	}
+
+	return r;
 }
 
 int ffcaf_read(ffcaf *c)
@@ -273,11 +382,13 @@ int ffcaf_read(ffcaf *c)
 	}
 
 	case R_KUKI: {
-		struct mp4_esds esds;
-		mp4_esds(c->chunk.ptr, c->chunk.len, &esds);
-		c->info.bitrate = esds.avg_brate;
+		struct mp4_acodec ac;
+		if (0 != mp4_esds_read(c->chunk.ptr, c->chunk.len, &ac))
+			return ERR(c, E_ESDS);
+
+		c->info.bitrate = ac.avg_brate;
 		ffstr_free(&c->asc);
-		ffstr_dup(&c->asc, esds.conf, esds.conflen);
+		ffstr_dup(&c->asc, ac.conf, ac.conflen);
 		gather(c, R_CHUNK, sizeof(struct caf_chunk));
 		break;
 	}
