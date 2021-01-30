@@ -182,10 +182,8 @@ static void test_fnmake()
 
 int test_path()
 {
-	ffstr s;
 	char buf[60];
 	size_t n;
-	s.ptr = buf;
 
 	test_fnmake();
 	test_path_norm();
@@ -208,26 +206,8 @@ int test_path()
 	x(0 == ffpath_isvalidfn("filename/withslash", FFSLEN("filename/withslash"), FFPATH_FN_ANY));
 	x(0 == ffpath_isvalidfn("filename\0withzero", FFSLEN("filename\0withzero"), FFPATH_FN_ANY));
 
-	ffpath_splitname("file.txt", FFSLEN("file.txt"), NULL, &s);
-	x(ffstr_eqcz(&s, "txt"));
-
-	ffpath_splitname("qwer", FFSLEN("qwer"), NULL, &s);
-	x(ffstr_eqcz(&s, ""));
-
-	ffpath_splitname(".qwer", FFSLEN(".qwer"), NULL, &s);
-	x(ffstr_eqcz(&s, ""));
-
 	{
-		ffstr in, dir, fn;
-		ffstr_setcz(&in, "/path/to/file");
-		x(in.ptr + FFSLEN("/path/to") == ffpath_split2(in.ptr, in.len, &dir, &fn));
-		x(ffstr_eqcz(&dir, "/path/to"));
-		x(ffstr_eqcz(&fn, "file"));
 
-		fn.len = 0;
-		x(NULL == ffpath_split2("file", FFSLEN("file"), &dir, &fn));
-		x(ffstr_eqcz(&dir, ""));
-		x(ffstr_eqcz(&fn, "file"));
 	}
 
 	return 0;

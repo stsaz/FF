@@ -252,8 +252,6 @@ int test_bits()
 
 	i8 = 1;
 	x(0 != ffbit_test64(&i8, 0));
-	i4 = 1;
-	x(0 != ffbit_test32(&i4, 0));
 	i = 1;
 	x(0 != ffbit_test(&i, 0));
 
@@ -267,11 +265,6 @@ int test_bits()
 	x(i8 == 0x8000000000000000ULL);
 	i8 = 0;
 	x(0 == ffbit_set64(&i8, 63) && i8 == 0x8000000000000000ULL);
-	i4 = 0x80000000;
-	x(0 != ffbit_set32(&i4, 31));
-	x(i4 == 0x80000000);
-	i4 = 0;
-	x(0 == ffbit_set32(&i4, 31) && i4 == 0x80000000);
 	i = 0;
 	x(0 == ffbit_set(&i, 31));
 	x(i == 0x80000000);
@@ -281,8 +274,6 @@ int test_bits()
 
 	i8 = 0x8000000000000000ULL;
 	x(0 != ffbit_reset64(&i8, 63) && i8 == 0);
-	i4 = 0x80000000;
-	x(0 != ffbit_reset32(&i4, 31) && i4 == 0);
 	i = (size_t)-1;
 	x(0 != ffbit_reset(&i, 31));
 

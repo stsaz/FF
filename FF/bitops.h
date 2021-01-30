@@ -6,38 +6,6 @@ Copyright (c) 2013 Simon Zolin
 
 #include <FFOS/types.h>
 
-
-/* 32-bit */
-
-static FFINL ffbool ffbit_test32(const uint *p, uint bit)
-{
-	FF_ASSERT(bit <= 31);
-	return ((*p & FF_BIT32(bit)) != 0);
-}
-
-static FFINL ffbool ffbit_set32(uint *p, uint bit)
-{
-	FF_ASSERT(bit <= 31);
-	if ((*p & FF_BIT32(bit)) == 0) {
-		*p |= FF_BIT32(bit);
-		return 0;
-	}
-	return 1;
-}
-
-static FFINL ffbool ffbit_reset32(uint *p, uint bit)
-{
-	FF_ASSERT(bit <= 31);
-	if ((*p & FF_BIT32(bit)) != 0) {
-		*p &= ~FF_BIT32(bit);
-		return 1;
-	}
-	return 0;
-}
-
-
-/* 64-bit */
-
 static FFINL ffbool ffbit_test64(const uint64 *p, uint bit)
 {
 	FF_ASSERT(bit <= 63);

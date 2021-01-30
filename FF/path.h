@@ -5,6 +5,7 @@ Copyright (c) 2013 Simon Zolin
 #pragma once
 
 #include <FF/array.h>
+#include <FFOS/path.h>
 
 
 enum FFPATH_FLAGS {
@@ -99,9 +100,6 @@ FF_EXTN ffbool ffpath_isvalidfn(const char *fn, size_t len, uint flags);
 
 /** Get filename and directory (without the last slash). */
 FF_EXTN const char* ffpath_split2(const char *fn, size_t len, ffstr *dir, ffstr *name);
-
-/** Get name and extension. */
-FF_EXTN const char* ffpath_splitname(const char *fullname, size_t len, ffstr *name, ffstr *ext);
 
 FF_EXTN const char* ffpath_split3(const char *fullname, size_t len, ffstr *path, ffstr *name, ffstr *ext);
 

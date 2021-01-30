@@ -35,6 +35,13 @@ typedef struct ffpcm {
 	uint sample_rate;
 } ffpcm;
 
+static inline void ffpcm_set(ffpcm *f, ffuint format, ffuint channels, ffuint rate)
+{
+	f->format = format;
+	f->channels = channels;
+	f->sample_rate = rate;
+}
+
 typedef struct ffpcmex {
 	uint format
 		, channels

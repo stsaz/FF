@@ -246,20 +246,6 @@ const char* ffpath_split2(const char *fn, size_t len, ffstr *dir, ffstr *name)
 	return ffs_split2(fn, len, slash, dir, name);
 }
 
-const char* ffpath_splitname(const char *fullname, size_t len, ffstr *name, ffstr *ext)
-{
-	char *dot = ffs_rfind(fullname, len, '.');
-	if (dot == fullname) {
-		//handle filename ".foo"
-		if (name != NULL)
-			ffstr_set(name, fullname, len);
-		if (ext != NULL)
-			ext->len = 0;
-		return dot;
-	}
-	return ffs_split2(fullname, len, dot, name, ext);
-}
-
 const char* ffpath_split3(const char *fullname, size_t len, ffstr *path, ffstr *name, ffstr *ext)
 {
 	ffstr nm;
