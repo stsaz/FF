@@ -30,7 +30,6 @@ Copyright (c) 2018 Simon Zolin
 #include <FF/audio/wavpack.h>
 #include <FF/mformat/avi.h>
 #include <FF/mformat/mkv.h>
-#include <FF/mformat/mp4.h>
 #include <FF/mformat/ogg.h>
 #include <FF/mtags/apetag.h>
 #include <FF/mtags/id3.h>
@@ -39,9 +38,6 @@ Copyright (c) 2018 Simon Zolin
 
 #include <FF/db/sqlite.h>
 #include <FF/db/db.h>
-
-#include <FF/pack/7z.h>
-#include <FF/pack/iso.h>
 
 #include <FF/pic/bmp.h>
 #include <FF/pic/jpeg.h>

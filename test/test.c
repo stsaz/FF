@@ -85,7 +85,6 @@ FF_EXTN int test_num(void);
 FF_EXTN int test_inchk_speed(void);
 FF_EXTN int test_cue(void);
 extern int test_xml(void);
-extern int test_iso(void);
 extern int test_tls(void);
 extern int test_webskt(void);
 extern int test_path(void);
@@ -114,7 +113,6 @@ static const struct test_s _fftests[] = {
 	F(json),
 	F(cmdarg),
 	F(conf2), F(conf), F(conf_write), F(args), F(cue), F(xml),
-	F(iso),
 	F(dns_client),
 	F(cache),
 };
