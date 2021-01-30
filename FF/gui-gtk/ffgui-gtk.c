@@ -196,12 +196,25 @@ int ffui_fdrop_next(ffarr *fn, ffstr *dropdata)
 	return -1;
 }
 
+static void _ffui_view_cell_edited(GtkCellRendererText *cell, gchar *path_string, gchar *text, gpointer udata)
+{
+	ffui_view *v = udata;
+	GtkTreePath *path = gtk_tree_path_new_from_string(path_string);
+	int *ii = gtk_tree_path_get_indices(path);
+	v->edited.idx = ii[0];
+	v->edited.new_text = text;
+	v->wnd->on_action(v->wnd, v->edit_id);
+	v->edited.idx = 0;
+	v->edited.new_text = NULL;
+}
+
 int ffui_view_create(ffui_view *v, ffui_wnd *parent)
 {
 	v->h = gtk_tree_view_new();
 	g_signal_connect(v->h, "row-activated", G_CALLBACK(&_ffui_view_row_activated), v);
 	v->wnd = parent;
 	v->rend = gtk_cell_renderer_text_new();
+	g_signal_connect(v->rend, "edited", (GCallback)_ffui_view_cell_edited, v);
 	GtkWidget *scroll = gtk_scrolled_window_new(NULL, NULL);
 	gtk_container_add(GTK_CONTAINER(scroll), v->h);
 	gtk_box_pack_start(GTK_BOX(parent->vbox), scroll, /*expand=*/1, /*fill=*/1, /*padding=*/0);
@@ -224,6 +237,11 @@ void ffui_view_style(ffui_view *v, uint flags, uint set)
 			? GTK_SELECTION_MULTIPLE
 			: GTK_SELECTION_SINGLE;
 		gtk_tree_selection_set_mode(gtk_tree_view_get_selection(GTK_TREE_VIEW(v->h)), val);
+	}
+
+	if (flags & FFUI_VIEW_EDITABLE) {
+		val = !!(set & FFUI_VIEW_EDITABLE);
+		g_object_set(v->rend, "editable", val, NULL);
 	}
 }
 
@@ -342,6 +360,9 @@ void ffui_view_rm(ffui_view *v, ffui_viewitem *it)
 
 void ffui_view_setdata(ffui_view *v, uint first, int delta)
 {
+	if (v->store == NULL)
+		view_prepare(v);
+
 	FF_ASSERT(v->dispinfo_id != 0);
 	uint cols = ffui_view_ncols(v);
 	if (cols == 0)
@@ -606,7 +627,10 @@ ffui_hotkey ffui_hotkey_parse(const char *s, size_t len)
 		r |= f;
 	}
 
-	if (v.len == 1 && (ffchar_isletter(v.ptr[0]) || ffchar_isdigit(v.ptr[0])))
+	if (v.len == 1
+		&& (ffchar_isletter(v.ptr[0])
+			|| ffchar_isdigit(v.ptr[0])
+			|| v.ptr[0] == '[' || v.ptr[0] == ']'))
 		r |= v.ptr[0];
 
 	else {
@@ -698,9 +722,15 @@ static gboolean _ffui_send_handler(gpointer data)
 	case FFUI_QUITLOOP:
 		ffui_quitloop();
 		break;
+
 	case FFUI_LBL_SETTEXT:
 		ffui_lbl_settextz((ffui_label*)c->ctl, c->udata);
 		break;
+
+	case FFUI_EDIT_GETTEXT:
+		ffui_edit_textstr((ffui_edit*)c->ctl, c->udata);
+		break;
+
 	case FFUI_TEXT_SETTEXT:
 		ffui_text_clear((ffui_text*)c->ctl);
 		ffui_text_addtextstr((ffui_text*)c->ctl, (ffstr*)c->udata);
@@ -710,6 +740,9 @@ static gboolean _ffui_send_handler(gpointer data)
 		break;
 	case FFUI_WND_SETTEXT:
 		ffui_wnd_settextz((ffui_wnd*)c->ctl, c->udata);
+		break;
+	case FFUI_WND_SHOW:
+		ffui_show((ffui_wnd*)c->ctl, (ffsize)c->udata);
 		break;
 
 	case FFUI_VIEW_RM:
@@ -740,6 +773,15 @@ static gboolean _ffui_send_handler(gpointer data)
 
 	case FFUI_TAB_INS:
 		ffui_tab_append((ffui_tab*)c->ctl, c->udata);
+		break;
+	case FFUI_TAB_SETACTIVE:
+		ffui_tab_setactive((ffui_tab*)c->ctl, (ffsize)c->udata);
+		break;
+	case FFUI_TAB_ACTIVE:
+		*(ffsize*)c->udata = ffui_tab_active((ffui_tab*)c->ctl);
+		break;
+	case FFUI_TAB_COUNT:
+		*(ffsize*)c->udata = ffui_tab_count((ffui_tab*)c->ctl);
 		break;
 
 	case FFUI_STBAR_SETTEXT:

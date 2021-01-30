@@ -87,8 +87,10 @@ void* ffui_ldr_findctl(const ffui_ldr_ctl *ctx, void *ctl, const ffstr *name)
 				return NULL;
 
 			if (ffstr_eqz(&sctl, ctx[i].name)) {
-				uint off = ctx[i].flags;
+				uint off = ctx[i].flags & ~0x80000000;
 				ctl = (char*)ctl + off;
+				if (ctx[i].flags & 0x80000000)
+					ctl = *(void**)ctl;
 				if (s.len == 0)
 					return ctl;
 
@@ -393,7 +395,7 @@ static int edit_done(ffparser_schem *ps, void *obj)
 	if (g->f_horiz) {
 		if (g->hbox == NULL) {
 			g->hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
-			gtk_box_pack_start(GTK_BOX(g->wnd->vbox), g->hbox, /*expand=*/1, /*fill=*/0, /*padding=*/0);
+			gtk_box_pack_start(GTK_BOX(g->wnd->vbox), g->hbox, /*expand=*/0, /*fill=*/0, /*padding=*/0);
 		}
 		gtk_box_pack_start(GTK_BOX(g->hbox), g->edit->h, /*expand=*/1, /*fill=*/1, /*padding=*/0);
 	} else {
@@ -603,10 +605,12 @@ static int viewcol_new(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 // VIEW
 
 enum {
+	VIEW_STYLE_EDITABLE,
 	VIEW_STYLE_GRID_LINES,
 	VIEW_STYLE_MULTI_SELECT,
 };
-static const char *const view_styles[] = {
+static const char *const view_styles_sorted[] = {
+	"editable",
 	"grid_lines",
 	"multi_select",
 };
@@ -619,7 +623,7 @@ static int view_style(ffparser_schem *ps, void *obj, const ffstr *val)
 		ffui_view_style(g->vi, (uint)-1, 0);
 	}
 
-	int n = ffszarr_ifindsorted(view_styles, FFCNT(view_styles), val->ptr, val->len);
+	int n = ffszarr_ifindsorted(view_styles_sorted, FF_COUNT(view_styles_sorted), val->ptr, val->len);
 	switch (n) {
 
 	case VIEW_STYLE_GRID_LINES:
@@ -628,6 +632,10 @@ static int view_style(ffparser_schem *ps, void *obj, const ffstr *val)
 
 	case VIEW_STYLE_MULTI_SELECT:
 		ffui_view_style(g->vi, FFUI_VIEW_MULTI_SELECT, FFUI_VIEW_MULTI_SELECT);
+		break;
+
+	case VIEW_STYLE_EDITABLE:
+		ffui_view_style(g->vi, FFUI_VIEW_EDITABLE, FFUI_VIEW_EDITABLE);
 		break;
 
 	default:

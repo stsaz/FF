@@ -225,6 +225,17 @@ static inline void ffui_text_clear(ffui_text *t)
 	gtk_text_buffer_delete(gbuf, &start, &end);
 }
 
+static inline void ffui_text_scroll(ffui_text *t, int pos)
+{
+	GtkTextBuffer *gbuf = gtk_text_view_get_buffer(GTK_TEXT_VIEW(t->h));
+	GtkTextIter iter;
+	if (pos == -1)
+		gtk_text_buffer_get_end_iter(gbuf, &iter);
+	else
+		return;
+	gtk_text_view_scroll_to_iter(GTK_TEXT_VIEW(t->h), &iter, 0.0, 0, 0.0, 1.0);
+}
+
 /**
 mode: GTK_WRAP_NONE GTK_WRAP_CHAR GTK_WRAP_WORD GTK_WRAP_WORD_CHAR*/
 #define ffui_text_setwrapmode(t, mode)  gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW((t)->h), mode)
@@ -340,9 +351,14 @@ struct ffui_view {
 	uint dblclick_id;
 	uint dropfile_id;
 	uint dispinfo_id;
+	uint edit_id;
 
 	union {
-	GtkTreePath *path;
+	GtkTreePath *path; // dblclick_id
+	struct { // edit_id
+		ffuint idx;
+		const char *new_text;
+	} edited;
 	ffstr drop_data;
 	struct ffui_view_disp disp;
 	};
@@ -353,11 +369,15 @@ FF_EXTN int ffui_view_create(ffui_view *v, ffui_wnd *parent);
 enum FFUI_VIEW_STYLE {
 	FFUI_VIEW_GRIDLINES = 1,
 	FFUI_VIEW_MULTI_SELECT = 2,
+	FFUI_VIEW_EDITABLE = 4,
 };
 FF_EXTN void ffui_view_style(ffui_view *v, uint flags, uint set);
 
 #define ffui_view_nitems(v)  gtk_tree_model_iter_n_children((void*)(v)->store, NULL)
 
+/**
+first: first index to add or redraw
+delta: 0:redraw row */
 FF_EXTN void ffui_view_setdata(ffui_view *v, uint first, int delta);
 
 static inline void ffui_view_clear(ffui_view *v)
@@ -583,9 +603,11 @@ FF_EXTN void ffui_thd_post(ffui_handler func, void *udata, uint flags);
 enum FFUI_MSG {
 	FFUI_QUITLOOP,
 	FFUI_LBL_SETTEXT,
+	FFUI_EDIT_GETTEXT,
 	FFUI_TEXT_SETTEXT,
 	FFUI_TEXT_ADDTEXT,
 	FFUI_WND_SETTEXT,
+	FFUI_WND_SHOW,
 	FFUI_VIEW_RM,
 	FFUI_VIEW_CLEAR,
 	FFUI_VIEW_GETSEL,
@@ -594,6 +616,9 @@ enum FFUI_MSG {
 	FFUI_TRK_SETRANGE,
 	FFUI_TRK_SET,
 	FFUI_TAB_INS,
+	FFUI_TAB_SETACTIVE,
+	FFUI_TAB_ACTIVE,
+	FFUI_TAB_COUNT,
 	FFUI_STBAR_SETTEXT,
 };
 
@@ -604,9 +629,11 @@ FF_EXTN size_t ffui_send(void *ctl, uint id, void *udata);
 
 #define ffui_post_quitloop()  ffui_post(NULL, FFUI_QUITLOOP, NULL)
 #define ffui_send_lbl_settext(ctl, sz)  ffui_send(ctl, FFUI_LBL_SETTEXT, (void*)sz)
+#define ffui_send_edit_textstr(ctl, str_dst)  ffui_send(ctl, FFUI_EDIT_GETTEXT, str_dst)
 #define ffui_send_text_settextstr(ctl, str)  ffui_send(ctl, FFUI_TEXT_SETTEXT, (void*)str)
 #define ffui_send_text_addtextstr(ctl, str)  ffui_send(ctl, FFUI_TEXT_ADDTEXT, (void*)str)
 #define ffui_send_wnd_settext(ctl, sz)  ffui_send(ctl, FFUI_WND_SETTEXT, (void*)sz)
+#define ffui_post_wnd_show(ctl, show)  ffui_send(ctl, FFUI_WND_SHOW, (void*)(ffsize)show)
 #define ffui_send_view_rm(ctl, it)  ffui_send(ctl, FFUI_VIEW_RM, it)
 #define ffui_post_view_clear(ctl)  ffui_post(ctl, FFUI_VIEW_CLEAR, NULL)
 #define ffui_post_view_scroll_set(ctl, vert_pos)  ffui_post(ctl, FFUI_VIEW_SCROLLSET, (void*)(size_t)vert_pos)
@@ -621,7 +648,21 @@ static inline void ffui_send_view_setdata(ffui_view *v, uint first, int delta)
 }
 #define ffui_post_trk_setrange(ctl, range)  ffui_post(ctl, FFUI_TRK_SETRANGE, (void*)(size_t)range)
 #define ffui_post_trk_set(ctl, val)  ffui_post(ctl, FFUI_TRK_SET, (void*)(size_t)val)
+
 #define ffui_send_tab_ins(ctl, textz)  ffui_send(ctl, FFUI_TAB_INS, textz)
+#define ffui_send_tab_setactive(ctl, idx)  ffui_send(ctl, FFUI_TAB_SETACTIVE, (void*)(ffsize)idx)
+static inline int ffui_send_tab_active(ffui_tab *ctl)
+{
+	ffsize idx;
+	ffui_send(ctl, FFUI_TAB_ACTIVE, &idx);
+	return idx;
+}
+static inline int ffui_send_tab_count(ffui_tab *ctl)
+{
+	ffsize n;
+	ffui_send(ctl, FFUI_TAB_COUNT, &n);
+	return n;
+}
 
 #define ffui_send_stbar_settextz(sb, sz)  ffui_send(sb, FFUI_STBAR_SETTEXT, sz)
 
@@ -713,6 +754,8 @@ struct ffui_ldr_ctl {
 
 #define FFUI_LDR_CTL3(struct_name, ctl, children) \
 	{ #ctl, FFOFF(struct_name, ctl), children }
+#define FFUI_LDR_CTL3_PTR(struct_name, ctl, children) \
+	{ #ctl, 0x80000000 | FFOFF(struct_name, ctl), children }
 
 #define FFUI_LDR_CTL_END  {NULL, 0, NULL}
 
