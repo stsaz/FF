@@ -487,7 +487,7 @@ static int rm_unused_one(ffcache *c)
 {
 	item *cit;
 
-	FFLIST_WALK(&c->lastused, cit, lastused_li) {
+	_FFLIST_WALK(&c->lastused, cit, lastused_li) {
 
 		if (cit->usage == 0) {
 			item_rlz(c, cit);
@@ -503,7 +503,7 @@ static int rm_unused_mem(ffcache *c, size_t memneeded)
 {
 	item *cit;
 
-	FFLIST_WALK(&c->lastused, cit, lastused_li) {
+	_FFLIST_WALK(&c->lastused, cit, lastused_li) {
 
 		if (cit->usage == 0) {
 			item_rlz(c, cit);

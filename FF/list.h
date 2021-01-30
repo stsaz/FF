@@ -4,19 +4,17 @@ Copyright (c) 2013 Simon Zolin
 
 #pragma once
 
-#include <FFOS/types.h>
+#include <FF/string.h>
 #include <FF/chain.h>
 #include <ffbase/list.h>
 
 
 // obsolete
 #define FFLIST_FOREACH(list, it)  FFCHAIN_WALK(&(list)->root, it)
-#define FFLIST_FOR(list, it)  FFCHAIN_FOR(&(list)->root, it)
 typedef ffchain_item fflist_item;
 #define fflist_ins  fflist_add
 #define fflist_prepend  fflist_addfront
 #define fflist_movetofront  fflist_movefront
-#undef FFLIST_WALK
 
 
 typedef struct fflist1_item fflist1_item;
@@ -43,13 +41,9 @@ static FFINL fflist1_item* fflist1_pop(fflist1 *lst)
 	return it;
 }
 
-
-
-#define fflist_sentl(lst)  (&(lst)->root)
-
 /** Traverse a list.
 @p: pointer to a structure containing @member_name. */
-#define FFLIST_WALK(lst, p, member_name) \
+#define _FFLIST_WALK(lst, p, member_name) \
 	for (p = (void*)(lst)->root.next \
 		; p != (void*)fflist_sentl(lst) \
 			&& ((p = (void*)((size_t)p - ((size_t)&p->member_name - (size_t)p))) || 1) \
