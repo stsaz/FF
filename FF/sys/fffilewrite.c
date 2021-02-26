@@ -127,9 +127,7 @@ void fffilewrite_free(fffilewrite *f)
 		return;
 
 	if (f->fd != FF_BADFD) {
-		if (f->completed
-			&& f->prealloc_size != 0
-			&& 0 != fffile_trunc(f->fd, f->size))
+		if (0 != fffile_trunc(f->fd, f->size))
 			syserrlog(f, "fffile_trunc", 0);
 
 		if (0 != fffile_close(f->fd))
