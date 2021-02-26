@@ -105,6 +105,8 @@ struct ffui_ldr_ctl {
 
 #define FFUI_LDR_CTL3(struct_name, ctl, children) \
 	{ #ctl, FFOFF(struct_name, ctl), children }
+#define FFUI_LDR_CTL3_PTR(struct_name, ctl, children) \
+	{ #ctl, 0x80000000 | FF_OFF(struct_name, ctl), children }
 
 #define FFUI_LDR_CTL_END  {NULL, 0, NULL}
 

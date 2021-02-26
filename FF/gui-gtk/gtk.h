@@ -161,7 +161,7 @@ FF_EXTN int ffui_lbl_create(ffui_label *l, ffui_wnd *parent);
 #define ffui_lbl_settextz(l, text)  gtk_label_set_text(GTK_LABEL((l)->h), text)
 static inline void ffui_lbl_settext(ffui_label *l, const char *text, size_t len)
 {
-	char *sz = ffsz_alcopy(text, len);
+	char *sz = ffsz_dupn(text, len);
 	ffui_lbl_settextz(l, sz);
 	ffmem_free(sz);
 }
@@ -171,6 +171,7 @@ static inline void ffui_lbl_settext(ffui_label *l, const char *text, size_t len)
 // EDITBOX
 typedef struct ffui_edit {
 	_FFUI_CTL_MEMBERS
+	uint change_id;
 } ffui_edit;
 
 FF_EXTN int ffui_edit_create(ffui_edit *e, ffui_wnd *parent);
@@ -178,7 +179,7 @@ FF_EXTN int ffui_edit_create(ffui_edit *e, ffui_wnd *parent);
 #define ffui_edit_settextz(e, text)  gtk_entry_set_text(GTK_ENTRY((e)->h), text)
 static inline void ffui_edit_settext(ffui_edit *e, const char *text, size_t len)
 {
-	char *sz = ffsz_alcopy(text, len);
+	char *sz = ffsz_dupn(text, len);
 	ffui_edit_settextz(e, sz);
 	ffmem_free(sz);
 }
@@ -187,7 +188,9 @@ static inline void ffui_edit_settext(ffui_edit *e, const char *text, size_t len)
 static inline void ffui_edit_textstr(ffui_edit *e, ffstr *s)
 {
 	const gchar *sz = gtk_entry_get_text(GTK_ENTRY(e->h));
-	ffstr_alcopyz(s, sz);
+	ffsize len = ffsz_len(sz);
+	char *p = ffsz_dupn(sz, len);
+	ffstr_set(s, p, len);
 }
 
 #define ffui_edit_sel(e, start, end) \
@@ -291,7 +294,7 @@ typedef struct ffui_viewcol {
 
 static inline void ffui_viewcol_settext(ffui_viewcol *vc, const char *text, size_t len)
 {
-	vc->text = ffsz_alcopy(text, len);
+	vc->text = ffsz_dupn(text, len);
 }
 
 #define ffui_viewcol_setwidth(vc, w)  (vc)->width = (w)
@@ -331,7 +334,7 @@ static inline void ffui_view_itemreset(ffui_viewitem *it)
 #define ffui_view_settextz(it, sz)  (it)->text = (char*)(sz)
 static inline void ffui_view_settext(ffui_viewitem *it, const char *text, size_t len)
 {
-	it->text = ffsz_alcopy(text, len);
+	it->text = ffsz_dupn(text, len);
 	it->text_alloc = 1;
 }
 #define ffui_view_settextstr(it, str)  ffui_view_settext(it, (str)->ptr, (str)->len)
@@ -533,6 +536,8 @@ FF_EXTN int ffui_wnd_create(ffui_wnd *w);
 #define ffui_wnd_close(w)  gtk_window_close((w)->h)
 
 #define ffui_wnd_destroy(w)  gtk_widget_destroy(GTK_WIDGET((w)->h))
+
+#define ffui_wnd_present(w)  gtk_window_present((w)->h)
 
 static inline void ffui_wnd_setmenu(ffui_wnd *w, ffui_menu *m)
 {

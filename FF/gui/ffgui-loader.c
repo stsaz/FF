@@ -1910,8 +1910,10 @@ void* ffui_ldr_findctl(const ffui_ldr_ctl *ctx, void *ctl, const ffstr *name)
 				return NULL;
 
 			if (ffstr_eqz(&sctl, ctx[i].name)) {
-				uint off = ctx[i].flags;
+				uint off = ctx[i].flags & ~0x80000000;
 				ctl = (char*)ctl + off;
+				if (ctx[i].flags & 0x80000000)
+					ctl = *(void**)ctl;
 				if (s.len == 0)
 					return ctl;
 

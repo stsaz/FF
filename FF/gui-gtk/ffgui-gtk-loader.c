@@ -411,9 +411,20 @@ static int edit_text(ffparser_schem *ps, void *obj, const ffstr *val)
 	ffui_edit_settextstr(g->edit, val);
 	return 0;
 }
+static int edit_onchange(ffparser_schem *ps, void *obj, const ffstr *val)
+{
+	ffui_loader *g = obj;
+	int id = g->getcmd(g->udata, val);
+	if (id == 0)
+		return FFPARS_EBADVAL;
+
+	g->edit->change_id = id;
+	return 0;
+}
 static const ffpars_arg edit_args[] = {
 	{ "style",	FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(&btn_style) },
 	{ "text",	FFPARS_TSTR, FFPARS_DST(&edit_text) },
+	{ "onchange",	FFPARS_TSTR, FFPARS_DST(edit_onchange) },
 	{ NULL,	FFPARS_TCLOSE, FFPARS_DST(&edit_done) },
 };
 

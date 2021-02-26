@@ -76,10 +76,18 @@ int ffui_lbl_create(ffui_label *l, ffui_wnd *parent)
 
 
 // EDITBOX
+static void _ffui_edit_changed(GtkEditable *editable, gpointer udata)
+{
+	ffui_edit *e = udata;
+	if (e->change_id != 0)
+		e->wnd->on_action(e->wnd, e->change_id);
+}
+
 int ffui_edit_create(ffui_edit *e, ffui_wnd *parent)
 {
 	e->h = gtk_entry_new();
 	e->wnd = parent;
+	g_signal_connect(e->h, "changed", G_CALLBACK(_ffui_edit_changed), e);
 	return 0;
 }
 
@@ -630,7 +638,8 @@ ffui_hotkey ffui_hotkey_parse(const char *s, size_t len)
 	if (v.len == 1
 		&& (ffchar_isletter(v.ptr[0])
 			|| ffchar_isdigit(v.ptr[0])
-			|| v.ptr[0] == '[' || v.ptr[0] == ']'))
+			|| v.ptr[0] == '[' || v.ptr[0] == ']'
+			|| v.ptr[0] == '`'))
 		r |= v.ptr[0];
 
 	else {

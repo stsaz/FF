@@ -42,8 +42,6 @@ Optional dependencies:
 	* libpq (PostgreSQL)
 	* libjpeg (JPEG)
 	* libpng (PNG)
-	* libz (deflate)
-	* liblzma (LZMA)
 * libalsa-devel (for ALSA module)
 * libpulse-devel (for Pulse Audio module)
 * jack-audio-connection-kit-devel (for JACK module)
@@ -105,14 +103,6 @@ FEATURES
 	* CRC32 - `FF/crc.h`
 	* Cache - `FF/cache.h`
 
-* Compression - `FF/pack/`
-	* deflate (libz) - `FF/pack/gz.h`
-	* LZMA (liblzma) - `FF/pack/7z.h`
-
-* Packing - `FF/pack/`
-	* .7z (read) - `FF/pack/7z.h`
-	* .iso (read/write) - `FF/pack/iso.h`
-
 * Picture - `FF/pic/`
 	* BMP - `FF/pic/bmp.h`
 	* JPEG (libjpeg) - `FF/pic/jpeg.h`
@@ -136,12 +126,6 @@ FEATURES
 	* .mp3 (read/write) - `FF/aformat/mp3.h`
 	* .mpc (read) - `FF/aformat/mpc.h`
 	* .wav (read/write) - `FF/aformat/wav.h`
-
-* Multimedia container - `FF/mformat/`
-	* .avi (read) - `FF/mformat/avi.h`
-	* .mkv (read) - `FF/mformat/mkv.h`
-	* .mp4 (read/write) - `FF/mformat/mp4.h`
-	* .ogg (read/write) - `FF/mformat/ogg.h`
 
 * Multimedia meta - `FF/mtags/`
 	* APE tag - `FF/mtags/apetag.h`

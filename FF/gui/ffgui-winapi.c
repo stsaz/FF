@@ -1396,7 +1396,8 @@ int ffui_wnd_create(ffui_wnd *w)
 {
 	ffui_pos r = { 0, 0, CW_USEDEFAULT, CW_USEDEFAULT };
 	w->uid = FFUI_UID_WINDOW;
-	w->on_action = &wnd_onaction;
+	if (w->on_action == NULL)
+		w->on_action = &wnd_onaction;
 	return 0 == create(FFUI_UID_WINDOW, L"", NULL, &r
 		, ctls[FFUI_UID_WINDOW].style | WS_OVERLAPPEDWINDOW
 		, ctls[FFUI_UID_WINDOW].exstyle | 0
