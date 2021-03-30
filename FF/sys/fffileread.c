@@ -233,8 +233,13 @@ static void fr_aio(ffthpool_task *t)
 	if (f->conf.log_debug) {
 		ffclk_gettime(&t2);
 		fftime_sub(&t2, &t1);
-		dbglog(f, "read result: %L offset:%xU  error:%d  (%uus)"
-			, ext->result, ext->off, ext->error, fftime_mcs(&t2));
+		if (ext->result < 0) {
+			dbglog(f, "read error:%d  offset:%xU  (%uus)"
+				, ext->error, ext->off, fftime_mcs(&t2));
+		} else {
+			dbglog(f, "read result:%L  offset:%xU  (%uus)"
+				, ext->result, ext->off, fftime_mcs(&t2));
+		}
 	}
 	FF_ASSERT(t == f->iotask);
 	FF_ASSERT(f->nfy_user);

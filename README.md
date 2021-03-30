@@ -125,7 +125,6 @@ FEATURES
 	* FLAC/.ogg (read) - `FF/aformat/flac.h`
 	* .mp3 (read/write) - `FF/aformat/mp3.h`
 	* .mpc (read) - `FF/aformat/mpc.h`
-	* .wav (read/write) - `FF/aformat/wav.h`
 
 * Multimedia meta - `FF/mtags/`
 	* APE tag - `FF/mtags/apetag.h`

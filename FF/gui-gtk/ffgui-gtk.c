@@ -639,7 +639,8 @@ ffui_hotkey ffui_hotkey_parse(const char *s, size_t len)
 		&& (ffchar_isletter(v.ptr[0])
 			|| ffchar_isdigit(v.ptr[0])
 			|| v.ptr[0] == '[' || v.ptr[0] == ']'
-			|| v.ptr[0] == '`'))
+			|| v.ptr[0] == '`'
+			|| v.ptr[0] == '/' || v.ptr[0] == '\\'))
 		r |= v.ptr[0];
 
 	else {
