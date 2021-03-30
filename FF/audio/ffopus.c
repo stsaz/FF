@@ -96,8 +96,10 @@ int ffopus_decode(ffopus *o, const void *pkt, size_t len)
 	}
 
 	case R_TAGS:
-		if (len < 8 || memcmp(pkt, FFOPUS_TAGS_STR, 8))
-			return ERR(o, FFOPUS_ETAG);
+		if (len < 8 || memcmp(pkt, FFOPUS_TAGS_STR, 8)) {
+			o->state = R_DATA;
+			return FFOPUS_RHDRFIN;
+		}
 		o->vtag.data = (char*)pkt + 8,  o->vtag.datalen = len - 8;
 		o->state = R_TAG;
 		// break
