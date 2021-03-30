@@ -95,6 +95,14 @@ static void wnd_cmd(ffui_wnd *wnd, uint w, HWND h)
 		}
 		break;
 
+	case FFUI_UID_CHECKBOX:
+		switch (msg) {
+		case BN_CLICKED:
+			id = ctl.cb->action_id;
+			break;
+		}
+		break;
+
 	case FFUI_UID_EDITBOX:
 	case FFUI_UID_TEXT:
 		switch (msg) {

@@ -505,6 +505,7 @@ typedef struct ffui_chbox {
 	HFONT font;
 	uint action_id;
 } ffui_chbox;
+typedef ffui_chbox ffui_checkbox;
 
 FF_EXTN int ffui_chbox_create(ffui_ctl *c, ffui_wnd *parent);
 
@@ -1462,6 +1463,7 @@ union ffui_anyctl {
 	ffui_label *lbl;
 	ffui_img *img;
 	ffui_btn *btn;
+	ffui_checkbox *cb;
 	ffui_edit *edit;
 	ffui_combx *combx;
 	ffui_paned *paned;

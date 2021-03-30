@@ -35,15 +35,18 @@ struct ffui_loader {
 	void *udata;
 	ffpars_ctx ctx;
 
+	ffvec paned_array; // ffui_paned*[].  User must free the controls and vector manually.
 	ffarr accels; //ffui_wnd_hotkey[]
 	ffstr path;
 	_ffui_ldr_icon_t ico;
 	ffui_pos screen;
+	// everything below is memzero'ed for each new window
 	ffui_wnd *wnd;
+	ffui_pos prev_ctl_pos;
+	ffui_pos r;
 	int ir;
 	_ffui_ldr_icon_t ico_ctl;
 	union {
-		ffui_pos r;
 		struct {
 			ffui_menuitem mi;
 			uint iaccel :1;
@@ -71,7 +74,11 @@ struct ffui_loader {
 	char *errstr;
 	char *wndname;
 	uint showcmd;
+	uint resize_flags;
 	uint vis :1;
+	uint style_horizontal :1;
+	uint auto_pos :1;
+	uint man_pos :1;
 };
 
 FF_EXTN void ffui_ldr_init(ffui_loader *g);
