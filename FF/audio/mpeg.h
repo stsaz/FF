@@ -27,6 +27,8 @@ typedef struct ffmpg {
 	uint fin :1;
 } ffmpg;
 
+#define ffmpg_input(m, data, len)  ffstr_set(&(m)->input, data, len)
+
 FF_EXTN const char* ffmpg_errstr(ffmpg *m);
 
 enum FFMPG_DEC_O {
