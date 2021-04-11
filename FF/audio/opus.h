@@ -42,14 +42,14 @@ typedef struct ffopus {
 		uint preskip;
 	} info;
 	uint64 pos;
+	ffuint64 dec_pos;
+	uint last_decoded;
 	ffarr pcmbuf;
 	uint64 seek_sample;
 	uint64 total_samples;
+	int flush;
 
 	ffvorbtag vtag;
-
-	ffstr data;
-	ffstr pcm;
 } ffopus;
 
 #define ffopus_errstr(o)  _ffopus_errstr((o)->err)
@@ -61,14 +61,33 @@ FF_EXTN void ffopus_close(ffopus *o);
 static FFINL void ffopus_seek(ffopus *o, uint64 sample)
 {
 	o->seek_sample = sample + o->info.preskip;
+	o->dec_pos = (ffuint64)-1;
+	o->pos = 0;
+	o->last_decoded = 0;
 }
 
 /** Decode Opus packet.
 Return enum FFOPUS_R. */
-FF_EXTN int ffopus_decode(ffopus *o, const void *pkt, size_t len);
+FF_EXTN int ffopus_decode(ffopus *o, ffstr *input, ffstr *output);
 
-/** Get an absolute sample number. */
-#define ffopus_pos(o)  ((o)->pos - (o)->info.preskip)
+/** Get starting position (sample number) of the last decoded data */
+static inline ffuint64 ffopus_startpos(ffopus *o)
+{
+	return o->dec_pos - o->last_decoded;
+}
+
+static inline void ffopus_setpos(ffopus *o, ffuint64 val, int reset)
+{
+	if (reset) {
+		opus_decode_reset(o->dec);
+	}
+	if (o->dec_pos == (uint64)-1)
+		o->dec_pos = val;
+	o->pos = val;
+	o->last_decoded = 0;
+}
+
+#define ffopus_flush(o)  ((o)->flush = 1)
 
 
 typedef struct ffopus_enc {

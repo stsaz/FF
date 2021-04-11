@@ -49,6 +49,7 @@ const char* _ffopus_errstr(int e)
 
 int ffopus_open(ffopus *o)
 {
+	o->dec_pos = (ffuint64)-1;
 	return 0;
 }
 
@@ -58,18 +59,18 @@ void ffopus_close(ffopus *o)
 	FF_SAFECLOSE(o->dec, NULL, opus_decode_free);
 }
 
-int ffopus_decode(ffopus *o, const void *pkt, size_t len)
+int ffopus_decode(ffopus *o, ffstr *input, ffstr *output)
 {
 	enum { R_HDR, R_TAGS, R_TAG, R_DATA };
 	int r;
 
-	if (len == 0)
+	if (input->len == 0 && !o->flush && o->state != R_TAG)
 		return FFOPUS_RMORE;
 
 	switch (o->state) {
 	case R_HDR: {
-		const struct opus_hdr *h = pkt;
-		if (len < sizeof(struct opus_hdr)
+		const struct opus_hdr *h = (struct opus_hdr*)input->ptr;
+		if (input->len < sizeof(struct opus_hdr)
 			|| memcmp(h->id, FFOPUS_HEAD_STR, 8))
 			return ERR(o, FFOPUS_EHDR);
 
@@ -92,15 +93,18 @@ int ffopus_decode(ffopus *o, const void *pkt, size_t len)
 
 		o->seek_sample = o->info.preskip;
 		o->state = R_TAGS;
+		input->len = 0;
 		return FFOPUS_RHDR;
 	}
 
 	case R_TAGS:
-		if (len < 8 || memcmp(pkt, FFOPUS_TAGS_STR, 8)) {
+		if (input->len < 8
+			|| memcmp(input->ptr, FFOPUS_TAGS_STR, 8)) {
 			o->state = R_DATA;
 			return FFOPUS_RHDRFIN;
 		}
-		o->vtag.data = (char*)pkt + 8,  o->vtag.datalen = len - 8;
+		o->vtag.data = (char*)input->ptr + 8,  o->vtag.datalen = input->len - 8;
+		input->len = 0;
 		o->state = R_TAG;
 		// break
 
@@ -119,31 +123,32 @@ int ffopus_decode(ffopus *o, const void *pkt, size_t len)
 	}
 
 	float *pcm = (void*)o->pcmbuf.ptr;
-	r = opus_decode_f(o->dec, pkt, len, pcm);
+	r = opus_decode_f(o->dec, input->ptr, input->len, pcm);
 	if (r < 0)
 		return ERR(o, r);
+	input->len = 0;
 
 	if (o->seek_sample != (uint64)-1) {
-		if (o->seek_sample < o->pos) {
-			//couldn't find the target packet within the OGG page
-			o->seek_sample = o->pos;
+		if (o->seek_sample > o->pos) {
+			uint skip = ffmin(o->seek_sample - o->pos, r);
+			o->pos += skip;
+			if (o->pos != o->seek_sample || (uint)r == skip)
+				return FFOPUS_RMORE; //not yet reached the target packet
+
+			pcm += skip * o->info.channels;
+			r -= skip;
 		}
-
-		uint skip = ffmin(o->seek_sample - o->pos, r);
-		o->pos += skip;
-		if (o->pos != o->seek_sample || (uint)r == skip)
-			return FFOPUS_RMORE; //not yet reached the target packet
-
 		o->seek_sample = (uint64)-1;
-		pcm += r;
-		r -= skip;
 	}
 
-	if (o->pos + r >= o->total_samples)
+	if (o->pos < o->total_samples && o->pos + r >= o->total_samples) {
 		r = o->total_samples - o->pos;
+	}
 
-	ffstr_set(&o->pcm, pcm, r * o->info.channels * sizeof(float));
-	o->pos += r;
+	o->dec_pos += r;
+	o->last_decoded = r;
+
+	ffstr_set(output, pcm, r * o->info.channels * sizeof(float));
 	return FFOPUS_RDATA;
 }
 
