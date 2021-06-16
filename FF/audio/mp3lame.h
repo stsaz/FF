@@ -25,8 +25,6 @@ typedef struct ffmpg_enc {
 	size_t pcmoff;
 	uint samp_size;
 
-	struct ffmpg_info xing;
-
 	ffarr buf;
 	size_t datalen;
 	const void *data;

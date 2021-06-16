@@ -5,8 +5,8 @@ Copyright (c) 2013 Simon Zolin
 #pragma once
 
 #include <FF/string.h>
-#include <FF/aformat/mpeg-fmt.h>
 #include <FF/audio/pcm.h>
+#include <avpack/mpeg1-fmt.h>
 
 #include <mpg123/mpg123-ff.h>
 
