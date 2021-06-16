@@ -362,8 +362,6 @@ FF_EXTN void* ffmemcpy(void *dst, const void *src, size_t len);
 #endif
 
 #define ffmem_copyT(dst, src, T)  ffmemcpy(dst, src, sizeof(T))
-#define ffmem_ncopy(dst, src, n, elsz)  ffmemcpy(dst, src, (n) * (elsz))
-#define ffmem_ncopyT(dst, src, n, T)  ffmemcpy(dst, src, (n) * sizeof(T))
 
 #define ffmem_copycz(dst, s)  ((char*)ffmemcpy(dst, s, FFSLEN(s)) + FFSLEN(s))
 

@@ -2,6 +2,8 @@
 Copyright 2019 Simon Zolin
 */
 
+#pragma once
+
 #include <FF/array.h>
 #include <FF/rbtree.h>
 #include <FF/list.h>

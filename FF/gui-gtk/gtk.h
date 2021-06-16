@@ -398,6 +398,8 @@ FF_EXTN ffarr4* ffui_view_getsel(ffui_view *v);
 
 static inline void ffui_view_sel_free(ffarr4 *sel)
 {
+	if (sel == NULL)
+		return;
 	ffarr_free(sel);
 	ffmem_free(sel);
 }
@@ -650,6 +652,11 @@ static inline void ffui_send_view_setdata(ffui_view *v, uint first, int delta)
 {
 	size_t p = ((first & 0xffff) << 16) | (delta & 0xffff);
 	ffui_send(v, FFUI_VIEW_SETDATA, (void*)p);
+}
+static inline void ffui_post_view_setdata(ffui_view *v, uint first, int delta)
+{
+	size_t p = ((first & 0xffff) << 16) | (delta & 0xffff);
+	ffui_post(v, FFUI_VIEW_SETDATA, (void*)p);
 }
 #define ffui_post_trk_setrange(ctl, range)  ffui_post(ctl, FFUI_TRK_SETRANGE, (void*)(size_t)range)
 #define ffui_post_trk_set(ctl, val)  ffui_post(ctl, FFUI_TRK_SET, (void*)(size_t)val)
