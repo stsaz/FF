@@ -120,6 +120,7 @@ static void* ldr_getctl(ffui_loader *g, const ffstr *name)
 // MENU
 // LABEL
 // BUTTON
+// CHECKBOX
 // EDITBOX
 // TEXT
 // TRACKBAR
@@ -383,6 +384,46 @@ static int btn_new(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
 		return FFPARS_ESYS;
 
 	ffpars_setargs(ctx, g, btn_args, FFCNT(btn_args));
+	g->flags = 0;
+	return 0;
+}
+
+// CHECKBOX
+static int chbox_text(ffparser_schem *ps, void *obj, const ffstr *val)
+{
+	ffui_loader *g = obj;
+	ffui_checkbox_settextstr(g->cb, val);
+	return 0;
+}
+static int chbox_action(ffparser_schem *ps, void *obj, const ffstr *val)
+{
+	ffui_loader *g = obj;
+	int id = g->getcmd(g->udata, val);
+	if (id == 0)
+		return FFPARS_EBADVAL;
+
+	g->cb->action_id = id;
+	return 0;
+}
+static const ffpars_arg chbox_args[] = {
+	{ "style",	FFPARS_TSTR | FFPARS_FLIST, FFPARS_DST(btn_style) },
+	{ "action",	FFPARS_TSTR, FFPARS_DST(chbox_action) },
+	{ "text",	FFPARS_TSTR, FFPARS_DST(chbox_text) },
+	{ NULL,	FFPARS_TCLOSE, FFPARS_DST(btn_done) },
+};
+
+static int chbox_new(ffparser_schem *ps, void *obj, ffpars_ctx *ctx)
+{
+	ffui_loader *g = obj;
+
+	g->ctl = ldr_getctl(g, &ps->vals[0]);
+	if (g->ctl == NULL)
+		return FFPARS_EBADVAL;
+
+	if (0 != ffui_checkbox_create(g->cb, g->wnd))
+		return FFPARS_ESYS;
+
+	ffpars_setargs(ctx, g, chbox_args, FF_COUNT(chbox_args));
 	g->flags = 0;
 	return 0;
 }
@@ -802,6 +843,7 @@ static const ffpars_arg wnd_args[] = {
 
 	{ "mainmenu",	FFPARS_TOBJ | FFPARS_FOBJ1, FFPARS_DST(&mmenu_new) },
 	{ "button",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&btn_new) },
+	{ "checkbox",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(chbox_new) },
 	{ "label",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&lbl_new) },
 	{ "editbox",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&edit_new) },
 	{ "text",	FFPARS_TOBJ | FFPARS_FOBJ1 | FFPARS_FMULTI, FFPARS_DST(&text_new) },

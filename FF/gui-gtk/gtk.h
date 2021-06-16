@@ -23,6 +23,7 @@ static inline void ffui_init()
 // CONTROL
 // MENU
 // BUTTON
+// CHECKBOX
 // LABEL
 // EDITBOX
 // TEXT
@@ -148,6 +149,32 @@ static inline void ffui_btn_seticon(ffui_btn *b, ffui_icon *ico)
 	GtkWidget *img = gtk_image_new();
 	gtk_image_set_from_pixbuf(GTK_IMAGE(img), ico->ico);
 	gtk_button_set_image(GTK_BUTTON(b->h), img);
+}
+
+
+// CHECKBOX
+typedef struct ffui_checkbox {
+	_FFUI_CTL_MEMBERS
+	uint action_id;
+} ffui_checkbox;
+
+static void _ffui_checkbox_clicked(GtkWidget *widget, gpointer udata);
+static inline int ffui_checkbox_create(ffui_checkbox *cb, ffui_wnd *parent)
+{
+	cb->h = gtk_check_button_new();
+	cb->wnd = parent;
+	g_signal_connect(cb->h, "clicked", G_CALLBACK(_ffui_checkbox_clicked), cb);
+	return 0;
+}
+static inline void ffui_checkbox_settextz(ffui_checkbox *cb, const char *textz)
+{
+	gtk_button_set_label(GTK_BUTTON(cb->h), textz);
+}
+static inline void ffui_checkbox_settextstr(ffui_checkbox *cb, const ffstr *text)
+{
+	char *sz = ffsz_alcopystr(text);
+	gtk_button_set_label(GTK_BUTTON(cb->h), sz);
+	ffmem_free(sz);
 }
 
 
@@ -591,6 +618,12 @@ static inline void ffui_wnd_setplacement(ffui_wnd *w, uint showcmd, const ffui_p
 	gtk_window_set_default_size(w->h, pos->cx, pos->cy);
 }
 
+static void _ffui_checkbox_clicked(GtkWidget *widget, gpointer udata)
+{
+	ffui_checkbox *cb = udata;
+	cb->wnd->on_action(cb->wnd, cb->action_id);
+}
+
 
 // MESSAGE LOOP
 #define ffui_run()  gtk_main()
@@ -709,6 +742,7 @@ typedef struct ffui_loader {
 		ffui_ctl *ctl;
 		ffui_label *lbl;
 		ffui_btn *btn;
+		ffui_checkbox *cb;
 		ffui_edit *edit;
 		ffui_text *text;
 		ffui_trkbar *trkbar;
