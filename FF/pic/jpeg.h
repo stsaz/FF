@@ -13,7 +13,7 @@ SOI SOFn SOS EOI
 #include <FF/number.h>
 #include <FFOS/error.h>
 
-#include <jpeg/jpeg-ff.h>
+#include <jpeg-turbo/jpeg-ff.h>
 
 #define FFJPEG_MIME "image/jpeg"
 
